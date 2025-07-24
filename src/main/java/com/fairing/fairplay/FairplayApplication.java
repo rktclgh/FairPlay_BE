@@ -10,7 +10,7 @@ public class FairplayApplication {
 	public static void main(String[] args) {
 		EnvLoader.loadEnv();
 		SpringApplication.run(FairplayApplication.class, args);
-		System.out.println("test");
+		System.out.println("test1");
 	}
 
 }
