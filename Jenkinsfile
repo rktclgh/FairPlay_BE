@@ -9,7 +9,10 @@ pipeline {
         }
         stage('Build') {
             steps {
-                sh './gradlew clean build'
+                sh '''
+                                   export $(cat .env | xargs)
+                                   ./gradlew clean build
+                               '''
             }
         }
     }
