@@ -1,13 +1,12 @@
-# 1. Java 21 기반 경량 이미지를 사용
-FROM openjdk:21-jdk-slim
+# Java 21 경량 런타임 이미지 사용 (성능+보안 최적)
+FROM eclipse-temurin:21-jre
 
-# 2. 빌드 결과 JAR 파일을 복사
-# (빌드 시 build/libs/ 폴더에 jar가 생성됨. 이름이 바뀌어도 *로 복사)
-ARG JAR_FILE=build/libs/*.jar
-COPY ${JAR_FILE} app.jar
+# 빌드된 JAR 복사 (build/libs/*.jar → app.jar)
+COPY build/libs/*.jar app.jar
 
-# 3. 환경변수/프로파일 추가 (필요 시)
+# (필요시) 환경변수 기본값 설정 예시 (주석 해제해서 사용)
 # ENV SPRING_PROFILES_ACTIVE=prod
 
-# 4. JAR 파일 실행 (컨테이너 스타트 시)
+EXPOSE 8080
+
 ENTRYPOINT ["java", "-jar", "app.jar"]
