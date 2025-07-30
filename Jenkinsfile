@@ -11,14 +11,15 @@ pipeline {
             }
         }
         stage('Build & Dockerize') {
-          steps {
-            sh '''
-              ./gradlew clean build -x test
-              echo $DOCKERHUB_PASS | docker login -u $DOCKERHUB_USER --password-stdin
-              docker buildx create --use
-              docker buildx build --platform linux/amd64,linux/arm64 -t $DOCKERHUB_USER/fairplay-backend:latest --push .
-            '''
-          }
+            steps {
+                sh '''
+                  ./gradlew clean build -x test
+                  echo $DOCKERHUB_PASS | docker login -u $DOCKERHUB_USER --password-stdin
+                  docker buildx create --use || true
+                  docker buildx inspect --bootstrap
+                  docker buildx build --platform linux/amd64,linux/arm64 -t $DOCKERHUB_USER/fairplay-backend:latest --push .
+                '''
+            }
         }
     }
 }
