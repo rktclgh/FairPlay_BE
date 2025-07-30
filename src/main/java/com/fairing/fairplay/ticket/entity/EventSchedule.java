@@ -6,9 +6,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import com.fairing.fairplay.event.entity.Event;
+import com.querydsl.core.annotations.QueryTransient;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -24,8 +29,8 @@ public class EventSchedule {
     private Long scheduleId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ticket_id", nullable = false)
-    private Ticket ticket;
+    @JoinColumn(name = "event_id", nullable = false)
+    private Event event;
 
     @Column(nullable = false)
     private LocalDate date;
@@ -38,18 +43,10 @@ public class EventSchedule {
 
     private Integer weekday;
 
-    @Column(name = "remaining_stock", nullable = false)
-    private int remainingStock;
-
-    @Column(name = "sales_start_at", nullable = false)
-    private LocalDateTime salesStartAt;
-
-    @Column(name = "sales_end_at", nullable = false)
-    private LocalDateTime salesEndAt;
-
-    @Column(nullable = false)
-    private boolean visible = false;
-
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
+
+    @QueryTransient
+    @OneToMany(mappedBy = "eventSchedule", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<ScheduleTicket> scheduleTickets = new HashSet<>();
 }
