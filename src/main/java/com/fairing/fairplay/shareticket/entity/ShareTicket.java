@@ -54,7 +54,7 @@ public class ShareTicket {
   @Column(name = "expired_at")
   private LocalDateTime expiredAt;
 
-  public boolean isFull(){
+  public boolean isFull() {
     return submittedCount >= totalAllowed;
   }
 
