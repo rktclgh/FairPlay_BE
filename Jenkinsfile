@@ -23,14 +23,5 @@ pipeline {
                 '''
             }
         }
-        stage('Deploy') {
-            steps {
-                sh '''
-                cd /home/ubuntu/fairplay-deploy
-                docker compose pull fairplay-backend
-                docker compose up -d fairplay-backend
-                '''
-            }
-        }
     }
 }
