@@ -1,14 +1,19 @@
 package com.fairing.fairplay.attendee.service;
 
+import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeSaveRequestDto;
+import com.fairing.fairplay.attendee.dto.AttendeeUpdateRequestDto;
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,25 +28,54 @@ public class AttendeeService {
 
   // 대표자 정보 저장
   @Transactional
-  public void savePrimary(AttendeeSaveRequestDto dto) {
-    saveAttendee("PRIMARY", dto);
+  public AttendeeInfoResponseDto savePrimary(AttendeeSaveRequestDto dto) {
+    return saveAttendee("PRIMARY", dto, dto.getReservationId());
   }
 
   // 동반자 정보 저장
   @Transactional
-  public void saveGuest(String token, AttendeeSaveRequestDto dto) {
+  public AttendeeInfoResponseDto saveGuest(String token, AttendeeSaveRequestDto dto) {
     ShareTicket shareTicket = shareTicketService.validateAndUseToken(token);
-
-    saveAttendee("GUEST", dto);
+    return saveAttendee("GUEST", dto, shareTicket.getReservationId());
   }
 
   // 참석자 전체 조회
-  public List<Attendee> findAll() {
-    return attendeeRepository.findAll();
+  public List<AttendeeInfoResponseDto> findAll(Long reservationId) {
+    List<Attendee> attendees = attendeeRepository.findAllByReservationId(reservationId)
+        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
+
+    return attendees.stream().map(attendee -> AttendeeInfoResponseDto.builder()
+            .attendeeId(attendee.getId())
+            .reservationId(attendee.getReservationId())
+            .name(attendee.getName())
+            .email(attendee.getEmail())
+            .phone(attendee.getPhone())
+            .build())
+        .collect(Collectors.toList());
+  }
+
+  // 동반자 정보 수정
+  @Transactional
+  public AttendeeInfoResponseDto updateAttendee(Long attendeeId, AttendeeUpdateRequestDto dto) {
+    Attendee attendee = attendeeRepository.findById(attendeeId)
+        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
+
+    attendee.setEmail(dto.getEmail());
+    attendee.setPhone(dto.getPhone());
+    attendee.setName(dto.getName());
+
+    return AttendeeInfoResponseDto.builder()
+        .attendeeId(attendee.getId())
+        .reservationId(attendee.getReservationId())
+        .name(attendee.getName())
+        .email(attendee.getEmail())
+        .phone(attendee.getPhone())
+        .build();
   }
 
   // DB save 로직 분리
-  private void saveAttendee(String attendeeType, AttendeeSaveRequestDto dto) {
+  private AttendeeInfoResponseDto saveAttendee(String attendeeType, AttendeeSaveRequestDto dto,
+      Long reservationId) {
     AttendeeTypeCode attendeeTypeCode = attendeeTypeCodeRepository.findByCode(attendeeType)
         .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 타입입니다."));
 
@@ -50,9 +84,15 @@ public class AttendeeService {
         .attendeeTypeCode(attendeeTypeCode)
         .phone(dto.getPhone())
         .email(dto.getEmail())
-        .reservationId(dto.getReservationId())
+        .reservationId(reservationId)
         .build();
-    attendeeRepository.save(attendee);
+    Attendee savedAttendee = attendeeRepository.save(attendee);
+    return AttendeeInfoResponseDto.builder()
+        .attendeeId(savedAttendee.getId())
+        .reservationId(savedAttendee.getReservationId())
+        .name(savedAttendee.getName())
+        .email(savedAttendee.getEmail())
+        .phone(savedAttendee.getPhone())
+        .build();
   }
-
 }

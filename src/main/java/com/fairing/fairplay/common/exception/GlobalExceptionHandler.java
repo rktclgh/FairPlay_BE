@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -110,6 +111,19 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ErrorResponse> handleHttpServerError(HttpServerErrorException ex) {
     return buildErrorResponse(HttpStatus.valueOf(ex.getStatusCode().value()),
         "외부 결제 시스템 오류: " + extractPortOneErrorMessage(ex.getResponseBodyAsString()));
+  }
+
+  // 13. LinkExpiredException - 링크 만료 커스텀 예외
+  @ExceptionHandler(LinkExpiredException.class)
+  public ResponseEntity<?> handleLinkExpiredException(LinkExpiredException ex) {
+    Map<String, Object> body = Map.of(
+        "code", 410,
+        "error", "Gone",
+        "message", ex.getMessage(),
+        "timestamp", LocalDateTime.now(),
+        "redirectUrl", ex.getRedirectUrl()
+    );
+    return ResponseEntity.status(410).body(body);
   }
 
   // 그 외 모든 예외 처리
