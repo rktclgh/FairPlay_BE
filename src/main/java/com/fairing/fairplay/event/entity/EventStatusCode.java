@@ -13,6 +13,7 @@ import lombok.Setter;
 @Entity
 @Table(name = "event_status_code")
 public class EventStatusCode {
+    // UPCOMING / ONGOING / ENDED
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
