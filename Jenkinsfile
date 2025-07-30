@@ -4,9 +4,6 @@ pipeline {
         DOCKERHUB_USER = 'songchih'
         DOCKERHUB_PASS = credentials('dockerhub-pass')
     }
-    triggers {
-        githubPush()
-    }
     stages {
         stage('Checkout') {
             steps {
@@ -17,7 +14,7 @@ pipeline {
             steps {
                 sh '''
                 ./gradlew clean build -x test
-                echo $DOCKERHUB_PASS | docker login -u $DOCKERHUB_USER --password-stdin
+                echo -n $DOCKERHUB_PASS | docker login -u $DOCKERHUB_USER --password-stdin
                 docker build -t $DOCKERHUB_USER/fairplay-backend:latest .
                 docker push $DOCKERHUB_USER/fairplay-backend:latest
                 '''
