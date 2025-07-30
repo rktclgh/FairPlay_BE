@@ -84,7 +84,9 @@ public class AttendeeService {
         .attendeeTypeCode(attendeeTypeCode)
         .phone(dto.getPhone())
         .email(dto.getEmail())
+        .birth(dto.getBirth())
         .reservationId(reservationId)
+        .checkedIn(false)
         .build();
     Attendee savedAttendee = attendeeRepository.save(attendee);
     return AttendeeInfoResponseDto.builder()

@@ -17,6 +17,6 @@ public class AttendeeSaveRequestDto {
   private String email;
   private String phone;
   private LocalDate birth;
-  private AttendeeTypeCode attendeeTypeCode;
+  private Integer attendeeTypeCodeId;
   private Long reservationId;
 }
