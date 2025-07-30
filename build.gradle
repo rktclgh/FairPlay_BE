@@ -71,6 +71,18 @@ tasks.withType(JavaCompile).configureEach {
 	options.annotationProcessorGeneratedSourcesDirectory = file(generated)
 }
 
+sourceSets {
+	main {
+		java {
+			srcDirs += generated
+		}
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.annotationProcessorGeneratedSourcesDirectory = file(generated)
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }
