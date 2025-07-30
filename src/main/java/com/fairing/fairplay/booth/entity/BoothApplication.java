@@ -21,8 +21,8 @@ public class BoothApplication {
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
-    @Column(name = "booth_title", nullable = false, length = 100)
-    private String boothTitle;
+    @Column(name = "booth_email", nullable = false, length = 100)
+    private String boothEmail;
 
     @Column(name = "booth_description", columnDefinition = "TEXT")
     private String boothDescription;
