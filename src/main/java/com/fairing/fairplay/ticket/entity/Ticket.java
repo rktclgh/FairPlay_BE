@@ -23,8 +23,11 @@ public class Ticket {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ticket_id")
     private Long ticketId;
-
-    
+    //임시 수정!
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", nullable = false) // 또는 nullable = true
+    private Event event;
+    //
 
     @Column(length = 100, nullable = false)
     private String name;
