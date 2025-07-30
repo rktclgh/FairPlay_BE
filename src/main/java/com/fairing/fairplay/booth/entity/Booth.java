@@ -2,6 +2,7 @@ package com.fairing.fairplay.booth.entity;
 
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.user.entity.BoothAdmin;
+import com.fairing.fairplay.ticket.entity.BoothTicket;
 
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -9,6 +10,8 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Getter
@@ -47,7 +50,10 @@ public class Booth {
     @Column(length = 100)
     private String location;
 
-    @Column(name = "created_at", columnDefinition = "DATETIME DEFAULT CURRENT_TIMESTAMP")
+    @Column(name = "created_at", updatable = false, columnDefinition = "DATETIME DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
+
+    @OneToMany(mappedBy = "booth", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<BoothTicket> boothTickets = new HashSet<>();
 
 }

@@ -1,11 +1,17 @@
 package com.fairing.fairplay.event.entity;
 
+import com.fairing.fairplay.booth.entity.Booth;
+import com.fairing.fairplay.ticket.entity.EventTicket;
+import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.user.entity.EventAdmin;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -37,6 +43,24 @@ public class Event {
     @Column(name = "title_eng", nullable = false, length = 200)
     private String titleEng;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT TRUE")
     private Boolean hidden = true;
+
+    @OneToOne(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private EventDetail eventDetail;
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<ExternalLink> externalLinks = new HashSet<>();
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<EventVersion> eventVersions = new HashSet<>();
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Ticket> tickets = new HashSet<>();
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<EventTicket> eventTickets = new HashSet<>();
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Booth> booths = new HashSet<>();
 }
