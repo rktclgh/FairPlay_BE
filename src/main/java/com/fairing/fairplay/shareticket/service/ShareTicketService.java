@@ -1,5 +1,6 @@
 package com.fairing.fairplay.shareticket.service;
 
+import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.shareticket.dto.ShareTicketSaveRequestDto;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.repository.ShareTicketRepository;
@@ -7,11 +8,13 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ShareTicketService {
 
   private final ShareTicketRepository shareTicketRepository;
@@ -22,12 +25,14 @@ public class ShareTicketService {
     ShareTicket shareTicket = shareTicketRepository.findByLinkToken(token)
         .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 링크입니다."));
 
+    // 만료된 링크 (행사시작 1일전)
     if (shareTicket.getExpired()) {
-      throw new IllegalStateException("링크가 만료되었습니다.");
+      throw new LinkExpiredException("링크가 만료되었습니다.", "/link-expired");
     }
 
+    // 티켓 구매 수 == 폼 제출 횟수
     if (shareTicket.isFull()) {
-      throw new IllegalStateException("입력 가능한 인원을 초과했습니다.");
+      throw new LinkExpiredException("참가자 인원이 모두 등록되었습니다.", "/link-closed");
     }
 
     shareTicket.increaseSubmittedCount();
@@ -40,7 +45,7 @@ public class ShareTicketService {
     return shareTicket;
   }
 
-  // 공유 폼 링크 생성
+  // 공유 폼 링크 생성 -> 예약 성공 시 예약 서비스 단계에서 사용
   @Transactional
   public String generateToken(ShareTicketSaveRequestDto dto) {
 

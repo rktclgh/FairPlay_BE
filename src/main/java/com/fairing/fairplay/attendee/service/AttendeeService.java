@@ -24,15 +24,14 @@ public class AttendeeService {
   // 대표자 정보 저장
   @Transactional
   public void savePrimary(AttendeeSaveRequestDto dto) {
-    saveAttendee("PRIMARY", dto);
+    saveAttendee("PRIMARY", dto, dto.getReservationId());
   }
 
   // 동반자 정보 저장
   @Transactional
   public void saveGuest(String token, AttendeeSaveRequestDto dto) {
     ShareTicket shareTicket = shareTicketService.validateAndUseToken(token);
-
-    saveAttendee("GUEST", dto);
+    saveAttendee("GUEST", dto, shareTicket.getReservationId());
   }
 
   // 참석자 전체 조회
@@ -41,7 +40,7 @@ public class AttendeeService {
   }
 
   // DB save 로직 분리
-  private void saveAttendee(String attendeeType, AttendeeSaveRequestDto dto) {
+  private void saveAttendee(String attendeeType, AttendeeSaveRequestDto dto, Long reservationId) {
     AttendeeTypeCode attendeeTypeCode = attendeeTypeCodeRepository.findByCode(attendeeType)
         .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 타입입니다."));
 
@@ -50,7 +49,7 @@ public class AttendeeService {
         .attendeeTypeCode(attendeeTypeCode)
         .phone(dto.getPhone())
         .email(dto.getEmail())
-        .reservationId(dto.getReservationId())
+        .reservationId(reservationId)
         .build();
     attendeeRepository.save(attendee);
   }
