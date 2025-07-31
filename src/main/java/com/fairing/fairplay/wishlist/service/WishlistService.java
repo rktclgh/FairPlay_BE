@@ -4,6 +4,8 @@ import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
+import com.fairing.fairplay.ticket.entity.EventTicket;
+
 import com.fairing.fairplay.wishlist.dto.WishlistResponseDto;
 import com.fairing.fairplay.wishlist.entity.Wishlist;
 import com.fairing.fairplay.wishlist.repository.WishlistRepository;
@@ -74,7 +76,8 @@ public class WishlistService {
                             .location(event.getEventDetail().getLocation().getAddress())
                             .startDate(event.getEventDetail().getStartDate())
                             .endDate(event.getEventDetail().getEndDate())
-                            .price(event.getTickets().stream()
+                            .price(event.getEventTickets().stream()
+                                    .map(EventTicket::getTicket)
                                     .filter(t -> !t.getDeleted())
                                     .mapToInt(t -> t.getPrice())
                                     .min()
