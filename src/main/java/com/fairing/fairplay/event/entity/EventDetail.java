@@ -78,4 +78,10 @@ public class EventDetail {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "reentry_allowed", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT TRUE")
+    private Boolean reentryAllowed = true;
+
+    @Column(name = "check_out_allowed", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    private Boolean checkOutAllowed = false;
 }

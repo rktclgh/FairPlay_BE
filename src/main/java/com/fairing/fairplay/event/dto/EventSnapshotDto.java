@@ -1,11 +1,13 @@
 package com.fairing.fairplay.event.dto;
 
+import com.fairing.fairplay.ticket.dto.TicketSnapshotDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @Builder
@@ -13,15 +15,16 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class EventSnapshotDto {
 
-    // Fields from Event
+    // from Event
     private String eventCode;
     private String titleKr;
     private String titleEng;
     private boolean hidden;
     private Long managerId;
     private Integer eventStatusCodeId;
+    private List<TicketSnapshotDto> tickets; 
 
-    // Fields from EventDetail
+    // from EventDetail
     private Long locationId;
     private String locationDetail;
     private String hostName;
@@ -37,5 +40,15 @@ public class EventSnapshotDto {
     private Integer mainCategoryId;
     private Integer subCategoryId;
     private Integer regionCodeId;
+    private List<EventSnapshotDto.ExternalLinkSnapshot> externalLinks;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ExternalLinkSnapshot {
+        private String url;
+        private String displayText;
+    }
 
 }
