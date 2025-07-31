@@ -54,9 +54,11 @@ public class QrTicket {
   private LocalDateTime issuedAt;
 
   @Column(nullable = false)
+  @Builder.Default
   private Boolean active = true;
 
   @Column(name = "reentry_allowed", nullable = false)
+  @Builder.Default
   private Boolean reentryAllowed = false;
 
   @Column(name = "qr_code", nullable = true, unique = true, length = 255)
