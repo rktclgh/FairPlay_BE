@@ -1,8 +1,6 @@
-# src/main/resources/application.yml
-
 spring:
   config:
-    import: optional:file:.env # .env를 자동으로 환경변수로 읽음
+    import: optional:file:.env
   application:
     name: fairplay
 
@@ -14,6 +12,13 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+    hikari:
+      maximum-pool-size: 4     # 풀의 최대 커넥션 수
+      minimum-idle: 2            # 최소 유휴 커넥션 수
+      idle-timeout: 600000       # idle 상태 유지 시간(ms)
+      max-lifetime: 1800000      # 커넥션 최대 수명(ms)
+      connection-timeout: 30000  # 커넥션 얻기까지 최대 대기 시간(ms)
 
   jpa:
     hibernate:
