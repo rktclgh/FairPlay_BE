@@ -46,6 +46,10 @@ public class EventSchedule {
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "ENUM('EVENT', 'BOOTH')")
+    private TypesEnum types;
+
     @QueryTransient
     @OneToMany(mappedBy = "eventSchedule", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<ScheduleTicket> scheduleTickets = new HashSet<>();
