@@ -1,5 +1,9 @@
 package com.fairing.fairplay.event.dto;
 
+import java.util.List;
+
+import org.springframework.data.domain.Pageable;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -11,13 +15,12 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class EventResponseDto { // 행사 등록 후 응답
+public class EventSummaryResponseDto {
 
     private String message;
-    private Long eventId;
-    private Long managerId;
-    private String eventCode;   // 슬러그 + Hashid -> e.g. EVT-BzD4X7e9
-    private Boolean hidden;
-    private Integer version;
+    private List<EventSummaryDto> events;
+    private Pageable pageable;
+    private Integer totalElements;
+    private Integer totalPages;
     
 }

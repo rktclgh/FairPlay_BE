@@ -554,8 +554,8 @@ CREATE TABLE qr_ticket (
                            issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                            active BOOLEAN NOT NULL DEFAULT TRUE,
                            reentry_allowed BOOLEAN NOT NULL DEFAULT FALSE,
-                           qr_code VARCHAR(255) NOT NULL UNIQUE,
-                           manual_code VARCHAR(15) NOT NULL UNIQUE,
+                           qr_code VARCHAR(255) UNIQUE,
+                           manual_code VARCHAR(15) UNIQUE,
                            FOREIGN KEY (attendee_id) REFERENCES attendee(attendee_id),
                            FOREIGN KEY (ticket_id,event_id) REFERENCES event_ticket(ticket_id,event_id)
 );

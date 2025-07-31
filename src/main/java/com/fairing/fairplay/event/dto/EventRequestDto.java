@@ -20,4 +20,6 @@ public class EventRequestDto {  // 행사 기본 등록 요청
     private String titleKr;     // 국문 행사명
     private String titleEng;    // 영문 행사명
     
+    private Boolean hidden;     // 행사 숨김 여부
+    
 }

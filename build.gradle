@@ -59,6 +59,10 @@ dependencies {
 
 
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+
+	// --- Hashids ---
+	implementation 'org.hashids:hashids:1.0.3'
+
 }
 
 sourceSets {

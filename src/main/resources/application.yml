@@ -25,7 +25,10 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        format_sql: false
+        format_sql: true
+
+  hashids:
+    salt: ${HASHIDS_SALT}
 
   mail:
     host: ${MAIL_HOST}
