@@ -1,3 +1,4 @@
+language: ko
 reviews:
   enabled: true
   branches:
