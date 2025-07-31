@@ -22,3 +22,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+  hashids:
+    salt: ${HASHIDS_SALT}
