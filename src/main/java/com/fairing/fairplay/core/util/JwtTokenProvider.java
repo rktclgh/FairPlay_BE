@@ -1,17 +1,14 @@
 package com.fairing.fairplay.core.util;
 
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-
-import java.security.Key;
 import java.util.Date;
 
 @Component
 public class JwtTokenProvider {
 
-    private final Key secretKey;
+    private final String secretKey;
     private final long accessTokenValidityInMillis;
     private final long refreshTokenValidityInMillis;
 
@@ -20,51 +17,69 @@ public class JwtTokenProvider {
             @Value("${jwt.access-token-validity-ms}") long accessTokenValidityInMillis,
             @Value("${jwt.refresh-token-validity-ms}") long refreshTokenValidityInMillis
     ) {
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
+        this.secretKey = secret;
         this.accessTokenValidityInMillis = accessTokenValidityInMillis;
         this.refreshTokenValidityInMillis = refreshTokenValidityInMillis;
     }
 
-    // 액세스 토큰 발급
-    public String generateAccessToken(Long userId, String role) {
+    // 액세스 토큰 발급 (userId, email, 권한명)
+    public String generateAccessToken(Long userId, String email, String roleName) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + accessTokenValidityInMillis);
 
         return Jwts.builder()
                 .setSubject(userId.toString())
-                .claim("role", role)
+                .claim("email", email)
+                .claim("role", roleName)
                 .setIssuedAt(now)
                 .setExpiration(expiry)
-                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .signWith(SignatureAlgorithm.HS256, secretKey.getBytes())
                 .compact();
     }
 
-    // 리프레시 토큰 발급
-    public String generateRefreshToken(Long userId) {
+    // 리프레시 토큰 발급 (userId, email)
+    public String generateRefreshToken(Long userId, String email) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + refreshTokenValidityInMillis);
 
         return Jwts.builder()
                 .setSubject(userId.toString())
+                .claim("email", email)
                 .setIssuedAt(now)
                 .setExpiration(expiry)
-                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .signWith(SignatureAlgorithm.HS256, secretKey.getBytes())
                 .compact();
     }
 
-    // 토큰에서 유저ID 추출
+    // 액세스 토큰 만료시간(ms)
+    public long getAccessTokenExpiry() {
+        return accessTokenValidityInMillis;
+    }
+
+    // 리프레시 토큰 만료시간(ms)
+    public long getRefreshTokenExpiry() {
+        return refreshTokenValidityInMillis;
+    }
+
+    // 유저ID 추출
     public Long getUserId(String token) {
         Claims claims = getClaims(token);
         return Long.parseLong(claims.getSubject());
     }
 
-    // 토큰에서 권한 추출
-    public String getRole(String token) {
+    // 이메일 추출
+    public String getEmail(String token) {
         Claims claims = getClaims(token);
-        return claims.get("role", String.class);
+        return (String) claims.get("email");
     }
 
-    // 토큰 만료 체크
+    // 권한명 추출
+    public String getRole(String token) {
+        Claims claims = getClaims(token);
+        return (String) claims.get("role");
+    }
+
+    // 만료여부
     public boolean isExpired(String token) {
         try {
             Date exp = getClaims(token).getExpiration();
@@ -74,7 +89,7 @@ public class JwtTokenProvider {
         }
     }
 
-    // 토큰 유효성 검증
+    // 유효성 검사
     public boolean validateToken(String token) {
         try {
             getClaims(token);
@@ -84,22 +99,11 @@ public class JwtTokenProvider {
         }
     }
 
-    // Claims 추출 (파싱)
+    // Claims 추출
     private Claims getClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(secretKey)
-                .build()
+        return Jwts.parser()
+                .setSigningKey(secretKey.getBytes())
                 .parseClaimsJws(token)
                 .getBody();
     }
-
-
-//    // Claims 추출 (파싱)
-//    private Claims getClaims(String token) {
-//        // 여기만 바꿔주면 됨!
-//        JwtParser parser = Jwts.parser().setSigningKey(secretKey);
-//        // 아래처럼 .parseClaimsJws(token) 사용 (0.12.x에서는 parserBuilder 또는 parser 둘 다 됨)
-//        return parser.parseClaimsJws(token).getBody();
-//    }
-
 }

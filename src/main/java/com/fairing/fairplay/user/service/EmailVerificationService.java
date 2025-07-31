@@ -187,7 +187,7 @@ public class EmailVerificationService {
           <li>
             📞 문의:
             <a href="support@fairplay.com" class="contact-link"
-              >support@fairplay.com</a
+              >support@fair-play.ink</a
             >
           </li>
         </ul>
