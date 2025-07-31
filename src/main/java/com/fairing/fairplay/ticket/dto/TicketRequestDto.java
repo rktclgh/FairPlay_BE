@@ -2,25 +2,25 @@ package com.fairing.fairplay.ticket.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import com.fairing.fairplay.ticket.entity.TypesEnum;
 
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class TicketSnapshotDto {
+@Builder
+public class TicketRequestDto { // 티켓 정보 등록 요청
 
+    private Long eventId;
     private String name;
     private String description;
-    private Integer ticketStatusCodeId;
     private Integer stock;
     private Integer price;
     private Integer maxPurchase;
-    private boolean visible;
-    private boolean deleted;
-    private TypesEnum types;
+    private TypesEnum types;    // BOOTH, EVENT
 
 }
