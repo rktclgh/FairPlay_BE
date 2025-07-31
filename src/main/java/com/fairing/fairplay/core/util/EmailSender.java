@@ -19,7 +19,7 @@ public class EmailSender {
     @Value("${spring.mail.password}")
     private String password;
 
-    public void send(String to, String subject, String content) {
+    public void send(String to, String subject, String htmlContent) {
         Properties props = new Properties();
         props.put("mail.smtp.auth", true);
         props.put("mail.smtp.starttls.enable", true);
@@ -37,7 +37,8 @@ public class EmailSender {
             message.setFrom(new InternetAddress(username));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
             message.setSubject(subject);
-            message.setText(content);
+            // HTML 본문 적용
+            message.setContent(htmlContent, "text/html; charset=utf-8");
             Transport.send(message);
         } catch (MessagingException e) {
             throw new RuntimeException("메일 전송 실패", e);
