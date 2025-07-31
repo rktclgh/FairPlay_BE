@@ -49,7 +49,7 @@ public class QrTicket {
   @Column(name = "expired_at", nullable = false)
   private LocalDateTime expiredAt;
 
-  @Column(name = "issued_at", nullable = false, columnDefinition = "DATETIME DEFAULT CURRENT_TIMESTAMP")
+  @Column(name = "issued_at", nullable = false)
   @CreationTimestamp
   private LocalDateTime issuedAt;
 
@@ -59,9 +59,9 @@ public class QrTicket {
   @Column(name = "reentry_allowed", nullable = false)
   private Boolean reentryAllowed = false;
 
-  @Column(name = "qr_code", nullable = false, unique = true, length = 255)
+  @Column(name = "qr_code", nullable = true, unique = true, length = 255)
   private String qrCode;
 
-  @Column(name = "manual_code", nullable = false, unique = true, length = 15)
+  @Column(name = "manual_code", nullable = true, unique = true, length = 15)
   private String manualCode;
 }
