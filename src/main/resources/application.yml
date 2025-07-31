@@ -41,3 +41,18 @@ spring:
           auth: true
           starttls:
             enable: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-validity-ms: 600000      # 10분(600,000 ms)
+  refresh-token-validity-ms: 172800000  # 2일(172,800,000 ms)
+  refresh-token-prefix: "refresh_token:"
+
+  spring:
+    redis:
+      host: localhost
+      port: 6379
