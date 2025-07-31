@@ -1,0 +1,8 @@
+reviews:
+  enabled: true
+  branches:
+    include:
+      - main
+      - develop
+      - feature/*
+  review_status: true
