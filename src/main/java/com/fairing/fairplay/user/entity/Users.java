@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
+import com.fairing.fairplay.user.entity.UserRoleCode;
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -27,8 +29,9 @@ public class Users {
     @Column(name = "name", nullable = false, length = 50)
     private String name;
 
-    @Column(name = "role_code_id", nullable = false)
-    private Integer roleCodeId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "role_code_id")
+    private UserRoleCode roleCode;
 
     @Column(name = "created_at", nullable = false,
             columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
