@@ -25,7 +25,7 @@ public class EmailVerificationController {
     // 인증코드 검증
     @PostMapping("/verify-code")
     public ResponseEntity<Void> verifyCode(@RequestBody @Valid EmailCodeVerifyRequestDto dto) {
-        boolean verified = verificationService.verifyCode(dto);
-        return verified ? ResponseEntity.ok().build() : ResponseEntity.badRequest().build();
+        verificationService.verifyCode(dto);
+        return ResponseEntity.ok().build();
     }
 }
