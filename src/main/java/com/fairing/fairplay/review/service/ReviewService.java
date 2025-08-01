@@ -9,12 +9,14 @@ import com.fairing.fairplay.review.dto.ReviewDto;
 import com.fairing.fairplay.review.dto.ReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewSaveRequestDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateRequestDto;
+import com.fairing.fairplay.review.dto.ReviewUpdateResponseDto;
 import com.fairing.fairplay.review.entity.Review;
 import com.fairing.fairplay.review.repository.ReviewRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
@@ -103,6 +105,32 @@ public class ReviewService {
     });
   }
 
+  // 리뷰 수정 (리액션 제외)
+  @Transactional
+  public ReviewUpdateResponseDto updateReview(Long userId, Long reviewId,
+      ReviewUpdateRequestDto dto) {
+    // 1.  사용자 존재 여부 확인
+    Users user = userRepository.findById(userId)
+        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "사용자를 조회할 수 없습니다."));
+
+    // 2.  리뷰 조회
+    Review review = reviewRepository.findByIdAndUser(reviewId, user)
+        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "리뷰를 조회할 수 없습니다."));
+
+    // 3.  리뷰 수정 (createdAt, reaction 수정 불가)
+    review.setStar(dto.getStar());
+    review.setIsPublic(dto.getIsPublic());
+    review.setComment(dto.getComment());
+    review.setUpdatedAt(LocalDateTime.now());
+
+    return ReviewUpdateResponseDto.builder()
+        .reviewId(reviewId)
+        .comment(dto.getComment())
+        .isPublic(dto.getIsPublic())
+        .star(dto.getStar())
+        .build();
+  }
+
   // 리뷰 삭제
   @Transactional
   public ReviewDeleteResponseDto deleteReview(Long userId, Long reviewId) {
@@ -155,7 +183,6 @@ public class ReviewService {
         .comment(review.getComment())
         .isPublic(review.getIsPublic())
         .createdAt(review.getCreatedAt())
-        .isUpdated(review.getUpdatedAt() != null)
         .build();
 
     return new ReviewResponseDto(

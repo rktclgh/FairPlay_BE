@@ -19,5 +19,4 @@ public class ReviewDto {
   private String comment; // 리뷰 내용
   private Boolean isPublic; // 리뷰 공개 여부
   private LocalDateTime createdAt; // 리뷰 작성
-  private Boolean isUpdated; // 리뷰 수정 여부
 }
