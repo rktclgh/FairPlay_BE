@@ -4,6 +4,7 @@ import com.fairing.fairplay.wishlist.dto.WishlistResponseDto;
 import com.fairing.fairplay.wishlist.service.WishlistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,7 +19,7 @@ public class WishlistController {
     // 찜 등록
     @PostMapping
     public ResponseEntity<Void> addWishlist(
-            @RequestParam Long userId,
+            @AuthenticationPrincipal Long userId,
             @RequestParam Long eventId
     ) {
         wishlistService.addWishlist(userId, eventId);
@@ -28,7 +29,7 @@ public class WishlistController {
     // 찜 취소
     @DeleteMapping("/{eventId}")
     public ResponseEntity<Void> cancelWishlist(
-            @RequestParam Long userId,
+            @AuthenticationPrincipal Long userId,
             @PathVariable Long eventId
     ) {
         wishlistService.cancelWishlist(userId, eventId);
@@ -38,7 +39,7 @@ public class WishlistController {
     // 찜 목록 조회
     @GetMapping
     public ResponseEntity<List<WishlistResponseDto>> getWishlist(
-            @RequestParam Long userId
+            @AuthenticationPrincipal Long userId
     ) {
         List<WishlistResponseDto> wishlist = wishlistService.getMyWishlist(userId);
         return ResponseEntity.ok(wishlist);
