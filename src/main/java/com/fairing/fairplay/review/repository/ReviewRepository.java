@@ -1,6 +1,8 @@
 package com.fairing.fairplay.review.repository;
 
 import com.fairing.fairplay.review.entity.Review;
+import com.fairing.fairplay.user.entity.Users;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
@@ -16,4 +18,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 //          WHERE e.id = :eventId
 //      """)
 //  Page<Review> findByEventId(@Param("eventId") Long eventId, Pageable pageable);
+
+  Optional<Review> findByIdAndUser(Long reviewId, Users user);
 }

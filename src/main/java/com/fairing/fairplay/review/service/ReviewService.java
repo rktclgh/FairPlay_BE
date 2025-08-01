@@ -4,6 +4,8 @@ import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.review.dto.EventDto;
+import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
+import com.fairing.fairplay.review.dto.ReviewDto;
 import com.fairing.fairplay.review.dto.ReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewSaveRequestDto;
 import com.fairing.fairplay.review.entity.Review;
@@ -78,6 +80,26 @@ public class ReviewService {
 //
 //  }
 
+  // 리뷰 삭제
+  @Transactional
+  public ReviewDeleteResponseDto deleteReview(Long userId, Long reviewId) {
+    // 1.  사용자 존재 여부 확인
+    Users user = userRepository.findById(userId)
+        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "사용자를 조회할 수 없습니다."));
+
+    // 2. 리뷰 작성자와 요청 사용자 일치 여부 확인
+    Review review = reviewRepository.findByIdAndUser(reviewId, user)
+        .orElseThrow(() -> new IllegalArgumentException("리뷰를 작성한 사용자와 로그인한 사용자가 일치하지 않습니다."));
+
+    // 3. 리뷰 삭제
+    reviewRepository.delete(review);
+
+    return ReviewDeleteResponseDto.builder()
+        .reviewId(reviewId)
+        .message("리뷰가 정상적으로 삭제되었습니다.")
+        .build();
+  }
+
   private ReviewResponseDto toReviewResponseDto(Review review, Long reactionCount) {
     // Event event = review.getReservation(); // 엔티티 기준
     // event 조회
@@ -103,15 +125,19 @@ public class ReviewService {
             .build())
         .build();
 
+    ReviewDto reviewDto = ReviewDto.builder()
+        .reviewId(review.getId())
+        .star(review.getStar())
+        .reactions(reactionCount)
+        .comment(review.getComment())
+        .isPublic(review.getIsPublic())
+        .createdAt(review.getCreatedAt())
+        .isUpdated(review.getUpdatedAt() != null)
+        .build();
+
     return new ReviewResponseDto(
-        review.getId(),
         eventDto,
-        review.getStar(),
-        reactionCount,
-        review.getComment(),
-        review.getIsPublic(),
-        review.getCreatedAt(),
-        review.getUpdatedAt() != null // null이 아닌 경우 수정한 적 있음
+        reviewDto
     );
   }
 
