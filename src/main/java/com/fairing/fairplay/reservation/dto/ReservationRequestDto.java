@@ -17,9 +17,6 @@ public class ReservationRequestDto {
 
     private int quantity;
     private int price;
-    private LocalDateTime created_at;
-    private LocalDateTime updated_at;
     private boolean canceled;
-    private LocalDateTime canceled_at;
 
 }

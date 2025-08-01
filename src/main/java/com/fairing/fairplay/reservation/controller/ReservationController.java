@@ -30,6 +30,10 @@ public class ReservationController {
         requestDto.setEventId(eventId);
         Reservation reservation = reservationService.createReservation(requestDto, userId);
 
+        if (reservation == null) {
+            throw new IllegalStateException("예약 생성에 실패했습니다.");
+        }
+
         ReservationResponseDto response =  new ReservationResponseDto(
                 reservation.getEvent(),
                 reservation.getSchedule(),
@@ -45,13 +49,14 @@ public class ReservationController {
     // 박람회(행사) 예약 상세 조회
     @GetMapping("/{reservationId}")
     public ResponseEntity<ReservationResponseDto> getReservationById(@PathVariable Long eventId,
-                                                                    @RequestBody ReservationRequestDto requestDto,
                                                                      @PathVariable Long reservationId)
     {
-        requestDto.setEventId(eventId);
-        requestDto.setReservationId(reservationId);
 
-        Reservation reservation = reservationService.getReservationById(requestDto);
+        Reservation reservation = reservationService.getReservationById(reservationId);
+
+        if (reservation == null) {
+            throw new IllegalStateException("예약 조회에 실패했습니다.");
+        }
 
         ReservationResponseDto response =  new ReservationResponseDto(
                 reservation.getEvent(),
@@ -71,6 +76,10 @@ public class ReservationController {
                                                                         @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         List<Reservation> reservations = reservationService.getReservationsByEvent(eventId);
+
+        if (reservations == null) {
+            throw new IllegalStateException("예약 조회에 실패했습니다.");
+        }
 
         List<ReservationResponseDto> response = reservations.stream()
                 .map(r -> new ReservationResponseDto(

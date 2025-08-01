@@ -60,10 +60,10 @@ public class ReservationService {
     }
 
     // 예약 상세 조회
-    public Reservation getReservationById(ReservationRequestDto requestDto) {
+    public Reservation getReservationById(Long reservationId) {
 
-        return reservationRepository.findById(requestDto.getReservationId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약 ID: " + requestDto.getReservationId()));
+        return reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약 ID: " + reservationId));
     }
 
     // 특정 행사의 전체 예약 조회
