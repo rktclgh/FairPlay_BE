@@ -61,7 +61,7 @@ public class Review {
   @Builder.Default
   private Integer star = 0;
 
-  @Column(name = "public")
+  @Column(name = "is_public")
   @Builder.Default
   private Boolean isPublic = true;
 }
