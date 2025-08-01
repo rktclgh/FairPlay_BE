@@ -21,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +33,7 @@ public class ReviewService {
   private final ReviewReactionService reviewReactionService;
 
   // 본인이 예매한 행사에 대해서만 리뷰 작성 가능
+  @Transactional
   public void save(ReviewSaveRequestDto dto) {
     // user 임시 설정
     Users user = userRepository.getReferenceById(1L);
@@ -86,7 +88,7 @@ public class ReviewService {
     // 조회한 리뷰 관련 행사 정보
     EventDto eventDto = EventDto.builder()
         .title(event.getTitleKr())
-        .building_name(event.getEventDetail().getLocation().getBuildingName())
+        .buildingName(event.getEventDetail().getLocation().getBuildingName())
         .address(event.getEventDetail().getLocation().getAddress())
         //event_schedule 테이블 조회 예정
         .viewingScheduleInfo(EventDto.ViewingScheduleInfo.builder()
@@ -119,7 +121,7 @@ public class ReviewService {
 
   private String getDayOfWeek(int weekday) {
     int dayOfWeekValue = (weekday == 0) ? 7 : weekday; // 0(일)은 7로 매핑
-    return DayOfWeek.of(dayOfWeekValue).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+    return DayOfWeek.of(dayOfWeekValue).getDisplayName(TextStyle.FULL, Locale.KOREAN);
   }
 
   private String getTime(LocalTime time) {

@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class EventDto {
   private String title;
-  private String building_name;
+  private String buildingName;
   private String address;
   private ViewingScheduleInfo viewingScheduleInfo;
   private EventScheduleInfo eventScheduleInfo;
