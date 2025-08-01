@@ -1,6 +1,8 @@
 package com.fairing.fairplay.core.security;
 
 import com.fairing.fairplay.core.util.JwtTokenProvider;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,14 +15,13 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
 
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
-    // 요청마다 동작 (Bearer 토큰 추출→검증→SecurityContext 저장)
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -31,20 +32,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (token != null && jwtTokenProvider.validateToken(token)) {
             Long userId = jwtTokenProvider.getUserId(token);
-            String role = jwtTokenProvider.getRole(token);
 
-            // principal에는 userId, authorities에는 role 만약 확장하려면 CustomUserDetails 사용
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            userId,
-                            null,
-                            Collections.singleton(() -> role) // role만 넣음 (SimpleGrantedAuthority도 가능)
-                    );
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            // 🟢 DB에서 Users 조회
+            Users user = userRepository.findById(userId)
+                    .orElse(null); // 없으면 인증 처리 안 함(토큰 변조 가능성)
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            if (user != null) {
+                // 🟢 CustomUserDetails 생성
+                CustomUserDetails userDetails = new CustomUserDetails(user);
+
+                // 🟢 principal에 userDetails, authorities도 userDetails.getAuthorities()
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                        );
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
         }
-
         filterChain.doFilter(request, response);
     }
 
