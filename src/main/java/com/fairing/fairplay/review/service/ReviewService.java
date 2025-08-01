@@ -8,6 +8,7 @@ import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
 import com.fairing.fairplay.review.dto.ReviewDto;
 import com.fairing.fairplay.review.dto.ReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewSaveRequestDto;
+import com.fairing.fairplay.review.dto.ReviewUpdateRequestDto;
 import com.fairing.fairplay.review.entity.Review;
 import com.fairing.fairplay.review.repository.ReviewRepository;
 import com.fairing.fairplay.user.entity.Users;
@@ -17,7 +18,9 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -76,9 +79,29 @@ public class ReviewService {
   }
 
   // 마이페이지 - 본인의 모든 리뷰 조회
-//  public Page<ReviewResponseDto> getReviewForUser() {
-//
-//  }
+  public Page<ReviewResponseDto> getReviewForUser(Long userId, Pageable pageable) {
+    // 1.  사용자 존재 여부 확인
+    Users user = userRepository.findById(userId)
+        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "사용자를 조회할 수 없습니다."));
+
+    // 2. 리뷰 페이징 조회
+    Page<Review> reviewPage = reviewRepository.findByUser(user, pageable);
+
+    // 3. 리뷰 ID 추출
+    List<Long> reviewIds = reviewPage.stream()
+        .map(Review::getId)
+        .toList();
+
+    // 4. 리뷰별 좋아요 갯수 한번에 조회
+    Map<Long, Long> reactionCountMap = reviewReactionService.findReactionCountsByReviewIds(
+        reviewIds);
+
+    // 5. DTO 변환
+    return reviewPage.map(review -> {
+      long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
+      return toReviewResponseDto(review, reactionCount);
+    });
+  }
 
   // 리뷰 삭제
   @Transactional
