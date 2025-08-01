@@ -52,7 +52,3 @@ jwt:
   refresh-token-validity-ms: 172800000  # 2일(172,800,000 ms)
   refresh-token-prefix: "refresh_token:"
 
-  spring:
-    redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
