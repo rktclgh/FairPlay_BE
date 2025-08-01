@@ -10,5 +10,6 @@ public class UserResponseDto {
     private String email;
     private String phone;
     private String name;
+    private String nickname;
     private String role; // code 값 (ex: COMMON)
 }

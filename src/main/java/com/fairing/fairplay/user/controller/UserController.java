@@ -79,8 +79,8 @@ public class UserController {
 
     // 닉네임 중복 확인
     @GetMapping("/check-nickname")
-    public ResponseEntity<Map<String, Boolean>> checkNameDuplicate(@RequestParam String name) {
-        boolean duplicated = userService.isNameDuplicated(name);
+    public ResponseEntity<Map<String, Boolean>> checkNameDuplicate(@RequestParam String nickname) {
+        boolean duplicated = userService.isNameDuplicated(nickname);
         Map<String, Boolean> result = new HashMap<>();
         result.put("duplicate", duplicated);
         return ResponseEntity.ok(result);

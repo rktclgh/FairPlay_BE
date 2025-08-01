@@ -37,6 +37,7 @@ public class UserService {
                 .name(dto.getName())
                 .roleCode(role)
                 .phone(dto.getPhone())
+                .nickname(dto.getNickname())
                 .build();
 
         userRepository.save(user);
@@ -52,6 +53,7 @@ public class UserService {
                 .phone(user.getPhone())
                 .name(user.getName())
                 .role(user.getRoleCode().getCode())
+                .nickname(user.getNickname())
                 .build();
     }
 
@@ -68,6 +70,7 @@ public class UserService {
                 .phone(user.getPhone())
                 .name(user.getName())
                 .role(user.getRoleCode().getCode())
+                .nickname(user.getNickname())
                 .build();
     }
 
@@ -288,8 +291,8 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public boolean isNameDuplicated(String name) {
-        return userRepository.existsByName(name);
+    public boolean isNameDuplicated(String Nickname) {
+        return userRepository.existsByNickname(Nickname);
     }
 
 

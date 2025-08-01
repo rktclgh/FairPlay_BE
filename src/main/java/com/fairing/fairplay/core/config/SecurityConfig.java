@@ -33,7 +33,9 @@ public class SecurityConfig {
                                 "/api/auth/refresh",   // 토큰 재발급
                                 "/api/users/forgot-password",//임시 비밀번호 발급
                                 "/swagger-ui/**",
-                                "/v3/api-docs/**"
+                                "/v3/api-docs/**",
+                                "api/users/check-email",
+                                "api/users/check-nickname"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
