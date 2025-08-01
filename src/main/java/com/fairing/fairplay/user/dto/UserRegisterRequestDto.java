@@ -14,6 +14,8 @@ public class UserRegisterRequestDto {
     @NotBlank
     private String name;
 
+    @NotBlank
+    private String phone;
 
     @NotNull
     private Integer roleCodeId;
