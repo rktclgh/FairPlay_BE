@@ -1,0 +1,43 @@
+### 전체 관리자 회원가입
+POST http://localhost:8080/api/users/signup
+Content-Type: application/json
+
+{
+  "email": "admin2@fairplay.com",
+  "name": "전체관리자2",
+  "password": "1234",
+  "roleCodeId": 1
+}
+
+### 행사 관리자 회원가입
+POST http://localhost:8080/api/users/signup
+Content-Type: application/json
+
+{
+  "email": "event2@fairplay.com",
+  "name": "행사관리자2",
+  "password": "1234",
+  "roleCodeId": 2
+}
+
+### 부스 관리자 회원가입
+POST http://localhost:8080/api/users/signup
+Content-Type: application/json
+
+{
+  "email": "booth@fairplay.com",
+  "name": "부스관리자",
+  "password": "1234",
+  "roleCodeId": 3
+}
+
+### 일반 회원가입
+POST http://localhost:8080/api/users/signup
+Content-Type: application/json
+
+{
+  "email": "user2@fairplay.com",
+  "name": "일반 사용자2",
+  "password": "1234",
+  "roleCodeId": 4
+}
