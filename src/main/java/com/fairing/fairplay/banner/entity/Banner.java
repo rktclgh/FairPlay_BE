@@ -26,7 +26,7 @@ public class Banner {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "banner_id")
-    private Integer id;
+    private Long id;
 
     @Column(nullable = false, length = 100)
     private String title;

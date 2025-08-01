@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Builder
 public class BannerResponseDto {
 
-    private Integer id;
+    private Long id;
     private String title;
     private String imageUrl;
     private String linkUrl;
