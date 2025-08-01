@@ -5,14 +5,12 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-// 리뷰 저장 요청
+// 삭제 응답
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ReviewSaveRequestDto {
-  private Long reservationId;
-  private Integer star;
-  private Boolean isPublic;
-  private String comment;
+public class ReviewDeleteResponseDto {
+  private Long reviewId;
+  private String message;
 }
