@@ -32,7 +32,7 @@ public class Users {
     @Column(name = "phone", nullable = false, length = 20)
     private String phone;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "role_code_id")
     private UserRoleCode roleCode;
 
