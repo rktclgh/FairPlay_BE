@@ -48,6 +48,9 @@ public class UserService {
         userRepository.save(user);
     }
 
+
+
+
     @Transactional(readOnly = true)
     public UserResponseDto getMyInfo(Long userId) {
         Users user = userRepository.findById(userId)
@@ -101,8 +104,8 @@ public class UserService {
     }
 
     @Transactional
-    public void sendTemporaryPassword(String email, String name) {
-        Users user = userRepository.findByEmailAndName(email, name)
+    public void sendTemporaryPassword(String email) {
+        Users user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("일치하는 회원이 없습니다."));
 
         String tempPassword = generateRandomPassword(10);

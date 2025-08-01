@@ -1,5 +1,6 @@
 package com.fairing.fairplay.core.controller;
 
+import com.fairing.fairplay.core.dto.KakaoLoginRequest;
 import com.fairing.fairplay.core.dto.LoginRequest;
 import com.fairing.fairplay.core.dto.LoginResponse;
 import com.fairing.fairplay.core.dto.RefreshTokenRequest;
@@ -39,4 +40,11 @@ public class AuthController {
         LoginResponse response = authService.refreshToken(request.getRefreshToken());
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/kakao")
+    public ResponseEntity<LoginResponse> kakaoLogin(@RequestBody KakaoLoginRequest request) {
+        LoginResponse response = authService.kakaoLogin(request.getCode());
+        return ResponseEntity.ok(response);
+    }
+
 }

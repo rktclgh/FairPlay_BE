@@ -64,7 +64,7 @@ public class UserController {
     // 임시 비밀번호 전송
     @PostMapping("/forgot-password")
     public ResponseEntity<Void> forgotPassword(@RequestBody UserForgotPasswordRequestDto dto) {
-        userService.sendTemporaryPassword(dto.getEmail(), dto.getName());
+        userService.sendTemporaryPassword(dto.getEmail());
         return ResponseEntity.ok().build();
     }
 
