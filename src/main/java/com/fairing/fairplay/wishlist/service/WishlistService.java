@@ -63,11 +63,21 @@ public class WishlistService {
     // 찜 목록 조회
     @Transactional(readOnly = true)
     public List<WishlistResponseDto> getMyWishlist(Long userId) {
-        List<Wishlist> wishlistList = wishlistRepository.findAllByUser_UserIdAndDeletedFalse(userId);
+        List<Wishlist> wishlistList = wishlistRepository.findWithAllDetailsByUserId(userId);
 
         return wishlistList.stream()
                 .map(wishlist -> {
                     Event event = wishlist.getEvent();
+
+                    // 필수 연관 엔티티 null 체크
+                    if (event == null ||
+                            event.getEventDetail() == null ||
+                            event.getEventDetail().getMainCategory() == null ||
+                            event.getEventDetail().getLocation() == null) {
+
+                        System.out.println("불완전한 이벤트: eventId = " + (event != null ? event.getEventId() : "null"));
+                        return null;
+                    }
 
                     return WishlistResponseDto.builder()
                             .eventId(event.getEventId())
@@ -76,15 +86,20 @@ public class WishlistService {
                             .location(event.getEventDetail().getLocation().getAddress())
                             .startDate(event.getEventDetail().getStartDate())
                             .endDate(event.getEventDetail().getEndDate())
-                            .price(event.getEventTickets().stream()
-                                    .map(EventTicket::getTicket)
-                                    .filter(t -> !t.getDeleted())
-                                    .mapToInt(t -> t.getPrice())
-                                    .min()
-                                    .orElse(0))
+                            .price(
+                                    event.getEventTickets().stream()
+                                            .map(EventTicket::getTicket)
+                                            .filter(t -> t != null && !t.getDeleted())
+                                            .mapToInt(t -> t.getPrice())
+                                            .min()
+                                            .orElse(0)
+                            )
                             .thumbnailUrl(event.getEventDetail().getThumbnailUrl())
                             .build();
                 })
+                .filter(dto -> dto != null)  // null 걸러주기
                 .collect(Collectors.toList());
     }
+
+
 }
