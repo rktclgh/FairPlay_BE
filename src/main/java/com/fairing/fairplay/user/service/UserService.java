@@ -62,7 +62,7 @@ public class UserService {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("사용자 정보를 찾을 수 없습니다."));
         if (dto.getPhone() != null) user.setPhone(dto.getPhone());
-        if (dto.getName() != null) user.setName(dto.getName());
+        if (dto.getNickname() != null) user.setNickname(dto.getNickname());
         userRepository.save(user);
         return UserResponseDto.builder()
                 .userId(user.getUserId())
