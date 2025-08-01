@@ -1,5 +1,6 @@
 package com.fairing.fairplay.user.service;
 
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.util.EmailSender;
 import com.fairing.fairplay.user.dto.UserRegisterRequestDto;
 import com.fairing.fairplay.user.dto.UserResponseDto;
@@ -9,6 +10,7 @@ import com.fairing.fairplay.user.entity.UserRoleCode;
 import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,13 +25,16 @@ public class UserService {
     private final EmailSender emailSender;
 
     // 회원가입
+    @Transactional
     public void register(UserRegisterRequestDto dto) {
         if (userRepository.existsByEmail(dto.getEmail())) {
-            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+            throw new CustomException(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다.");
         }
-        // DB에 code = "COMMON"인 UserRoleCode가 반드시 존재해야 함
+        if (userRepository.existsByNickname(dto.getNickname())) {
+            throw new CustomException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.");
+        }
         UserRoleCode role = userRoleCodeRepository.findByCode("COMMON")
-                .orElseThrow(() -> new IllegalArgumentException("기본 역할코드(COMMON) 없음"));
+                .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "기본 역할코드를 찾을 수 없습니다."));
 
         Users user = Users.builder()
                 .email(dto.getEmail())
@@ -82,15 +87,11 @@ public class UserService {
         userRepository.save(user);
     }
 
-
-
-    // 비밀번호 변경
     @Transactional
     public void changePassword(Long userId, String currentPassword, String newPassword) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("사용자 정보를 찾을 수 없습니다."));
 
-        // 기존 비밀번호 확인
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
             throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
         }
@@ -99,19 +100,15 @@ public class UserService {
         userRepository.save(user);
     }
 
-
-    // 임시 비밀번호 생성
     @Transactional
     public void sendTemporaryPassword(String email, String name) {
         Users user = userRepository.findByEmailAndName(email, name)
                 .orElseThrow(() -> new IllegalArgumentException("일치하는 회원이 없습니다."));
 
-        // 임시 비밀번호 생성
         String tempPassword = generateRandomPassword(10);
         user.setPassword(passwordEncoder.encode(tempPassword));
         userRepository.save(user);
 
-        // HTML 템플릿 적용
         String htmlContent = String.format("""
             <!doctype html>
             <html lang="ko">
@@ -262,9 +259,8 @@ public class UserService {
                        </html>
   """, tempPassword, tempPassword);
 
-        // 로고 이미지(리소스 경로), cid는 "logo"
         String logoCid = "logo";
-        String logoPath = "etc/logo.png"; // 예시, 실제 리소스 경로로 변경
+        String logoPath = "etc/logo.png";
 
         emailSender.send(
                 user.getEmail(),
@@ -278,7 +274,7 @@ public class UserService {
     private String generateRandomPassword(int length) {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         StringBuilder sb = new StringBuilder();
-        java.util.Random random = new java.util.Random();
+        java.security.SecureRandom random = new java.security.SecureRandom();
         for (int i = 0; i < length; i++) {
             sb.append(chars.charAt(random.nextInt(chars.length())));
         }
@@ -291,8 +287,8 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public boolean isNameDuplicated(String Nickname) {
-        return userRepository.existsByNickname(Nickname);
+    public boolean isNicknameDuplicated(String nickname) {
+        return userRepository.existsByNickname(nickname);
     }
 
 

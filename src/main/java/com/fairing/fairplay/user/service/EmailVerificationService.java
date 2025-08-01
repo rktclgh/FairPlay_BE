@@ -1,5 +1,6 @@
 package com.fairing.fairplay.user.service;
 
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.user.dto.EmailVerificationRequestDto;
 import com.fairing.fairplay.user.dto.EmailCodeVerifyRequestDto;
 import com.fairing.fairplay.user.entity.EmailVerification;
@@ -7,7 +8,9 @@ import com.fairing.fairplay.user.repository.EmailVerificationRepository;
 import com.fairing.fairplay.core.util.EmailSender;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Random;
@@ -207,17 +210,26 @@ public class EmailVerificationService {
     }
 
     // 인증코드 검증
-    public boolean verifyCode(EmailCodeVerifyRequestDto dto) {
+    @Transactional
+    public void verifyCode(EmailCodeVerifyRequestDto dto) {
         EmailVerification entity = verificationRepository.findByEmail(dto.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("해당 이메일로 요청된 인증 없음"));
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "인증 요청을 찾을 수 없습니다."));
 
-        if (!entity.getCode().equals(dto.getCode())) return false;
-        if (entity.getExpiresAt().isBefore(LocalDateTime.now())) return false;
+        if (entity.getVerified()) {
+            return; // 이미 인증됨
+        }
+
+        if (entity.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new CustomException(HttpStatus.GONE, "인증 코드가 만료되었습니다. 다시 요청해주세요.");
+        }
+
+        if (!entity.getCode().equals(dto.getCode())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "인증번호가 일치하지 않습니다.");
+        }
 
         entity.setVerified(true);
         verificationRepository.save(entity);
         log.info("\uD83D\uDCEC[이메일 인증] {} 인증 성공", dto.getEmail());
-        return true;
     }
 
     private String generateCode() {
