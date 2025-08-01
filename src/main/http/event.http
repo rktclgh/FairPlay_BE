@@ -1,0 +1,24 @@
+### 행사 등록
+POST http://localhost:8080/api/events
+Content-Type: application/json
+
+{
+    "email": "eventManager1@fairplay.com",
+    "titleKr": "디자인 박람회",
+    "titleEng": "Design Fair"
+}
+
+### 행사 목록 조회
+GET http://localhost:8080/api/event
+Content-Type: application/jsons
+
+### 행사명 및 숨김 상태 업데이트
+@eventId = 3
+PATCH http://localhost:8080/api/events/{{eventId}}
+Content-Type: application/json
+
+{
+    "titleKr": "디자인 박람회 수정",
+    "titleEng": "Design Fair Edit",
+    "hidden": false
+}
