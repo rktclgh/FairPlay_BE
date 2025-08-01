@@ -261,7 +261,7 @@ public class UserService {
 
         // 로고 이미지(리소스 경로), cid는 "logo"
         String logoCid = "logo";
-        String logoPath = "static/logo.png"; // 예시, 실제 리소스 경로로 변경
+        String logoPath = "etc/logo.png"; // 예시, 실제 리소스 경로로 변경
 
         emailSender.send(
                 user.getEmail(),
@@ -281,4 +281,16 @@ public class UserService {
         }
         return sb.toString();
     }
+
+    @Transactional(readOnly = true)
+    public boolean isEmailDuplicated(String email) {
+        return userRepository.existsByEmail(email);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isNameDuplicated(String name) {
+        return userRepository.existsByName(name);
+    }
+
+
 }

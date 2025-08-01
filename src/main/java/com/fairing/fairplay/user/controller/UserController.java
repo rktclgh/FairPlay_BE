@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -63,5 +66,23 @@ public class UserController {
     public ResponseEntity<Void> forgotPassword(@RequestBody UserForgotPasswordRequestDto dto) {
         userService.sendTemporaryPassword(dto.getEmail(), dto.getName());
         return ResponseEntity.ok().build();
+    }
+
+    // 이메일 중복 확인
+    @GetMapping("/check-email")
+    public ResponseEntity<Map<String, Boolean>> checkEmailDuplicate(@RequestParam String email) {
+        boolean duplicated = userService.isEmailDuplicated(email);
+        Map<String, Boolean> result = new HashMap<>();
+        result.put("duplicate", duplicated);
+        return ResponseEntity.ok(result);
+    }
+
+    // 닉네임 중복 확인
+    @GetMapping("/check-nickname")
+    public ResponseEntity<Map<String, Boolean>> checkNameDuplicate(@RequestParam String name) {
+        boolean duplicated = userService.isNameDuplicated(name);
+        Map<String, Boolean> result = new HashMap<>();
+        result.put("duplicate", duplicated);
+        return ResponseEntity.ok(result);
     }
 }
