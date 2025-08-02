@@ -1,36 +1,56 @@
 package com.fairing.fairplay.qr.util;
 
+import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
+import lombok.RequiredArgsConstructor;
+import org.hashids.Hashids;
 import org.springframework.stereotype.Component;
 
 // QR 티켓링크용 토큰 관련 유틸 클래스
-// 임시 주석 처리
-// 의존성 jjwt 추가 필요
 @Component
+@RequiredArgsConstructor
 public class QrLinkTokenGenerator {
-//
-//  @Value("${qr.secret_key}")
-//  private static String SECRET_KEY;
-//
-//  public static String generateToken(QrTicketRequestDto dto) {
-//    long now = System.currentTimeMillis();
-//    Date issuedAt = new Date(now);
-//
-//    return Jwts.builder()
-//        .claim("reservationId", dto.getReservationId())
-//        .claim("attendeeId", dto.getAttendeeId())
-//        .claim("eventId", dto.getEventId())
-//        .claim("ticketId", dto.getTicketId())
-//        .setIssuedAt(issuedAt)
-//        .setExpiration(expiryDate)
-//        .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
-//        .compact();
-//  }
-//
-//  // 링크 조회 시 실행되는 함수
-//  public static Claims getClaimsFromToken(String token) {
-//    return Jwts.parser()
-//        .setSigningKey(SECRET_KEY)
-//        .parseClaimsJws(token)
-//        .getBody();
-//  }
+
+  private final Hashids hashids;
+
+  // 암호화한 문자열 토큰 생성
+  public String generateToken(QrTicketRequestDto dto) {
+
+    // hashids는 long 배열만 받음
+    // 숫자 배열을 인코딩해 짧고 URL 안전한 문자열로 만듦
+    // ex. nk2s0
+    long[] numbers = new long[]{
+        safeLong(dto.getReservationId()),
+        safeLong(dto.getAttendeeId()),
+        safeLong(dto.getEventId()),
+        safeLong(dto.getTicketId())
+    };
+
+    return hashids.encode(numbers);
+  }
+
+  // 암호화된 문자열을 DTO 객체로 만듦
+  public QrTicketRequestDto decodeToDto(String token) {
+    long[] numbers = decodeToken(token);
+    // 디코딩 결과 배열 길이 체크
+    if (numbers.length < 4) {
+      throw new IllegalArgumentException("Invalid token format");
+    }
+
+    return QrTicketRequestDto.builder()
+        .reservationId(numbers[0] == 0 ? null : numbers[0])
+        .attendeeId(numbers[1] == 0 ? null : numbers[1])
+        .eventId(numbers[2] == 0 ? null : numbers[2])
+        .ticketId(numbers[3] == 0 ? null : numbers[3])
+        .build();
+  }
+
+  // 토큰 문자열 -> long[]으로 변환
+  private long[] decodeToken(String token) {
+    return hashids.decode(token);
+  }
+
+  // DTO 값이 null일 때 오류 방지용
+  private long safeLong(Long val) {
+    return val == null ? 0L : val;
+  }
 }
