@@ -110,7 +110,7 @@ public class ShareTicketService {
     shareTickets.forEach(shareTicket -> {
       shareTicket.setExpired(true);
       shareTicket.setExpiredAt(LocalDateTime.now());
-      shareTicketRepository.save(shareTicket);
     });
+    shareTicketRepository.saveAll(shareTickets);
   }
 }
