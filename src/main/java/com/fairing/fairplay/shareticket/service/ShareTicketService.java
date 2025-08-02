@@ -1,9 +1,12 @@
 package com.fairing.fairplay.shareticket.service;
 
 import com.fairing.fairplay.common.exception.LinkExpiredException;
+import com.fairing.fairplay.reservation.entity.Reservation;
+import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.dto.ShareTicketSaveRequestDto;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.repository.ShareTicketRepository;
+import jakarta.persistence.EntityNotFoundException;
 import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,24 +26,35 @@ import org.springframework.transaction.annotation.Transactional;
 public class ShareTicketService {
 
   private final ShareTicketRepository shareTicketRepository;
+  private final ReservationRepository reservationRepository;
 
   // 공유 폼 링크 생성 -> 예약 성공 시 예약 서비스 단계에서 사용
   @Transactional
   public String generateToken(ShareTicketSaveRequestDto dto) {
-    UUID uuid = UUID.randomUUID();
-    byte[] bytes = new byte[16];
-    ByteBuffer.wrap(bytes)
-        .putLong(uuid.getMostSignificantBits())
-        .putLong(uuid.getLeastSignificantBits());
-    String token = Base64.getUrlEncoder().withoutPadding()
-        .encodeToString(bytes); //5B3Ej0AdRMqrqY7xV6k9tw 형태
+    if (dto == null) {
+      throw new IllegalArgumentException("유효하지 않은 요청입니다.");
+    }
+
+    String token;
+    do {
+      UUID uuid = UUID.randomUUID();
+      byte[] bytes = new byte[16];
+      ByteBuffer.wrap(bytes)
+          .putLong(uuid.getMostSignificantBits())
+          .putLong(uuid.getLeastSignificantBits());
+      token = Base64.getUrlEncoder().withoutPadding()
+          .encodeToString(bytes); //5B3Ej0AdRMqrqY7xV6k9tw 형태
+    } while (shareTicketRepository.existsByLinkToken(token));
+
+    Reservation reservation = reservationRepository.findById(dto.getReservationId())
+        .orElseThrow(() -> new EntityNotFoundException("예약을 찾을 수 없습니다."));
 
     ShareTicket shareTicket = ShareTicket.builder()
         .linkToken(token)
         .totalAllowed(dto.getTotalAllowed())
         .expired(false)
         .submittedCount(0)
-        .reservation(dto.getReservation())
+        .reservation(reservation)
         .expiredAt(dto.getExpiredAt())
         .build();
 
