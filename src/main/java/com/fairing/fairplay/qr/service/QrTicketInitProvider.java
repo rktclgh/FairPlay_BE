@@ -22,7 +22,7 @@ public class QrTicketInitProvider {
 
     if (attendeeTypeCodeId == 1) {
       // 대표자: 예약 ID + 타입으로 한 명만 조회
-      attendee = attendeeRepository.findByReservationIdAndAttendeeTypeCode_Id(
+      attendee = attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Id(
               dto.getReservationId(), attendeeTypeCodeId)
           .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자를 조회할 수 없습니다."));
 
@@ -32,7 +32,7 @@ public class QrTicketInitProvider {
         throw new CustomException(HttpStatus.BAD_REQUEST, "대표자가 아니므로 조회할 수 없습니다.");
       }
 
-      attendee = attendeeRepository.findByIdAndReservationIdAndAttendeeTypeCode_Id(
+      attendee = attendeeRepository.findByIdAndReservation_ReservationIdAndAttendeeTypeCode_Id(
               dto.getAttendeeId(), dto.getReservationId(), attendeeTypeCodeId)
           .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "동반 참석자를 조회할 수 없습니다."));
 

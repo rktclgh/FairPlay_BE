@@ -8,6 +8,8 @@ import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.reservation.entity.Reservation;
+import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
 import java.util.List;
@@ -25,6 +27,7 @@ public class AttendeeService {
   private final AttendeeRepository attendeeRepository;
   private final AttendeeTypeCodeRepository attendeeTypeCodeRepository;
   private final ShareTicketService shareTicketService;
+  private final ReservationRepository reservationRepository;
 
   // 대표자 정보 저장
   @Transactional
@@ -36,17 +39,21 @@ public class AttendeeService {
   @Transactional
   public AttendeeInfoResponseDto saveGuest(String token, AttendeeSaveRequestDto dto) {
     ShareTicket shareTicket = shareTicketService.validateAndUseToken(token);
-    return saveAttendee("GUEST", dto, shareTicket.getReservationId());
+    AttendeeInfoResponseDto attendeeInfoResponseDto = saveAttendee("GUEST", dto,
+        shareTicket.getReservation().getReservationId());
+    shareTicketService.updateShareTicket(shareTicket);
+    return attendeeInfoResponseDto;
   }
 
   // 참석자 전체 조회
   public List<AttendeeInfoResponseDto> findAll(Long reservationId) {
-    List<Attendee> attendees = attendeeRepository.findAllByReservationId(reservationId)
-        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
+    checkReservation(reservationId);
+
+    List<Attendee> attendees = attendeeRepository.findAllByReservation_ReservationId(reservationId);
 
     return attendees.stream().map(attendee -> AttendeeInfoResponseDto.builder()
             .attendeeId(attendee.getId())
-            .reservationId(attendee.getReservationId())
+            .reservationId(attendee.getReservation().getReservationId())
             .name(attendee.getName())
             .email(attendee.getEmail())
             .phone(attendee.getPhone())
@@ -60,13 +67,15 @@ public class AttendeeService {
     Attendee attendee = attendeeRepository.findById(attendeeId)
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
 
+    checkReservation(dto.getReservationId());
+
     attendee.setEmail(dto.getEmail());
     attendee.setPhone(dto.getPhone());
     attendee.setName(dto.getName());
 
     return AttendeeInfoResponseDto.builder()
         .attendeeId(attendee.getId())
-        .reservationId(attendee.getReservationId())
+        .reservationId(attendee.getReservation().getReservationId())
         .name(attendee.getName())
         .email(attendee.getEmail())
         .phone(attendee.getPhone())
@@ -79,20 +88,33 @@ public class AttendeeService {
     AttendeeTypeCode attendeeTypeCode = attendeeTypeCodeRepository.findByCode(attendeeType)
         .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 타입입니다."));
 
+    Reservation reservation = findReservation(reservationId);
+
     Attendee attendee = Attendee.builder()
         .name(dto.getName())
         .attendeeTypeCode(attendeeTypeCode)
         .phone(dto.getPhone())
         .email(dto.getEmail())
-        .reservationId(reservationId)
+        .reservation(reservation)
         .build();
     Attendee savedAttendee = attendeeRepository.save(attendee);
     return AttendeeInfoResponseDto.builder()
         .attendeeId(savedAttendee.getId())
-        .reservationId(savedAttendee.getReservationId())
+        .reservationId(savedAttendee.getReservation().getReservationId())
         .name(savedAttendee.getName())
         .email(savedAttendee.getEmail())
         .phone(savedAttendee.getPhone())
         .build();
+  }
+
+  private Reservation findReservation(Long reservationId) {
+    return reservationRepository.findById(reservationId).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND, "예약 정보를 조회할 수 없습니다."));
+  }
+
+  private void checkReservation(Long reservationId) {
+    if (!reservationRepository.existsById(reservationId)) {
+      throw new CustomException(HttpStatus.NOT_FOUND, "예약 정보를 조회할 수 없습니다.");
+    }
   }
 }

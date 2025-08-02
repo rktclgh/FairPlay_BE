@@ -1,5 +1,6 @@
 package com.fairing.fairplay.attendee.entity;
 
+import com.fairing.fairplay.reservation.entity.Reservation;
 import jakarta.persistence.Id;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -31,18 +32,11 @@ public class Attendee {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "attendee_id", nullable = false, updatable = false)
-
   private Long id;
 
-  /*
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "reservation_id")
   private Reservation reservation;
-  */
-  // 임시 설정
-
-  @Column(name = "reservation_id", nullable = false)
-  private Long reservationId;
 
   @Column(name = "name", nullable = true)
   private String name;
