@@ -1,5 +1,6 @@
 package com.fairing.fairplay.qr.util;
 
+import com.fairing.fairplay.common.exception.CustomException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -7,6 +8,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -42,13 +44,17 @@ public class CodeGenerator {
 
   // 티켓 코드 생성 ex. FR2025-20250802-0012
   public String generateTicketNo(String eventCode) {
-    String date = LocalDateTime.now().format(DateTimeFormatter.BASIC_ISO_DATE); // "20250802"
-    String key = "ticketSeq:" + eventCode + ":" + date;
-    Long seq = redisTemplate.opsForValue().increment(key); // redis에서 자동 증가
-    if (seq == 1) {
-      redisTemplate.expire(key, Duration.ofDays(1)); // 하루 단위로 시퀀스 초기화
+    try {
+      String date = LocalDateTime.now().format(DateTimeFormatter.BASIC_ISO_DATE); // "20250802"
+      String key = "ticketSeq:" + eventCode + ":" + date;
+      Long seq = redisTemplate.opsForValue().increment(key); // redis에서 자동 증가
+      if (seq == 1) {
+        redisTemplate.expire(key, Duration.ofDays(1)); // 하루 단위로 시퀀스 초기화
+      }
+      return String.format("%s-%s-%04d", eventCode, date, seq);
+    } catch (Exception e) {
+      throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "티켓 번호 생성 중 오류가 발생했습니다.");
     }
 
-    return String.format("%s-%s-%04d", eventCode, date, seq);
   }
 }

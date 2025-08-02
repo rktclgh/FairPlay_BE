@@ -21,6 +21,11 @@ public class QrTicketResponseDto {
   private ViewingScheduleInfo viewingScheduleInfo; // 관람 일시 정보
   private String reservationDate; // 예매일
 
+  /**
+   * QueryDSL JPQL 프로젝션용 생성자
+   *
+   * @see com.fairing.fairplay.qr.repository.QrTicketRepository#findDtoById(Long)
+   */
   public QrTicketResponseDto(String title, String buildingName,
       String ticketNo, String qrCode, String manualCode) {
     this.title = title;

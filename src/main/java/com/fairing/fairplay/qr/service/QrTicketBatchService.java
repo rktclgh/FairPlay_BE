@@ -27,11 +27,11 @@ public class QrTicketBatchService {
 
   // 비회원 QR 티켓 링크 발급 -> 스케쥴러가 실행. 오전9시 실행 batch 도입 예정
   public void generateQrLink(List<Tuple> reservations) {
-    for (Tuple tuple : reservations) {
-      QReservation reservation = QReservation.reservation;
-      QAttendee attendee = QAttendee.attendee;
-      QEventSchedule schedule = QEventSchedule.eventSchedule;
+    QReservation reservation = QReservation.reservation;
+    QAttendee attendee = QAttendee.attendee;
+    QEventSchedule schedule = QEventSchedule.eventSchedule;
 
+    for (Tuple tuple : reservations) {
       Long reservationId = tuple.get(reservation.reservationId);
       Long ticketId = tuple.get(reservation.ticket.ticketId);
       Long attendeeId = tuple.get(attendee.id);
@@ -39,16 +39,19 @@ public class QrTicketBatchService {
       String attendeeEmail = tuple.get(attendee.email);
       Long eventId = tuple.get(schedule.event.eventId);
 
-      QrTicketRequestDto dto = QrTicketRequestDto.builder()
-          .attendeeId(attendeeId)
-          .reservationId(reservationId)
-          .eventId(eventId)
-          .ticketId(ticketId)
-          .build();
-
-      String token = qrLinkTokenGenerator.generateToken(dto);
-      String qrUrl = "https://your-site.com/qr-tickets/" + token; // 수정 예정
-      qrTicketLinkSender.sendQrTicket(attendeeName, attendeeEmail, qrUrl);
+      try {
+        QrTicketRequestDto dto = QrTicketRequestDto.builder()
+            .attendeeId(attendeeId)
+            .reservationId(reservationId)
+            .eventId(eventId)
+            .ticketId(ticketId)
+            .build();
+        String token = qrLinkTokenGenerator.generateToken(dto);
+        String qrUrl = "https://your-site.com/qr-tickets/" + token; // 수정 예정
+        qrTicketLinkSender.sendQrTicket(attendeeName, attendeeEmail, qrUrl);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 }
