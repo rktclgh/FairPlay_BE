@@ -1,5 +1,6 @@
 package com.fairing.fairplay.shareticket.dto;
 
+import com.fairing.fairplay.reservation.entity.Reservation;
 import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
@@ -8,7 +9,7 @@ import lombok.Getter;
 @Builder
 public class ShareTicketSaveRequestDto {
 
-  private Long reservationId;
+  private Reservation reservation;
   private int totalAllowed;
   private LocalDateTime expiredAt;
 }
