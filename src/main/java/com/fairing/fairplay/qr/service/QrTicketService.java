@@ -12,6 +12,7 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,56 +24,39 @@ import org.springframework.transaction.annotation.Transactional;
 public class QrTicketService {
 
   private final QrTicketRepository qrTicketRepository;
-  private final CodeGenerator codeGenerator;
-  private final QrTicketInitProvider qrTicketInitProvider;
   private final ReservationRepository reservationRepository;
   private final QrLinkTokenGenerator qrLinkTokenGenerator;
+  private final CodeGenerator codeGenerator;
+  private final QrTicketInitProvider qrTicketInitProvider;
 
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
   public QrTicketResponseDto issueMember(QrTicketRequestDto dto) {
-
     Reservation reservation = reservationRepository.findById(dto.getReservationId())
         .orElseThrow(() -> new CustomException(
             HttpStatus.NOT_FOUND, "올바른 예약 티켓이 아닙니다."));
-
-    // qrcode, manualcode 발급받아 저장
     QrTicket savedTicket = generateAndSaveQrTicket(dto, 1);
-
-    // 프론트 응답
     return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
   }
 
   // 비회원 QR 티켓 조회 -> QR 티켓 링크 통한 조회
   @Transactional
   public QrTicketResponseDto issueGuest(String token) {
-
     // 토큰 파싱해 예약 정보 조회
     QrTicketRequestDto dto = qrLinkTokenGenerator.decodeToDto(token);
-
     Reservation reservation = reservationRepository.findById(dto.getReservationId())
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "올바른 예약 티켓이 아닙니다."));
-
     // QR 티켓 조회해 qr code, manualcode 생성해서 반환
     QrTicket savedTicket = generateAndSaveQrTicket(dto, 2);
-
     // 프론트 응답
     return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
-  }
-
-
-  // 비회원 QR 티켓 링크 발급 -> 스케쥴러가 실행. 오전9시 실행 batch 도입 예정
-  public void generateQrLink() {
-    //attendee_type_code = 2인 참석자만 추출 (GUEST)
-    // hashids 토큰 생성해 qr url 생성
-    // 각 attendee의 email로 qr티켓 전송
   }
 
   // QR 티켓 엔티티 생성 - 스케쥴러가 실행
   @Transactional
   public void createQrTicket() {
-//    List<QrTicket> qrTickets = qrTicketInitProvider.scheduleCreateQrTicket();
-//    qrTicketRepository.saveAll(qrTickets);
+    List<QrTicket> qrTickets = qrTicketInitProvider.scheduleCreateQrTicket();
+    qrTicketRepository.saveAll(qrTickets);
   }
 
   // 저장된 qr 티켓 조회 후 qrcode, manualcode 발급받아 저장
@@ -96,14 +80,16 @@ public class QrTicketService {
     }
 
     // 가상의 상영 정보 설정 예시
-    ViewingScheduleInfo viewingScheduleInfo = ViewingScheduleInfo.builder()
-        .date("2025-08-01")
-        .dayOfWeek("금")
-        .startTime("14:00")
-        .build();
-
+    ViewingScheduleInfo viewingScheduleInfo = getMockSchedule();
     dto.setViewingScheduleInfo(viewingScheduleInfo);
     return dto;
   }
 
+  private ViewingScheduleInfo getMockSchedule() {
+    return ViewingScheduleInfo.builder()
+        .date("2025-08-01")
+        .dayOfWeek("금")
+        .startTime("14:00")
+        .build();
+  }
 }

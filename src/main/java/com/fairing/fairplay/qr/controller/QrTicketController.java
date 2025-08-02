@@ -7,6 +7,7 @@ import com.fairing.fairplay.qr.service.QrTicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,6 +26,10 @@ public class QrTicketController {
   }
 
   // 비회원 QR 티켓 조회 (참석자)
+  @GetMapping("/{token}")
+  public ResponseEntity<QrTicketResponseDto> issueGuest(@PathVariable String token) {
+    return ResponseEntity.ok(qrTicketService.issueGuest(token));
+  }
 
   // QR 티켓 만료
 
