@@ -14,11 +14,12 @@ public interface CalendarEventRepository extends JpaRepository<EventDetail, Long
     @Query("SELECT new com.fairing.fairplay.event.dto.CalendarEventDto(" +
             "e.eventId, e.titleKr, ed.startDate, ed.endDate, r.name) " +
             "FROM Event e " +
-            "JOIN EventDetail ed ON e.eventId = ed.eventDetailId " +
-            "JOIN RegionCode r ON ed.regionCode.regionCodeId = r.regionCodeId " +
+            "JOIN e.eventDetail ed " +
+            "JOIN ed.regionCode r " +
             "WHERE ed.startDate BETWEEN :start AND :end")
     List<CalendarEventDto> findEventsByMonth(
             @Param("start") LocalDate start,
             @Param("end") LocalDate end
     );
+
 }
