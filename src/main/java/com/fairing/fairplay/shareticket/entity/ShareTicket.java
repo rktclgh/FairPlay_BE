@@ -1,10 +1,14 @@
 package com.fairing.fairplay.shareticket.entity;
 
+import com.fairing.fairplay.reservation.entity.Reservation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
@@ -29,15 +33,16 @@ public class ShareTicket {
   @Column(name = "share_ticket_id")
   private Long id;
 
-  // Reservation 엔티티 생성 시 수정
-  @Column(name = "reservation_id")
-  private Long reservationId;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "reservation_id", nullable = false)
+  private Reservation reservation;
 
   @Column(name = "link_token", nullable = false, unique = true)
   private String linkToken;
 
   @Column(name = "submitted_count", nullable = false)
   @ColumnDefault("0")
+  @Builder.Default
   private Integer submittedCount = 0;
 
   @Column(name = "total_allowed", nullable = false)
@@ -45,6 +50,7 @@ public class ShareTicket {
 
   @Column(name = "expired", nullable = false)
   @ColumnDefault("false")
+  @Builder.Default
   private Boolean expired = false;
 
   @CreationTimestamp

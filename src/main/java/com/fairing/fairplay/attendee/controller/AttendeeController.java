@@ -24,7 +24,7 @@ public class AttendeeController {
 
   private final AttendeeService attendeeService;
 
-  // 폼링크 요청
+  // 폼링크 통한 참석자 저장 -> 동반자만. 대표자는 예약과 동시 저장
   @PostMapping
   public ResponseEntity<AttendeeInfoResponseDto> saveAttendee(@RequestParam String token,
       @RequestBody AttendeeSaveRequestDto dto) {
