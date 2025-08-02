@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,22 +77,26 @@ public class ShareTicketService {
     }
   }
 
-  // 공유 폼 링크 만료 -> 스케줄러 자동 실행
-  @Transactional
-  public void expiredToken() {
+  // 만료 날짜가 오늘이고 아직 만료처리되지 않은 공유 폼 링크 조회
+  public List<ShareTicket> fetchExpiredBatch(int page, int size) {
+    Pageable pageable = PageRequest.of(page, size);
+
     LocalDate now = LocalDate.now();
     LocalDateTime startDate = now.atStartOfDay();
     LocalDateTime endDate = now.atTime(23, 59, 59);
 
-    List<ShareTicket> shareTickets = shareTicketRepository.findAllByExpiredAtBetween(startDate,
-        endDate);
+    return shareTicketRepository.findAllByExpiredAtBetweenAndExpiredFalse(startDate, endDate,
+        pageable);
+  }
 
+  // 공유 폼 링크 만료 -> 스케줄러 자동 실행
+  @Transactional
+  public void expiredToken(List<ShareTicket> shareTickets) {
     // 폼링크 자동 만료
-    if (shareTickets != null && !shareTickets.isEmpty()) {
-      shareTickets.forEach(shareTicket -> {
-        shareTicket.setExpired(true);
-        shareTicket.setExpiredAt(LocalDateTime.now());
-      });
-    }
+    shareTickets.forEach(shareTicket -> {
+      shareTicket.setExpired(true);
+      shareTicket.setExpiredAt(LocalDateTime.now());
+      shareTicketRepository.save(shareTicket);
+    });
   }
 }
