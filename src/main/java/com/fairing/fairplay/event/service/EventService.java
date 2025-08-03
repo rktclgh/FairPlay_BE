@@ -157,4 +157,13 @@ public class EventService {
                 .version(newVersion.getVersionNumber())
                 .build();
     }
+
+    @Transactional(readOnly = true)
+    public Event findById(Long eventId) {
+        return eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 이벤트를 찾을 수 없습니다.", null));
+    }
+
+
+
 }
