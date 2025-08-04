@@ -1,4 +1,4 @@
-package com.fairing.fairplay.user.dto;
+package com.fairing.fairplay.core.email.dto;
 
 import lombok.Data;
 import jakarta.validation.constraints.Email;
