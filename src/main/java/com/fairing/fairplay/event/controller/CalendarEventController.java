@@ -22,39 +22,22 @@ public class CalendarEventController {
     private final CalendarEventService calendarEventService;
     private final EventService eventService;
 
-
-
     @GetMapping("/events")
     public ResponseEntity<List<CalendarEventDto>> getEventsByMonth(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @AuthenticationPrincipal CustomUserDetails user,
             @RequestParam int year,
             @RequestParam int month
     ) {
-        Long userId = userDetails.getUserId();
-
-        List<CalendarEventDto> events = calendarEventService.getMonthlyEventsForUser(userId, year, month);
-
+        List<CalendarEventDto> events = calendarEventService.getMonthlyEventsForUser(user.getUserId(), year, month);
         return ResponseEntity.ok(events);
     }
 
-
-/*
-    @GetMapping("/reservation/{eventId}")
-    public String showReservationForm(@PathVariable Long eventId, Model model) {
-        Event event = eventService.findById(eventId);
-        model.addAttribute("event", event);
-        return "reservation-form"; // reservation-form.jsp or .html
-    }*/
-
-
     @GetMapping("/events/grouped")
     public ResponseEntity<List<CalendarGroupedDto>> getGroupedEvents(
-            @AuthenticationPrincipal CustomUserDetails userDetails
+            @AuthenticationPrincipal CustomUserDetails user
     ) {
-        Long userId = userDetails.getUserId();
-        List<CalendarGroupedDto> grouped = calendarEventService.getGroupedEventsByUser(userId);
+        List<CalendarGroupedDto> grouped = calendarEventService.getGroupedEventsByUser(user.getUserId());
         return ResponseEntity.ok(grouped);
     }
-
-
 }
+
