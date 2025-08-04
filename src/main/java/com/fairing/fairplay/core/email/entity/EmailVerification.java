@@ -1,4 +1,4 @@
-package com.fairing.fairplay.user.entity;
+package com.fairing.fairplay.core.email.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
