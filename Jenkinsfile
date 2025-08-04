@@ -5,9 +5,14 @@ pipeline {
         DOCKERHUB_PASS = credentials('dockerhub-pass')
     }
     stages {
-        stage('Checkout') {
+        stage('Checkout Backend') {
             steps {
                 checkout scm
+            }
+        }
+        stage('Checkout Frontend') {
+            steps {
+                sh 'git clone https://github.com/Fairing-15th/FairPlay_FE.git fairplay-fe'
             }
         }
         stage('Frontend Build') {
@@ -20,6 +25,7 @@ pipeline {
         }
         stage('Copy Frontend to Backend') {
             steps {
+                sh 'rm -rf fairplay/src/main/resources/static/*'
                 sh 'cp -R fairplay-fe/dist/* fairplay/src/main/resources/static/'
             }
         }
