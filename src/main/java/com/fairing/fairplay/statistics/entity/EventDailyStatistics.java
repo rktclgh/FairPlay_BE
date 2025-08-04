@@ -29,17 +29,25 @@ public class EventDailyStatistics {
     @Column(name = "stat_date", nullable = false)
     private LocalDate statDate;
 
-    @Column(name = "reservation_count")
+
+    @Column(name = "reservation_count", nullable = false)
+    @Builder.Default
     private Integer reservationCount = 0;
 
-    @Column(name = "checkins_count")
+
+    @Column(name = "checkins_count", nullable = false)
+    @Builder.Default
     private Integer checkinsCount = 0;
 
-    @Column(name = "cancellation_count")
+
+    @Column(name = "cancellation_count", nullable = false)
+    @Builder.Default
     private Integer cancellationCount = 0;
 
-    @Column(name = "no_shows_count")
-    private Integer noShowsCount = 0 ;
+
+    @Column(name = "no_shows_count", nullable = false)
+    @Builder.Default
+    private Integer noShowsCount = 0;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
