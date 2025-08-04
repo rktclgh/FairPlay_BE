@@ -35,17 +35,20 @@ public class EventSessionStatistics {
     @Column(name = "ticket_type", nullable = false)
     private String ticketType;
 
-    @Column(name = "reservations")
-    private Integer reservations;
+    @Column(name = "reservations", nullable = false)
+    @Builder.Default
+    private Integer reservations = 0;
 
     @Column(name = "cancellation")
-    private Integer cancellations;
+    private Integer cancellations = 0;
 
-    @Column(name = "checkins")
-    private Integer checkins;
+    @Column(name = "checkins", nullable = false)
+    @Builder.Default
+    private Integer checkins = 0;
 
-    @Column(name = "no_shows")
-    private Integer noShows;
+    @Column(name = "no_shows", nullable = false)
+    @Builder.Default
+    private Integer noShows = 0;
 
 
     @Column(name = "created_at")

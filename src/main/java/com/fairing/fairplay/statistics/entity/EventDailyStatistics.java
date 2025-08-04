@@ -30,17 +30,22 @@ public class EventDailyStatistics {
     private LocalDate statDate;
 
     @Column(name = "reservation_count")
-    private Integer reservationCount;
+    private Integer reservationCount = 0;
 
     @Column(name = "checkins_count")
-    private Integer checkinsCount;
+    private Integer checkinsCount = 0;
 
     @Column(name = "cancellation_count")
-    private Integer cancellationCount;
+    private Integer cancellationCount = 0;
 
     @Column(name = "no_shows_count")
-    private Integer noShowsCount;
+    private Integer noShowsCount = 0 ;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @PrePersist
+   public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
 }

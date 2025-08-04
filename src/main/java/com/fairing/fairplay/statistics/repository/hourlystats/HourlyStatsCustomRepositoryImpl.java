@@ -36,7 +36,7 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                         .eventId(t.get(r.event.eventId))
                         .statDate(targetDate)
                         .hour(t.get(r.createdAt.hour()))
-                        .reservations(t.get(r.count()).intValue())
+                        .reservations(t.get(r.count()).longValue())
                         .createdAt(LocalDateTime.now())
                         .build())
                 .toList();

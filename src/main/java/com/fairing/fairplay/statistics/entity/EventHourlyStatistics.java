@@ -32,11 +32,13 @@ public class EventHourlyStatistics {
     @Column(name = "hour", nullable = false)
     private Integer hour;
 
-    @Column(name = "reservations")
-    private Integer reservations;
+    @Column(name = "reservations", nullable = false)
+    @Builder.Default
+    private Long reservations = 0L;
 
-    @Column(name = "checkins")
-    private Integer checkins;
+    @Column(name = "checkins", nullable = false)
+    @Builder.Default
+    private Integer checkins = 0;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

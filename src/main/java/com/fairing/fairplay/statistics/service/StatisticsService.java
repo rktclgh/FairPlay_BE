@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StatisticsService {
@@ -24,15 +26,25 @@ public class StatisticsService {
     // 데이터 집계
     @Transactional
     public void runBatch(LocalDate date) {
-        dailyRepo.saveAll(dailyRepo.calculate(date));
-        hourlyRepo.saveAll(hourlyRepo.calculate(date));
-        ticketRepo.saveAll(ticketRepo.calculate(date));
-        sessionRepo.saveAll(sessionRepo.calculate(date));
+        try {
+            dailyRepo.saveAll(dailyRepo.calculate(date));
+            hourlyRepo.saveAll(hourlyRepo.calculate(date));
+            ticketRepo.saveAll(ticketRepo.calculate(date));
+            sessionRepo.saveAll(sessionRepo.calculate(date));
+            log.info("통계 배치 처리 완료: {}", date);
+        }catch (Exception e) {
+            log.error("통계 배치 처리 실패: {}", date, e);
+            throw e;
+        }
     }
 
     public EventDashboardStatsDto getDashboardStats(Long eventId, LocalDate start, LocalDate end) {
+        // 날짜 범위 검증
+        if (start.isAfter(end)) {
+            throw new IllegalArgumentException("시작일이 종료일보다 늦을 수 없습니다.");
+        }
         // 1. 요약 데이터
-        List<EventDailyStatistics> dailyList = dailyRepo.findByEventIdOrderByStatDate(eventId);
+        List<EventDailyStatistics> dailyList = dailyRepo.findByEventIdAndStatDateBetweenOrderByStatDate(eventId, start, end);
         int totalReservations = dailyList.stream().mapToInt(EventDailyStatistics::getReservationCount).sum();
         int totalCheckins = dailyList.stream().mapToInt(EventDailyStatistics::getCheckinsCount).sum();
         int totalCancellations = dailyList.stream().mapToInt(EventDailyStatistics::getCancellationCount).sum();

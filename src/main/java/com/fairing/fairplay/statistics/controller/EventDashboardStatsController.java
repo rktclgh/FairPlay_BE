@@ -13,7 +13,7 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class EventDashboardStatsController {
 
-    private final StatisticsService dashboardService;
+    private final StatisticsService statisticsService;
 
     @GetMapping("/reservations/{eventId}")
     public EventDashboardStatsDto getEventDashboard(
@@ -21,6 +21,6 @@ public class EventDashboardStatsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end
     ) {
-        return dashboardService.getDashboardStats(eventId, start, end);
+        return statisticsService.getDashboardStats(eventId, start, end);
     }
 }
