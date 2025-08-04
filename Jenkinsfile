@@ -3,6 +3,7 @@ pipeline {
     environment {
         DOCKERHUB_USER = 'songchih'
         DOCKERHUB_PASS = credentials('dockerhub-pass')
+        FRONTEND_ENV = credentials('fairplay-fe-env')
     }
     stages {
         stage('Checkout Backend') {
@@ -18,7 +19,11 @@ pipeline {
         }
         stage('Prepare Frontend Environment') {
             steps {
-                sh 'cp ../fairplay-fe/.env fairplay-fe/.env'
+                dir('fairplay-fe') {
+                    withCredentials([file(credentialsId: 'fairplay-fe-env', variable: 'ENV_FILE')]) {
+                        sh 'cp $ENV_FILE .env'
+                    }
+                }
             }
         }
         stage('Frontend Build') {
