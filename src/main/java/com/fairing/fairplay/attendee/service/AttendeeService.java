@@ -1,6 +1,7 @@
 package com.fairing.fairplay.attendee.service;
 
 import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
+import com.fairing.fairplay.attendee.dto.AttendeeListInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeSaveRequestDto;
 import com.fairing.fairplay.attendee.dto.AttendeeUpdateRequestDto;
 import com.fairing.fairplay.attendee.entity.Attendee;
@@ -13,7 +14,6 @@ import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
 import java.util.List;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,8 +31,8 @@ public class AttendeeService {
 
   // 대표자 정보 저장
   @Transactional
-  public AttendeeInfoResponseDto savePrimary(AttendeeSaveRequestDto dto) {
-    return saveAttendee("PRIMARY", dto, dto.getReservationId());
+  public AttendeeInfoResponseDto savePrimary(AttendeeSaveRequestDto dto, Long reservationId) {
+    return saveAttendee("PRIMARY", dto, reservationId);
   }
 
   // 동반자 정보 저장
@@ -46,19 +46,24 @@ public class AttendeeService {
   }
 
   // 참석자 전체 조회
-  public List<AttendeeInfoResponseDto> findAll(Long reservationId) {
+  public AttendeeListInfoResponseDto findAll(Long reservationId) {
     checkReservation(reservationId);
 
-    List<Attendee> attendees = attendeeRepository.findAllByReservation_ReservationId(reservationId);
+    List<Attendee> attendees = attendeeRepository.findAllByReservation_ReservationIdOrderByIdAsc(
+        reservationId);
 
-    return attendees.stream().map(attendee -> AttendeeInfoResponseDto.builder()
+    List<AttendeeInfoResponseDto> result = attendees.stream().map(attendee -> AttendeeInfoResponseDto.builder()
             .attendeeId(attendee.getId())
-            .reservationId(attendee.getReservation().getReservationId())
             .name(attendee.getName())
             .email(attendee.getEmail())
             .phone(attendee.getPhone())
             .build())
-        .collect(Collectors.toList());
+        .toList();
+
+    return AttendeeListInfoResponseDto.builder()
+        .reservationId(reservationId)
+        .attendees(result)
+        .build();
   }
 
   // 동반자 정보 수정

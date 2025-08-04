@@ -1,19 +1,17 @@
 package com.fairing.fairplay.attendee.dto;
 
-import java.time.LocalDate;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+// 참석자 리스트
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class AttendeeSaveRequestDto {
-
-  private String name;
-  private String email;
-  private String phone;
-  private LocalDate birth;
+public class AttendeeListInfoResponseDto {
+  private Long reservationId;
+  private List<AttendeeInfoResponseDto> attendees;
 }

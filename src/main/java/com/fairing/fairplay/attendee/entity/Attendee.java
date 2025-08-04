@@ -49,6 +49,7 @@ public class Attendee {
   private LocalDate birth;
   @Column(name = "checked_in", nullable = false)
   @ColumnDefault("false")
+  @Builder.Default
   private Boolean checkedIn = false;
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "attendee_type_code_id")
