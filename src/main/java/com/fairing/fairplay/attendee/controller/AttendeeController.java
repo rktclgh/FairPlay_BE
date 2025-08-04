@@ -53,10 +53,10 @@ public class AttendeeController {
   }
 
   // 행사별 예약자 명단 조회 (행사 관리자)
-  @GetMapping("/{eventId}")
+  @GetMapping("/events/{eventId}")
   public ResponseEntity<List<AttendeeInfoResponseDto>> getAttendees(@PathVariable Long eventId,
                                                                     @AuthenticationPrincipal CustomUserDetails userDetails) {
-    List<Attendee> attendees = attendeeService.getAttendeesByEvent(eventId);
+    List<Attendee> attendees = attendeeService.getAttendeesByEvent(eventId, userDetails.getUserId());
 
     List<AttendeeInfoResponseDto> response = attendees.stream()
             .map(attendee -> AttendeeInfoResponseDto.builder()

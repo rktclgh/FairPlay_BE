@@ -134,7 +134,14 @@ public class AttendeeService {
   }
 
   // 행사별 예약자 명단 조회 (행사 관리자)
-  public List<Attendee> getAttendeesByEvent(Long eventId) {
+  public List<Attendee> getAttendeesByEvent(Long eventId, Long userId) {
+    // eventId 유효성 검사
+    if (eventId == null || eventId <= 0) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "유효하지 않은 행사 ID입니다.");
+    }
+
+    // 행사 관리자 권한 검증
+
     return attendeeRepository.findByEventId(eventId);
   }
 }
