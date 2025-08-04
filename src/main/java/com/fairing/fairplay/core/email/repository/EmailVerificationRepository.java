@@ -1,6 +1,6 @@
-package com.fairing.fairplay.user.repository;
+package com.fairing.fairplay.core.email.repository;
 
-import com.fairing.fairplay.user.entity.EmailVerification;
+import com.fairing.fairplay.core.email.entity.EmailVerification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
