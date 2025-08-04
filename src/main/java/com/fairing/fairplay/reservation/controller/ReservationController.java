@@ -1,6 +1,8 @@
 package com.fairing.fairplay.reservation.controller;
 
 
+import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
+import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
 import com.fairing.fairplay.reservation.dto.ReservationResponseDto;
@@ -70,7 +72,7 @@ public class ReservationController {
         return ResponseEntity.ok(response);
     }
 
-    // 박람회(행사)의 전체 예약 조회
+    // 박람회(행사)의 전체 예약 조회 (행사 관리자)
     @GetMapping
     public ResponseEntity<List<ReservationResponseDto>> getReservations(@PathVariable Long eventId,
                                                                         @AuthenticationPrincipal CustomUserDetails userDetails
@@ -93,5 +95,15 @@ public class ReservationController {
                 .toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    // 예약 취소
+    @PatchMapping("/{reservationId}")
+    public ResponseEntity<Void> cancelReservation(@PathVariable Long eventId,
+                                            @PathVariable Long reservationId,
+                                            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long userId = userDetails.getUserId();
+        reservationService.cancelReservation(reservationId, userId);
+        return ResponseEntity.noContent().build();
     }
 }
