@@ -62,11 +62,12 @@ public class EventStatusScheduler {
                 })
                 .filter(Objects::nonNull)
                 .forEach(event -> {
+                    String oldStatus = event.getStatusCode().getCode();
                     // 상태 변경 후 버전 생성
                     eventVersionService.createEventVersion(event, SYSTEM_MANAGER_ID);
                     log.info("eventId={} 상태 변경: {} → {}",
                             event.getEventId(),
-                            event.getStatusCode().getCode(),
+                            oldStatus,
                             event.getStatusCode().getCode());
                 });
     }
@@ -75,6 +76,11 @@ public class EventStatusScheduler {
                                             EventStatusCode upcoming,
                                             EventStatusCode ongoing,
                                             EventStatusCode ended) {
+
+        if (eventDetail == null) {
+            // EventDetail이 없는 경우
+            throw new CustomException(HttpStatus.NOT_FOUND, "행사 상세 정보가 존재하지 않습니다. 먼저 상세 정보를 등록하세요.");
+        }
 
         if (today.isBefore(eventDetail.getStartDate())) {
             return upcoming;

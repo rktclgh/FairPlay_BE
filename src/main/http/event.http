@@ -4,18 +4,18 @@ Content-Type: application/json
 
 {
   "email": "eventManager3@fairplay.com",
-  "titleKr": "서울 여름 콘서트 2025",
-  "titleEng": "SEOUL SUMMER CONCERT 2025"
+  "titleKr": "서울 겨울 콘서트 2025",
+  "titleEng": "SEOUL WINTER CONCERT 2025"
 }
 
 ### 행사 상세 등록
-@createEventDetailId=1011
+@createEventDetailId=1012
 POST http://localhost:8080/api/events/{{createEventDetailId}}/details
 Content-Type: application/json
 
 {
-  "titleKr": "서울 여름 콘서트 2025 상세 등록",
-  "titleEng": "SEOUL SUMMER CONCERT 2025",
+  "titleKr": "서울 겨울 콘서트 2025 상세 등록",
+  "titleEng": "SEOUL WINTER CONCERT 2025",
   "address": "서울특별시 송파구 올림픽로 424",
   "placeName": "KSPO DOME (올림픽체조경기장)",
   "latitude": 37.5725,
@@ -59,13 +59,13 @@ GET http://localhost:8080/api/events/list
 Accept: application/json
 
 ### 행사 상세 조회
-@readEventDetailId = 1011
+@readEventDetailId = 1012
 GET http://localhost:8080/api/events/{{readEventDetailId}}/details
 Accept: application/json
 
 
 ### 행사명 및 숨김 상태 업데이트
-@updateEventId = 1011
+@updateEventId = 1012
 PATCH http://localhost:8080/api/events/{{updateEventId}}
 Content-Type: application/json
 
@@ -74,11 +74,11 @@ Content-Type: application/json
 }
 
 ### 행사 상세 업데이트
-@updateEventDetailId = 1011
+@updateEventDetailId = 1012
 PATCH http://localhost:8080/api/events/{{updateEventDetailId}}/details
 Content-Type: application/json
 
 {
-  "titleKr": "서울 여름 콘서트 : 2025",
+  "titleKr": "서울 겨울 콘서트 : 2025",
   "hostName": "SBS"
 }

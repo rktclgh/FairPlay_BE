@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 
-public interface ExternalLinkRepository extends JpaRepository<ExternalLink, Integer> {
+public interface ExternalLinkRepository extends JpaRepository<ExternalLink, Long> {
     List<ExternalLink> findByEvent(Event event);
 
     void deleteByEvent(Event event);

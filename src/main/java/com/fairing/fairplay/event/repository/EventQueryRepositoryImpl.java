@@ -43,9 +43,13 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         detail.regionCode.code
                 ))
                 .from(event)
-                .leftJoin(event.eventDetail, detail)
+                .join(event.eventDetail, detail)       // 상세 정보가 있는 이벤트만 조회
                 .leftJoin(event.eventTickets, eventTicket)
                 .leftJoin(eventTicket.ticket, ticket)
+                .where(
+                        event.hidden.eq(false),         // 숨겨지지 않은 이벤트만
+                        detail.eventDetailId.isNotNull()     // 상세 정보가 등록된 이벤트만
+                )
                 .groupBy(event.eventId)
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
