@@ -1,5 +1,6 @@
 package com.fairing.fairplay.shareticket.service;
 
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,15 @@ public class ShareTicketService {
       throw new IllegalArgumentException("유효하지 않은 요청입니다.");
     }
 
+    // 예약 유무 조회
+    Reservation reservation = reservationRepository.findById(dto.getReservationId())
+        .orElseThrow(() -> new EntityNotFoundException("예약을 찾을 수 없습니다."));
+
+    // 예약 ID 기준 폼이 생성되어있는지 조회
+    if (shareTicketRepository.existsByReservation_ReservationId(dto.getReservationId())) {
+      throw new CustomException(HttpStatus.CONFLICT, "이미 폼 링크가 생성되었습니다.");
+    }
+
     String token;
     do {
       UUID uuid = UUID.randomUUID();
@@ -46,14 +57,15 @@ public class ShareTicketService {
           .encodeToString(bytes); //5B3Ej0AdRMqrqY7xV6k9tw 형태
     } while (shareTicketRepository.existsByLinkToken(token));
 
-    Reservation reservation = reservationRepository.findById(dto.getReservationId())
-        .orElseThrow(() -> new EntityNotFoundException("예약을 찾을 수 없습니다."));
+    if (dto.getTotalAllowed() == null || dto.getTotalAllowed() <= 0) {
+      throw new IllegalArgumentException("허용 인원은 1명 이상이어야 합니다.");
+    }
 
     ShareTicket shareTicket = ShareTicket.builder()
         .linkToken(token)
-        .totalAllowed(dto.getTotalAllowed())
+        .totalAllowed(dto.getTotalAllowed()) //대표자 제출 O
         .expired(false)
-        .submittedCount(0)
+        .submittedCount(1) // 대표자 제출
         .reservation(reservation)
         .expiredAt(dto.getExpiredAt())
         .build();

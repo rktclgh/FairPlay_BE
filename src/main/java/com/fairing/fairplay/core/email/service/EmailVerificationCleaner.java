@@ -1,6 +1,6 @@
-package com.fairing.fairplay.user.service;
+package com.fairing.fairplay.core.email.service;
 
-import com.fairing.fairplay.user.repository.EmailVerificationRepository;
+import com.fairing.fairplay.core.email.repository.EmailVerificationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;

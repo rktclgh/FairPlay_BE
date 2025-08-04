@@ -168,13 +168,20 @@ public class AuthService {
 
         String kakaoId = null;
         String nickname = null;
+        String realEmail = null;
+
         try {
             ObjectMapper om = new ObjectMapper();
             JsonNode userNode = om.readTree(userInfoResponse.getBody());
             kakaoId = userNode.get("id").asText(); // 카카오 고유 userId
             JsonNode kakaoAccount = userNode.get("kakao_account");
-            if (kakaoAccount != null && kakaoAccount.has("profile")) {
-                nickname = kakaoAccount.get("profile").get("nickname").asText();
+            if (kakaoAccount != null) {
+                if (kakaoAccount.has("email")) {
+                    realEmail = kakaoAccount.get("email").asText();
+                }
+                if (kakaoAccount.has("profile")) {
+                    nickname = kakaoAccount.get("profile").get("nickname").asText();
+                }
             }
         } catch (Exception e) {
             throw new CustomException(HttpStatus.UNAUTHORIZED, "카카오 유저 정보 파싱 실패");
@@ -184,18 +191,18 @@ public class AuthService {
             throw new CustomException(HttpStatus.UNAUTHORIZED, "카카오 아이디 수신 실패");
         }
 
-        // 임시 이메일 생성 (kakao_1234567890)
-        final String tempEmail = "kakao_" + kakaoId;
+        // 진짜 이메일이 있으면 그걸, 아니면 기존 방식
+        final String userEmail = (realEmail != null && !realEmail.isBlank())
+                ? realEmail
+                : "kakao_" + kakaoId;
         final String finalNickname = nickname != null ? nickname : "kakaoUser";
 
-        Users user = userRepository.findByEmail(tempEmail)
+        Users user = userRepository.findByEmail(userEmail)
                 .orElseGet(() -> {
-                    // 기본 권한 COMMON 코드 엔티티 할당 (없으면 예외)
                     UserRoleCode userRole = userRoleCodeRepository.findByCode("COMMON")
                             .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "기본 권한 코드(COMMON)가 없습니다."));
-                    // 신규 소셜 회원가입
                     Users newUser = Users.builder()
-                            .email(tempEmail)
+                            .email(userEmail)   // 진짜 이메일 저장!
                             .nickname(finalNickname)
                             .password(passwordEncoder.encode("kakao_social")) // 소셜로그인용 비번(임의)
                             .roleCode(userRole)
