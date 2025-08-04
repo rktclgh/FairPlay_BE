@@ -51,9 +51,9 @@ public class ShareTicketService {
 
     ShareTicket shareTicket = ShareTicket.builder()
         .linkToken(token)
-        .totalAllowed(dto.getTotalAllowed())
+        .totalAllowed(dto.getTotalAllowed()-1) //대표자 제출 O
         .expired(false)
-        .submittedCount(0)
+        .submittedCount(1) // 대표자 제출
         .reservation(reservation)
         .expiredAt(dto.getExpiredAt())
         .build();
