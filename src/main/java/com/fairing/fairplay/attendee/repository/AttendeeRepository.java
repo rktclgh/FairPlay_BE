@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AttendeeRepository extends JpaRepository<Attendee, Long> {
 
-  List<Attendee> findAllByReservation_ReservationId(Long reservationId);
+  List<Attendee> findAllByReservation_ReservationIdOrderByIdAsc(Long reservationId);
 
   Optional<Attendee> findByReservation_ReservationIdAndAttendeeTypeCode_Id(Long reservationId,
       Integer attendeeTypeCodeId);

@@ -1,6 +1,7 @@
 package com.fairing.fairplay.attendee.service;
 
 import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
+import com.fairing.fairplay.attendee.dto.AttendeeListInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeSaveRequestDto;
 import com.fairing.fairplay.attendee.dto.AttendeeUpdateRequestDto;
 import com.fairing.fairplay.attendee.entity.Attendee;
@@ -13,7 +14,6 @@ import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
 import java.util.List;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,8 +31,8 @@ public class AttendeeService {
 
   // 대표자 정보 저장
   @Transactional
-  public AttendeeInfoResponseDto savePrimary(AttendeeSaveRequestDto dto) {
-    return saveAttendee("PRIMARY", dto, dto.getReservationId());
+  public AttendeeInfoResponseDto savePrimary(AttendeeSaveRequestDto dto, Long reservationId) {
+    return saveAttendee("PRIMARY", dto, reservationId);
   }
 
   // 동반자 정보 저장
@@ -46,29 +46,44 @@ public class AttendeeService {
   }
 
   // 참석자 전체 조회
-  public List<AttendeeInfoResponseDto> findAll(Long reservationId) {
+  public AttendeeListInfoResponseDto findAll(Long reservationId) {
     checkReservation(reservationId);
 
-    List<Attendee> attendees = attendeeRepository.findAllByReservation_ReservationId(reservationId);
+    List<Attendee> attendees = attendeeRepository.findAllByReservation_ReservationIdOrderByIdAsc(
+        reservationId);
 
-    return attendees.stream().map(attendee -> AttendeeInfoResponseDto.builder()
+    List<AttendeeInfoResponseDto> result = attendees.stream().map(attendee -> AttendeeInfoResponseDto.builder()
             .attendeeId(attendee.getId())
-            .reservationId(attendee.getReservation().getReservationId())
             .name(attendee.getName())
             .email(attendee.getEmail())
             .phone(attendee.getPhone())
             .build())
-        .collect(Collectors.toList());
+        .toList();
+
+    return AttendeeListInfoResponseDto.builder()
+        .reservationId(reservationId)
+        .attendees(result)
+        .build();
   }
 
   // 동반자 정보 수정
   @Transactional
   public AttendeeInfoResponseDto updateAttendee(Long attendeeId, AttendeeUpdateRequestDto dto) {
+    // 정보 요청한 회원의 attendeeType 조회 후 primary가 아닐 경우 exception 설정 추후 추가
+
+    // 예약 있는지 조회
+    checkReservation(dto.getReservationId());
+
+    // 참석자 정보 조회
     Attendee attendee = attendeeRepository.findById(attendeeId)
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
 
-    checkReservation(dto.getReservationId());
+    // 수정하려는 정보가 대표자일 경우 수정 불가하므로 예외 발생
+    if("PRIMARY".equals(attendee.getAttendeeTypeCode().getCode().trim())) {
+      throw new CustomException(HttpStatus.FORBIDDEN,"대표자 정보는 수정할 수 없습니다.");
+    }
 
+    // 정보 변경
     attendee.setEmail(dto.getEmail());
     attendee.setPhone(dto.getPhone());
     attendee.setName(dto.getName());
