@@ -1,26 +1,21 @@
 package com.fairing.fairplay.event.dto;
 
-import java.util.List;
-
+import lombok.*;
 import org.springframework.data.domain.Pageable;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import java.util.List;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class EventSummaryResponseDto {
+public class EventSummaryResponseDto {  // 행사 목록
 
     private String message;
     private List<EventSummaryDto> events;
     private Pageable pageable;
-    private Integer totalElements;
+    private Long totalElements;
     private Integer totalPages;
     
 }

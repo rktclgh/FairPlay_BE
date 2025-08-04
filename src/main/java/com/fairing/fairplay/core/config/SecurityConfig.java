@@ -31,6 +31,7 @@ public class SecurityConfig {
                                 "/api/auth/login",     // 로그인
                                 "/api/auth/logout",   //로그아웃
                                 "/api/auth/refresh",   // 토큰 재발급
+                                "/api/events/**",      // 행사 // TODO: 권한별로 나누기
                                 "/api/users/forgot-password",//임시 비밀번호 발급
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
