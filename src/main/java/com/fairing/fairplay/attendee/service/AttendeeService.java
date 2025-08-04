@@ -79,7 +79,7 @@ public class AttendeeService {
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
 
     // 수정하려는 정보가 대표자일 경우 수정 불가하므로 예외 발생
-    if(attendee.getAttendeeTypeCode().getCode().trim().equals("PRIMARY")) {
+    if("PRIMARY".equals(attendee.getAttendeeTypeCode().getCode().trim())) {
       throw new CustomException(HttpStatus.FORBIDDEN,"대표자 정보는 수정할 수 없습니다.");
     }
 

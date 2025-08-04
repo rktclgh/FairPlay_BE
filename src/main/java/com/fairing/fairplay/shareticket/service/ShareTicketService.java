@@ -57,9 +57,13 @@ public class ShareTicketService {
           .encodeToString(bytes); //5B3Ej0AdRMqrqY7xV6k9tw 형태
     } while (shareTicketRepository.existsByLinkToken(token));
 
+    if (dto.getTotalAllowed() == null || dto.getTotalAllowed() <= 0) {
+      throw new IllegalArgumentException("허용 인원은 1명 이상이어야 합니다.");
+    }
+
     ShareTicket shareTicket = ShareTicket.builder()
         .linkToken(token)
-        .totalAllowed(dto.getTotalAllowed() - 1) //대표자 제출 O
+        .totalAllowed(dto.getTotalAllowed()) //대표자 제출 O
         .expired(false)
         .submittedCount(1) // 대표자 제출
         .reservation(reservation)
