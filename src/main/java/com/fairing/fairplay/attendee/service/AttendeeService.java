@@ -69,11 +69,21 @@ public class AttendeeService {
   // 동반자 정보 수정
   @Transactional
   public AttendeeInfoResponseDto updateAttendee(Long attendeeId, AttendeeUpdateRequestDto dto) {
+    // 정보 요청한 회원의 attendeeType 조회 후 primary가 아닐 경우 exception 설정 추후 추가
+
+    // 예약 있는지 조회
+    checkReservation(dto.getReservationId());
+
+    // 참석자 정보 조회
     Attendee attendee = attendeeRepository.findById(attendeeId)
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
 
-    checkReservation(dto.getReservationId());
+    // 수정하려는 정보가 대표자일 경우 수정 불가하므로 예외 발생
+    if(attendee.getAttendeeTypeCode().getCode().trim().equals("PRIMARY")) {
+      throw new CustomException(HttpStatus.FORBIDDEN,"대표자 정보는 수정할 수 없습니다.");
+    }
 
+    // 정보 변경
     attendee.setEmail(dto.getEmail());
     attendee.setPhone(dto.getPhone());
     attendee.setName(dto.getName());
