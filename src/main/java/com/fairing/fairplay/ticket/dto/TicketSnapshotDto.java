@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import com.fairing.fairplay.ticket.entity.TypesEnum;
 
 @Data
 @Builder
@@ -21,5 +21,6 @@ public class TicketSnapshotDto {
     private Integer maxPurchase;
     private boolean visible;
     private boolean deleted;
+    private TypesEnum types;
 
 }

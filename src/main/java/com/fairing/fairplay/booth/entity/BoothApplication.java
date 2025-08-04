@@ -4,11 +4,14 @@ import com.fairing.fairplay.event.entity.Event;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Getter
+@Setter
 @NoArgsConstructor
 public class BoothApplication {
 
@@ -55,5 +58,16 @@ public class BoothApplication {
 
     @Column(name = "status_updated_at")
     private LocalDateTime statusUpdatedAt;
+
+
+    @Column(name = "booth_title", nullable = false, length = 100)
+    private String boothTitle;
+
+    @Column(name = "start_date", nullable = false)
+    private LocalDate startDate;
+
+    @Column(name = "end_date", nullable = false)
+    private LocalDate endDate;
+
 
 }

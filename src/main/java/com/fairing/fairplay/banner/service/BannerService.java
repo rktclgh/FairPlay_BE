@@ -23,7 +23,7 @@ public class BannerService {
 
     // 배너 등록
     @Transactional
-    public BannerResponseDto createBanner(BannerRequestDto dto, AdminAccount admin) {
+    public BannerResponseDto createBanner(BannerRequestDto dto, Long adminId) {
         BannerStatusCode statusCode = getStatusCode(dto.getStatusCode());
 
         Banner banner = new Banner(
@@ -37,14 +37,14 @@ public class BannerService {
         );
 
         Banner saved = bannerRepository.save(banner);
-        logBannerAction(saved, admin, "CREATE");
+        logBannerAction(saved, adminId, "CREATE");
 
         return toDto(saved);
     }
 
     // 배너 수정
     @Transactional
-    public BannerResponseDto updateBanner(Long bannerId, BannerRequestDto dto, AdminAccount admin) {
+    public BannerResponseDto updateBanner(Long bannerId, BannerRequestDto dto, Long adminId) {
         Banner banner = getBanner(bannerId);
         BannerStatusCode statusCode = getStatusCode(dto.getStatusCode());
 
@@ -52,28 +52,28 @@ public class BannerService {
                 dto.getStartDate(), dto.getEndDate(), dto.getPriority());
         banner.updateStatus(statusCode);
 
-        logBannerAction(banner, admin, "UPDATE");
+        logBannerAction(banner, adminId, "UPDATE");
 
         return toDto(banner);
     }
 
     // 상태 전환
     @Transactional
-    public void changeStatus(Long bannerId, BannerStatusUpdateDto dto, AdminAccount admin) {
+    public void changeStatus(Long bannerId, BannerStatusUpdateDto dto, Long adminId) {
         Banner banner = getBanner(bannerId);
         BannerStatusCode statusCode = getStatusCode(dto.getStatusCode());
 
         banner.updateStatus(statusCode);
-        logBannerAction(banner, admin, "UPDATE");
+        logBannerAction(banner, adminId, "UPDATE");
     }
 
     // 우선순위 변경
     @Transactional
-    public void changePriority(Long bannerId, BannerPriorityUpdateDto dto, AdminAccount admin) {
+    public void changePriority(Long bannerId, BannerPriorityUpdateDto dto, Long adminId) {
         Banner banner = getBanner(bannerId);
         banner.updatePriority(dto.getPriority());
 
-        logBannerAction(banner, admin, "PRIORITY_CHANGE");
+        logBannerAction(banner, adminId, "PRIORITY_CHANGE");
     }
 
     // 홈화면 배너 목록 조회
@@ -95,13 +95,16 @@ public class BannerService {
                 .collect(Collectors.toList());
     }
 
-    private void logBannerAction(Banner banner, AdminAccount admin, String actionCodeStr) {
+    private void logBannerAction(Banner banner, Long adminId, String actionCodeStr) {
         BannerActionCode actionCode = bannerActionCodeRepository.findByCode(actionCodeStr)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배너 액션 코드: " + actionCodeStr));
 
+        // adminId만으로 proxy admin 객체 생성
+        AdminAccount proxyAdmin = new AdminAccount(adminId);
+
         BannerLog log = BannerLog.builder()
                 .banner(banner)
-                .changedBy(admin)
+                .changedBy(proxyAdmin)
                 .actionCode(actionCode)
                 .build();
 
@@ -130,4 +133,6 @@ public class BannerService {
                 .statusCode(banner.getBannerStatusCode().getCode())
                 .build();
     }
+
+
 }

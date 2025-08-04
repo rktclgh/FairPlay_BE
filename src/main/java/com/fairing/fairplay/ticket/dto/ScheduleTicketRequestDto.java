@@ -1,0 +1,26 @@
+package com.fairing.fairplay.ticket.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ScheduleTicketRequestDto { // 회차별 티켓 등록
+
+    private List<Long> tickets;             // 등록할 티켓 IDs
+    private Integer remainingStock;         // 회차당 재고
+    private LocalDateTime salesStartAt;     // 해당 회차의 해당 티켓 판매 시작 시간
+    private LocalDateTime salesEndAt;       // 해당 회차의 해당 티켓 판매 종료 시간
+    private Boolean visible;                // 일반 사용자에 공개 여부
+
+}

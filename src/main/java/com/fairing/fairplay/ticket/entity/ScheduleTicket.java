@@ -39,10 +39,6 @@ public class ScheduleTicket {
     @Column(nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
     private Boolean visible = false;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "ENUM('EVENT', 'BOOTH')")
-    private ScheduleTicketType types;
-
     public ScheduleTicket(Ticket ticket, EventSchedule eventSchedule) {
         this.ticket = ticket;
         this.eventSchedule = eventSchedule;
