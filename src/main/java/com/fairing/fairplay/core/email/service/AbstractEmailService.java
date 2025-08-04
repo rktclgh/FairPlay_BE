@@ -22,12 +22,17 @@ public abstract class AbstractEmailService {
 
     // 템플릿 로더
     protected String loadTemplate(String filename) {
+        // 파일명 검증: 상위 디렉토리 접근 방지
+        if (filename == null || filename.contains("..") || filename.contains("/") || filename.contains("\\") ) {
+            throw new IllegalArgumentException("잘못된 템플릿 파일명: " + filename);
+        }
         try (InputStream is = new ClassPathResource("email/" + filename).getInputStream()) {
             return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new RuntimeException("이메일 템플릿 파일 로딩 실패: " + filename, e);
         }
     }
+
 
     // 컨텐츠 구조체
     public static class EmailContent {

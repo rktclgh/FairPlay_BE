@@ -66,7 +66,7 @@ public class EmailVerificationService {
     }
 
     private String generateCode() {
-        Random random = new Random();
+        java.security.SecureRandom random = new java.security.SecureRandom();
         int num = 100000 + random.nextInt(900000); // 6자리
         return String.valueOf(num);
     }
