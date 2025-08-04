@@ -57,12 +57,12 @@ public class ReservationRepositoryCustom {
         )
         .join(attendee).on(
             attendee.reservation.eq(reservation)
-                .and(attendee.attendeeTypeCode.id.eq(2))
+                .and(attendee.attendeeTypeCode.id.eq(attendeeTypeCode.getId()))
         )
         .where(
             schedule.date.eq(tomorrow),
             reservation.canceled.isFalse(),
-            reservation.reservationStatusCode.id.eq(attendeeTypeCode.getId())
+            reservation.reservationStatusCode.id.eq(2)
         )
         .fetch();
 
