@@ -1,14 +1,11 @@
 package com.fairing.fairplay.event.dto;
 
 
+import lombok.*;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Getter
 @Setter
@@ -20,7 +17,10 @@ public class EventDetailRequestDto { // 행사 상세 등록
     private String titleKr;
     private String titleEng;
     private String address;
-    private String buildingName;
+    private String placeName;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private String placeUrl;
     private String locationDetail;
     private String hostName;
     private String contactInfo;
@@ -35,5 +35,7 @@ public class EventDetailRequestDto { // 행사 상세 등록
     private Integer mainCategoryId;
     private Integer subCategoryId;
     private List<ExternalLinkRequestDto> externalLinks;
+    private Boolean reentryAllowed;
+    private Boolean checkOutAllowed;
 
 }

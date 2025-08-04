@@ -45,6 +45,8 @@ Thumbs.db
 # === 환경변수/민감정보 ===
 .env
 .env.*
+secret
+secret/*
 
 # === 로그, 테스트, 기타 빌드 산출물 ===
 logs/

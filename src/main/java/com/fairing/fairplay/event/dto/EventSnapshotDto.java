@@ -40,6 +40,8 @@ public class EventSnapshotDto {
     private Integer mainCategoryId;
     private Integer subCategoryId;
     private Integer regionCodeId;
+    private Boolean reentryAllowed;
+    private Boolean checkOutAllowed;
     private List<EventSnapshotDto.ExternalLinkSnapshot> externalLinks;
 
     @Data
