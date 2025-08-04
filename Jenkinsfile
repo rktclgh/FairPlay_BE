@@ -27,15 +27,15 @@ pipeline {
         stage('Copy Frontend to Backend') {
             steps {
                 sh '''
-                    mkdir -p fairplay/src/main/resources/static
-                    rm -rf fairplay/src/main/resources/static/*
-                    cp -R fairplay-fe/dist/* fairplay/src/main/resources/static/
+                    mkdir -p fairplay/fairplay/src/main/resources/static
+                    rm -rf fairplay/fairplay/src/main/resources/static/*
+                    cp -R fairplay-fe/dist/* fairplay/fairplay/src/main/resources/static/
                 '''
             }
         }
         stage('Backend Build & Dockerize') {
             steps {
-                dir('fairplay') {
+                dir('fairplay/fairplay') {
                     sh '''
                         ./gradlew clean build -x test
                         echo $DOCKERHUB_PASS | docker login -u $DOCKERHUB_USER --password-stdin
