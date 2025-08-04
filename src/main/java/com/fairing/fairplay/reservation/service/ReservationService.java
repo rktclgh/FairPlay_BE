@@ -91,7 +91,7 @@ public class ReservationService {
         }
 
         // 이미 취소된 예약인지 확인
-        if (Objects.equals(reservation.getReservationStatusCode().getCode(), ReservationStatusCodeEnum.CANCELLED.name())) {
+        if (reservation.getReservationStatusCode().getId() == ReservationStatusCodeEnum.CANCELLED.getId()) {
             throw new IllegalStateException("이미 취소된 예약입니다.");
         }
 
@@ -103,7 +103,8 @@ public class ReservationService {
         }
 
         // 예약 상태를 취소로 변경
-        reservation.getReservationStatusCode().setId(ReservationStatusCodeEnum.CANCELLED.getId());
+        ReservationStatusCode cancelledStatus = new ReservationStatusCode(ReservationStatusCodeEnum.CANCELLED.getId());
+        reservation.setReservationStatusCode(cancelledStatus);
 
         // 취소된 티켓 수량만큼 재고 증가
         /*
@@ -126,7 +127,7 @@ public class ReservationService {
     private void createReservationLog(Reservation reservation, ReservationStatusCodeEnum changedStatusCode, Long changedByUserId) {
 
         ReservationStatusCode reservationStatusCode = new ReservationStatusCode(changedStatusCode.getId());
-        Users changedBy = Users.builder().userId(changedByUserId).build();
+        Users changedBy = userRepository.getReferenceById(changedByUserId);
 
         ReservationLog log = new ReservationLog(reservation, reservationStatusCode, changedBy);
 
