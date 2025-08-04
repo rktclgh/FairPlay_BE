@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
-/*QR티켓*/
+/*QR 티켓*/
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
@@ -66,4 +66,7 @@ public class QrTicket {
 
   @Column(name = "manual_code", nullable = true, unique = true, length = 15)
   private String manualCode;
+
+  @Column(name = "ticket_no", nullable = false, unique = true, length = 30)
+  private String ticketNo;
 }

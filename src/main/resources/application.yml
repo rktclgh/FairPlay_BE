@@ -52,3 +52,8 @@ jwt:
   refresh-token-validity-ms: 172800000  # 2일(172,800,000 ms)
   refresh-token-prefix: "refresh_token:"
 
+
+kakao:
+  client-id: ${KAKAO_CLIENT_ID}
+  redirect-uri: ${KAKAO_REDIRECT_URI}
+  client-secret: ${KAKAO_CLIENT_SECRET:}

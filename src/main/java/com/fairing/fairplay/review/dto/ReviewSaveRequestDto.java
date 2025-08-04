@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+// 리뷰 저장 요청
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor

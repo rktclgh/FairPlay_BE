@@ -2,13 +2,15 @@ package com.fairing.fairplay.banner.controller;
 
 import com.fairing.fairplay.banner.dto.*;
 import com.fairing.fairplay.banner.service.BannerService;
-import com.fairing.fairplay.admin.entity.AdminAccount;
+import com.fairing.fairplay.core.security.CustomUserDetails;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
 
-import java.net.URI;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/banners")
@@ -17,60 +19,67 @@ public class AdminBannerController {
 
     private final BannerService bannerService;
 
-    // TODO: 인증된 관리자 계정 주입 방식은 현재는 파라미터 직접 전달 (임시)
-    // 추후 Spring Security 연동 시 @AuthenticationPrincipal 사용 가능
+    // 공통 관리자 권한 체크
+    private void checkAdmin(CustomUserDetails user) {
+        if (!"ADMIN".equals(user.getRoleCode())) {
+            throw new AccessDeniedException("관리자만 접근할 수 있습니다.");
+        }
+    }
 
     // 배너 등록
     @PostMapping
-    public ResponseEntity<BannerResponseDto> createBanner(@RequestBody BannerRequestDto dto) {
-        AdminAccount admin = getDummyAdmin(); // 테스트용 관리자
-        BannerResponseDto response = bannerService.createBanner(dto, admin);
-        return ResponseEntity.created(URI.create("/api/admin/banners/" + response.getId())).body(response);
+    public ResponseEntity<BannerResponseDto> createBanner(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestBody @Valid BannerRequestDto requestDto) {
+
+        checkAdmin(user);
+        BannerResponseDto response = bannerService.createBanner(requestDto, user.getUserId());
+        return ResponseEntity.ok(response);
     }
 
     // 배너 수정
     @PutMapping("/{id}")
     public ResponseEntity<BannerResponseDto> updateBanner(
+            @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
-            @RequestBody BannerRequestDto dto
-    ) {
-        AdminAccount admin = getDummyAdmin();
-        BannerResponseDto response = bannerService.updateBanner(id, dto, admin);
+            @RequestBody @Valid BannerRequestDto dto) {
+
+        checkAdmin(user);
+        BannerResponseDto response = bannerService.updateBanner(id, dto, user.getUserId());
         return ResponseEntity.ok(response);
     }
 
-    //배너 상태 ON/OFF 전환
+    // 배너 상태 ON/OFF 전환
     @PatchMapping("/{id}/status")
     public ResponseEntity<Void> updateStatus(
+            @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
-            @RequestBody BannerStatusUpdateDto dto
-    ) {
-        AdminAccount admin = getDummyAdmin();
-        bannerService.changeStatus(id, dto, admin);
+            @RequestBody @Valid BannerStatusUpdateDto dto) {
+
+        checkAdmin(user);
+        bannerService.changeStatus(id, dto, user.getUserId());
         return ResponseEntity.ok().build();
     }
 
-    //배너 우선순위 변경
+    // 배너 우선순위 변경
     @PatchMapping("/{id}/priority")
     public ResponseEntity<Void> updatePriority(
+            @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
-            @RequestBody BannerPriorityUpdateDto dto
-    ) {
-        AdminAccount admin = getDummyAdmin();
-        bannerService.changePriority(id, dto, admin);
+            @RequestBody @Valid BannerPriorityUpdateDto dto) {
+
+        checkAdmin(user);
+        bannerService.changePriority(id, dto, user.getUserId());
         return ResponseEntity.ok().build();
     }
 
-    //전체 배너 목록 (옵션)
+    // 전체 배너 목록
     @GetMapping
-    public ResponseEntity<List<BannerResponseDto>> listAll() {
+    public ResponseEntity<List<BannerResponseDto>> listAll(
+            @AuthenticationPrincipal CustomUserDetails user) {
+
+        checkAdmin(user);
         List<BannerResponseDto> banners = bannerService.getAllBanners();
         return ResponseEntity.ok(banners);
     }
-
-    // 테스트용 더미 관리자 계정
-    private AdminAccount getDummyAdmin() {
-        return new AdminAccount(1L);
-    }
-
 }

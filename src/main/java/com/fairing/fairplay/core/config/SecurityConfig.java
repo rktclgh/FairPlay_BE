@@ -29,10 +29,17 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/users/signup",   // 회원가입 (UserController)
                                 "/api/auth/login",     // 로그인
+                                "/api/auth/logout",   //로그아웃
                                 "/api/auth/refresh",   // 토큰 재발급
                                 "/api/events/**",      // 행사 // TODO: 권한별로 나누기
+                                "/api/users/forgot-password",//임시 비밀번호 발급
                                 "/swagger-ui/**",
-                                "/v3/api-docs/**"
+                                "/v3/api-docs/**",
+                                "/api/users/check-email",
+                                "/api/users/check-nickname",
+                                "/api/email/verify-code",
+                                "/api/email/send-verification",
+                                "/api/auth/kakao"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
