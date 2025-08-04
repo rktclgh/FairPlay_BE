@@ -110,6 +110,7 @@ public class ShareTicketService {
     LocalDate now = LocalDate.now();
     LocalDateTime startDate = now.atStartOfDay();
     LocalDateTime endDate = now.atTime(23, 59, 59);
+    log.info("fetchExpiredBatch startDate: {}, endDate: {}", startDate, endDate);
 
     return shareTicketRepository.findAllByExpiredAtBetweenAndExpiredFalse(startDate, endDate,
         pageable);
@@ -121,8 +122,9 @@ public class ShareTicketService {
     // 폼링크 자동 만료
     shareTickets.forEach(shareTicket -> {
       shareTicket.setExpired(true);
-      shareTicket.setExpiredAt(LocalDateTime.now());
     });
+
+    log.info("expiredToken: {}", shareTickets.size());
     shareTicketRepository.saveAll(shareTickets);
   }
 }
