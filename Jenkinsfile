@@ -16,6 +16,11 @@ pipeline {
                 sh 'git clone https://github.com/Fairing-15th/FairPlay_FE.git fairplay-fe'
             }
         }
+        stage('Prepare Frontend Environment') {
+            steps {
+                sh 'cp ../fairplay-fe/.env fairplay-fe/.env'
+            }
+        }
         stage('Frontend Build') {
             steps {
                 dir('fairplay-fe') {
