@@ -4,12 +4,15 @@ import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeListInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeSaveRequestDto;
 import com.fairing.fairplay.attendee.dto.AttendeeUpdateRequestDto;
+import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.service.AttendeeService;
 
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -45,5 +50,24 @@ public class AttendeeController {
       @RequestBody AttendeeUpdateRequestDto dto) {
     return ResponseEntity.status(HttpStatus.OK)
         .body(attendeeService.updateAttendee(attendeeId, dto));
+  }
+
+  // 행사별 예약자 명단 조회 (행사 관리자)
+  @GetMapping("/{eventId}")
+  public ResponseEntity<List<AttendeeInfoResponseDto>> getAttendees(@PathVariable Long eventId,
+                                                                    @AuthenticationPrincipal CustomUserDetails userDetails) {
+    List<Attendee> attendees = attendeeService.getAttendeesByEvent(eventId);
+
+    List<AttendeeInfoResponseDto> response = attendees.stream()
+            .map(attendee -> AttendeeInfoResponseDto.builder()
+                    .attendeeId(attendee.getId())
+                    .reservationId(attendee.getReservation().getReservationId())
+                    .name(attendee.getName())
+                    .email(attendee.getEmail())
+                    .phone(attendee.getPhone())
+                    .build())
+            .toList();
+
+    return ResponseEntity.ok(response);
   }
 }

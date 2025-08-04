@@ -132,4 +132,9 @@ public class AttendeeService {
       throw new CustomException(HttpStatus.NOT_FOUND, "예약 정보를 조회할 수 없습니다.");
     }
   }
+
+  // 행사별 예약자 명단 조회 (행사 관리자)
+  public List<Attendee> getAttendeesByEvent(Long eventId) {
+    return attendeeRepository.findByEventId(eventId);
+  }
 }
