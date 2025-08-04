@@ -4,6 +4,7 @@ import com.fairing.fairplay.statistics.entity.EventDailyStatistics;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.reservation.entity.QReservationStatusCode;
 import com.fairing.fairplay.attendee.entity.QAttendee;
+import com.fairing.fairplay.qr.entity.QQrCheckLog;
 import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
         QReservation r = QReservation.reservation;
         QReservationStatusCode statusCode = QReservationStatusCode.reservationStatusCode;
         QAttendee a = QAttendee.attendee;
+        QQrCheckLog q = QQrCheckLog.qrCheckLog;
 
         LocalDateTime start = targetDate.atStartOfDay();
         LocalDateTime end = targetDate.plusDays(1).atStartOfDay();
@@ -34,7 +36,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
                 .from(r)
                 .join(statusCode)
                 .on(r.reservationStatusCode.id.eq(statusCode.reservationStatusCode.id))
-                .where(r.createdAt.between(start, end))
+                .where(r.createdAt.goe(start).and(r.createdAt.lt(end)))
                 .groupBy(r.event.eventId, statusCode.code)
                 .fetch();
 
@@ -44,7 +46,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
                 .from(a)
                 .join(r).on(a.reservation.eq(r))
                 .where(a.checkedIn.isTrue()
-                        .and(r.createdAt.between(start, end)))
+                        .and(q.createdAt.between(start, end)))
                 .groupBy(r.event.eventId)
                 .fetch();
 

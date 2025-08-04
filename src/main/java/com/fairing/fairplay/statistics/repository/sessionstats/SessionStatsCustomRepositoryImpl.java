@@ -77,7 +77,7 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
                                     .statDate(targetDate)
                                     .reservations(0)
                                     .checkins(0)
-                                    .cancellations(0)
+                                    .cancellation(0)
                                     .noShows(0)
                                     .createdAt(LocalDateTime.now())
                                     .build()
@@ -85,7 +85,7 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
 
             switch (status) {
                 case "CONFIRMED" -> stat.setReservations(stat.getReservations() + count.intValue());
-                case "CANCELLED", "REFUNDED" -> stat.setCancellations(stat.getCancellations() + count.intValue());
+                case "CANCELLED", "REFUNDED" -> stat.setCancellation(stat.getCancellation() + count.intValue());
             }
         }
 
@@ -107,7 +107,7 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
                                     .statDate(targetDate)
                                     .reservations(0)
                                     .checkins(0)
-                                    .cancellations(0)
+                                    .cancellation(0)
                                     .noShows(0)
                                     .createdAt(LocalDateTime.now())
                                     .build()

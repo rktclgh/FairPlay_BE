@@ -40,7 +40,7 @@ public class EventSessionStatistics {
     private Integer reservations = 0;
 
     @Column(name = "cancellation")
-    private Integer cancellations = 0;
+    private Integer cancellation = 0;
 
     @Column(name = "checkins", nullable = false)
     @Builder.Default
