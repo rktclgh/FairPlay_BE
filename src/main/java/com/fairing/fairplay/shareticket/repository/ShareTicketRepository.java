@@ -15,4 +15,5 @@ public interface ShareTicketRepository extends JpaRepository<ShareTicket, Long> 
       Pageable pageable);
 
   boolean existsByLinkToken(String token);
+  boolean existsByReservation_ReservationId(Long reservationId);
 }
