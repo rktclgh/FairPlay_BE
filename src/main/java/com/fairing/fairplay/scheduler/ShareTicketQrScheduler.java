@@ -5,18 +5,23 @@ import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@EnableScheduling
+@Slf4j
 public class ShareTicketQrScheduler {
 
   private final ShareTicketService shareTicketService;
   private final QrTicketService qrTicketService;
-/*
+
   // 공유 폼 링크 만료
-  @Scheduled(cron = "0 0 0 * * *") //매일 자정 실행
+  /*
+  @Scheduled(cron = "0 0 0 * * *")  //매일 자정 실행
   public void runDailyTasks() {
     int batchSize = 100; //
     int page = 0;
@@ -40,6 +45,7 @@ public class ShareTicketQrScheduler {
         page++;
 
       } catch (Exception e) {
+        log.info("expiredToken 오류 발생:{}",e.getMessage());
         page++;
         currentIteration++;
       }
@@ -47,5 +53,5 @@ public class ShareTicketQrScheduler {
     // 2. 만료 완료 후 QR 티켓 세팅
     qrTicketService.createQrTicket();
   }
-  */
+*/
 }

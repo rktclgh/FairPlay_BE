@@ -1,6 +1,5 @@
 package com.fairing.fairplay.reservation.entity;
 
-import com.fairing.fairplay.banner.entity.BannerStatusCode;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.entity.Ticket;

@@ -22,7 +22,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -31,6 +33,7 @@ import org.springframework.stereotype.Component;
  * */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class QrTicketInitProvider {
 
   private final AttendeeRepository attendeeRepository;
@@ -74,6 +77,8 @@ public class QrTicketInitProvider {
     // 현재 날짜 기준 다음날 시작하는 행사 데이터 추출
     LocalDate targetDate = LocalDate.now().plusDays(1);
 
+    log.info("[QrTicketInitProvider] scheduleCreateQrTicket - targetDate: {}", targetDate);
+
     QAttendee attendee = QAttendee.attendee;
     QReservation reservation = QReservation.reservation;
     QEvent event = QEvent.event;
@@ -83,19 +88,20 @@ public class QrTicketInitProvider {
 
     // 참석자 정보, 이벤트 정보, 티켓 정보, 재입장 허용 여부, 스케줄 날짜+종료시간
     List<Tuple> results = queryFactory
-        .select(attendee,
-            event,
-            ticket,
-            eventDetail.reentryAllowed,
-            eventSchedule.date,
-            eventSchedule.endTime)
+        .select(attendee, event, ticket, reservation, eventDetail.reentryAllowed,
+            eventSchedule.date, eventSchedule.startTime, eventSchedule.endTime)
         .from(attendee)
         .join(attendee.reservation, reservation)
         .join(reservation.schedule, eventSchedule)
         .join(eventSchedule.event, event)
+        .join(reservation.ticket, ticket)
         .join(event.eventDetail, eventDetail)
-        .where(eventDetail.startDate.eq(targetDate))
+        .where(
+            eventDetail.startDate.eq(targetDate)
+        )
         .fetch();
+
+    log.info("[QrTicketInitProvider] scheduleCreateQrTicket results : {}",results.getFirst().get(event));
 
     return results.stream()
         .map(tuple -> {
@@ -105,7 +111,9 @@ public class QrTicketInitProvider {
           Boolean reentryAllowed = tuple.get(eventDetail.reentryAllowed);
           LocalDate date = tuple.get(eventSchedule.date);
           LocalTime endTime = tuple.get(eventSchedule.endTime);
-          String eventCode = tuple.get(event.eventCode);
+          String eventCode = Objects.requireNonNull(tuple.get(event)).getEventCode();
+
+          log.info("[QrTicketInitProvider] List<Tuple> results - e: {}", e.getTitleKr());
 
           LocalDateTime expiredAt = LocalDateTime.of(date, endTime); //만료시간 설정
           String ticketNo = codeGenerator.generateTicketNo(eventCode); // 티켓번호 설정

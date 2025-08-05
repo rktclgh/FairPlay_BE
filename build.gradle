@@ -68,6 +68,11 @@ dependencies {
 	implementation 'io.jsonwebtoken:jjwt:0.9.1'
 	implementation 'javax.xml.bind:jaxb-api:2.3.1'
 	implementation 'org.glassfish.jaxb:jaxb-runtime:2.3.1'
+
+	// --- S3 ---
+	implementation 'software.amazon.awssdk:s3:2.25.61'
+	// implementation 'software.amazon.awssdk:auth'
+	// implementation 'software.amazon.awssdk:regions'
 }
 
 sourceSets {

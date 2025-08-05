@@ -7,10 +7,11 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "reservation_status_code")
-@Getter
+@Getter @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReservationStatusCode {
 
@@ -23,4 +24,8 @@ public class ReservationStatusCode {
 
     @Column(nullable = false, length = 50)
     private String name;
+
+    public ReservationStatusCode(Integer id) {
+        this.id = id;
+    }
 }
