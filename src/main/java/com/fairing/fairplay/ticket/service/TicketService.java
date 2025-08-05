@@ -66,9 +66,7 @@ public class TicketService {
         ticketVersionRepository.save(ticketVersion);
 
         // Event_Ticket 저장
-        EventTicket eventTicket = new EventTicket();
-        eventTicket.setTicket(savedTicket);
-        eventTicket.setEvent(event);
+        EventTicket eventTicket = new EventTicket(savedTicket, event);
         eventTicketRepository.save(eventTicket);
 
         return TicketResponseDto.builder().ticketId(savedTicket.getTicketId()).build();
@@ -128,6 +126,12 @@ public class TicketService {
 
         return TicketResponseDto.builder()
                 .ticketId(ticket.getTicketId())
+                .name(ticket.getName())
+                .description(ticket.getDescription())
+                .price(ticket.getPrice())
+                .stock(ticket.getStock())
+                .maxPurchase(ticket.getMaxPurchase())
+                .ticketStatusCode(ticket.getTicketStatusCode())
                 .build();
     }
 

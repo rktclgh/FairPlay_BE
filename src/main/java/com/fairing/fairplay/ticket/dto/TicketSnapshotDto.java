@@ -27,7 +27,11 @@ public class TicketSnapshotDto {
     public TicketSnapshotDto(Ticket ticket) {
         this.name = ticket.getName();
         this.description = ticket.getDescription();
-        this.ticketStatusCodeId = ticket.getTicketStatusCode().getTicketStatusCodeId();
+
+        if(ticket.getTicketStatusCode() != null){
+            this.ticketStatusCodeId = ticket.getTicketStatusCode().getTicketStatusCodeId();
+        }
+
         this.stock = ticket.getStock();
         this.price = ticket.getPrice();
         this.maxPurchase = ticket.getMaxPurchase();

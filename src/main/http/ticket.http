@@ -1,0 +1,48 @@
+### 로그인
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+    "email":"his8457@gmail.com",
+    "password":"1234"
+}
+
+### 티켓 등록
+@eventId=1
+POST http://localhost:8080/api/events/{{eventId}}/tickets
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyOCIsImVtYWlsIjoiaGlzODQ1N0BnbWFpbC5jb20iLCJyb2xlIjoi7J2867CYIOyCrOyaqeyekCIsImlhdCI6MTc1NDM4NjAxMiwiZXhwIjoxNzU0Mzg2NjEyfQ.W_0LLb4Uo3oTHGxnZZ-h4kBHWjopSqxy5i7j57LeAN8
+Content-Type: application/json
+
+{
+  "name": "일반 티켓",
+  "description" : "기본적으로 사용되는 티켓",
+  "maxPurchase": 2,
+  "price": 20000,
+  "stock": 50,
+  "types": "EVENT"
+}
+
+### 티켓 수정
+@ticketId=10
+PUT http://localhost:8080/api/events/{{eventId}}/tickets/{{ticketId}}
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyOCIsImVtYWlsIjoiaGlzODQ1N0BnbWFpbC5jb20iLCJyb2xlIjoi7J2867CYIOyCrOyaqeyekCIsImlhdCI6MTc1NDM4NjAxMiwiZXhwIjoxNzU0Mzg2NjEyfQ.W_0LLb4Uo3oTHGxnZZ-h4kBHWjopSqxy5i7j57LeAN8
+Content-Type: application/json
+
+{
+  "name": "할인 티켓",
+  "description" : "할인용으로 사용되는 티켓",
+  "maxPurchase": 1,
+  "price": 50000,
+  "stock": 100,
+  "types": "EVENT"
+}
+
+### 티켓 목록 조회
+GET http://localhost:8080/api/events/{{eventId}}/tickets
+# Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyOCIsImVtYWlsIjoiaGlzODQ1N0BnbWFpbC5jb20iLCJyb2xlIjoi7J2867CYIOyCrOyaqeyekCIsImlhdCI6MTc1NDM4NjAxMiwiZXhwIjoxNzU0Mzg2NjEyfQ.W_0LLb4Uo3oTHGxnZZ-h4kBHWjopSqxy5i7j57LeAN8
+Content-Type: application/json
+
+### 티켓 삭제
+PATCH http://localhost:8080/api/events/{{eventId}}/tickets/{{ticketId}}
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyOCIsImVtYWlsIjoiaGlzODQ1N0BnbWFpbC5jb20iLCJyb2xlIjoi7J2867CYIOyCrOyaqeyekCIsImlhdCI6MTc1NDM4NjAxMiwiZXhwIjoxNzU0Mzg2NjEyfQ.W_0LLb4Uo3oTHGxnZZ-h4kBHWjopSqxy5i7j57LeAN8
+Content-Type: application/json

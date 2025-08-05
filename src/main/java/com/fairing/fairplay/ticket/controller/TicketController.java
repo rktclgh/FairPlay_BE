@@ -24,7 +24,11 @@ public class TicketController {
             @PathVariable Long eventId,
             @RequestBody TicketRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(ticketService.createTicket(eventId, dto, userDetails.getUserId()));
+
+        Long userId = 1L;
+        if (userDetails != null && userDetails.getUserId() != null) userId = userDetails.getUserId();
+
+        return ResponseEntity.ok(ticketService.createTicket(eventId, dto, userId));
     }
     
     // 티켓 목록 조회
@@ -40,7 +44,10 @@ public class TicketController {
             @PathVariable Long ticketId,
             @RequestBody TicketRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(ticketService.updateTicket(eventId, ticketId, dto, userDetails.getUserId()));
+        Long userId = 1L;
+        if (userDetails != null && userDetails.getUserId() != null) userId = userDetails.getUserId();
+
+        return ResponseEntity.ok(ticketService.updateTicket(eventId, ticketId, dto, userId));
     }
 
     // 티켓 삭제
