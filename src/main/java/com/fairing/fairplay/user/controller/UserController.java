@@ -101,7 +101,7 @@ public class UserController {
     }
 
     // 행사 관리자 정보 확인
-    @GetMapping("/event-admin/{eventId}")
+    @GetMapping("/event-admin/{eventId}/public")
     public ResponseEntity<EventAdminResponseDto> getEventAdmin(@PathVariable Long eventId) {
 
         EventAdminResponseDto responseDto = userService.getEventAdminInfo(eventId);
@@ -113,12 +113,10 @@ public class UserController {
     @PatchMapping("/event-admin/{eventId}")
     public ResponseEntity<EventAdminResponseDto> updateEventAdminInfo(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable Long eventId, @RequestBody EventAdminRequestDto dto) {
+            @PathVariable Long eventId, @RequestBody @Valid EventAdminRequestDto dto) {
 
         checkAuth(userDetails, EVENT);
         checkEventManager(userDetails.getUserId(), eventId);
-
-        log.info(dto.getContactNumber());
 
         EventAdminResponseDto responseDto = userService.updateEventAdmin(eventId, dto);
 

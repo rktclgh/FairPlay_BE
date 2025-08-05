@@ -157,7 +157,6 @@ public class UserService {
     @Transactional
     public EventAdminResponseDto updateEventAdmin(Long eventId, EventAdminRequestDto dto) {
         log.info("행사 관리자 정보 수정");
-        log.info(dto.getContactNumber());
 
         EventAdmin eventAdmin = findEventAdmin(eventId);
 

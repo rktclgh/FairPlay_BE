@@ -49,7 +49,7 @@ public class SecurityConfig {
                                 "/api/email/send-verification",
                                 "/api/auth/kakao",
                                 "/auth/kakao/callback",
-                                "/api/users/event-admin/**"
+                                "/api/users/event-admin/*/public"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
