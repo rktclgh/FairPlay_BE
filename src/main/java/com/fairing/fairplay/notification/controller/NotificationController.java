@@ -16,12 +16,6 @@ public class NotificationController {
 
     private final NotificationService notificationService;
 
-    // 알림 생성
-    @PostMapping
-    public ResponseEntity<NotificationResponseDto> create(@RequestBody NotificationRequestDto dto) {
-        return ResponseEntity.ok(notificationService.createNotification(dto));
-    }
-
     // 내 알림 리스트
     @GetMapping
     public ResponseEntity<List<NotificationResponseDto>> getList(@AuthenticationPrincipal CustomUserDetails userDetails) {
