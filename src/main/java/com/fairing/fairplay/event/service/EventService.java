@@ -1,5 +1,6 @@
 package com.fairing.fairplay.event.service;
 
+import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
@@ -40,6 +41,8 @@ public class EventService {
     private final SubCategoryRepository subCategoryRepository;
     private final EventQueryRepositoryImpl eventQueryRepository;
     private final EventVersionRepository eventVersionRepository;
+    private final EventTicketRepository eventTicketIdRepository;
+    private final BoothRepository boothRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -68,7 +71,7 @@ public class EventService {
 
     // 전체 관리자가 구독 생성
     @Transactional
-    public EventResponseDto createEvent(EventRequestDto eventRequestDto) {
+    public EventResponseDto createEvent(Long adminId, EventRequestDto eventRequestDto) {
 
         log.info("행사 관리자 계정 생성 시작");
         // TODO: 행사 관리자 계정 생성 및 ID 받기
@@ -106,7 +109,7 @@ public class EventService {
 
         // 첫 번째 버전 생성
         log.info("첫 번째 버전 생성 for eventId: {}", savedEvent.getEventId());
-        EventVersion firstVersion = eventVersionService.createEventVersion(savedEvent, 1L); // TODO: 전체 관리자 id 받아오는 걸로 수정하기
+        EventVersion firstVersion = eventVersionService.createEventVersion(savedEvent, adminId);
         log.info("첫 번째 버전 생성 완료");
 
         return EventResponseDto.builder()
@@ -121,10 +124,9 @@ public class EventService {
 
     // 행사 상세 생성
     @Transactional
-    public EventDetailResponseDto createEventDetail(EventDetailRequestDto eventDetailRequestDto, Long eventId) {
+    public EventDetailResponseDto createEventDetail(Long managerId, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
 
         Event event = checkEventAndDetail(eventId, "create");
-        Long managerId = event.getManager().getUser().getUserId(); // TODO: 로그인한 담당자 ID로 변경
 
         // 행사 상세 생성
         EventDetail eventDetail = new EventDetail();
@@ -255,12 +257,10 @@ public class EventService {
 
     // 행사 상세 업데이트
     @Transactional
-    public EventDetailResponseDto updateEventDetail(EventDetailRequestDto eventDetailRequestDto, Long eventId) {
+    public EventDetailResponseDto updateEventDetail(Long managerId, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
 
         Event event = checkEventAndDetail(eventId, "update");
         EventDetail eventDetail = event.getEventDetail();
-
-        Long managerId = event.getManager().getUser().getUserId(); // TODO: 로그인한 담당자 ID로 변경
 
         log.info("버전 생성 for eventId: {}", eventId);
         Integer newVersion = createVersion(event, managerId);
@@ -306,6 +306,35 @@ public class EventService {
         entityManager.refresh(eventDetail);
 
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, newVersion, "이벤트 상세 정보가 업데이트되었습니다.");
+    }
+
+
+    // 행사 삭제 - 하위 테이블 데이터도 모두 삭제
+    @Transactional
+    public void deleteEvent(Long eventId) {
+        log.info("행사 삭제");
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+        EventDetail eventDetail = event.getEventDetail();
+
+        if (eventDetail != null) {
+            eventDetailRepository.delete(eventDetail);
+        }
+
+        if (event.getExternalLinks() != null) {
+            externalLinkRepository.deleteAll(event.getExternalLinks());
+        }
+
+        eventVersionRepository.deleteAll(event.getEventVersions());
+
+        eventTicketIdRepository.deleteAll(event.getEventTickets());
+
+        boothRepository.deleteAll(event.getBooths());
+
+        eventRepository.deleteById(eventId);
+
+        log.info("행사 삭제 완료");
     }
 
 
