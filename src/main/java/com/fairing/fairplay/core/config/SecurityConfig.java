@@ -48,7 +48,8 @@ public class SecurityConfig {
                                 "/api/email/verify-code",
                                 "/api/email/send-verification",
                                 "/api/auth/kakao",
-                                "/auth/kakao/callback"
+                                "/auth/kakao/callback",
+                                "/api/users/event-admin/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

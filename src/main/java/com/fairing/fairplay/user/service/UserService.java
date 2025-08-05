@@ -2,19 +2,25 @@ package com.fairing.fairplay.user.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.entity.EmailServiceFactory;
-import com.fairing.fairplay.user.dto.UserRegisterRequestDto;
-import com.fairing.fairplay.user.dto.UserResponseDto;
-import com.fairing.fairplay.user.dto.UserUpdateRequestDto;
-import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.user.dto.*;
+import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.entity.UserRoleCode;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.EventAdminRepository;
 import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -23,6 +29,11 @@ public class UserService {
     private final UserRoleCodeRepository userRoleCodeRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailServiceFactory emailServiceFactory; // 변경!
+    private final EventAdminRepository eventAdminRepository;
+    private final EventRepository eventRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     // 회원가입
     @Transactional
@@ -132,5 +143,51 @@ public class UserService {
     @Transactional(readOnly = true)
     public boolean isNicknameDuplicated(String nickname) {
         return userRepository.existsByNickname(nickname);
+    }
+
+    // 행사 관리자 정보 조회
+    @Transactional(readOnly = true)
+    public EventAdminResponseDto getEventAdminInfo(Long eventId) {
+        EventAdmin eventAdmin = findEventAdmin(eventId);
+
+        return buildEventAdminResponseDto(eventAdmin);
+    }
+
+    // 행사 관리자 이메일/연락처 수정
+    @Transactional
+    public EventAdminResponseDto updateEventAdmin(Long eventId, EventAdminRequestDto dto) {
+        log.info("행사 관리자 정보 수정");
+        log.info(dto.getContactNumber());
+
+        EventAdmin eventAdmin = findEventAdmin(eventId);
+
+        if (dto.getContactNumber() != null) eventAdmin.setContactNumber(dto.getContactNumber());
+        if (dto.getContactEmail() != null) eventAdmin.setContactEmail(dto.getContactEmail());
+
+        eventAdminRepository.save(eventAdmin);
+        log.info("행사 관리자 정보 수정 완료");
+
+        entityManager.flush();
+        entityManager.refresh(eventAdmin);
+
+        return buildEventAdminResponseDto(eventAdmin);
+    }
+
+    private EventAdmin findEventAdmin(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."));
+
+        return event.getManager();
+    }
+
+    private EventAdminResponseDto buildEventAdminResponseDto(EventAdmin eventAdmin) {
+        log.info(eventAdmin.getContactNumber());
+        return EventAdminResponseDto.builder()
+                .userId(eventAdmin.getUserId())
+                .businessNumber(eventAdmin.getBusinessNumber())
+                .contactEmail(eventAdmin.getContactEmail())
+                .contactNumber(eventAdmin.getContactNumber())
+                .active(eventAdmin.getActive())
+                .build();
     }
 }
