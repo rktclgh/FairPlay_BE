@@ -24,6 +24,9 @@ public class NotificationLog {
     @Column(nullable = false, length = 50)
     private String status; // SUCCESS, FAIL, PENDING 등
 
+    @Column(nullable = false)
+    private Boolean isSent; // 실제 발송 성공 true, 실패 false
+
     @Column(columnDefinition = "TEXT")
     private String detail;
 
@@ -33,5 +36,6 @@ public class NotificationLog {
     @PrePersist
     protected void onCreate() {
         this.sentAt = LocalDateTime.now();
+        if (this.isSent == null) this.isSent = false;
     }
 }
