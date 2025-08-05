@@ -55,8 +55,9 @@ public class NotificationController {
 
     // 알림 로그 목록(본인 알림만)
     @GetMapping("/{notificationId}/logs")
-    public ResponseEntity<List<?>> getLogs(@PathVariable Long notificationId,
-                                           @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<List<NotificationLogResponseDto>> getLogs(
+            @PathVariable Long notificationId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
         return ResponseEntity.ok(notificationService.getLogsByUser(notificationId, userDetails.getUserId()));
     }
 }

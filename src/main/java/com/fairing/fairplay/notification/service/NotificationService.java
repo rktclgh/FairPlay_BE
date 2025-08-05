@@ -94,11 +94,26 @@ public class NotificationService {
         }
     }
 
-    // 내 알림만 로그 조회
+    // 내 알림만 로그 조회 - 반환 타입 변경
     @Transactional(readOnly = true)
-    public List<NotificationLog> getLogsByUser(Long notificationId, Long userId) {
+    public List<NotificationLogResponseDto> getLogsByUser(Long notificationId, Long userId) {
         Notification notification = getMyNotification(notificationId, userId);
-        return notificationLogRepository.findByNotification_NotificationId(notification.getNotificationId());
+        return notificationLogRepository.findByNotification_NotificationId(notification.getNotificationId())
+                .stream()
+                .map(this::toLogResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    // 변환 메서드 추가
+    private NotificationLogResponseDto toLogResponseDto(NotificationLog log) {
+        return NotificationLogResponseDto.builder()
+                .logId(log.getLogId())
+                .methodCode(log.getMethodCode().getCode())
+                .status(log.getStatus())
+                .isSent(log.getIsSent())
+                .detail(log.getDetail())
+                .sentAt(log.getSentAt())
+                .build();
     }
 
     // ========== 내부 공용 메서드 ==========
@@ -126,4 +141,29 @@ public class NotificationService {
                 .createdAt(n.getCreatedAt())
                 .build();
     }
+
+    // 이거 끌아다가 쓰시면 됩니다!!!!!!
+    //웹 알림
+    public static NotificationRequestDto buildWebNotification(Long userId, String typeCode, String title, String message, String url) {
+        return NotificationRequestDto.builder()
+                .userId(userId)
+                .typeCode(typeCode)
+                .methodCode("WEB")
+                .title(title)
+                .message(message)
+                .url(url)
+                .build();
+    }
+    //이메일 발송!
+    public static NotificationRequestDto buildEmailNotification(Long userId, String typeCode, String title, String message, String url) {
+        return NotificationRequestDto.builder()
+                .userId(userId)
+                .typeCode(typeCode)
+                .methodCode("EMAIL")
+                .title(title)
+                .message(message)
+                .url(url)
+                .build();
+    }
+
 }
