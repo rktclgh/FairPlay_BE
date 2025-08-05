@@ -16,6 +16,7 @@ import com.fairing.fairplay.ticket.entity.TypesEnum;
 public class TicketRequestDto { // 티켓 정보 등록 요청
 
     private Long eventId;
+    private Long ticketId;
     private String name;
     private String description;
     private Integer stock;

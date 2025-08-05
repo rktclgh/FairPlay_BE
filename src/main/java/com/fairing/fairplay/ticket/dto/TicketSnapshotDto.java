@@ -1,5 +1,6 @@
 package com.fairing.fairplay.ticket.dto;
 
+import com.fairing.fairplay.ticket.entity.Ticket;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,5 +23,17 @@ public class TicketSnapshotDto {
     private boolean visible;
     private boolean deleted;
     private TypesEnum types;
+
+    public TicketSnapshotDto(Ticket ticket) {
+        this.name = ticket.getName();
+        this.description = ticket.getDescription();
+        this.ticketStatusCodeId = ticket.getTicketStatusCode().getTicketStatusCodeId();
+        this.stock = ticket.getStock();
+        this.price = ticket.getPrice();
+        this.maxPurchase = ticket.getMaxPurchase();
+        this.visible = ticket.getVisible();
+        this.deleted = ticket.getDeleted();
+        this.types = ticket.getTypes();
+    }
 
 }
