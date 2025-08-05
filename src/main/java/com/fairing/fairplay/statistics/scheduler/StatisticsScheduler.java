@@ -29,7 +29,7 @@ public class StatisticsScheduler {
             log.error("Failed to run daily statistics batch", e);
         }
     }
-    @Scheduled(cron = "0 5 0 * * *")
+    @Scheduled(cron = "0 15 0 * * *")
     public void dailyAggregation() {
         try {
             LocalDate yesterday = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
