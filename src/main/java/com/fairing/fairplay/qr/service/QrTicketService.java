@@ -31,13 +31,19 @@ public class QrTicketService {
     return qrTicketManager.issueGuestTicket(token);
   }
 
-  // QR 티켓 재발급 - 새로고침 버튼
+  /*
+  * 재발급
+  * 1. 사용자가 새로고침 버튼 클릭해 QR 코드 재생성
+  * 2. 회원이 마이페이지에서 QR 링크 조회 안될 때 관리자 강제 QR 티켓 링크 재발급
+  * 3. 마이페이지 접근 안되는 회원/비회원에게 강제 QR 티켓 링크 재발급해 메일 전송
+  * */
+  // QR 티켓 재발급 1
   @Transactional
   public QrTicketUpdateResponseDto reissueQrTicket(QrTicketUpdateRequestDto dto) {
     return qrTicketManager.reissueQrTicket(dto);
   }
 
-  // 관리자 강제 QR 티켓 링크 재발급
+  // QR 티켓 재발급 3
   @Transactional
   public QrTicketReissueResponseDto reissueAdminQrTicket(QrTicketReissueRequestDto dto) {
     return qrTicketManager.reissueByAdmin(dto);

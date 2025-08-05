@@ -36,7 +36,13 @@ public class QrTicketController {
     return ResponseEntity.ok(qrTicketService.issueGuest(token));
   }
 
-  // 1. QR 티켓 재발급 - QR 티켓 조회 시 이미지코드와 수동 코드만 재발급(새로고침버튼)
+  /*
+   * 재발급
+   * 1. 사용자가 새로고침 버튼 클릭해 QR 코드 재생성
+   * 2. 회원이 마이페이지에서 QR 링크 조회 안될 때 관리자 강제 QR 티켓 링크 재발급
+   * 3. 마이페이지 접근 안되는 회원/비회원에게 강제 QR 티켓 링크 재발급해 메일 전송
+   * */
+  // QR 티켓 재발급 1
   @PostMapping("/reissue")
   public ResponseEntity<QrTicketUpdateResponseDto> reissueQrTicket(
       @RequestBody QrTicketUpdateRequestDto dto) {
@@ -56,13 +62,7 @@ public class QrTicketController {
 //  }
 
 
-  // 3. QR 티켓 강제 재발급 - 비회원/회원 일부 QR 티켓 분실 시 이메일 재전송
-  /*
-   * 마이 페이지도 접근 안될 경우
-   * 1. "관리자 문의"
-   * 2. 관리자 승인 후 발급
-   * 3. 이메일로 발급 완료 메일 전송
-   * */
+  // QR 티켓 재발급 3
   @PostMapping("/admin/reissue/send-email")
   public ResponseEntity<QrTicketReissueResponseDto> reissueAdminQrTicket(@RequestBody QrTicketReissueRequestDto dto){
     return ResponseEntity.ok(qrTicketService.reissueAdminQrTicket(dto));
