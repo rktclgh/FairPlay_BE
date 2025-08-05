@@ -1,8 +1,10 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
+import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -35,16 +38,28 @@ public class QrTicketManager {
   private final QrTicketRepository qrTicketRepository;
   private final ReservationRepository reservationRepository;
   private final CodeGenerator codeGenerator;
-  private final QrTicketInitProvider qrTicketInitProvider;
+  private final QrTicketAttendeeService qrTicketAttendeeService;
   private final QrLinkService qrLinkService;
   private final QrEmailService qrEmailService;
 
+  private static final String ROLE_COMMON = "COMMON";
+
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
-  public QrTicketResponseDto issueMemberTicket(QrTicketRequestDto dto) {
+  public QrTicketResponseDto issueMemberTicket(QrTicketRequestDto dto, CustomUserDetails userDetails) {
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
-    QrTicket savedTicket = generateAndSaveQrTicket(dto, 1);
+    if(!userDetails.getRoleCode().equals(ROLE_COMMON)){
+      throw new CustomException(HttpStatus.FORBIDDEN, "일반 사용자가 아닙니다. 현재 로그인된 사용자 권한: "+userDetails.getRoleCode());
+    }
+
+    if (!Objects.equals(userDetails.getUserId(), reservation.getUser().getUserId())) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "본인의 예약만 조회할 수 있습니다.");
+    }
+
+    AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
+
+    QrTicket savedTicket = generateAndSaveQrTicket(dto, attendeeTypeCode.getId());
     return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
   }
 
@@ -56,8 +71,10 @@ public class QrTicketManager {
 
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
+    AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findGuestTypeCode();
+
     // QR 티켓 조회해 qr code, manualcode 생성해서 반환
-    QrTicket savedTicket = generateAndSaveQrTicket(dto, 2);
+    QrTicket savedTicket = generateAndSaveQrTicket(dto, attendeeTypeCode.getId());
     // 프론트 응답
     return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
   }
@@ -77,30 +94,42 @@ public class QrTicketManager {
         .manualCode(savedTicket.getManualCode()).build();
   }
 
-//  // 마이 페이지 강제 QR 티켓 재발급 - 행사 관리자
-//  @Transactional
-//  public QrTicketReissueResponseDto reissueByAdmin(QrTicketReissueRequestDto dto) {
-//    QrTicket
-//    // attendeeId 받음
-//
-//    // 참석자 ID 조회
-//    Attendee attendee = attendeeRepository.findById(attendeeId);
-//
-//    // qr url 재발급
-//    String qrUrl = qrLinkService.generateQrLink(dto);
-//
-//    // 메일 전송
-//    qrEmailService.sendQrEmail(qrUrl, name, email);
-//    // 메일 전송 성공 응답 - 메일 내용: 성공만 했다. url은 마이페이지에서 확인해라
-//  }
-
-
-  // 관리자 강제 QR 티켓 링크 재발급
+  // 관리자 강제 QR 티켓 재발급 - 마이페이지 접속 가능한 회원
   @Transactional
-  public QrTicketReissueResponseDto reissueByAdmin(QrTicketReissueRequestDto dto) {
+  public QrTicketReissueResponseDto reissueAdminQrTicketByUser(QrTicketReissueRequestDto dto) {
     QrTicket qrTicket = qrTicketRepository.findByTicketNo(dto.getTicketNo()).orElseThrow(
-        () -> new CustomException(HttpStatus.NOT_FOUND,"티켓 번호에 해당하는 QR 티켓을 찾을 수 없습니다: "+dto.getTicketNo())
+        () -> new CustomException(HttpStatus.NOT_FOUND,
+            "티켓 번호에 해당하는 QR 티켓을 찾을 수 없습니다: " + dto.getTicketNo())
     );
+
+    if (!Objects.equals(qrTicket.getAttendee().getId(), dto.getAttendeeId())) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "티켓 사용자와 요청한 사용자의 ID가 일치하지 않습니다.");
+    }
+
+    if (!qrTicket.getAttendee().getAttendeeTypeCode().getCode().equals("PRIMARY")) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "대표자가 아니므로 마이페이지에 QR 티켓 링크를 표시할 수 없습니다.");
+    }
+
+    // 재발급된 QR 티켓 - qrcode, manualcode null 처리
+    QrTicket resetQrTicket = resetQrTicket(qrTicket);
+    Attendee attendee = resetQrTicket.getAttendee();
+
+    // 메일 전송
+    qrEmailService.successSendQrEmail(attendee.getEmail(), attendee.getName());
+    return buildQrTicketReissueResponse(resetQrTicket.getTicketNo(), attendee.getEmail());
+  }
+
+  // 관리자 강제 QR 티켓 링크 재발급 - 마이페이지 접속 안되는 회원/ 비회원
+  @Transactional
+  public QrTicketReissueResponseDto reissueAdminQrTicket(QrTicketReissueRequestDto dto) {
+    QrTicket qrTicket = qrTicketRepository.findByTicketNo(dto.getTicketNo()).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND,
+            "티켓 번호에 해당하는 QR 티켓을 찾을 수 없습니다: " + dto.getTicketNo())
+    );
+
+    if (!Objects.equals(qrTicket.getAttendee().getId(), dto.getAttendeeId())) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "티켓 사용자와 요청한 사용자의 ID가 일치하지 않습니다.");
+    }
 
     // 재발급된 QR 티켓 - qrcode, manualcode null 처리
     QrTicket resetQrTicket = resetQrTicket(qrTicket);
@@ -117,7 +146,6 @@ public class QrTicketManager {
     String qrUrl = qrLinkService.generateQrLink(qrTicketRequestDto);
     qrEmailService.sendQrEmail(qrUrl, attendee.getEmail(), attendee.getName());
 
-    // 메일 전송 성공 응답 - 메일 내용: 성공했다. 메일로 qr url 보냇다.
     return buildQrTicketReissueResponse(resetQrTicket.getTicketNo(), attendee.getEmail());
   }
 
@@ -156,7 +184,7 @@ public class QrTicketManager {
 
   // QR 티켓 조회
   private QrTicket findQrTicket(QrTicketRequestDto dto, Integer type) {
-    return qrTicketInitProvider.load(dto, type);
+    return qrTicketAttendeeService.load(dto, type);
   }
 
   // 재발급 응답 생성

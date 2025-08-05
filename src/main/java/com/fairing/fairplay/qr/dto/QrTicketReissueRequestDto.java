@@ -13,5 +13,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class QrTicketReissueRequestDto {
 
+  private Long attendeeId;
   private String ticketNo; // 재발급 요청한 티켓 번호
 }
