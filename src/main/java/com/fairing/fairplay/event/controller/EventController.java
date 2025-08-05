@@ -34,6 +34,8 @@ public class EventController {
     private static final Integer BOOTH = 3;    // 부스 관리자
     private static final Integer COMMON = 4;   // 일반 사용자
 
+
+    /*********************** CREATE ***********************/
     // 행사 등록
     @PostMapping
     public ResponseEntity<EventResponseDto> createEvent(
@@ -63,22 +65,8 @@ public class EventController {
         return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
     }
 
-    // 행사 상세 업데이트
-    @PatchMapping("/{eventId}/details")
-    public ResponseEntity<EventDetailResponseDto> updateEventDetail(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
 
-        // 전체 관리자 OR 행사 관리자 권한
-        checkAuth(userDetails, EVENT);
-        Long loginUserId = userDetails.getUserId();
-
-        checkEventManager(loginUserId, eventId);
-
-        EventDetailResponseDto responseDto = eventService.updateEventDetail(userDetails.getUserId(), eventDetailRequestDto, eventId);
-        return new ResponseEntity<>(responseDto, HttpStatus.OK);
-    }
-
+    /*********************** READ ***********************/
     // 행사 목록 조회 (메인페이지, 검색 등) - EventDetail 정보 등록해야 보임
     @GetMapping
     public ResponseEntity<EventSummaryResponseDto> getEvents(
@@ -102,6 +90,8 @@ public class EventController {
         return ResponseEntity.ok(eventDetail);
     }
 
+
+    /*********************** UPDATE ***********************/
     // 행사명 및 숨김 상태 업데이트
     @PatchMapping("/{eventId}")
     public ResponseEntity<EventResponseDto> updateEvent(
@@ -117,6 +107,38 @@ public class EventController {
         EventResponseDto responseDto = eventService.updateEvent(eventId, eventRequestDto, loginUserId);
         return ResponseEntity.ok(responseDto);
     }
+
+    // 행사 상세 업데이트
+    @PatchMapping("/{eventId}/details")
+    public ResponseEntity<EventDetailResponseDto> updateEventDetail(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
+
+        // 전체 관리자 OR 행사 관리자 권한
+        checkAuth(userDetails, EVENT);
+        Long loginUserId = userDetails.getUserId();
+
+        checkEventManager(loginUserId, eventId);
+
+        EventDetailResponseDto responseDto = eventService.updateEventDetail(userDetails.getUserId(), eventDetailRequestDto, eventId);
+        return new ResponseEntity<>(responseDto, HttpStatus.OK);
+    }
+
+
+    /*********************** DELETE ***********************/
+    // 행사 삭제
+    @DeleteMapping("/{eventId}")
+    public ResponseEntity<String> deleteEvent(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable("eventId") Long eventId
+    ) {
+        checkAuth(userDetails, ADMIN);
+
+        eventService.deleteEvent(eventId);
+
+        return ResponseEntity.ok("행사 삭제 완료 : " + eventId);
+    }
+
 
     /*********************** 헬퍼 메소드 ***********************/
     private void checkAuth(@AuthenticationPrincipal CustomUserDetails userDetails, Integer authority) {

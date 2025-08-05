@@ -1,6 +1,5 @@
 @access_token=
 
-
 ### 행사 등록
 POST http://localhost:8080/api/events
 Content-Type: application/json
@@ -90,3 +89,8 @@ Authorization: Bearer {{access_token}}
   "titleKr": "서울 겨울 콘서트 : 2025",
   "hostName": "SBS"
 }
+
+### 행사 삭제
+@deleteEventId = 1014
+DELETE http://localhost:8080/api/events/{{deleteEventId}}
+Authorization: Bearer {{access_token}}

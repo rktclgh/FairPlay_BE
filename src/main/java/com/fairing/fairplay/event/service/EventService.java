@@ -1,5 +1,6 @@
 package com.fairing.fairplay.event.service;
 
+import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
@@ -40,6 +41,8 @@ public class EventService {
     private final SubCategoryRepository subCategoryRepository;
     private final EventQueryRepositoryImpl eventQueryRepository;
     private final EventVersionRepository eventVersionRepository;
+    private final EventTicketRepository eventTicketIdRepository;
+    private final BoothRepository boothRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -303,6 +306,35 @@ public class EventService {
         entityManager.refresh(eventDetail);
 
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, newVersion, "이벤트 상세 정보가 업데이트되었습니다.");
+    }
+
+
+    // 행사 삭제 - 하위 테이블 데이터도 모두 삭제
+    @Transactional
+    public void deleteEvent(Long eventId) {
+        log.info("행사 삭제");
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+        EventDetail eventDetail = event.getEventDetail();
+
+        if (eventDetail != null) {
+            eventDetailRepository.delete(eventDetail);
+        }
+
+        if (event.getExternalLinks() != null) {
+            externalLinkRepository.deleteAll(event.getExternalLinks());
+        }
+
+        eventVersionRepository.deleteAll(event.getEventVersions());
+
+        eventTicketIdRepository.deleteAll(event.getEventTickets());
+
+        boothRepository.deleteAll(event.getBooths());
+
+        eventRepository.deleteById(eventId);
+
+        log.info("행사 삭제 완료");
     }
 
 
