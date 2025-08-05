@@ -99,7 +99,11 @@ public class QrTicketBatchService {
           LocalDate date = tuple.get(5, LocalDate.class);
           LocalTime startTime = tuple.get(6, LocalTime.class);
           LocalTime endTime = tuple.get(7, LocalTime.class);
-          assert e != null;
+
+          if (e == null) {
+            throw new IllegalStateException("Event가 조회되지 않습니다.");
+          }
+
           String eventCode = e.getEventCode();
 
           log.info("[QrTicketInitProvider] List<Tuple> results - e: {}", e.getTitleKr());

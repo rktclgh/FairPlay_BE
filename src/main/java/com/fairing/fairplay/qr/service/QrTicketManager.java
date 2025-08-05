@@ -98,7 +98,9 @@ public class QrTicketManager {
   // 관리자 강제 QR 티켓 링크 재발급
   @Transactional
   public QrTicketReissueResponseDto reissueByAdmin(QrTicketReissueRequestDto dto) {
-    QrTicket qrTicket = qrTicketRepository.findByTicketNo(dto.getTicketNo());
+    QrTicket qrTicket = qrTicketRepository.findByTicketNo(dto.getTicketNo()).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND,"티켓 번호에 해당하는 QR 티켓을 찾을 수 없습니다: "+dto.getTicketNo())
+    );
 
     // 재발급된 QR 티켓 - qrcode, manualcode null 처리
     QrTicket resetQrTicket = resetQrTicket(qrTicket);
@@ -145,12 +147,14 @@ public class QrTicketManager {
     return qrTicketRepository.save(qrTicket);
   }
 
+  // QR 티켓 초기화
   private QrTicket resetQrTicket(QrTicket qrTicket) {
     qrTicket.setQrCode(null);
     qrTicket.setManualCode(null);
     return qrTicketRepository.save(qrTicket);
   }
 
+  // QR 티켓 조회
   private QrTicket findQrTicket(QrTicketRequestDto dto, Integer type) {
     return qrTicketInitProvider.load(dto, type);
   }
@@ -181,7 +185,7 @@ public class QrTicketManager {
     return dto;
   }
 
-  // 삭제 예정
+  // TODO: 실제 스케줄 정보 조회 로직으로 교체 예정
   private ViewingScheduleInfo getMockSchedule() {
     return ViewingScheduleInfo.builder()
         .date("2025-08-01")

@@ -28,5 +28,5 @@ public interface QrTicketRepository extends JpaRepository<QrTicket, Long> {
 
   Optional<QrTicket> findByAttendee(Attendee attendee);
 
-  QrTicket findByTicketNo(String ticketNo);
+  Optional<QrTicket> findByTicketNo(String ticketNo);
 }

@@ -43,6 +43,7 @@ public class QrTicketInitProvider {
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "QR 티켓을 조회할 수 없습니다."));
   }
 
+  // TODO: Attendee 조회 수정 예정
   private Attendee loadAttendeeWithTypeCheck(QrTicketRequestDto dto, Integer attendeeTypeCodeId) {
     if (attendeeTypeCodeId == 1) {
       return attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Id(
@@ -61,6 +62,7 @@ public class QrTicketInitProvider {
   }
 
   // 재발급 할 때 attendee 조회
+  // TODO: Attendee 조회 수정 예정
   private Attendee loadAttendeeWithoutTypeCheck(QrTicketRequestDto dto) {
     Long reservationId = dto.getReservationId();
     if (dto.getAttendeeId() == null) {
