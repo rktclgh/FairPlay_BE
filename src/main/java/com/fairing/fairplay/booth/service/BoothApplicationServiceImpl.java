@@ -76,4 +76,43 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
         application.setAdminComment(dto.getAdminComment());
         application.setStatusUpdatedAt(LocalDateTime.now());
     }
+
+    @Override
+    public void updatePaymentStatus(Long id, BoothPaymentStatusUpdateDto dto) {
+        BoothApplication booth = boothApplicationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("부스 신청 정보를 찾을 수 없습니다."));
+
+        BoothPaymentStatusCode statusCode = paymentCodeRepository
+                .findByCode(dto.getPaymentStatusCode())
+                .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 상태 코드입니다."));
+
+        booth.setBoothPaymentStatusCode(statusCode);
+        booth.setAdminComment(dto.getAdminComment());  // 관리자 사유 기록
+        booth.setStatusUpdatedAt(LocalDateTime.now()); // 상태 변경 시간 기록
+
+    }
+
+    /*
+    // 여기 추가
+    @Override
+    public void cancelApplication(Long id, Long userId) {
+        BoothApplication application = boothApplicationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("부스 신청 정보를 찾을 수 없습니다."));
+
+        // 유저 이메일 가져오기 (CustomUserDetails 사용)
+        String requesterEmail = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."))
+                .getEmail();
+
+        if (!application.getEmail().equalsIgnoreCase(requesterEmail)) {
+            throw new SecurityException("해당 신청을 취소할 권한이 없습니다.");
+        }
+
+        // 결제 상태를 CANCELLED로 변경
+        BoothPaymentStatusCode cancelled = paymentCodeRepository.findByCode("CANCELLED")
+                .orElseThrow(() -> new EntityNotFoundException("결제 상태 코드(CANCELLED)를 찾을 수 없습니다."));
+
+        application.setBoothPaymentStatusCode(cancelled);
+        application.setStatusUpdatedAt(LocalDateTime.now());
+    }*/
 }
