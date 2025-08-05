@@ -22,6 +22,10 @@ import java.util.stream.IntStream;
 public class HourlyAnalysisService {
 
     private final EventHourlyStatisticsRepository hourlyStatsRepository;
+    private final double UPWARD = 1.2;
+    private final double DOWNWARD = 0.8;
+    private final double EVENING = 0.4;
+    private final double NIGHT = 0.2;
 
     public HourlyAnalysisResponseDto analyzeHourlyBookings(Long eventId, LocalDate startDate, LocalDate endDate) {
         // 시간대별 통계 데이터 조회 (기간별)
@@ -180,6 +184,7 @@ public class HourlyAnalysisService {
     }
 
     private String determineTrend(List<EventHourlyStatistics> stats, int hour) {
+
         // 간단한 트렌드 분석 (이전/다음 시간과 비교)
         Map<Integer, Long> hourlyReservations = stats.stream()
                 .collect(Collectors.toMap(
@@ -191,8 +196,8 @@ public class HourlyAnalysisService {
         long currentHour = hourlyReservations.getOrDefault(hour, 0L);
         long prevHour = hourlyReservations.getOrDefault(hour > 0 ? hour - 1 : 23, 0L);
 
-        if (currentHour > prevHour * 1.2) return "상승";
-        if (currentHour < prevHour * 0.8) return "하락";
+        if (currentHour > prevHour * UPWARD) return "상승";
+        if (currentHour < prevHour * DOWNWARD) return "하락";
         return "안정";
     }
 
@@ -211,11 +216,11 @@ public class HourlyAnalysisService {
         long total = morning + afternoon + evening + night;
         if (total == 0) return insights;
 
-        if (evening > total * 0.4) {
+        if (evening > total * EVENING) {
             insights.add("저녁 시간대에 예매가 집중되는 패턴입니다.");
         }
 
-        if (night > total * 0.2) {
+        if (night > total * NIGHT) {
             insights.add("새벽 시간대에도 상당한 예매가 발생합니다.");
         }
 

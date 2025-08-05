@@ -36,6 +36,7 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
         List<Tuple> results = queryFactory
                 .select(
                         r.event.eventId,
+                        r.createdAt,
                         r.createdAt.hour(),
                         r.createdAt.dayOfMonth(),
                         r.count(),
@@ -46,7 +47,7 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                 .where(
                         r.event.eventId.eq(eventId)
                                 .and(r.createdAt.between(start, end))
-                                .and(p.paidAt.isNull().or(p.paidAt.between(start, end))) // 결제가 같은 기간에 이루어진 경우만
+                                .and(p.paidAt.between(start, end)) // 결제가 같은 기간에 이루어진 경우만
                 )
                 .groupBy(r.event.eventId, r.createdAt.hour(), r.createdAt.dayOfMonth())
                 .fetch();
@@ -65,14 +66,36 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
 
     // 매출 계산 헬퍼 메서드
     private BigDecimal calculateHourlyRevenue(Long eventId, LocalDate date, Integer hour, Long hourReservations) {
-        // EventDailySalesStatistics에서 해당 날짜의 총 매출 조회
+        QPayment p = QPayment.payment;
+        QReservation r = QReservation.reservation;
+
+        LocalDateTime hourStart = date.atTime(hour, 0);
+        LocalDateTime hourEnd = date.atTime(hour + 1, 0);
+
+        // 1. 실제 결제 시각 기반 합산 (정확한 방식)
+        BigDecimal realRevenue = queryFactory
+                .select(p.amount.sum().coalesce(BigDecimal.valueOf(0)))
+                .from(p)
+                .join(p.reservation, r)
+                .where(
+                        r.event.eventId.eq(eventId),
+                        p.paidAt.between(hourStart, hourEnd),
+                        p.paymentStatusCode.code.eq("COMPLETED")
+                )
+                .fetchOne();
+
+        if (realRevenue != null && realRevenue.compareTo(BigDecimal.ZERO) > 0) {
+            return realRevenue; // 결제 시각으로 계산된 매출 있으면 바로 반환
+        }
+
+        // 2. Fallback - 기존 비례 배분 방식
         QEventDailySalesStatistics dailySales = QEventDailySalesStatistics.eventDailySalesStatistics;
 
         EventDailySalesStatistics dailyStat = queryFactory
                 .selectFrom(dailySales)
                 .where(
-                        dailySales.eventId.eq(eventId)
-                                .and(dailySales.statDate.eq(date))
+                        dailySales.eventId.eq(eventId),
+                        dailySales.statDate.eq(date)
                 )
                 .fetchOne();
 
@@ -80,8 +103,6 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
             return BigDecimal.ZERO;
         }
 
-        // 해당 날짜의 총 예매 건수 조회
-        QReservation r = QReservation.reservation;
         LocalDateTime dayStart = date.atStartOfDay();
         LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
 
@@ -89,8 +110,8 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                 .select(r.count())
                 .from(r)
                 .where(
-                        r.event.eventId.eq(eventId)
-                                .and(r.createdAt.between(dayStart, dayEnd))
+                        r.event.eventId.eq(eventId),
+                        r.createdAt.between(dayStart, dayEnd)
                 )
                 .fetchOne();
 
@@ -98,7 +119,6 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
             return BigDecimal.ZERO;
         }
 
-        // 시간별 매출 = (총 매출 / 총 예매 건수) * 해당 시간 예매 건수
         BigDecimal totalSales = BigDecimal.valueOf(dailyStat.getTotalSales());
         BigDecimal hourlyRatio = BigDecimal.valueOf(hourReservations)
                 .divide(BigDecimal.valueOf(totalDailyReservations), 4, RoundingMode.HALF_UP);
