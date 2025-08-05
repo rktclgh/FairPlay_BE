@@ -1,5 +1,6 @@
 package com.fairing.fairplay.qr.controller;
 
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
@@ -9,6 +10,7 @@ import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,8 +27,9 @@ public class QrTicketController {
 
   // 마이페이지에서 QR 티켓 조회
   @PostMapping
-  public ResponseEntity<QrTicketResponseDto> issueMember(@RequestBody QrTicketRequestDto dto) {
-    return ResponseEntity.ok(qrTicketService.issueMember(dto));
+  public ResponseEntity<QrTicketResponseDto> issueMember(@RequestBody QrTicketRequestDto dto, @AuthenticationPrincipal
+      CustomUserDetails userDetails) {
+    return ResponseEntity.ok(qrTicketService.issueMember(dto, userDetails));
   }
 
   // 비회원 QR 티켓 조회 (참석자)

@@ -1,5 +1,6 @@
 package com.fairing.fairplay.qr.service;
 
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
@@ -21,8 +22,8 @@ public class QrTicketService {
 
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
-  public QrTicketResponseDto issueMember(QrTicketRequestDto dto) {
-    return qrTicketManager.issueMemberTicket(dto);
+  public QrTicketResponseDto issueMember(QrTicketRequestDto dto, CustomUserDetails userDetails) {
+    return qrTicketManager.issueMemberTicket(dto, userDetails);
   }
 
   // 비회원 QR 티켓 조회 -> QR 티켓 링크 통한 조회
