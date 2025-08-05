@@ -454,7 +454,7 @@ public class EventService {
 
         if (eventDetail.getPolicy() == null && eventDetailRequestDto.getPolicy() == null) {
             throw new CustomException(HttpStatus.BAD_REQUEST, "policy는 반드시 포함되어야 합니다.");
-        } else if (eventDetailRequestDto.getContent() != null) {
+        } else if (eventDetailRequestDto.getPolicy() != null) {
             eventDetail.setPolicy(eventDetailRequestDto.getPolicy());
         }
 
