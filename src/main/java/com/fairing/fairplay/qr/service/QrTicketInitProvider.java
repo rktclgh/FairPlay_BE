@@ -44,30 +44,48 @@ public class QrTicketInitProvider {
   // 저장된 QR 티켓 조회
   public QrTicket load(QrTicketRequestDto dto, Integer attendeeTypeCodeId) {
     Attendee attendee;
-
-    if (attendeeTypeCodeId == 1) {
-      // 대표자: 예약 ID + 타입으로 한 명만 조회
-      attendee = attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Id(
-              dto.getReservationId(), attendeeTypeCodeId)
-          .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자를 조회할 수 없습니다."));
-
-    } else if (attendeeTypeCodeId == 2) {
-      // 동반자: 예약 ID + 참석자 ID + 타입으로 조회
-      if (dto.getAttendeeId() == null) {
-        throw new CustomException(HttpStatus.BAD_REQUEST, "대표자가 아니므로 조회할 수 없습니다.");
-      }
-
-      attendee = attendeeRepository.findByIdAndReservation_ReservationIdAndAttendeeTypeCode_Id(
-              dto.getAttendeeId(), dto.getReservationId(), attendeeTypeCodeId)
-          .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "동반 참석자를 조회할 수 없습니다."));
-
+    if (attendeeTypeCodeId == null) {
+      attendee = loadAttendeeWithoutTypeCheck(dto);
     } else {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "지원하지 않는 참석자 유형입니다.");
+      attendee = loadAttendeeWithTypeCheck(dto, attendeeTypeCodeId);
     }
 
     return qrTicketRepository.findByAttendee(attendee)
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "QR 티켓을 조회할 수 없습니다."));
   }
+
+  private Attendee loadAttendeeWithTypeCheck(QrTicketRequestDto dto, Integer attendeeTypeCodeId) {
+    if (attendeeTypeCodeId == 1) {
+      return attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Id(
+              dto.getReservationId(), attendeeTypeCodeId)
+          .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자를 조회할 수 없습니다."));
+    } else if (attendeeTypeCodeId == 2) {
+      if (dto.getAttendeeId() == null) {
+        throw new CustomException(HttpStatus.BAD_REQUEST, "대표자가 아니므로 조회할 수 없습니다.");
+      }
+      return attendeeRepository.findByIdAndReservation_ReservationIdAndAttendeeTypeCode_Id(
+              dto.getAttendeeId(), dto.getReservationId(), attendeeTypeCodeId)
+          .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "동반 참석자를 조회할 수 없습니다."));
+    } else {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "지원하지 않는 참석자 유형입니다.");
+    }
+  }
+
+  // 재발급 할 때 attendee 조회
+  private Attendee loadAttendeeWithoutTypeCheck(QrTicketRequestDto dto) {
+    Long reservationId = dto.getReservationId();
+    if (dto.getAttendeeId() == null) {
+      return attendeeRepository.findById(reservationId)
+          .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자를 조회할 수 없습니다."));
+    } else if (dto.getReservationId() == null) {
+      return attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Id(reservationId,
+              1)
+          .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자를 조회할 수 없습니다."));
+    } else {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "참석자 조회에 필요한 정보가 부족합니다.");
+    }
+  }
+
 
   /*
    * 다음날 열리는 행사에 참석 예정인 모든 사람을 조회해
@@ -102,7 +120,8 @@ public class QrTicketInitProvider {
         )
         .fetch();
 
-    log.info("[QrTicketInitProvider] scheduleCreateQrTicket results : {}",results.getFirst().get(event));
+    log.info("[QrTicketInitProvider] scheduleCreateQrTicket results : {}",
+        results.getFirst().get(event));
 
     return results.stream()
         .map(tuple -> {

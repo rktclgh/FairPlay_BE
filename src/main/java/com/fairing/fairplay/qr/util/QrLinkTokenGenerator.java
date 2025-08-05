@@ -1,6 +1,5 @@
 package com.fairing.fairplay.qr.util;
 
-import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import lombok.RequiredArgsConstructor;
 import org.hashids.Hashids;

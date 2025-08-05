@@ -3,6 +3,8 @@ package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
+import com.fairing.fairplay.qr.dto.QrTicketUpdateRequestDto;
+import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -33,14 +35,13 @@ public class QrTicketController {
   }
 
   // QR 티켓 재발급
-//  @PostMapping("/reissue/{token}")
-//  public ResponseEntity<QrTicketResponseDto> reissueQrTicket(@PathVariable String token) {
-//    return ResponseEntity.ok(qrTicketService.reissueQrTicket(token));
-//  }
+  @PostMapping("/reissue")
+  public ResponseEntity<QrTicketUpdateResponseDto> reissueQrTicket(
+      @RequestBody QrTicketUpdateRequestDto dto) {
+    return ResponseEntity.ok(qrTicketService.reissueQrTicket(dto));
+  }
 
   // QR 티켓 만료
-
-
 
   // QR 티켓 삭제?
 }

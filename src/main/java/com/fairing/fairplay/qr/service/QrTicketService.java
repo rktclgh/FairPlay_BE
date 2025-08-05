@@ -5,6 +5,8 @@ import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto.ViewingScheduleInfo;
+import com.fairing.fairplay.qr.dto.QrTicketUpdateRequestDto;
+import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.CodeGenerator;
@@ -16,7 +18,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -38,11 +39,7 @@ public class QrTicketService {
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
   public QrTicketResponseDto issueMember(QrTicketRequestDto dto) {
-    Reservation reservation = reservationRepository.findById(dto.getReservationId())
-        .orElseThrow(() -> new CustomException(
-            HttpStatus.NOT_FOUND, "올바른 예약 티켓이 아닙니다."));
-
-    checkReservationBeforeNow(reservation);
+    Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
     QrTicket savedTicket = generateAndSaveQrTicket(dto, 1);
     return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
@@ -53,10 +50,8 @@ public class QrTicketService {
   public QrTicketResponseDto issueGuest(String token) {
     // 토큰 파싱해 예약 정보 조회
     QrTicketRequestDto dto = qrLinkTokenGenerator.decodeToDto(token);
-    Reservation reservation = reservationRepository.findById(dto.getReservationId())
-        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "올바른 예약 티켓이 아닙니다."));
 
-    checkReservationBeforeNow(reservation);
+    Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
     // QR 티켓 조회해 qr code, manualcode 생성해서 반환
     QrTicket savedTicket = generateAndSaveQrTicket(dto, 2);
@@ -65,23 +60,26 @@ public class QrTicketService {
   }
 
   // QR 티켓 재발급
-//  @Transactional
-//  public QrTicketResponseDto reissueQrTicket(String token) {
-//    // 예약 조회
-//    Reservation reservation = reservationRepository.findById(dto.getReservationId())
-//        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "올바른 예약 티켓이 아닙니다."));
-//
-//    checkReservationBeforeNow(reservation);
-//
-//    // 저장된 티켓 조회 후 qrcode, manualcode 재발급
-//    QrTicket savedTicket = generateAndSaveQrTicket(dto, 1);
-//
-//    // 재발급된 티켓 반환
-//    return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
-//  }
+  @Transactional
+  public QrTicketUpdateResponseDto reissueQrTicket(QrTicketUpdateRequestDto dto) {
+    // QR URL 디코딩
+    QrTicketRequestDto qrTicketRequestDto = qrLinkTokenGenerator.decodeToDto(dto.getQrUrlToken());
+
+    // 예약 여부 조회
+    Reservation reservation = checkReservationBeforeNow(qrTicketRequestDto.getReservationId());
+
+    // QR 티켓 재발급
+    QrTicket savedTicket = generateAndSaveQrTicket(qrTicketRequestDto, null);
+    return QrTicketUpdateResponseDto.builder().qrCode(savedTicket.getQrCode())
+        .manualCode(savedTicket.getManualCode()).build();
+  }
 
   // 행사일이 오늘보다 전날 또는 행사일이 오늘인데 종료 시간이 현재 시간보다 더 늦은 경우 예외 처리
-  private void checkReservationBeforeNow(Reservation reservation) {
+  private Reservation checkReservationBeforeNow(Long reservationId) {
+    Reservation reservation = reservationRepository.findById(reservationId)
+        .orElseThrow(() -> new CustomException(
+            HttpStatus.NOT_FOUND, "올바른 예약 티켓이 아닙니다."));
+
     LocalDate nowDate = LocalDate.now(ZoneId.of("Asia/Seoul"));
     LocalTime nowTime = LocalTime.now(ZoneId.of("Asia/Seoul"));
 
@@ -90,10 +88,12 @@ public class QrTicketService {
             .getEndTime().isBefore(nowTime))) {
       throw new LinkExpiredException("종료된 행사입니다.", null);
     }
+
+    return reservation;
   }
 
   // 저장된 qr 티켓 조회 후 qrcode, manualcode 발급받아 저장
-  private QrTicket generateAndSaveQrTicket(QrTicketRequestDto dto, int type) {
+  private QrTicket generateAndSaveQrTicket(QrTicketRequestDto dto, Integer type) {
     QrTicket qrTicket = qrTicketInitProvider.load(dto, type);
     qrTicket.setQrCode(codeGenerator.generateRandomToken());
     qrTicket.setManualCode(codeGenerator.generateManualCode());
