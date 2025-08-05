@@ -44,13 +44,13 @@ public class QrTicketAttendeeService {
   }
 
   public AttendeeTypeCode findPrimaryTypeCode(){
-    return attendeeTypeCodeRepository.findByCode("PRIMARY").orElseThrow(
+    return attendeeTypeCodeRepository.findByCode(AttendeeTypeCode.PRIMARY).orElseThrow(
         () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "참석자 타입이 옳지 않습니다.")
     );
   }
 
   public AttendeeTypeCode findGuestTypeCode(){
-    return attendeeTypeCodeRepository.findByCode("GUEST").orElseThrow(
+    return attendeeTypeCodeRepository.findByCode(AttendeeTypeCode.GUEST).orElseThrow(
         () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "참석자 타입이 옳지 않습니다.")
     );
   }

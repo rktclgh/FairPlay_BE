@@ -16,6 +16,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Table(name = "attendee_type_code")
 public class AttendeeTypeCode {
+  public static final String PRIMARY = "PRIMARY";
+  public static final String GUEST = "GUEST";
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
