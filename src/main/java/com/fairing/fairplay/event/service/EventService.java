@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -105,7 +106,7 @@ public class EventService {
         // Hashid로 고유 코드 생성
         Event savedEvent = eventRepository.save(event);
         String eventCode = encode(savedEvent.getEventId());
-        savedEvent.setEventCode(eventCode);
+        savedEvent.setEventCode("EVT-" + eventCode);
 
         // 첫 번째 버전 생성
         log.info("첫 번째 버전 생성 for eventId: {}", savedEvent.getEventId());
@@ -176,9 +177,21 @@ public class EventService {
 
     // 행사 목록 조회 (메인페이지, 검색 등) - EventDetail 정보 등록해야 보임
     @Transactional
-    public EventSummaryResponseDto getEvents(Pageable pageable) {
-        Page<EventSummaryDto> eventPage = eventQueryRepository.findEventSummaries(pageable);
+    public EventSummaryResponseDto getEvents(
+            String keyword, Integer mainCategoryId, Integer subCategoryId,
+            String regionName, LocalDate fromDate, LocalDate toDate, Pageable pageable) {
+        log.info("행사 목록 조회 필터");
+        log.info("keyword : {}", keyword);
+        log.info("mainCategoryId : {}", mainCategoryId);
+        log.info("subCategoryId : {}", subCategoryId);
+        log.info("regionName : {}", regionName);
+        log.info("fromDate : {}", fromDate);
+        log.info("toDate : {}", toDate);
 
+        Page<EventSummaryDto> eventPage = eventQueryRepository.findEventSummariesWithFilters (
+                keyword, mainCategoryId, subCategoryId, regionName, fromDate, toDate, pageable);
+
+        log.info("행사 목록 조회 완료: {}", eventPage.getTotalElements());
         return EventSummaryResponseDto.builder()
                 .message("행사 목록 조회가 완료되었습니다.")
                 .events(eventPage.getContent())

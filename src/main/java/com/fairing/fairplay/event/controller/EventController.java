@@ -10,11 +10,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 
@@ -69,9 +71,15 @@ public class EventController {
     // 행사 목록 조회 (메인페이지, 검색 등) - EventDetail 정보 등록해야 보임
     @GetMapping
     public ResponseEntity<EventSummaryResponseDto> getEvents(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer mainCategoryId,
+            @RequestParam(required = false) Integer subCategoryId,
+            @RequestParam(required = false) String regionName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @PageableDefault(size = 10) Pageable pageable
     ) {
-        EventSummaryResponseDto response = eventService.getEvents(pageable);
+        EventSummaryResponseDto response = eventService.getEvents(keyword, mainCategoryId, subCategoryId, regionName, fromDate, toDate, pageable);
         return ResponseEntity.ok(response);
     }
 

@@ -140,5 +140,5 @@ public class UserController {
 
         if (!authority.equals(ADMIN) && !managerId.equals(userDetails.getUserId())) throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
     }
-    
+
 }
