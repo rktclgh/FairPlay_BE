@@ -9,9 +9,11 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -31,25 +33,16 @@ public class HourlyAnalysisService {
 
         // 시간별로 집계 (여러 날짜의 같은 시간대를 합산)
         Map<Integer, EventHourlyStatistics> aggregatedStats = hourlyStats.stream()
-                .collect(Collectors.groupingBy(
-                        EventHourlyStatistics::getHour,
-                        Collectors.reducing(
-                                EventHourlyStatistics.builder()
-                                        .eventId(eventId)
-                                        .hour(0)
-                                        .reservations(0L)
-                                        .totalRevenue(BigDecimal.ZERO)
-                                        .build(),
-                                stat -> stat,
-                                (s1, s2) -> EventHourlyStatistics.builder()
-                                        .eventId(eventId)
-                                        .hour(s1.getHour())
-                                        .reservations(s1.getReservations() + s2.getReservations())
-                                        .totalRevenue(s1.getTotalRevenue().add(s2.getTotalRevenue()))
-                                        .build()
-                        )
+                .collect(Collectors.toMap(
+                EventHourlyStatistics::getHour,
+                Function.identity(),
+                        (s1, s2) -> EventHourlyStatistics.builder()
+                        .eventId(eventId)
+                        .hour(s1.getHour())
+                .reservations(s1.getReservations() + s2.getReservations())
+                .totalRevenue(s1.getTotalRevenue().add(s2.getTotalRevenue()))
+                .build()
                 ));
-
         List<EventHourlyStatistics> aggregatedList = new ArrayList<>(aggregatedStats.values());
         // 전체 합계 계산
         long totalReservations = aggregatedList.stream()
@@ -61,15 +54,17 @@ public class HourlyAnalysisService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return HourlyAnalysisResponseDto.builder()
-                .summary(buildSummary(aggregatedList, totalReservations, totalRevenue))
+                .summary(buildSummary(aggregatedList, totalReservations, totalRevenue,startDate,endDate))
                 .peakHours(buildPeakHours(aggregatedList, totalReservations))
                 .hourlyDetails(buildHourlyDetails(aggregatedList, totalReservations))
                 .patternAnalysis(buildPatternAnalysis(aggregatedList))
                 .build();
     }
 
-    private HourlyStatsSummaryDto buildSummary(List<EventHourlyStatistics> stats, long totalReservations, BigDecimal totalRevenue) {
-        double averageHourly = stats.isEmpty() ? 0 : (double) totalReservations / 24;
+    private HourlyStatsSummaryDto buildSummary(List<EventHourlyStatistics> stats, long totalReservations, BigDecimal totalRevenue,LocalDate startDate, LocalDate endDate) {
+        // startDate와 endDate를 메서드 파라미터로 추가하고
+        long totalHours = ChronoUnit.HOURS.between(startDate.atStartOfDay(), endDate.plusDays(1).atStartOfDay());
+        double averageHourly = stats.isEmpty() ? 0 : (double) totalReservations / totalHours;
 
         Integer mostActiveHour = stats.stream()
                 .max((a, b) -> Long.compare(a.getReservations(), b.getReservations()))
@@ -186,15 +181,15 @@ public class HourlyAnalysisService {
 
     private String determineTrend(List<EventHourlyStatistics> stats, int hour) {
         // 간단한 트렌드 분석 (이전/다음 시간과 비교)
-        long currentHour = stats.stream()
-                .filter(s -> s.getHour().equals(hour))
-                .mapToLong(EventHourlyStatistics::getReservations)
-                .sum();
+        Map<Integer, Long> hourlyReservations = stats.stream()
+                .collect(Collectors.toMap(
+                EventHourlyStatistics::getHour,
+                EventHourlyStatistics::getReservations,
+                Long::sum
+                        ));
 
-        long prevHour = stats.stream()
-                .filter(s -> s.getHour().equals(hour > 0 ? hour - 1 : 23))
-                .mapToLong(EventHourlyStatistics::getReservations)
-                .sum();
+        long currentHour = hourlyReservations.getOrDefault(hour, 0L);
+        long prevHour = hourlyReservations.getOrDefault(hour > 0 ? hour - 1 : 23, 0L);
 
         if (currentHour > prevHour * 1.2) return "상승";
         if (currentHour < prevHour * 0.8) return "하락";
