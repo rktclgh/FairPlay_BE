@@ -37,7 +37,7 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                 .select(
                         r.event.eventId,
                         r.createdAt.hour(),
-                        r.createdAt,
+                        r.createdAt.dayOfMonth(),
                         r.count(),
                         p.amount.sum().coalesce(BigDecimal.ZERO)
                 )
@@ -48,7 +48,7 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                                 .and(r.createdAt.between(start, end))
                                 .and(p.paidAt.isNull().or(p.paidAt.between(start, end))) // 결제가 같은 기간에 이루어진 경우만
                 )
-                .groupBy(r.event.eventId, r.createdAt.hour(), r.createdAt)
+                .groupBy(r.event.eventId, r.createdAt.hour(), r.createdAt.dayOfMonth())
                 .fetch();
 
         return results.stream()
