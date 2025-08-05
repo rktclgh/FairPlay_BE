@@ -61,7 +61,7 @@ public class QrTicketController {
 
   // QR 티켓 재발급 3
   @PostMapping("/admin/reissue/send-email")
-  public ResponseEntity<QrTicketReissueResponseDto> reissueAdminQrTicketByGuest(
+  public ResponseEntity<QrTicketReissueResponseDto> reissueAdminQrTicket(
       @RequestBody QrTicketReissueRequestDto dto) {
     return ResponseEntity.ok(qrTicketService.reissueAdminQrTicket(dto));
   }

@@ -1,6 +1,7 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
+import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
@@ -41,12 +42,14 @@ public class QrTicketManager {
   private final QrLinkService qrLinkService;
   private final QrEmailService qrEmailService;
 
+  private static final String ROLE_COMMON = "COMMON";
+
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
   public QrTicketResponseDto issueMemberTicket(QrTicketRequestDto dto, CustomUserDetails userDetails) {
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
-    if(!userDetails.getRoleCode().equals("COMMON")){
+    if(!userDetails.getRoleCode().equals(ROLE_COMMON)){
       throw new CustomException(HttpStatus.FORBIDDEN, "일반 사용자가 아닙니다. 현재 로그인된 사용자 권한: "+userDetails.getRoleCode());
     }
 
@@ -54,7 +57,9 @@ public class QrTicketManager {
       throw new CustomException(HttpStatus.FORBIDDEN, "본인의 예약만 조회할 수 있습니다.");
     }
 
-    QrTicket savedTicket = generateAndSaveQrTicket(dto, 1);
+    AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
+
+    QrTicket savedTicket = generateAndSaveQrTicket(dto, attendeeTypeCode.getId());
     return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
   }
 
@@ -66,8 +71,10 @@ public class QrTicketManager {
 
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
+    AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findGuestTypeCode();
+
     // QR 티켓 조회해 qr code, manualcode 생성해서 반환
-    QrTicket savedTicket = generateAndSaveQrTicket(dto, 2);
+    QrTicket savedTicket = generateAndSaveQrTicket(dto, attendeeTypeCode.getId());
     // 프론트 응답
     return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
   }
