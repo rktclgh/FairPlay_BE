@@ -34,7 +34,7 @@ public class CustomUserDetails implements UserDetails {
     public Collection<? extends GrantedAuthority> getAuthorities() {
         // 권한 없으면 빈 Set 반환 (실제론 roleCode가 null이 나오면 DB/로직 점검 필요)
         if (roleCode == null) return Collections.emptySet();
-        return Collections.singleton(() -> "ROLE_" + roleCode);
+        return Collections.singleton(() -> roleCode);
     }
 
     @Override public String getPassword() { return null; } // 필요시 user.getPassword()
