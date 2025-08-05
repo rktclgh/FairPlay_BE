@@ -2,6 +2,8 @@ package com.fairing.fairplay.reservation.service;
 
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.notification.dto.NotificationRequestDto;
+import com.fairing.fairplay.notification.service.NotificationService;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.entity.ReservationLog;
@@ -27,6 +29,7 @@ public class ReservationService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final ReservationLogRepository reservationLogRepository;
+    private final NotificationService notificationService; // NotificationService 주입
     /*
     private final EventScheduleRepository eventScheduleRepository;
     private final TicketRepository ticketRepository;
@@ -57,6 +60,19 @@ public class ReservationService {
 
         Reservation reservationParam =  new Reservation(event, schedule, ticket, user, requestDto.getQuantity(), requestDto.getPrice());
         Reservation reservation = reservationRepository.save(reservationParam);
+
+        // --- 알림 생성 로직 추가 ---
+        NotificationRequestDto notificationDto = NotificationRequestDto.builder()
+                .userId(userId)
+                .typeCode("RESERVATION")
+                .methodCode("WEB")
+                .title(event.getName() + " 예약 완료!")
+                .message(user.getName() + " 님, " + event.getName() + " 박람회 예약이 성공적으로 완료되었습니다.")
+                .url("https://fair-play.ink/event/" + event.getEventId())
+                .build();
+        
+        notificationService.createNotification(notificationDto);
+        // --------------------------
 
         return reservation;
          */
