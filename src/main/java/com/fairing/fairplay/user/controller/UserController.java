@@ -4,7 +4,6 @@ import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.user.dto.*;
-import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.user.service.UserService;
 import jakarta.validation.Valid;
@@ -116,7 +115,7 @@ public class UserController {
             @PathVariable Long eventId, @RequestBody @Valid EventAdminRequestDto dto) {
 
         checkAuth(userDetails, EVENT);
-        checkEventManager(userDetails.getUserId(), eventId);
+        checkEventManager(userDetails, eventId);
 
         EventAdminResponseDto responseDto = userService.updateEventAdmin(eventId, dto);
 
@@ -125,27 +124,21 @@ public class UserController {
 
     private void checkAuth(@AuthenticationPrincipal CustomUserDetails userDetails, Integer authority) {
         log.info("기본 권한 확인");
-        Long userId = userDetails.getUserId();
-        Users user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 사용자를 찾을 수 없습니다."));
 
-        if (user.getRoleCode().getId() > authority) {
+        if (userDetails.getRoleId() > authority) {
             throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
         }
     }
 
-    private void checkEventManager(Long loginUserId, Long eventId) {
+    private void checkEventManager(@AuthenticationPrincipal CustomUserDetails userDetails, Long eventId) {
         log.info("행사 관리자 추가 권한 확인");
         Long managerId = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."))
                 .getManager().getUserId();
 
-        Integer authority = userRepository.findById(loginUserId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."))
-                .getRoleCode().getId();
+        Integer authority = userDetails.getRoleId();
 
-        if (!authority.equals(ADMIN) && !managerId.equals(loginUserId)) throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+        if (!authority.equals(ADMIN) && !managerId.equals(userDetails.getUserId())) throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
     }
-
-
+    
 }
