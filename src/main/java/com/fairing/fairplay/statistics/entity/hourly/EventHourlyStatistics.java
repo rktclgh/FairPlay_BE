@@ -1,8 +1,9 @@
-package com.fairing.fairplay.statistics.entity.reservation;
+package com.fairing.fairplay.statistics.entity.hourly;
 
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -39,6 +40,11 @@ public class EventHourlyStatistics {
     @Column(name = "checkins", nullable = false)
     @Builder.Default
     private Integer checkins = 0;
+
+
+    @Column(name = "total_revenue", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal totalRevenue = BigDecimal.ZERO;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
