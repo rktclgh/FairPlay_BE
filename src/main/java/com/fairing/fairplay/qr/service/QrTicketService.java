@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 /*QR티켓 서비스*/
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class QrTicketService {
 
   private final QrTicketRepository qrTicketRepository;
@@ -56,6 +58,7 @@ public class QrTicketService {
   @Transactional
   public void createQrTicket() {
     List<QrTicket> qrTickets = qrTicketInitProvider.scheduleCreateQrTicket();
+    log.info("qrTickets: {}", qrTickets.size());
     qrTicketRepository.saveAll(qrTickets);
   }
 

@@ -1,6 +1,8 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.attendee.entity.QAttendee;
+import com.fairing.fairplay.core.email.entity.EmailServiceFactory;
+import com.fairing.fairplay.core.email.entity.EmailServiceFactory.EmailType;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.util.QrLinkTokenGenerator;
 import com.fairing.fairplay.reservation.entity.QReservation;
@@ -9,15 +11,17 @@ import com.fairing.fairplay.ticket.entity.QEventSchedule;
 import com.querydsl.core.Tuple;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 // QR티켓 스케줄러 관련 서비스
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class QrTicketBatchService {
 
   private final QrLinkTokenGenerator qrLinkTokenGenerator;
-  private final QrTicketLinkSender qrTicketLinkSender;
+  private final EmailServiceFactory emailServiceFactory;
   private final ReservationRepositoryCustom reservationRepositoryCustom;
 
   // 행사 1일 남은 예약건 조회
@@ -48,7 +52,9 @@ public class QrTicketBatchService {
             .build();
         String token = qrLinkTokenGenerator.generateToken(dto);
         String qrUrl = "https://your-site.com/qr-tickets/" + token; // 수정 예정
-        qrTicketLinkSender.sendQrTicket(attendeeName, attendeeEmail, qrUrl);
+        emailServiceFactory.getService(EmailType.QR_TICKET)
+            .send(attendeeEmail, attendeeName, qrUrl);
+        log.info("이메일 전송 완료:{}", attendeeEmail);
       } catch (Exception e) {
         throw new RuntimeException(e);
       }

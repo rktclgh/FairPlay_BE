@@ -27,19 +27,28 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/users/signup",   // 회원가입 (UserController)
-                                "/api/auth/login",     // 로그인
-                                "/api/auth/logout",   //로그아웃
-                                "/api/auth/refresh",   // 토큰 재발급
-                                "/api/events/**",      // 행사 // TODO: 권한별로 나누기
-                                "/api/users/forgot-password",//임시 비밀번호 발급
+                                "/",                // 루트 경로 (index.html)
+                                "/index.html",      // 메인 정적 페이지
+                                "/assets/**",       // vite 등 빌드 시 산출물
+                                "/images/**",       // 이미지 리소스(필요시)
+                                "/favicon.ico",
+                                "/static/**",       // 혹시 모듈/서브폴더 등
+                                "/manifest.json",   // PWA/프론트 프로젝트일 때
+                                "/robots.txt",
+                                "/api/users/signup",
+                                "/api/auth/login",
+                                "/api/auth/logout",
+                                "/api/auth/refresh",
+                                "/api/events/**",
+                                "/api/users/forgot-password",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/api/users/check-email",
                                 "/api/users/check-nickname",
                                 "/api/email/verify-code",
                                 "/api/email/send-verification",
-                                "/api/auth/kakao"
+                                "/api/auth/kakao",
+                                "/auth/kakao/callback"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -51,3 +60,4 @@ public class SecurityConfig {
         return http.build();
     }
 }
+

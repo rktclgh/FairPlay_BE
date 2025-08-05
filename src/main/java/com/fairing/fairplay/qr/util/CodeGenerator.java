@@ -7,19 +7,21 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class CodeGenerator {
 
   private static final String CHAR_POOL = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 헷갈리는 문자 제외
   private static final int CODE_LENGTH = 8;
 
   private static final SecureRandom random = new SecureRandom();
-  private final RedisTemplate<Object, Object> redisTemplate;
+  private final StringRedisTemplate redisTemplate;
 
   // QR 코드 생성 ex. 550e8400-e29b-41d4-a716-446655440000
   public String generateRandomToken() {
@@ -43,17 +45,29 @@ public class CodeGenerator {
   }
 
   // 티켓 코드 생성 ex. FR2025-20250802-0012
+  // 하루마다 예약건에 대한 시퀀스 초기화
+  // redis 시퀀스 이용해 설정
   public String generateTicketNo(String eventCode) {
     try {
-      String date = LocalDateTime.now().format(DateTimeFormatter.BASIC_ISO_DATE); // "20250802"
+      String date = LocalDateTime.now().format(DateTimeFormatter.BASIC_ISO_DATE); // "20250804"
       String key = "ticketSeq:" + eventCode + ":" + date;
-      Long seq = redisTemplate.opsForValue().increment(key); // redis에서 자동 증가
+
+      log.info("🚩 key 생성됨: {}", key);
+      log.info("🚩 redisTemplate: {}", redisTemplate); // null 여부 확인
+
+      Long seq = redisTemplate.opsForValue().increment(key);
+      log.info("🚩 Redis에서 시퀀스 값: {}", seq);
+
       if (seq == 1) {
-        redisTemplate.expire(key, Duration.ofDays(1)); // 하루 단위로 시퀀스 초기화
+        redisTemplate.expire(key, Duration.ofDays(1));
+        log.info("🚩 키 만료시간 설정됨: {} - 1일", key);
       }
+
       return String.format("%s-%s-%04d", eventCode, date, seq);
     } catch (Exception e) {
-      throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "티켓 번호 생성 중 오류가 발생했습니다.");
+      log.error("❌ generateTicketNo 예외 발생", e); // 원래 에러를 로그로 남기자!
+      throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR,
+          "티켓 번호 생성 중 오류가 발생했습니다: " + e.getMessage());
     }
 
   }
