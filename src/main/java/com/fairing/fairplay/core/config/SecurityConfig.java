@@ -50,7 +50,7 @@ public class SecurityConfig {
                                 "/api/email/send-verification",
                                 "/api/auth/kakao",
                                 "/auth/kakao/callback",
-                                "/api/users/event-admin/*/public"
+                                "/api/users/event-admin/*/public",
                                 "/api/qr-tickets/*",
                                 "/api/qr-tickets/reissue"
                         ).permitAll()
