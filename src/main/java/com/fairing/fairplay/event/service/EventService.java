@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +39,7 @@ public class EventService {
     private final MainCategoryRepository mainCategoryRepository;
     private final SubCategoryRepository subCategoryRepository;
     private final EventQueryRepositoryImpl eventQueryRepository;
+    private final EventVersionRepository eventVersionRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -119,110 +119,37 @@ public class EventService {
                 .build();
     }
 
+    // 행사 상세 생성
     @Transactional
     public EventDetailResponseDto createEventDetail(EventDetailRequestDto eventDetailRequestDto, Long eventId) {
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 이벤트가 존재하지 않습니다", null));
-
+        Event event = checkEventAndDetail(eventId, "create");
         Long managerId = event.getManager().getUser().getUserId(); // TODO: 로그인한 담당자 ID로 변경
-
-        if (event.getEventDetail() != null) {
-            throw new CustomException(HttpStatus.CONFLICT, "해당 이벤트의 상세 정보가 이미 존재합니다. UPDATE로 실행 해주세요.", null);
-        }
 
         // 행사 상세 생성
         EventDetail eventDetail = new EventDetail();
         log.info("eventDetail 생성: {}", eventDetail);
 
-        log.info("버전 생성 for eventId: {}", eventId);
-        EventVersion newVersion = eventVersionService.createEventVersion(event, managerId);
+        Integer versionNumber = createVersion(event, managerId);
 
         // 제목 설정
-        log.info("제목 설정");
-        if (eventDetailRequestDto.getTitleKr() != null) {
-            event.setTitleKr(eventDetailRequestDto.getTitleKr());
-        }
-        if (eventDetailRequestDto.getTitleEng() != null) {
-            event.setTitleEng(eventDetailRequestDto.getTitleEng());
-        }
+        setTitles(event, eventDetailRequestDto);
 
         // 주소 설정
-        log.info("주소 설정");
-        // TODO: 주소값(도로명, 건물명, 위도, 경도)은 프론트에서 axios로 넘겨줘야함
-        /*
-                프론트에서 할일 - 카카오맵 API
-                1. 사용자가 키워드로 장소 검색
-                2. 사용자가 장소 선택 및 상세 주소 입력
-                    선택 된 장소에서 가져올 데이터
-                    - place_name
-                    - road_address_name
-                    - x
-                    - y
-                    - place_url
-        */
-
-        Location location = new Location();
-        location.setAddress(eventDetailRequestDto.getAddress());
-        location.setPlaceName(eventDetailRequestDto.getPlaceName());
-        location.setLatitude(eventDetailRequestDto.getLatitude());
-        location.setLongitude(eventDetailRequestDto.getLongitude());
-        location.setPlaceUrl(eventDetailRequestDto.getPlaceUrl());
-
+        Location location = createAndSaveLocation(eventDetail, eventDetailRequestDto, "create");
         eventDetail.setLocation(location);
-        locationRepository.save(location);
-
-        if (eventDetailRequestDto.getLocationDetail() != null) {
-            eventDetail.setLocationDetail(eventDetailRequestDto.getLocationDetail());
-        }
 
         // 지역 코드 추출 및 설정
-        String regionName = eventDetailRequestDto.getAddress().substring(0, 2);
-        RegionCode regionCode = regionCodeRepository.findByName(regionName)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 지역코드를 찾지 못했습니다.", null));
-        eventDetail.setRegionCode(regionCode);
+        findRegionCode(eventDetail, eventDetailRequestDto);
 
         // 행사 정보 설정
-        log.info("행사 정보 설정");
-        eventDetail.setHostName(eventDetailRequestDto.getHostName());
-        eventDetail.setContactInfo(eventDetailRequestDto.getContactInfo());
-        eventDetail.setBio(eventDetailRequestDto.getBio());
-        eventDetail.setContent(eventDetailRequestDto.getContent());
-        eventDetail.setPolicy(eventDetailRequestDto.getPolicy());
-        eventDetail.setOfficialUrl(eventDetailRequestDto.getOfficialUrl());
-        eventDetail.setEventTime(eventDetailRequestDto.getEventTime());
-        eventDetail.setThumbnailUrl(eventDetailRequestDto.getThumbnailUrl());
-        eventDetail.setStartDate(eventDetailRequestDto.getStartDate());
-        eventDetail.setEndDate(eventDetailRequestDto.getEndDate());
-        eventDetail.setReentryAllowed(eventDetailRequestDto.getReentryAllowed());
-        eventDetail.setCheckOutAllowed(eventDetailRequestDto.getCheckOutAllowed());
+        setEventDetailInfo(eventDetail, eventDetailRequestDto);
 
         // 카테고리 설정
-        log.info("카테고리 설정");
-        MainCategory mainCategory = mainCategoryRepository.findById(eventDetailRequestDto.getMainCategoryId())
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 메인 카테고리를 찾지 못했습니다.", null));
-        eventDetail.setMainCategory(mainCategory);
-
-        SubCategory subCategory = subCategoryRepository.findById(eventDetailRequestDto.getSubCategoryId())
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 서브 카테고리를 찾지 못했습니다.", null));
-        eventDetail.setSubCategory(subCategory);
+        setCategories(eventDetail, eventDetailRequestDto);
 
         // 외부 링크 설정
-        log.info("외부 링크 설정");
-        if (eventDetailRequestDto.getExternalLinks() != null) {
-            Set<ExternalLink> links = eventDetailRequestDto.getExternalLinks().stream()
-                    .map(linkDto -> {
-                        ExternalLink externalLink = new ExternalLink();
-                        externalLink.setEvent(event);
-                        externalLink.setUrl(linkDto.getUrl());
-                        externalLink.setDisplayText(linkDto.getDisplayText());
-                        return externalLink;
-                    })
-                    .collect(Collectors.toSet());
-
-            event.getExternalLinks().clear();
-            event.getExternalLinks().addAll(links);
-        }
+        setExternalLinks(event, eventDetailRequestDto);
 
         log.info("연관 관계 설정");
         eventDetail.setEvent(event);
@@ -242,44 +169,11 @@ public class EventService {
         entityManager.refresh(event);
         entityManager.refresh(eventDetail);
 
-        return EventDetailResponseDto.builder()
-                .message("이벤트 상세 정보가 생성되었습니다.")
-                .managerId(event.getManager().getUser().getUserId())
-                .eventCode(event.getEventCode())
-                .createdAt(eventDetail.getCreatedAt())
-                .updatedAt(eventDetail.getUpdatedAt())
-                .version(newVersion.getVersionNumber())
-                .titleKr(event.getTitleKr())
-                .titleEng(event.getTitleEng())
-                .hidden(event.getHidden())
-                .eventStatusCode(event.getStatusCode() != null ? event.getStatusCode().getCode() : null)
-                .mainCategory(eventDetail.getMainCategory() != null ? eventDetail.getMainCategory().getGroupName() : null)
-                .subCategory(eventDetail.getSubCategory() != null ? eventDetail.getSubCategory().getCategoryName() : null)
-                .address(eventDetail.getLocation() != null ? eventDetail.getLocation().getAddress() : null)
-                .placeName(eventDetail.getLocation() != null ? eventDetail.getLocation().getPlaceName() : null)
-                .latitude(eventDetail.getLocation() != null ? eventDetail.getLocation().getLatitude() : null)
-                .longitude(eventDetail.getLocation() != null ? eventDetail.getLocation().getLongitude() : null)
-                .placeUrl(eventDetail.getLocation() != null ? eventDetail.getLocation().getPlaceUrl() : null)
-                .locationDetail(eventDetail.getLocationDetail())
-                .region(eventDetail.getRegionCode() != null ? eventDetail.getRegionCode().getCode() : null)
-                .startDate(eventDetail.getStartDate())
-                .endDate(eventDetail.getEndDate())
-                .thumbnailUrl(eventDetail.getThumbnailUrl())
-                .hostName(eventDetail.getHostName())
-                .contactInfo(eventDetail.getContactInfo())
-                .officialUrl(eventDetail.getOfficialUrl())
-                .bio(eventDetail.getBio())
-                .content(eventDetail.getContent())
-                .policy(eventDetail.getPolicy())
-                .eventTime(eventDetail.getEventTime())
-                .externalLinks(externalLinkResponseDtos)
-                .reentryAllowed(eventDetail.getReentryAllowed())
-                .checkOutAllowed(eventDetail.getCheckOutAllowed())
-                .build();
+        return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, versionNumber, "이벤트 상세 정보가 생성되었습니다.");
     }
 
     // 행사 목록 조회 (메인페이지, 검색 등) - EventDetail 정보 등록해야 보임
-    @Transactional(readOnly = true)
+    @Transactional
     public EventSummaryResponseDto getEvents(Pageable pageable) {
         Page<EventSummaryDto> eventPage = eventQueryRepository.findEventSummaries(pageable);
 
@@ -308,15 +202,10 @@ public class EventService {
     }
 
     // 행사 상세 조회
-    @Transactional(readOnly = true)
+    @Transactional
     public EventDetailResponseDto getEventDetail(Long eventId) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 이벤트를 찾을 수 없습니다.", null));
-
+        Event event = checkEventAndDetail(eventId, "read");
         EventDetail eventDetail = event.getEventDetail();
-        if (eventDetail == null) {
-            throw new CustomException(HttpStatus.NOT_FOUND, "해당 이벤트의 상세 정보가 없습니다.", null);
-        }
 
         List<ExternalLinkResponseDto> externalLinkResponseDtos = externalLinkRepository.findByEvent(event).stream()
                 .map(link -> ExternalLinkResponseDto.builder()
@@ -325,47 +214,17 @@ public class EventService {
                         .build())
                 .toList();
 
-        return EventDetailResponseDto.builder()
-                .message("이벤트 상세 정보 조회가 완료되었습니다.")
-                .managerId(event.getManager() != null ? event.getManager().getUser().getUserId() : null)
-                .eventCode(event.getEventCode())
-                .createdAt(eventDetail.getCreatedAt())
-                .updatedAt(eventDetail.getUpdatedAt())
-                .version(event.getEventVersions() != null && !event.getEventVersions().isEmpty() ? event.getEventVersions().stream().mapToInt(EventVersion::getVersionNumber).max().orElse(0) : 0)
-                .titleKr(event.getTitleKr())
-                .titleEng(event.getTitleEng())
-                .hidden(event.getHidden())
-                .eventStatusCode(event.getStatusCode() != null ? event.getStatusCode().getCode() : null)
-                .mainCategory(eventDetail.getMainCategory() != null ? eventDetail.getMainCategory().getGroupName() : null)
-                .subCategory(eventDetail.getSubCategory() != null ? eventDetail.getSubCategory().getCategoryName() : null)
-                .address(eventDetail.getLocation() != null ? eventDetail.getLocation().getAddress() : null)
-                .placeName(eventDetail.getLocation() != null ? eventDetail.getLocation().getPlaceName() : null)
-                .latitude(eventDetail.getLocation() != null ? eventDetail.getLocation().getLatitude() : null)
-                .longitude(eventDetail.getLocation() != null ? eventDetail.getLocation().getLongitude() : null)
-                .placeUrl(eventDetail.getLocation() != null ? eventDetail.getLocation().getPlaceUrl() : null)
-                .locationDetail(eventDetail.getLocationDetail())
-                .region(eventDetail.getRegionCode() != null ? eventDetail.getRegionCode().getCode() : null)
-                .startDate(eventDetail.getStartDate())
-                .endDate(eventDetail.getEndDate())
-                .thumbnailUrl(eventDetail.getThumbnailUrl())
-                .hostName(eventDetail.getHostName())
-                .contactInfo(eventDetail.getContactInfo())
-                .officialUrl(eventDetail.getOfficialUrl())
-                .bio(eventDetail.getBio())
-                .content(eventDetail.getContent())
-                .policy(eventDetail.getPolicy())
-                .eventTime(eventDetail.getEventTime())
-                .externalLinks(externalLinkResponseDtos)
-                .reentryAllowed(eventDetail.getReentryAllowed())
-                .checkOutAllowed(eventDetail.getCheckOutAllowed())
-                .build();
+        int versionNumber = eventVersionRepository.findTopByEventOrderByVersionNumberDesc(event)
+                .map(latestVersion -> latestVersion.getVersionNumber())
+                .orElse(1);
+        return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, versionNumber, "이벤트 상세 정보 조회가 완료되었습니다.");
     }
 
     // 행사명 및 숨김 상태 업데이트
     @Transactional
     public EventResponseDto updateEvent(Long eventId, EventRequestDto eventRequestDto, Long managerId) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+
+        Event event = checkEventAndDetail(eventId, "update");
 
         if (eventRequestDto.getTitleKr() != null) {
             event.setTitleKr(eventRequestDto.getTitleKr());
@@ -379,7 +238,7 @@ public class EventService {
             event.setHidden(eventRequestDto.getHidden());
         }
 
-        EventVersion newVersion = eventVersionService.createEventVersion(event, managerId);
+        Integer newVersion = createVersion(event, managerId);
 
         Event savedEvent = eventRepository.save(event);
 
@@ -389,7 +248,7 @@ public class EventService {
                 .managerId(savedEvent.getManager() != null ? savedEvent.getManager().getUser().getUserId() : null)
                 .eventCode(savedEvent.getEventCode())
                 .hidden(savedEvent.getHidden())
-                .version(newVersion.getVersionNumber())
+                .version(newVersion)
                 .build();
     }
 
@@ -398,21 +257,91 @@ public class EventService {
     @Transactional
     public EventDetailResponseDto updateEventDetail(EventDetailRequestDto eventDetailRequestDto, Long eventId) {
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 이벤트가 존재하지 않습니다", null));
-
+        Event event = checkEventAndDetail(eventId, "update");
         EventDetail eventDetail = event.getEventDetail();
-        if (eventDetail == null) {
-            throw new CustomException(HttpStatus.NOT_FOUND, "해당 이벤트의 상세 정보가 없습니다. 생성을 먼저 해주세요.", null);
-        }
 
         Long managerId = event.getManager().getUser().getUserId(); // TODO: 로그인한 담당자 ID로 변경
 
         log.info("버전 생성 for eventId: {}", eventId);
-        EventVersion newVersion = eventVersionService.createEventVersion(event, managerId);
+        Integer newVersion = createVersion(event, managerId);
 
         log.info("행사 상세 업데이트 for eventId: {}", eventId);
 
+        // 제목 설정
+        setTitles(event, eventDetailRequestDto);
+
+        // 주소 설정
+        Location location = createAndSaveLocation(eventDetail, eventDetailRequestDto, "update");
+        eventDetail.setLocation(location);
+
+        // 지역 코드 추출 및 설정
+        findRegionCode(eventDetail, eventDetailRequestDto);
+
+        // 행사 정보 설정
+        setEventDetailInfo(eventDetail, eventDetailRequestDto);
+
+        // 카테고리 설정
+        setCategories(eventDetail, eventDetailRequestDto);
+
+        // 외부 링크 설정
+        setExternalLinks(event, eventDetailRequestDto);
+
+        // 연관관계 설정
+        eventDetail.setEvent(event);
+        event.setEventDetail(eventDetail);
+        eventRepository.save(event);
+        eventDetailRepository.flush();
+
+        log.info("행사 상세 업데이트 완료: {}", eventDetail.getEventDetailId());
+
+        List<ExternalLinkResponseDto> externalLinkResponseDtos = externalLinkRepository.findByEvent(event).stream()
+                .map(link -> ExternalLinkResponseDto.builder()
+                        .url(link.getUrl())
+                        .displayText(link.getDisplayText())
+                        .build())
+                .toList();
+
+        entityManager.flush();
+        entityManager.refresh(event);
+        entityManager.refresh(eventDetail);
+
+        return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, newVersion, "이벤트 상세 정보가 업데이트되었습니다.");
+    }
+
+    private Event checkEventAndDetail(Long eventId, String mode) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+
+        return switch (mode) {
+            case "create" -> {
+                if (event.getEventDetail() != null) {
+                    throw new CustomException(HttpStatus.CONFLICT, "해당 행사의 상세 정보가 이미 존재합니다. UPDATE로 실행 해주세요.", null);
+                }
+                yield event;
+            }
+            case "update" -> {
+                if (event.getEventDetail() == null) {
+                    throw new CustomException(HttpStatus.BAD_REQUEST, "해당 행사의 상세 정보가 존재하지 않습니다. 상세 정보를 먼저 생성하세요.");
+                }
+                yield event;
+            }
+            case "read" -> {
+                if (event.getEventDetail() == null) {
+                    throw new CustomException(HttpStatus.NOT_FOUND, "해당 행사의 상세 정보가 존재하지 않습니다.");
+                }
+                yield event;
+            }
+            default -> null;
+        };
+    }
+
+    private Integer createVersion(Event event, Long createdBy) {
+        log.info("버전 생성 for eventId: {}", event.getEventId());
+        EventVersion newVersion = eventVersionService.createEventVersion(event, createdBy);
+        return newVersion.getVersionNumber();
+    }
+
+    private void setTitles(Event event, EventDetailRequestDto eventDetailRequestDto) {
         // 제목 설정
         log.info("제목 설정");
         if (eventDetailRequestDto.getTitleKr() != null) {
@@ -421,7 +350,10 @@ public class EventService {
         if (eventDetailRequestDto.getTitleEng() != null) {
             event.setTitleEng(eventDetailRequestDto.getTitleEng());
         }
+    }
 
+    private Location createAndSaveLocation(EventDetail eventDetail, EventDetailRequestDto eventDetailRequestDto, String mode) {
+        log.info("주소 설정");
         // TODO: 주소값(도로명, 건물명, 위도, 경도)은 프론트에서 axios로 넘겨줘야함
         /*
                 프론트에서 할일 - 카카오맵 API
@@ -434,52 +366,35 @@ public class EventService {
                     - y
                     - place_url
         */
-        log.info("주소 설정");
-        if (eventDetailRequestDto.getAddress() != null) {
-            Location location = eventDetail.getLocation();
-            if (location == null) location = new Location();
 
-            if (eventDetailRequestDto.getAddress() != null) location.setAddress(eventDetailRequestDto.getAddress());
-            if (eventDetailRequestDto.getPlaceName() != null)
-                location.setPlaceName(eventDetailRequestDto.getPlaceName());
-            if (eventDetailRequestDto.getLatitude() != null) location.setLatitude(eventDetailRequestDto.getLatitude());
-            if (eventDetailRequestDto.getLongitude() != null)
-                location.setLongitude(eventDetailRequestDto.getLongitude());
-            if (eventDetailRequestDto.getPlaceUrl() != null) location.setPlaceUrl(eventDetailRequestDto.getPlaceUrl());
-
-            eventDetail.setLocation(location);
-            locationRepository.save(location);
-
-            String regionName = eventDetailRequestDto.getAddress().substring(0, 2);
-            RegionCode regionCode = regionCodeRepository.findByName(regionName)
-                    .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 지역코드를 찾지 못했습니다.", null));
-            eventDetail.setRegionCode(regionCode);
+        Location location = eventDetail.getLocation();
+        if (mode.equals("create")) {
+            location = new Location();
         }
 
-        log.info("행사 정보 설정");
-        if (eventDetailRequestDto.getLocationDetail() != null)
-            eventDetail.setLocationDetail(eventDetailRequestDto.getLocationDetail());
-        if (eventDetailRequestDto.getHostName() != null) eventDetail.setHostName(eventDetailRequestDto.getHostName());
-        if (eventDetailRequestDto.getContactInfo() != null)
-            eventDetail.setContactInfo(eventDetailRequestDto.getContactInfo());
-        if (eventDetailRequestDto.getBio() != null) eventDetail.setBio(eventDetailRequestDto.getBio());
-        if (eventDetailRequestDto.getContent() != null) eventDetail.setContent(eventDetailRequestDto.getContent());
-        if (eventDetailRequestDto.getPolicy() != null) eventDetail.setPolicy(eventDetailRequestDto.getPolicy());
-        if (eventDetailRequestDto.getOfficialUrl() != null)
-            eventDetail.setOfficialUrl(eventDetailRequestDto.getOfficialUrl());
-        if (eventDetailRequestDto.getEventTime() != null)
-            eventDetail.setEventTime(eventDetailRequestDto.getEventTime());
-        if (eventDetailRequestDto.getThumbnailUrl() != null)
-            eventDetail.setThumbnailUrl(eventDetailRequestDto.getThumbnailUrl());
-        if (eventDetailRequestDto.getStartDate() != null)
-            eventDetail.setStartDate(eventDetailRequestDto.getStartDate());
-        if (eventDetailRequestDto.getEndDate() != null) eventDetail.setEndDate(eventDetailRequestDto.getEndDate());
-        if (eventDetailRequestDto.getReentryAllowed() != null)
-            eventDetail.setReentryAllowed(eventDetailRequestDto.getReentryAllowed());
-        if (eventDetailRequestDto.getCheckOutAllowed() != null)
-            eventDetail.setCheckOutAllowed(eventDetailRequestDto.getCheckOutAllowed());
+        if (eventDetailRequestDto.getAddress() != null) location.setAddress(eventDetailRequestDto.getAddress());
+        if (eventDetailRequestDto.getPlaceName() != null)
+            location.setPlaceName(eventDetailRequestDto.getPlaceName());
+        if (eventDetailRequestDto.getLatitude() != null) location.setLatitude(eventDetailRequestDto.getLatitude());
+        if (eventDetailRequestDto.getLongitude() != null)
+            location.setLongitude(eventDetailRequestDto.getLongitude());
+        if (eventDetailRequestDto.getPlaceUrl() != null) location.setPlaceUrl(eventDetailRequestDto.getPlaceUrl());
 
-        // 카테고리 설정
+        return locationRepository.save(location);
+    }
+
+    private void findRegionCode(EventDetail eventDetail, EventDetailRequestDto eventDetailRequestDto) {
+        log.info("지역 코드 추출 및 설정");
+        if (eventDetailRequestDto.getAddress() != null) {
+            String regionName = eventDetailRequestDto.getAddress().substring(0, 2);
+            RegionCode regionCode = regionCodeRepository.findByName(regionName)
+                    .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 지역코드를 찾지 못했습니다." + regionName, null));
+            eventDetail.setRegionCode(regionCode);
+        }
+    }
+
+    private void setCategories(EventDetail eventDetail, EventDetailRequestDto eventDetailRequestDto) {
+        log.info("카테고리 설정");
         if (eventDetailRequestDto.getMainCategoryId() != null) {
             MainCategory mainCategory = mainCategoryRepository.findById(eventDetailRequestDto.getMainCategoryId())
                     .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 메인 카테고리를 찾지 못했습니다.", null));
@@ -491,8 +406,9 @@ public class EventService {
                     .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 서브 카테고리를 찾지 못했습니다.", null));
             eventDetail.setSubCategory(subCategory);
         }
+    }
 
-        // 외부 링크 설정
+    private void setExternalLinks(Event event, EventDetailRequestDto eventDetailRequestDto) {
         log.info("외부 링크 설정");
         if (eventDetailRequestDto.getExternalLinks() != null) {
             List<ExternalLink> existingLinks = externalLinkRepository.findByEvent(event);
@@ -525,60 +441,87 @@ public class EventService {
             }
             externalLinkRepository.saveAll(toAddOrUpdate);
         }
+    }
 
-        eventDetail.setEvent(event);
-        event.setEventDetail(eventDetail);
-        eventRepository.save(event);
-        eventDetailRepository.flush();
+    private void setEventDetailInfo(EventDetail eventDetail, EventDetailRequestDto eventDetailRequestDto) {
+        log.info("행사 정보 설정");
+        // NOT NULL : content, policy, startDate, endDate, Main&Sub Category
+        if (eventDetail.getContent() == null && eventDetailRequestDto.getContent() == null) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "content는 반드시 포함되어야 합니다.");
+        } else if (eventDetailRequestDto.getContent() != null) {
+            eventDetail.setContent(eventDetailRequestDto.getContent());
+        }
 
-        log.info("행사 상세 업데이트 완료: {}", eventDetail.getEventDetailId());
+        if (eventDetail.getPolicy() == null && eventDetailRequestDto.getPolicy() == null) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "policy는 반드시 포함되어야 합니다.");
+        } else if (eventDetailRequestDto.getContent() != null) {
+            eventDetail.setPolicy(eventDetailRequestDto.getPolicy());
+        }
 
-        List<ExternalLinkResponseDto> externalLinkResponseDtos = externalLinkRepository.findByEvent(event).stream()
-                .map(link -> ExternalLinkResponseDto.builder()
-                        .url(link.getUrl())
-                        .displayText(link.getDisplayText())
-                        .build())
-                .toList();
+        if (eventDetail.getStartDate() == null && eventDetailRequestDto.getStartDate() == null) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "startDate는 반드시 포함되어야 합니다.");
+        } else if (eventDetailRequestDto.getStartDate() != null) {
+            eventDetail.setStartDate(eventDetailRequestDto.getStartDate());
+        }
 
-        entityManager.flush();
-        entityManager.refresh(event);
-        entityManager.refresh(eventDetail);
+        if (eventDetail.getEndDate() == null && eventDetailRequestDto.getEndDate() == null) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "endDate는 반드시 포함되어야 합니다.");
+        } else if (eventDetailRequestDto.getEndDate() != null) {
+            eventDetail.setEndDate(eventDetailRequestDto.getEndDate());
+        }
 
+        if (eventDetailRequestDto.getLocationDetail() != null)
+            eventDetail.setLocationDetail(eventDetailRequestDto.getLocationDetail());
+        if (eventDetailRequestDto.getHostName() != null) eventDetail.setHostName(eventDetailRequestDto.getHostName());
+        if (eventDetailRequestDto.getContactInfo() != null)
+            eventDetail.setContactInfo(eventDetailRequestDto.getContactInfo());
+        if (eventDetailRequestDto.getBio() != null) eventDetail.setBio(eventDetailRequestDto.getBio());
+        if (eventDetailRequestDto.getOfficialUrl() != null)
+            eventDetail.setOfficialUrl(eventDetailRequestDto.getOfficialUrl());
+        if (eventDetailRequestDto.getEventTime() != null)
+            eventDetail.setEventTime(eventDetailRequestDto.getEventTime());
+        if (eventDetailRequestDto.getThumbnailUrl() != null)
+            eventDetail.setThumbnailUrl(eventDetailRequestDto.getThumbnailUrl());
+        if (eventDetailRequestDto.getReentryAllowed() != null)
+            eventDetail.setReentryAllowed(eventDetailRequestDto.getReentryAllowed());
+        if (eventDetailRequestDto.getCheckOutAllowed() != null)
+            eventDetail.setCheckOutAllowed(eventDetailRequestDto.getCheckOutAllowed());
+    }
+
+    private EventDetailResponseDto buildEventDetailResponseDto(Event event, EventDetail detail, List<ExternalLinkResponseDto> links, Integer version, String message) {
         return EventDetailResponseDto.builder()
-                .message("이벤트 상세 정보가 업데이트되었습니다.")
+                .message(message)
                 .managerId(event.getManager().getUser().getUserId())
                 .eventCode(event.getEventCode())
-                .createdAt(eventDetail.getCreatedAt())
-                .updatedAt(eventDetail.getUpdatedAt())
-                .version(newVersion.getVersionNumber())
+                .createdAt(detail.getCreatedAt())
+                .updatedAt(detail.getUpdatedAt())
+                .version(version)
                 .titleKr(event.getTitleKr())
                 .titleEng(event.getTitleEng())
                 .hidden(event.getHidden())
                 .eventStatusCode(event.getStatusCode() != null ? event.getStatusCode().getCode() : null)
-                .mainCategory(eventDetail.getMainCategory() != null ? eventDetail.getMainCategory().getGroupName() : null)
-                .subCategory(eventDetail.getSubCategory() != null ? eventDetail.getSubCategory().getCategoryName() : null)
-                .address(eventDetail.getLocation() != null ? eventDetail.getLocation().getAddress() : null)
-                .placeName(eventDetail.getLocation() != null ? eventDetail.getLocation().getPlaceName() : null)
-                .latitude(eventDetail.getLocation() != null ? eventDetail.getLocation().getLatitude() : null)
-                .longitude(eventDetail.getLocation() != null ? eventDetail.getLocation().getLongitude() : null)
-                .placeUrl(eventDetail.getLocation() != null ? eventDetail.getLocation().getPlaceUrl() : null)
-                .locationDetail(eventDetail.getLocationDetail())
-                .region(eventDetail.getRegionCode() != null ? eventDetail.getRegionCode().getCode() : null)
-                .startDate(eventDetail.getStartDate())
-                .endDate(eventDetail.getEndDate())
-                .thumbnailUrl(eventDetail.getThumbnailUrl())
-                .hostName(eventDetail.getHostName())
-                .contactInfo(eventDetail.getContactInfo())
-                .officialUrl(eventDetail.getOfficialUrl())
-                .bio(eventDetail.getBio())
-                .content(eventDetail.getContent())
-                .policy(eventDetail.getPolicy())
-                .eventTime(eventDetail.getEventTime())
-                .externalLinks(externalLinkResponseDtos)
-                .reentryAllowed(eventDetail.getReentryAllowed())
-                .checkOutAllowed(eventDetail.getCheckOutAllowed())
+                .mainCategory(detail.getMainCategory() != null ? detail.getMainCategory().getGroupName() : null)
+                .subCategory(detail.getSubCategory() != null ? detail.getSubCategory().getCategoryName() : null)
+                .address(detail.getLocation() != null ? detail.getLocation().getAddress() : null)
+                .placeName(detail.getLocation() != null ? detail.getLocation().getPlaceName() : null)
+                .latitude(detail.getLocation() != null ? detail.getLocation().getLatitude() : null)
+                .longitude(detail.getLocation() != null ? detail.getLocation().getLongitude() : null)
+                .placeUrl(detail.getLocation() != null ? detail.getLocation().getPlaceUrl() : null)
+                .locationDetail(detail.getLocationDetail())
+                .region(detail.getRegionCode() != null ? detail.getRegionCode().getCode() : null)
+                .startDate(detail.getStartDate())
+                .endDate(detail.getEndDate())
+                .thumbnailUrl(detail.getThumbnailUrl())
+                .hostName(detail.getHostName())
+                .contactInfo(detail.getContactInfo())
+                .officialUrl(detail.getOfficialUrl())
+                .bio(detail.getBio())
+                .content(detail.getContent())
+                .policy(detail.getPolicy())
+                .eventTime(detail.getEventTime())
+                .externalLinks(links)
+                .reentryAllowed(detail.getReentryAllowed())
+                .checkOutAllowed(detail.getCheckOutAllowed())
                 .build();
     }
-
-
 }
