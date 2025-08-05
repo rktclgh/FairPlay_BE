@@ -1,7 +1,7 @@
-package com.fairing.fairplay.statistics.service;
+package com.fairing.fairplay.statistics.service.reservation;
 
-import com.fairing.fairplay.statistics.dto.*;
-import com.fairing.fairplay.statistics.entity.EventDailyStatistics;
+import com.fairing.fairplay.statistics.dto.reservation.*;
+import com.fairing.fairplay.statistics.entity.reservation.EventDailyStatistics;
 import com.fairing.fairplay.statistics.repository.dailystats.EventDailyStatisticsRepository;
 import com.fairing.fairplay.statistics.repository.hourlystats.EventHourlyStatisticsRepository;
 import com.fairing.fairplay.statistics.repository.sessionstats.EventSessionStatisticsRepository;

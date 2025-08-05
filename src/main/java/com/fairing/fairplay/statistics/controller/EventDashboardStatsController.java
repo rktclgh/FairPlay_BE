@@ -1,7 +1,7 @@
 package com.fairing.fairplay.statistics.controller;
 
-import com.fairing.fairplay.statistics.dto.EventDashboardStatsDto;
-import com.fairing.fairplay.statistics.service.StatisticsService;
+import com.fairing.fairplay.statistics.dto.reservation.EventDashboardStatsDto;
+import com.fairing.fairplay.statistics.service.reservation.StatisticsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;

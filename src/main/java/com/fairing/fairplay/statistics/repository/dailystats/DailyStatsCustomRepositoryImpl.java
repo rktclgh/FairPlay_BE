@@ -1,6 +1,6 @@
 package com.fairing.fairplay.statistics.repository.dailystats;
 
-import com.fairing.fairplay.statistics.entity.EventDailyStatistics;
+import com.fairing.fairplay.statistics.entity.reservation.EventDailyStatistics;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.reservation.entity.QReservationStatusCode;
 import com.fairing.fairplay.attendee.entity.QAttendee;

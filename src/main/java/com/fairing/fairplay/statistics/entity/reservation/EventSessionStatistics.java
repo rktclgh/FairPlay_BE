@@ -1,4 +1,4 @@
-package com.fairing.fairplay.statistics.entity;
+package com.fairing.fairplay.statistics.entity.reservation;
 
 import jakarta.persistence.*;
 import lombok.*;
