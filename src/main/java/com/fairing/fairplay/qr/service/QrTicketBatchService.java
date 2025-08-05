@@ -4,6 +4,8 @@ import com.fairing.fairplay.attendee.entity.QAttendee;
 import com.fairing.fairplay.core.email.entity.EmailServiceFactory;
 import com.fairing.fairplay.core.email.entity.EmailServiceFactory.EmailType;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
+import com.fairing.fairplay.qr.entity.QrTicket;
+import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.QrLinkTokenGenerator;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepositoryCustom;
@@ -13,6 +15,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 // QR티켓 스케줄러 관련 서비스
 @Slf4j
@@ -23,6 +26,8 @@ public class QrTicketBatchService {
   private final QrLinkTokenGenerator qrLinkTokenGenerator;
   private final EmailServiceFactory emailServiceFactory;
   private final ReservationRepositoryCustom reservationRepositoryCustom;
+  private final QrTicketInitProvider qrTicketInitProvider;
+  private final QrTicketRepository qrTicketRepository;
 
   // 행사 1일 남은 예약건 조회
   public List<Tuple> fetchQrTicketBatch() {
@@ -60,4 +65,13 @@ public class QrTicketBatchService {
       }
     }
   }
+
+  // QR 티켓 엔티티 생성 - 스케쥴러가 실행
+  @Transactional
+  public void createQrTicket() {
+    List<QrTicket> qrTickets = qrTicketInitProvider.scheduleCreateQrTicket();
+    qrTicketRepository.saveAll(qrTickets);
+  }
+
+  // 행사 종료된 모든 QR 티켓 qr코드, 수동 코드 삭제
 }

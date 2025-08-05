@@ -32,10 +32,15 @@ public class QrTicketController {
     return ResponseEntity.ok(qrTicketService.issueGuest(token));
   }
 
+  // QR 티켓 재발급
+//  @PostMapping("/reissue/{token}")
+//  public ResponseEntity<QrTicketResponseDto> reissueQrTicket(@PathVariable String token) {
+//    return ResponseEntity.ok(qrTicketService.reissueQrTicket(token));
+//  }
+
   // QR 티켓 만료
 
-  // QR 티켓 재발급
+
 
   // QR 티켓 삭제?
-
 }

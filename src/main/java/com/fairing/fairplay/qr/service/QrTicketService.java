@@ -1,6 +1,7 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto.ViewingScheduleInfo;
@@ -10,7 +11,10 @@ import com.fairing.fairplay.qr.util.CodeGenerator;
 import com.fairing.fairplay.qr.util.QrLinkTokenGenerator;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +41,9 @@ public class QrTicketService {
     Reservation reservation = reservationRepository.findById(dto.getReservationId())
         .orElseThrow(() -> new CustomException(
             HttpStatus.NOT_FOUND, "올바른 예약 티켓이 아닙니다."));
+
+    checkReservationBeforeNow(reservation);
+
     QrTicket savedTicket = generateAndSaveQrTicket(dto, 1);
     return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
   }
@@ -48,18 +55,41 @@ public class QrTicketService {
     QrTicketRequestDto dto = qrLinkTokenGenerator.decodeToDto(token);
     Reservation reservation = reservationRepository.findById(dto.getReservationId())
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "올바른 예약 티켓이 아닙니다."));
+
+    checkReservationBeforeNow(reservation);
+
     // QR 티켓 조회해 qr code, manualcode 생성해서 반환
     QrTicket savedTicket = generateAndSaveQrTicket(dto, 2);
     // 프론트 응답
     return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
   }
 
-  // QR 티켓 엔티티 생성 - 스케쥴러가 실행
-  @Transactional
-  public void createQrTicket() {
-    List<QrTicket> qrTickets = qrTicketInitProvider.scheduleCreateQrTicket();
-    log.info("qrTickets: {}", qrTickets.size());
-    qrTicketRepository.saveAll(qrTickets);
+  // QR 티켓 재발급
+//  @Transactional
+//  public QrTicketResponseDto reissueQrTicket(String token) {
+//    // 예약 조회
+//    Reservation reservation = reservationRepository.findById(dto.getReservationId())
+//        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "올바른 예약 티켓이 아닙니다."));
+//
+//    checkReservationBeforeNow(reservation);
+//
+//    // 저장된 티켓 조회 후 qrcode, manualcode 재발급
+//    QrTicket savedTicket = generateAndSaveQrTicket(dto, 1);
+//
+//    // 재발급된 티켓 반환
+//    return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
+//  }
+
+  // 행사일이 오늘보다 전날 또는 행사일이 오늘인데 종료 시간이 현재 시간보다 더 늦은 경우 예외 처리
+  private void checkReservationBeforeNow(Reservation reservation) {
+    LocalDate nowDate = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    LocalTime nowTime = LocalTime.now(ZoneId.of("Asia/Seoul"));
+
+    if (reservation.getSchedule().getDate().isBefore(nowDate) || (
+        reservation.getSchedule().getDate().isEqual(nowDate) && reservation.getSchedule()
+            .getEndTime().isBefore(nowTime))) {
+      throw new LinkExpiredException("종료된 행사입니다.", null);
+    }
   }
 
   // 저장된 qr 티켓 조회 후 qrcode, manualcode 발급받아 저장

@@ -41,6 +41,7 @@ public class QrTicketInitProvider {
   private final JPAQueryFactory queryFactory;
   private final CodeGenerator codeGenerator;
 
+  // 저장된 QR 티켓 조회
   public QrTicket load(QrTicketRequestDto dto, Integer attendeeTypeCodeId) {
     Attendee attendee;
 

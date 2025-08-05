@@ -1,5 +1,6 @@
 package com.fairing.fairplay.scheduler;
 
+import com.fairing.fairplay.qr.service.QrTicketBatchService;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
@@ -17,7 +18,7 @@ import org.springframework.stereotype.Component;
 public class ShareTicketQrScheduler {
 
   private final ShareTicketService shareTicketService;
-  private final QrTicketService qrTicketService;
+  private final QrTicketBatchService qrTicketBatchService;
 
   // 공유 폼 링크 만료
   /*
@@ -51,7 +52,7 @@ public class ShareTicketQrScheduler {
       }
     }
     // 2. 만료 완료 후 QR 티켓 세팅
-    qrTicketService.createQrTicket();
+    qrTicketBatchService.createQrTicket();
   }
 */
 }
