@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface SalesRawDataRepository {
     List<RawSalesData> fetchSalesData(LocalDate targetDate);
+    List<RawSalesData> fetchSalesDataChunk(LocalDate targetDate, int offset, int pageSize);
+    long countSalesData(LocalDate targetDate);
 }

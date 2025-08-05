@@ -30,64 +30,66 @@ public class SalesStatisticsBatchService {
     public void aggregateDailySales(LocalDate targetDate) {
         log.info("매출 집계 시작: {}", targetDate);
 
-        // 원본 데이터 조회 (결제/환불 등)
-        List<RawSalesData> rawDataList = rawRepo.fetchSalesData(targetDate);
+        int pageSize = 2000;
+        int offset = 0;
+        List<RawSalesData> chunk;
 
         Map<Long, EventDailySalesStatistics> dailyStatsMap = new HashMap<>();
         List<EventSessionSalesStatistics> sessionStatsList = new ArrayList<>();
 
-        for (RawSalesData raw : rawDataList) {
-            // === 일별 집계 ===
-            EventDailySalesStatistics daily = dailyStatsMap.computeIfAbsent(
-                    raw.getEventId(),
-                    k -> EventDailySalesStatistics.builder()
-                            .eventId(raw.getEventId())
-                            .statDate(targetDate)
-                            .totalSales(0L)
-                            .totalCount(0)
-                            .paidSales(0L)
-                            .paidCount(0)
-                            .cancelledSales(0L)
-                            .cancelledCount(0)
-                            .refundedSales(0L)
-                            .refundedCount(0)
-                            .build()
-            );
+        do {
+            chunk = rawRepo.fetchSalesDataChunk(targetDate, offset, pageSize);
 
-            daily.setTotalSales(daily.getTotalSales() + raw.getAmount());
-            daily.setTotalCount(daily.getTotalCount() + raw.getQuantity());
+            for (RawSalesData raw : chunk) {
+                EventDailySalesStatistics daily = dailyStatsMap.computeIfAbsent(
+                        raw.getEventId(),
+                        k -> EventDailySalesStatistics.builder()
+                                .eventId(raw.getEventId())
+                                .statDate(targetDate)
+                                .totalSales(0L).totalCount(0)
+                                .paidSales(0L).paidCount(0)
+                                .cancelledSales(0L).cancelledCount(0)
+                                .refundedSales(0L).refundedCount(0)
+                                .build()
+                );
 
-            switch (raw.getPaymentStatus()) {
-                case "COMPLETED" -> {
-                    daily.setPaidSales(daily.getPaidSales() + raw.getAmount());
-                    daily.setPaidCount(daily.getPaidCount() + raw.getQuantity());
+                daily.setTotalSales(daily.getTotalSales() + raw.getAmount());
+                daily.setTotalCount(daily.getTotalCount() + raw.getQuantity());
+
+                switch (raw.getPaymentStatus()) {
+                    case "COMPLETED" -> {
+                        daily.setPaidSales(daily.getPaidSales() + raw.getAmount());
+                        daily.setPaidCount(daily.getPaidCount() + raw.getQuantity());
+                    }
+                    case "CANCELLED" -> {
+                        daily.setCancelledSales(daily.getCancelledSales() + raw.getAmount());
+                        daily.setCancelledCount(daily.getCancelledCount() + raw.getQuantity());
+                    }
+                    case "REFUNDED" -> {
+                        daily.setRefundedSales(daily.getRefundedSales() + raw.getAmount());
+                        daily.setRefundedCount(daily.getRefundedCount() + raw.getQuantity());
+                    }
                 }
-                case "CANCELLED" -> {
-                    daily.setCancelledSales(daily.getCancelledSales() + raw.getAmount());
-                    daily.setCancelledCount(daily.getCancelledCount() + raw.getQuantity());
-                }
-                case "REFUNDED" -> {
-                    daily.setRefundedSales(daily.getRefundedSales() + raw.getAmount());
-                    daily.setRefundedCount(daily.getRefundedCount() + raw.getQuantity());
-                }
+
+                sessionStatsList.add(EventSessionSalesStatistics.builder()
+                        .eventId(raw.getEventId())
+                        .scheduleId(raw.getScheduleId())
+                        .statDate(targetDate)
+                        .ticketName(raw.getTicketName())
+                        .unitPrice(raw.getUnitPrice())
+                        .quantity(raw.getQuantity())
+                        .salesAmount(raw.getAmount())
+                        .paymentStatusCode(raw.getPaymentStatus())
+                        .build());
             }
 
-            // === 회차별 집계 ===
-            sessionStatsList.add(EventSessionSalesStatistics.builder()
-                    .eventId(raw.getEventId())
-                    .scheduleId(raw.getScheduleId())
-                    .statDate(targetDate)
-                    .ticketName(raw.getTicketName())
-                    .unitPrice(raw.getUnitPrice())
-                    .quantity(raw.getQuantity())
-                    .salesAmount(raw.getAmount())
-                    .paymentStatusCode(raw.getPaymentStatus())
-                    .build());
-        }
+            offset += pageSize;
+        } while (!chunk.isEmpty());
 
         dailyRepo.saveAll(dailyStatsMap.values());
         sessionRepo.saveAll(sessionStatsList);
 
         log.info("매출 집계 완료: {}", targetDate);
     }
+
 }
