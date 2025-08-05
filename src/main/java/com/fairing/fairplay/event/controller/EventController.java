@@ -3,6 +3,7 @@ package com.fairing.fairplay.event.controller;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.dto.*;
+import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.event.service.EventService;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
@@ -25,6 +26,7 @@ import java.util.List;
 public class EventController {
 
     private final EventService eventService;
+    private final EventRepository eventRepository;
     private final UserRepository userRepository;
 
     private static final Integer ADMIN = 1;    // 전체 관리자
@@ -41,7 +43,7 @@ public class EventController {
         // 전체 관리자 권한
         checkAuth(userDetails, ADMIN);
 
-        EventResponseDto responseDto = eventService.createEvent(eventRequestDto);
+        EventResponseDto responseDto = eventService.createEvent(userDetails.getUserId(), eventRequestDto);
         return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
     }
 
@@ -53,8 +55,11 @@ public class EventController {
 
         // 전체 관리자 OR 행사 관리자 권한
         checkAuth(userDetails, EVENT);
+        Long loginUserId = userDetails.getUserId();
 
-        EventDetailResponseDto responseDto = eventService.createEventDetail(eventDetailRequestDto, eventId);
+        checkEventManager(loginUserId, eventId);
+
+        EventDetailResponseDto responseDto = eventService.createEventDetail(loginUserId, eventDetailRequestDto, eventId);
         return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
     }
 
@@ -66,8 +71,11 @@ public class EventController {
 
         // 전체 관리자 OR 행사 관리자 권한
         checkAuth(userDetails, EVENT);
+        Long loginUserId = userDetails.getUserId();
 
-        EventDetailResponseDto responseDto = eventService.updateEventDetail(eventDetailRequestDto, eventId);
+        checkEventManager(loginUserId, eventId);
+
+        EventDetailResponseDto responseDto = eventService.updateEventDetail(userDetails.getUserId(), eventDetailRequestDto, eventId);
         return new ResponseEntity<>(responseDto, HttpStatus.OK);
     }
 
@@ -102,13 +110,17 @@ public class EventController {
 
         // 전체 관리자 OR 행사 관리자 권한
         checkAuth(userDetails, EVENT);
+        Long loginUserId = userDetails.getUserId();
 
-        EventResponseDto responseDto = eventService.updateEvent(eventId, eventRequestDto, 2L);  // TODO: managerId 수정자 ID로 변경
+        checkEventManager(loginUserId, eventId);
+
+        EventResponseDto responseDto = eventService.updateEvent(eventId, eventRequestDto, loginUserId);
         return ResponseEntity.ok(responseDto);
     }
 
     /*********************** 헬퍼 메소드 ***********************/
     private void checkAuth(@AuthenticationPrincipal CustomUserDetails userDetails, Integer authority) {
+        log.info("기본 권한 확인");
         Long userId = userDetails.getUserId();
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 사용자를 찾을 수 없습니다."));
@@ -116,6 +128,19 @@ public class EventController {
         if (user.getRoleCode().getId() > authority) {
             throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
         }
+    }
+
+    private void checkEventManager(Long loginUserId, Long eventId) {
+        log.info("행사 관리자 추가 권한 확인");
+        Long managerId = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."))
+                .getManager().getUserId();
+
+        Integer authority = userRepository.findById(loginUserId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."))
+                .getRoleCode().getId();
+
+        if (authority.equals(ADMIN) || managerId.equals(loginUserId)) throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
     }
 
 

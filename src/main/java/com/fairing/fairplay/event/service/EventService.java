@@ -68,7 +68,7 @@ public class EventService {
 
     // 전체 관리자가 구독 생성
     @Transactional
-    public EventResponseDto createEvent(EventRequestDto eventRequestDto) {
+    public EventResponseDto createEvent(Long adminId, EventRequestDto eventRequestDto) {
 
         log.info("행사 관리자 계정 생성 시작");
         // TODO: 행사 관리자 계정 생성 및 ID 받기
@@ -106,7 +106,7 @@ public class EventService {
 
         // 첫 번째 버전 생성
         log.info("첫 번째 버전 생성 for eventId: {}", savedEvent.getEventId());
-        EventVersion firstVersion = eventVersionService.createEventVersion(savedEvent, 1L); // TODO: 전체 관리자 id 받아오는 걸로 수정하기
+        EventVersion firstVersion = eventVersionService.createEventVersion(savedEvent, adminId);
         log.info("첫 번째 버전 생성 완료");
 
         return EventResponseDto.builder()
@@ -121,10 +121,9 @@ public class EventService {
 
     // 행사 상세 생성
     @Transactional
-    public EventDetailResponseDto createEventDetail(EventDetailRequestDto eventDetailRequestDto, Long eventId) {
+    public EventDetailResponseDto createEventDetail(Long managerId, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
 
         Event event = checkEventAndDetail(eventId, "create");
-        Long managerId = event.getManager().getUser().getUserId(); // TODO: 로그인한 담당자 ID로 변경
 
         // 행사 상세 생성
         EventDetail eventDetail = new EventDetail();
@@ -255,12 +254,10 @@ public class EventService {
 
     // 행사 상세 업데이트
     @Transactional
-    public EventDetailResponseDto updateEventDetail(EventDetailRequestDto eventDetailRequestDto, Long eventId) {
+    public EventDetailResponseDto updateEventDetail(Long managerId, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
 
         Event event = checkEventAndDetail(eventId, "update");
         EventDetail eventDetail = event.getEventDetail();
-
-        Long managerId = event.getManager().getUser().getUserId(); // TODO: 로그인한 담당자 ID로 변경
 
         log.info("버전 생성 for eventId: {}", eventId);
         Integer newVersion = createVersion(event, managerId);
