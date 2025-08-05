@@ -6,7 +6,6 @@ import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -50,7 +49,7 @@ public class SecurityConfig {
                                 "/api/email/send-verification",
                                 "/api/auth/kakao",
                                 "/auth/kakao/callback",
-                                "/api/users/event-admin/*/public"
+                                "/api/users/event-admin/*/public",
                                 "/api/qr-tickets/*",
                                 "/api/qr-tickets/reissue"
                         ).permitAll()
