@@ -1,6 +1,10 @@
+@access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0IiwiZW1haWwiOiJ1c2VyMUBleGFtcGxlLmNvbSIsInJvbGUiOiLsnbzrsJgg7IKs7Jqp7J6QIiwiaWF0IjoxNzU0MzYxODQyLCJleHAiOjE3NTQzNjI0NDJ9.d8BpAT1UANaB_sDm-CpltFeehPhOLAZlR4m6hT9WVso
+
+
 ### 행사 등록
 POST http://localhost:8080/api/events
 Content-Type: application/json
+Authorization: Bearer {{access_token}}
 
 {
   "email": "eventManager3@fairplay.com",
@@ -9,9 +13,10 @@ Content-Type: application/json
 }
 
 ### 행사 상세 등록
-@createEventDetailId=1015
+@createEventDetailId=1016
 POST http://localhost:8080/api/events/{{createEventDetailId}}/details
 Content-Type: application/json
+Authorization: Bearer {{access_token}}
 
 {
   "titleKr": "서울 겨울 콘서트 2025 상세 등록",
@@ -68,6 +73,7 @@ Accept: application/json
 @updateEventId = 1015
 PATCH http://localhost:8080/api/events/{{updateEventId}}
 Content-Type: application/json
+Authorization: Bearer {{access_token}}
 
 {
   "titleKr": "서울 겨울 콘서트 : 2025",
@@ -78,6 +84,7 @@ Content-Type: application/json
 @updateEventDetailId = 1015
 PATCH http://localhost:8080/api/events/{{updateEventDetailId}}/details
 Content-Type: application/json
+Authorization: Bearer {{access_token}}
 
 {
   "titleKr": "서울 겨울 콘서트 : 2025",

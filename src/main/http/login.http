@@ -1,0 +1,45 @@
+### 일반 사용자 로그인
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "user1@example.com",
+    "password": "1234"
+}
+
+### 부스 관리자 로그인
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "boothManager@fairplay.com",
+    "password": "1234"
+}
+
+### 행사 관리자 로그인
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "eventManager1@fairplay.com",
+    "password": "1234"
+}
+
+### 전체 관리자 로그인
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@fairplay.com",
+    "password": "1234"
+}
+
+
+### 로그아웃
+POST http://localhost:8080/api/auth/logout
+Content-Type: application/json
+
+
+### 리프레시
+POST http://localhost:8080/api/auth/refresh
+Content-Type: application/json

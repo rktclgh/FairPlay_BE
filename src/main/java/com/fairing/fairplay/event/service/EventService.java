@@ -308,6 +308,9 @@ public class EventService {
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, newVersion, "이벤트 상세 정보가 업데이트되었습니다.");
     }
 
+
+    /*********************** 헬퍼 메소드 ***********************/
+
     private Event checkEventAndDetail(Long eventId, String mode) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
