@@ -66,9 +66,9 @@ public class SalesStatisticsCustomRepositoryImpl implements SalesStatisticsCusto
         return results.stream()
                 .map(r -> PaymentStatusSalesDto.builder()
                         .status(r.get(session.paymentStatusCode))
-                        .amount(r.get(session.salesAmount.sum()))
+                        .amount(r.get(session.salesAmount.sum()) != null ? r.get(session.salesAmount.sum()) : 0L)
                         .percentage(totalSales > 0
-                                ? (r.get(session.salesAmount.sum()) * 100.0 / totalSales)
+                                ? ((r.get(session.salesAmount.sum()) != null ? r.get(session.salesAmount.sum()) : 0L) * 100.0 / totalSales)
                                 : 0.0)
                         .build())
                 .toList();
