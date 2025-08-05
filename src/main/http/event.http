@@ -9,7 +9,7 @@ Content-Type: application/json
 }
 
 ### 행사 상세 등록
-@createEventDetailId=1012
+@createEventDetailId=1015
 POST http://localhost:8080/api/events/{{createEventDetailId}}/details
 Content-Type: application/json
 
@@ -59,22 +59,23 @@ GET http://localhost:8080/api/events/list
 Accept: application/json
 
 ### 행사 상세 조회
-@readEventDetailId = 1012
+@readEventDetailId = 1015
 GET http://localhost:8080/api/events/{{readEventDetailId}}/details
 Accept: application/json
 
 
 ### 행사명 및 숨김 상태 업데이트
-@updateEventId = 1012
+@updateEventId = 1015
 PATCH http://localhost:8080/api/events/{{updateEventId}}
 Content-Type: application/json
 
 {
+  "titleKr": "서울 겨울 콘서트 : 2025",
   "hidden": false
 }
 
 ### 행사 상세 업데이트
-@updateEventDetailId = 1012
+@updateEventDetailId = 1015
 PATCH http://localhost:8080/api/events/{{updateEventDetailId}}/details
 Content-Type: application/json
 
