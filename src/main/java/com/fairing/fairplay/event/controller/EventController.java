@@ -120,7 +120,7 @@ public class EventController {
 
         checkEventManager(loginUserId, eventId);
 
-        EventDetailResponseDto responseDto = eventService.updateEventDetail(userDetails.getUserId(), eventDetailRequestDto, eventId);
+        EventDetailResponseDto responseDto = eventService.updateEventDetail(loginUserId, eventDetailRequestDto, eventId);
         return new ResponseEntity<>(responseDto, HttpStatus.OK);
     }
 
@@ -162,7 +162,7 @@ public class EventController {
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."))
                 .getRoleCode().getId();
 
-        if (authority.equals(ADMIN) || managerId.equals(loginUserId)) throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+        if (!authority.equals(ADMIN) && !managerId.equals(loginUserId)) throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
     }
 
 

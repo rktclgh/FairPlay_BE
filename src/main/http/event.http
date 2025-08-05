@@ -12,7 +12,7 @@ Authorization: Bearer {{access_token}}
 }
 
 ### 행사 상세 등록
-@createEventDetailId=1016
+@createEventDetailId=1017
 POST http://localhost:8080/api/events/{{createEventDetailId}}/details
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
@@ -80,7 +80,7 @@ Authorization: Bearer {{access_token}}
 }
 
 ### 행사 상세 업데이트
-@updateEventDetailId = 1015
+@updateEventDetailId = 1004
 PATCH http://localhost:8080/api/events/{{updateEventDetailId}}/details
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
