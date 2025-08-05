@@ -1,7 +1,7 @@
 package com.fairing.fairplay.statistics.repository.hourlystats;
 
 
-import com.fairing.fairplay.statistics.entity.EventHourlyStatistics;
+import com.fairing.fairplay.statistics.entity.reservation.EventHourlyStatistics;
 import java.time.LocalDate;
 import java.util.List;
 

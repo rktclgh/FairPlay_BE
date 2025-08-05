@@ -1,6 +1,6 @@
 package com.fairing.fairplay.statistics.repository.hourlystats;
 
-import com.fairing.fairplay.statistics.entity.EventHourlyStatistics;
+import com.fairing.fairplay.statistics.entity.reservation.EventHourlyStatistics;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;

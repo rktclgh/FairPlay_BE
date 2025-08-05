@@ -1,6 +1,7 @@
 package com.fairing.fairplay.statistics.scheduler;
 
-import com.fairing.fairplay.statistics.service.StatisticsService;
+import com.fairing.fairplay.statistics.service.reservation.StatisticsService;
+import com.fairing.fairplay.statistics.service.sales.SalesStatisticsBatchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -15,6 +16,7 @@ import java.time.LocalDate;
 public class StatisticsScheduler {
 
     private final StatisticsService statisticsService;
+    private final SalesStatisticsBatchService salesBatchService;
 
     @Scheduled(cron = "0 5 0 * * *") // 매일 00:05
     public void runDailyBatch() {
@@ -27,4 +29,16 @@ public class StatisticsScheduler {
             log.error("Failed to run daily statistics batch", e);
         }
     }
+    @Scheduled(cron = "0 15 0 * * *")
+    public void dailyAggregation() {
+        try {
+            LocalDate yesterday = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
+            log.info("Starting daily sales statistics batch for date: {}", yesterday);
+            salesBatchService.aggregateDailySales(yesterday);
+            log.info("Completed daily sales  statistics batch for date: {}", yesterday);
+        } catch (Exception e) {
+            log.error("Failed to run daily  sales statistics batch", e);
+        }
+    }
+
 }

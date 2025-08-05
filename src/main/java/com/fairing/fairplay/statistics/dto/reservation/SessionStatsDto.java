@@ -1,4 +1,4 @@
-package com.fairing.fairplay.statistics.dto;
+package com.fairing.fairplay.statistics.dto.reservation;
 
 import lombok.Builder;
 import lombok.Getter;

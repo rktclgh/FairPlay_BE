@@ -1,6 +1,6 @@
 package com.fairing.fairplay.statistics.repository.sessionstats;
 
-import com.fairing.fairplay.statistics.entity.EventSessionStatistics;
+import com.fairing.fairplay.statistics.entity.reservation.EventSessionStatistics;
 import java.time.LocalDate;
 import java.util.List;
 
