@@ -9,6 +9,7 @@ import com.fairing.fairplay.booth.mapper.BoothApplicationMapper;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 
+import com.fairing.fairplay.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
     private final BoothApplicationStatusCodeRepository statusCodeRepository;
     private final BoothPaymentStatusCodeRepository paymentCodeRepository;
     private final BoothApplicationMapper mapper;
+    private final UserRepository userRepository;
 
     @Override
     public Long applyBooth(BoothApplicationRequestDto dto) {
@@ -92,8 +94,6 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
 
     }
 
-    /*
-    // 여기 추가
     @Override
     public void cancelApplication(Long id, Long userId) {
         BoothApplication application = boothApplicationRepository.findById(id)
@@ -114,5 +114,5 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
 
         application.setBoothPaymentStatusCode(cancelled);
         application.setStatusUpdatedAt(LocalDateTime.now());
-    }*/
+    }
 }
