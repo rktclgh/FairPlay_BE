@@ -9,6 +9,10 @@ import com.fairing.fairplay.booth.mapper.BoothApplicationMapper;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 
+import com.fairing.fairplay.user.entity.UserRoleCode;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
+import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,6 +31,9 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
     private final BoothApplicationStatusCodeRepository statusCodeRepository;
     private final BoothPaymentStatusCodeRepository paymentCodeRepository;
     private final BoothApplicationMapper mapper;
+    private final UserRepository userRepository;
+    private final UserRoleCodeRepository userRoleCodeRepository;
+
 
     @Override
     public Long applyBooth(BoothApplicationRequestDto dto) {
@@ -90,10 +97,19 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
         booth.setAdminComment(dto.getAdminComment());  // 관리자 사유 기록
         booth.setStatusUpdatedAt(LocalDateTime.now()); // 상태 변경 시간 기록
 
+        //  결제 완료(PAID)일 경우, 사용자 권한을 BOOTH_MANAGER로 변경
+        if ("PAID".equals(dto.getPaymentStatusCode())) {
+            Users user = userRepository.findByEmail(booth.getEmail())
+                    .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
+
+            UserRoleCode boothManagerCode = userRoleCodeRepository.findByCode("BOOTH_MANAGER")
+                    .orElseThrow(() -> new EntityNotFoundException("BOOTH_MANAGER 권한 코드가 존재하지 않습니다."));
+
+            user.setRoleCode(boothManagerCode);
+        }
+
     }
 
-    /*
-    // 여기 추가
     @Override
     public void cancelApplication(Long id, Long userId) {
         BoothApplication application = boothApplicationRepository.findById(id)
@@ -114,5 +130,7 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
 
         application.setBoothPaymentStatusCode(cancelled);
         application.setStatusUpdatedAt(LocalDateTime.now());
-    }*/
+    }
+
+
 }
