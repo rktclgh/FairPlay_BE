@@ -23,7 +23,7 @@ public class EventScheduleService {
     @Transactional
     public EventScheduleResponseDto createSchedule(Long eventId, EventScheduleRequestDto requestDto) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found"));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 행사입니다. eventId: " + eventId));
 
         EventSchedule schedule = EventSchedule.from(requestDto);
         schedule.setEvent(event);
@@ -44,7 +44,7 @@ public class EventScheduleService {
     @Transactional(readOnly = true)
     public EventScheduleResponseDto getSchedule(Long eventId, Long scheduleId) {
         EventSchedule schedule = eventScheduleRepository.findByEvent_EventIdAndScheduleId(eventId, scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Schedule not found"));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회차입니다. scheduleId: " + scheduleId));
         return EventScheduleResponseDto.from(schedule);
     }
 
@@ -52,7 +52,7 @@ public class EventScheduleService {
     @Transactional
     public EventScheduleResponseDto updateSchedule(Long eventId, Long scheduleId, EventScheduleRequestDto requestDto) {
         EventSchedule schedule = eventScheduleRepository.findByEvent_EventIdAndScheduleId(eventId, scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Schedule not found"));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회차입니다. scheduleId: " + scheduleId));
 
         schedule.setDate(requestDto.getDate());
         schedule.setStartTime(requestDto.getStartTime());
@@ -66,7 +66,7 @@ public class EventScheduleService {
     @Transactional
     public void deleteSchedule(Long eventId, Long scheduleId) {
         EventSchedule schedule = eventScheduleRepository.findByEvent_EventIdAndScheduleId(eventId, scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("Schedule not found"));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회차입니다. scheduleId: " + scheduleId));
         eventScheduleRepository.delete(schedule);
     }
 }
