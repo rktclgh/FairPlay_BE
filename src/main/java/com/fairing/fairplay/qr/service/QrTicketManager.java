@@ -144,7 +144,7 @@ public class QrTicketManager {
 
     // 메일 전송
     String qrUrl = qrLinkService.generateQrLink(qrTicketRequestDto);
-    qrEmailService.sendQrEmail(qrUrl, attendee.getEmail(), attendee.getName());
+    qrEmailService.reissueQrEmail(qrUrl, attendee.getEmail(), attendee.getName());
 
     return buildQrTicketReissueResponse(resetQrTicket.getTicketNo(), attendee.getEmail());
   }
