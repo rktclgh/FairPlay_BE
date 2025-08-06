@@ -13,8 +13,8 @@ public class EventSessionSalesStatistics {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "stats_id")
-    private Long statsId;
+    @Column(name = "stats_sales_session_id")
+    private Long statsSalesSessionId;
 
     @Column(name = "event_id", nullable = false)
     private Long eventId;
