@@ -13,7 +13,7 @@ public interface BoothApplicationService {
 
     void updateStatus(Long id, BoothApplicationStatusUpdateDto dto);
     void updatePaymentStatus(Long id, BoothPaymentStatusUpdateDto dto);
-    void cancelApplication(Long id, Long userId); // 추가함
+    void cancelApplication(Long id, Long userId);
 
 
 }
