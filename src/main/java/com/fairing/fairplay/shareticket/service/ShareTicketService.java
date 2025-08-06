@@ -7,17 +7,11 @@ import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.dto.ShareTicketSaveRequestDto;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.repository.ShareTicketRepository;
-import jakarta.persistence.EntityNotFoundException;
 import java.nio.ByteBuffer;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +33,7 @@ public class ShareTicketService {
 
     // 예약 유무 조회
     Reservation reservation = reservationRepository.findById(dto.getReservationId())
-        .orElseThrow(() -> new EntityNotFoundException("예약을 찾을 수 없습니다."));
+        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다."));
 
     // 예약 ID 기준 폼이 생성되어있는지 조회
     if (shareTicketRepository.existsByReservation_ReservationId(dto.getReservationId())) {
@@ -62,20 +56,19 @@ public class ShareTicketService {
     }
 
     ShareTicket shareTicket = ShareTicket.builder()
-        .linkToken(token)
+        .linkToken(token) // 폼 링크 토큰
         .totalAllowed(dto.getTotalAllowed()) //대표자 제출 O
-        .expired(false)
+        .expired(false) // 만료 여부
         .submittedCount(1) // 대표자 제출
-        .reservation(reservation)
-        .expiredAt(dto.getExpiredAt())
+        .reservation(reservation) // 예약 연결
+        .expiredAt(dto.getExpiredAt()) // 폼 만료 기한 (행사 시작일 or 티켓 사용일 -1)
         .build();
 
     shareTicketRepository.save(shareTicket);
     return token;
   }
 
-  // 공유폼 token 유효성 검사 -> attendeeService에서 호출해 사용
-  @Transactional
+  // 공유폼 token 유효성 검사
   public ShareTicket validateAndUseToken(String token) {
     ShareTicket shareTicket = shareTicketRepository.findByLinkToken(token)
         .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 링크입니다."));
@@ -93,7 +86,6 @@ public class ShareTicketService {
   }
 
   // 폼 링크 제출 횟수 및 만료 여부 업데이트
-  @Transactional
   public void updateShareTicket(ShareTicket shareTicket) {
     shareTicket.increaseSubmittedCount();
 
@@ -101,30 +93,5 @@ public class ShareTicketService {
     if (shareTicket.getSubmittedCount() >= shareTicket.getTotalAllowed()) {
       shareTicket.setExpired(true);
     }
-  }
-
-  // 만료 날짜가 오늘이고 아직 만료처리되지 않은 공유 폼 링크 조회
-  public List<ShareTicket> fetchExpiredBatch(int page, int size) {
-    Pageable pageable = PageRequest.of(page, size);
-
-    LocalDate now = LocalDate.now();
-    LocalDateTime startDate = now.atStartOfDay();
-    LocalDateTime endDate = now.atTime(23, 59, 59);
-    log.info("fetchExpiredBatch startDate: {}, endDate: {}", startDate, endDate);
-
-    return shareTicketRepository.findAllByExpiredAtBetweenAndExpiredFalse(startDate, endDate,
-        pageable);
-  }
-
-  // 공유 폼 링크 만료 -> 스케줄러 자동 실행
-  @Transactional
-  public void expiredToken(List<ShareTicket> shareTickets) {
-    // 폼링크 자동 만료
-    shareTickets.forEach(shareTicket -> {
-      shareTicket.setExpired(true);
-    });
-
-    log.info("expiredToken: {}", shareTickets.size());
-    shareTicketRepository.saveAll(shareTickets);
   }
 }
