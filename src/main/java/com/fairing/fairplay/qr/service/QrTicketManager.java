@@ -17,12 +17,18 @@ import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.CodeGenerator;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
+import java.util.Locale;
 import java.util.Objects;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -43,14 +49,21 @@ public class QrTicketManager {
   private final QrEmailService qrEmailService;
 
   private static final String ROLE_COMMON = "COMMON";
+  private final EventScheduleRepository eventScheduleRepository;
 
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
-  public QrTicketResponseDto issueMemberTicket(QrTicketRequestDto dto, CustomUserDetails userDetails) {
+  public QrTicketResponseDto issueMemberTicket(QrTicketRequestDto dto,
+      CustomUserDetails userDetails) {
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
-    if(!userDetails.getRoleCode().equals(ROLE_COMMON)){
-      throw new CustomException(HttpStatus.FORBIDDEN, "일반 사용자가 아닙니다. 현재 로그인된 사용자 권한: "+userDetails.getRoleCode());
+    if (userDetails.getUserId().equals(reservation.getUser().getUserId())) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "현재 로그인된 사용자와 예약자가 일치하지 않습니다.");
+    }
+
+    if (!userDetails.getRoleCode().equals(ROLE_COMMON)) {
+      throw new CustomException(HttpStatus.FORBIDDEN,
+          "일반 사용자가 아닙니다. 현재 로그인된 사용자 권한: " + userDetails.getRoleCode());
     }
 
     if (!Objects.equals(userDetails.getUserId(), reservation.getUser().getUserId())) {
@@ -60,7 +73,7 @@ public class QrTicketManager {
     AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
 
     QrTicket savedTicket = generateAndSaveQrTicket(dto, attendeeTypeCode.getId());
-    return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
+    return buildQrTicketResponse(savedTicket, reservation);
   }
 
   // 비회원 QR 티켓 조회 -> QR 티켓 링크 통한 조회
@@ -76,7 +89,7 @@ public class QrTicketManager {
     // QR 티켓 조회해 qr code, manualcode 생성해서 반환
     QrTicket savedTicket = generateAndSaveQrTicket(dto, attendeeTypeCode.getId());
     // 프론트 응답
-    return buildQrTicketResponse(savedTicket.getId(), reservation.getCreatedAt());
+    return buildQrTicketResponse(savedTicket, reservation);
   }
 
   // QR 티켓 재발급 - 새로고침 버튼
@@ -128,7 +141,7 @@ public class QrTicketManager {
     );
 
     if (!Objects.equals(qrTicket.getAttendee().getId(), dto.getAttendeeId())) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "티켓 사용자와 요청한 사용자의 ID가 일치하지 않습니다.");
+      throw new CustomException(HttpStatus.BAD_REQUEST, "티켓을 예약한 ID와 입력한 참석자의 ID가 일치하지 않습니다.");
     }
 
     // 재발급된 QR 티켓 - qrcode, manualcode null 처리
@@ -196,30 +209,51 @@ public class QrTicketManager {
   }
 
   // 발급 응답 생성
-  private QrTicketResponseDto buildQrTicketResponse(Long ticketId,
-      LocalDateTime reservationCreatedAt) {
-    QrTicketResponseDto dto = qrTicketRepository.findDtoById(ticketId)
+  private QrTicketResponseDto buildQrTicketResponse(QrTicket qrTicket,
+      Reservation reservation) {
+    QrTicketResponseDto dto = qrTicketRepository.findDtoById(qrTicket.getId())
         .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "티켓 조회 실패"));
 
-    if (reservationCreatedAt != null) {
-      String formattedDate = reservationCreatedAt.format(
+    if (reservation.getCreatedAt() != null) {
+      String formattedDate = reservation.getCreatedAt().format(
           DateTimeFormatter.ofPattern("yyyy. MM. dd"));
       dto.setReservationDate(formattedDate);
     }
 
     // 가상의 상영 정보 설정 예시
-    ViewingScheduleInfo viewingScheduleInfo = getMockSchedule();
+    ViewingScheduleInfo viewingScheduleInfo = getMockSchedule(reservation.getEvent().getEventId(),
+        reservation.getSchedule().getScheduleId());
     dto.setViewingScheduleInfo(viewingScheduleInfo);
     return dto;
   }
 
-  // TODO: 실제 스케줄 정보 조회 로직으로 교체 예정
-  private ViewingScheduleInfo getMockSchedule() {
+  private ViewingScheduleInfo getMockSchedule(Long eventId, Long scheduleId) {
+
+    EventSchedule eventSchedule = eventScheduleRepository.findByEvent_EventIdAndScheduleId(eventId,
+        scheduleId).orElse(null);
+
+    String date = getDate(eventSchedule.getDate());
+    String dayOfWeek = getDayOfWeek(eventSchedule.getWeekday());
+    String startTime = getTime(eventSchedule.getStartTime());
+
     return ViewingScheduleInfo.builder()
-        .date("2025-08-01")
-        .dayOfWeek("금")
-        .startTime("14:00")
+        .date(date)
+        .dayOfWeek(dayOfWeek)
+        .startTime(startTime)
         .build();
+  }
+
+  private String getDate(LocalDate date) {
+    return date.format(DateTimeFormatter.ofPattern("yyyy. MM. dd"));
+  }
+
+  private String getDayOfWeek(int weekday) {
+    int dayOfWeekValue = (weekday == 0) ? 7 : weekday; // 0(일)은 7로 매핑
+    return DayOfWeek.of(dayOfWeekValue).getDisplayName(TextStyle.FULL, Locale.KOREAN);
+  }
+
+  private String getTime(LocalTime time) {
+    return time.format(DateTimeFormatter.ofPattern("HH:mm"));
   }
 
 }
