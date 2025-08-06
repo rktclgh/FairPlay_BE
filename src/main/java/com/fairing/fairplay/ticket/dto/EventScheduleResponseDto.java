@@ -1,5 +1,6 @@
 package com.fairing.fairplay.ticket.dto;
 
+import com.fairing.fairplay.ticket.entity.EventSchedule;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -26,5 +27,16 @@ public class EventScheduleResponseDto { // 회차 목록
     private Integer weekday;            // 0 (일) ~ 6 (토)
     private TypesEnum types;            // EVENT, BOOTH    
     private LocalDateTime createdAt;    // 생성일시
-
+    
+    public static EventScheduleResponseDto from(EventSchedule eventSchedule){
+        return EventScheduleResponseDto.builder()
+                .scheduleId(eventSchedule.getScheduleId())
+                .date(eventSchedule.getDate())
+                .startTime(eventSchedule.getStartTime())
+                .endTime(eventSchedule.getEndTime())
+                .weekday(eventSchedule.getWeekday())
+                .types(eventSchedule.getTypes())
+                .createdAt(eventSchedule.getCreatedAt())
+                .build();
+    }
 }
