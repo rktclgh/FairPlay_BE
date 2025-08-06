@@ -1,12 +1,17 @@
 package com.fairing.fairplay.event.service;
 
+import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
 import com.fairing.fairplay.event.repository.*;
+import com.fairing.fairplay.payment.repository.PaymentRepository;
+import com.fairing.fairplay.reservation.entity.Reservation;
+import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.repository.EventAdminRepository;
+import com.fairing.fairplay.wishlist.repository.WishlistRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +49,11 @@ public class EventService {
     private final EventVersionRepository eventVersionRepository;
     private final EventTicketRepository eventTicketIdRepository;
     private final BoothRepository boothRepository;
+    private final WishlistRepository wishlistRepository;
+    private final BoothApplicationRepository boothApplicationRepository;
+    private final PaymentRepository paymentRepository;
+    private final ReservationRepository reservationRepository;
+    private final EventScheduleRepository eventScheduleRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -329,6 +339,27 @@ public class EventService {
 
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+
+        boolean hasPayments = !paymentRepository.findByReservationEventEventId(eventId).isEmpty();
+        boolean hasBoothPayments = boothApplicationRepository.findByEvent_EventId(eventId).stream()
+                .anyMatch(app -> app.getBoothPaymentStatusCode().getId() != 1);
+
+        if (hasPayments || hasBoothPayments) {
+            if (!event.getStatusCode().getCode().equals("ENDED")) {
+                throw new CustomException(HttpStatus.BAD_REQUEST, "결제 내역이 있는 행사는 종료된 후에만 삭제할 수 있습니다.");
+            }
+        }
+
+        // 1. Payment 삭제
+        List<Reservation> reservations = reservationRepository.findByEvent_EventId(eventId);
+        if (!reservations.isEmpty()) {
+            paymentRepository.deleteAllByReservationIn(reservations);
+        }
+
+        // 2. Reservation 삭제
+        reservationRepository.deleteAll(reservations);
+
+        // 3. 나머지 엔티티 삭제
         EventDetail eventDetail = event.getEventDetail();
 
         if (eventDetail != null) {
@@ -339,12 +370,61 @@ public class EventService {
             externalLinkRepository.deleteAll(event.getExternalLinks());
         }
 
+        eventTicketIdRepository.deleteAll(event.getEventTickets());
+
+        boothRepository.deleteAll(event.getBooths());
+
+        eventScheduleRepository.deleteAll(eventScheduleRepository.findByEvent_EventId(eventId));
+
+        wishlistRepository.deleteAllByEvent(event);
+
+        boothApplicationRepository.deleteAllByEvent(event);
+
         eventVersionRepository.deleteAll(event.getEventVersions());
+        eventRepository.deleteById(eventId);
+
+        log.info("행사 삭제 완료");
+    }
+
+    // 행사 강제 삭제
+    @Transactional
+    public void forcedDeleteEvent(Long eventId) {
+        log.info("행사 강제 삭제");
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+
+        // 1. Payment 삭제
+        List<Reservation> reservations = reservationRepository.findByEvent_EventId(eventId);
+        if (!reservations.isEmpty()) {
+            paymentRepository.deleteAllByReservationIn(reservations);
+        }
+
+        // 2. Reservation 삭제
+        reservationRepository.deleteAll(reservations);
+
+        // 3. 나머지 엔티티 삭제
+        EventDetail eventDetail = event.getEventDetail();
+
+        if (eventDetail != null) {
+            eventDetailRepository.delete(eventDetail);
+        }
+
+        if (event.getExternalLinks() != null) {
+            externalLinkRepository.deleteAll(event.getExternalLinks());
+        }
 
         eventTicketIdRepository.deleteAll(event.getEventTickets());
 
         boothRepository.deleteAll(event.getBooths());
 
+        eventScheduleRepository.deleteAll(eventScheduleRepository.findByEvent_EventId(eventId));
+
+        wishlistRepository.deleteAllByEvent(event);
+
+        boothApplicationRepository.deleteAllByEvent(event);
+
+        eventVersionRepository.deleteAll(event.getEventVersions());
         eventRepository.deleteById(eventId);
 
         log.info("행사 삭제 완료");

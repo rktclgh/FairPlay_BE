@@ -42,7 +42,7 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         detail.startDate,
                         detail.endDate,
                         detail.thumbnailUrl,
-                        detail.regionCode.code
+                        detail.regionCode.name
                 ))
                 .from(event)
                 .join(event.eventDetail, detail)       // 상세 정보가 있는 이벤트만 조회
@@ -131,7 +131,7 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         detail.startDate,
                         detail.endDate,
                         detail.thumbnailUrl,
-                        detail.regionCode.code
+                        detail.regionCode.name
                 ))
                 .from(event)
                 .join(event.eventDetail, detail)    // 상세 정보가 있는 이벤트만 조회

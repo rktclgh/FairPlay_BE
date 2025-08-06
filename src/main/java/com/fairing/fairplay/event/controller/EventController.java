@@ -146,6 +146,19 @@ public class EventController {
         return ResponseEntity.ok("행사 삭제 완료 : " + eventId);
     }
 
+    // 행사 강제 삭제
+    @DeleteMapping("/{eventId}/force")
+    public ResponseEntity<String> forcedDeleteEvent(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable("eventId") Long eventId
+    ) {
+        checkAuth(userDetails, ADMIN);
+
+        eventService.forcedDeleteEvent(eventId);
+
+        return ResponseEntity.ok("행사 삭제 완료 : " + eventId);
+    }
+
 
     /*********************** 헬퍼 메소드 ***********************/
     private void checkAuth(@AuthenticationPrincipal CustomUserDetails userDetails, Integer authority) {

@@ -1,6 +1,7 @@
 package com.fairing.fairplay.wishlist.repository;
 
 
+import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.wishlist.entity.Wishlist;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -28,4 +29,6 @@ public interface WishlistRepository extends JpaRepository<Wishlist, Long> {
             "LEFT JOIN FETCH et.ticket t " +
             "WHERE w.user.userId = :userId AND w.deleted = false")
     List<Wishlist> findWithAllDetailsByUserId(@Param("userId") Long userId);
+
+    void deleteAllByEvent(Event event);
 }
