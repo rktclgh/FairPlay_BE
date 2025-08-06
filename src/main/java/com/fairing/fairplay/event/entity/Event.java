@@ -2,7 +2,6 @@ package com.fairing.fairplay.event.entity;
 
 import com.fairing.fairplay.booth.entity.Booth;
 import com.fairing.fairplay.ticket.entity.EventTicket;
-import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.user.entity.EventAdmin;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -56,11 +55,15 @@ public class Event {
     private Set<EventVersion> eventVersions = new HashSet<>();
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<Ticket> tickets = new HashSet<>();
-
-    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<EventTicket> eventTickets = new HashSet<>();
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Booth> booths = new HashSet<>();
+
+    public void setEventDetail(EventDetail detail) {
+        this.eventDetail = detail;
+        if (detail.getEvent() != this) {
+            detail.setEvent(this);
+        }
+    }
 }

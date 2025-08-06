@@ -2,8 +2,8 @@ package com.fairing.fairplay.attendee.repository;
 
 import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import java.util.Optional;
-import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface AttendeeTypeCodeRepository extends CrudRepository<AttendeeTypeCode, Long> {
+public interface AttendeeTypeCodeRepository extends JpaRepository<AttendeeTypeCode, Integer> {
   Optional<AttendeeTypeCode> findByCode(String code);
 }

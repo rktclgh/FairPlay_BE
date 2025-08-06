@@ -27,6 +27,9 @@ public class Location {
     @Column(name = "building_name", length = 255)
     private String buildingName;
 
+    @Column(name = "place_name", length = 255)
+    private String placeName;
+
     @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal latitude;
 

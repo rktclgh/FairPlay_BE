@@ -1,0 +1,38 @@
+### 회차 등록
+@eventId=1
+POST http://localhost:8080/api/events/{{eventId}}/schedule
+Content-type: application/json
+Accept: application/json
+
+{
+  "date": "2025-08-20",
+  "startTime": "09:00:00",
+  "endTime": "18:00:00",
+  "weekday": 5,
+  "types": "EVENT"
+}
+
+### 회차 목록 조회
+GET http://localhost:8080/api/events/{{eventId}}/schedule
+Content-type: application/json
+
+### 회차 상세 조회
+@scheduleId=1
+GET http://localhost:8080/api/events/{{eventId}}/schedule/{{scheduleId}}
+Content-type: application/json
+
+### 회차 수정
+PATCH http://localhost:8080/api/events/{{eventId}}/schedule/{{scheduleId}}
+Content-type: application/json
+
+{
+  "date": "2025-09-21",
+  "startTime": "13:00:00",
+  "endTime": "15:00:00",
+  "weekday": 3,
+  "types": "EVENT"
+}
+
+### 회차 삭제
+DELETE http://localhost:8080/api/events/{{eventId}}/schedule/{{scheduleId}}
+Content-type: application/json

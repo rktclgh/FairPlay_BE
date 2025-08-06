@@ -126,6 +126,20 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(410).body(body);
   }
 
+  // 14. 알림 등 JPA Entity 조회 실패 → 404
+  @ExceptionHandler(jakarta.persistence.EntityNotFoundException.class)
+  public ResponseEntity<ErrorResponse> handleEntityNotFound(jakarta.persistence.EntityNotFoundException ex) {
+    return buildErrorResponse(HttpStatus.NOT_FOUND, ex.getMessage() != null ? ex.getMessage() : "대상을 찾을 수 없습니다.");
+  }
+
+  // 15. 알림 등 내 소유/권한 아님 → 403
+  @ExceptionHandler(SecurityException.class)
+  public ResponseEntity<ErrorResponse> handleSecurityException(SecurityException ex) {
+    return buildErrorResponse(HttpStatus.FORBIDDEN, ex.getMessage() != null ? ex.getMessage() : "접근 권한이 없습니다.");
+  }
+
+
+
   // 그 외 모든 예외 처리
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {

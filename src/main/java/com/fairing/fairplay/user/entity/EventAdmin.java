@@ -1,11 +1,6 @@
 package com.fairing.fairplay.user.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,9 +16,13 @@ import com.fairing.fairplay.user.entity.Users;
 @Table(name = "event_admin")
 public class EventAdmin {
 
-    @OneToOne
-    @JoinColumn(name = "user_id")
     @Id
+    @Column(name = "user_id")
+    private Long userId;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @MapsId
+    @JoinColumn(name = "user_id")
     private Users user;
 
     @Column(nullable = false, length = 20)
