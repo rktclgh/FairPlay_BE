@@ -2,10 +2,7 @@ package com.fairing.fairplay.ticket.entity;
 
 import com.fairing.fairplay.ticket.dto.EventScheduleRequestDto;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import com.fairing.fairplay.event.entity.Event;
 import com.querydsl.core.annotations.QueryTransient;
@@ -20,6 +17,7 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "event_schedule")
 public class EventSchedule {

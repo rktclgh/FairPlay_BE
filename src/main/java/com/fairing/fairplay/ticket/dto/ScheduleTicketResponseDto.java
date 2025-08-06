@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 public class ScheduleTicketResponseDto {    // 회차별 각 티켓 정보
 
     private Long ticketId;
+    private String name;
+    private Integer price;
     private Integer remainingStock;
     private LocalDateTime salesStartAt;
     private LocalDateTime salesEndAt;
