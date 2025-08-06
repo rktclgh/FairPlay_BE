@@ -7,6 +7,7 @@ import com.fairing.fairplay.statistics.entity.hourly.QEventHourlyStatistics;
 import com.fairing.fairplay.statistics.entity.sales.EventDailySalesStatistics;
 import com.fairing.fairplay.statistics.entity.sales.QEventDailySalesStatistics;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -47,7 +48,7 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                 .where(
                         r.event.eventId.eq(eventId)
                                 .and(r.createdAt.between(start, end))
-                                .and(p.paidAt.between(start, end)) // 결제가 같은 기간에 이루어진 경우만
+                                .and(p.paidAt.isNull().or(p.paidAt.isNotNull())) // 모든 예약 포함
                 )
                 .groupBy(r.event.eventId, r.createdAt.hour(), r.createdAt.dayOfMonth())
                 .fetch();
@@ -164,7 +165,10 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                         r.event.eventId,
                         r.createdAt.hour(),
                         r.count(),
-                        p.amount.sum().coalesce(BigDecimal.ZERO)
+                        Expressions.cases()
+                                .when(p.paidAt.between(start, end))
+                                .then(p.amount.sum())
+                                .otherwise(BigDecimal.ZERO)
                 )
                 .from(r)
                 .leftJoin(p).on(p.reservation.eq(r))
