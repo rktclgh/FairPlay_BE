@@ -8,7 +8,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import java.security.Principal;
 import java.util.Map;
+
+// Principal 구현
+class StompPrincipal implements Principal {
+    private final String name;
+    public StompPrincipal(String name) { this.name = name; }
+    @Override public String getName() { return name; }
+}
 
 @Component
 @RequiredArgsConstructor
@@ -34,8 +42,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
         }
         if (token != null && jwtTokenProvider.validateToken(token)) {
             Long userId = jwtTokenProvider.getUserId(token);
-            attributes.put("userId", userId);
-            attributes.put("jwtToken", token);
+            attributes.put("user", new StompPrincipal(userId.toString()));
             return true;
         }
         return false;

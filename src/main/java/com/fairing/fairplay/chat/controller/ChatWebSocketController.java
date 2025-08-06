@@ -1,9 +1,7 @@
-package com.fairing.fairplay.chat.websocket;
+package com.fairing.fairplay.chat.controller;
 
 import com.fairing.fairplay.chat.dto.ChatMessageRequestDto;
 import com.fairing.fairplay.chat.dto.ChatMessageResponseDto;
-import com.fairing.fairplay.chat.entity.ChatRoom;
-import com.fairing.fairplay.chat.entity.TargetType;
 import com.fairing.fairplay.chat.service.ChatMessageService;
 import com.fairing.fairplay.chat.service.ChatPresenceService;
 import com.fairing.fairplay.chat.service.ChatRoomService;
@@ -13,7 +11,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.Map;
 
 @Controller
 @RequiredArgsConstructor
@@ -28,28 +25,22 @@ public class ChatWebSocketController {
     // 전송: /app/chat.sendMessage
 
     @MessageMapping("/chat.sendMessage")
-    public void sendMessage(@Payload ChatMessageRequestDto message,
-                            @Header("userId") Long senderId) {
-        // 1. DB에 메시지 저장
+    public void sendMessage(@Payload ChatMessageRequestDto message, Principal principal) {
+        // principal.getName()에 userId or username이 들어있어야 함!
+        Long senderId = Long.parseLong(principal.getName());
         ChatMessageResponseDto response = chatMessageService.sendMessage(message.getChatRoomId(), senderId, message.getContent());
-        // 2. 실시간 브로드캐스트(해당 채팅방 구독자에게)
         messagingTemplate.convertAndSend("/topic/chat." + message.getChatRoomId(), response);
     }
 
-    // 클라이언트에서 입장 시 호출 (온라인 처리)
     @MessageMapping("/chat.enter")
-    public void enter(@Header("userId") Long userId,
-                      @Header("isManager") Boolean isManager) {
+    public void enter(Principal principal, @Header("isManager") Boolean isManager) {
+        Long userId = Long.parseLong(principal.getName());
         chatPresenceService.setOnline(isManager, userId);
-        // (옵션) 구독자에게 온라인 상태 알림
-        // messagingTemplate.convertAndSend("/topic/presence." + userId, "online");
     }
 
-    // 클라이언트에서 퇴장 시 호출 (오프라인 처리)
     @MessageMapping("/chat.leave")
-    public void leave(@Header("userId") Long userId,
-                      @Header("isManager") Boolean isManager) {
+    public void leave(Principal principal, @Header("isManager") Boolean isManager) {
+        Long userId = Long.parseLong(principal.getName());
         chatPresenceService.setOffline(isManager, userId);
-        // messagingTemplate.convertAndSend("/topic/presence." + userId, "offline");
     }
 }

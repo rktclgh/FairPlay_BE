@@ -13,7 +13,6 @@ public class ChatPresenceService {
     private final StringRedisTemplate redisTemplate;
     private static final long ONLINE_EXPIRE_SECONDS = 600; // 10분
 
-    // key 예시: online:user:{userId} / online:manager:{userId}
     private String getKey(boolean isManager, Long userId) {
         return (isManager ? "online:manager:" : "online:user:") + userId;
     }

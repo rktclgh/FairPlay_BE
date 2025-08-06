@@ -52,7 +52,10 @@ public class SecurityConfig {
                                 "/auth/kakao/callback",
                                 "/api/users/event-admin/*/public",
                                 "/api/qr-tickets/*",
-                                "/api/qr-tickets/reissue"
+                                "/api/qr-tickets/reissue",
+                                // === WebSocket, 채팅 API 허용 추가 ===
+                                "/ws/**",
+                                "/api/chat/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -64,4 +67,3 @@ public class SecurityConfig {
         return http.build();
     }
 }
-

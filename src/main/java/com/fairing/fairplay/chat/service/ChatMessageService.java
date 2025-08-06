@@ -20,11 +20,6 @@ public class ChatMessageService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
 
-    /**
-     * 채팅 메시지 저장/전송
-     * - DB에 저장
-     * - 반환은 DTO로 변환
-     */
     @Transactional
     public ChatMessageResponseDto sendMessage(Long chatRoomId, Long senderId, String content) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
@@ -50,9 +45,6 @@ public class ChatMessageService {
                 .build();
     }
 
-    /**
-     * 채팅방 내 메시지 전체(시간순) 조회
-     */
     public List<ChatMessageResponseDto> getMessages(Long chatRoomId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
@@ -69,9 +61,6 @@ public class ChatMessageService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 메시지 읽음 처리 (단일 메시지)
-     */
     @Transactional
     public void markAsRead(Long chatMessageId) {
         ChatMessage message = chatMessageRepository.findById(chatMessageId)
@@ -80,10 +69,6 @@ public class ChatMessageService {
         chatMessageRepository.save(message);
     }
 
-    /**
-     * (뱃지/알림) 내가 읽지 않은 메시지 개수 반환
-     * - 내 userId를 제외한 sender의 메시지 중, 읽지 않은 메시지 개수
-     */
     public Long countUnreadMessages(Long chatRoomId, Long myUserId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
