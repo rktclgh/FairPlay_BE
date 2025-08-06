@@ -48,7 +48,8 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                 .where(
                         r.event.eventId.eq(eventId)
                                 .and(r.createdAt.between(start, end))
-                                .and(p.paidAt.isNull().or(p.paidAt.isNotNull())) // 모든 예약 포함
+                                .and(p.paidAt.isNull().or(p.paidAt.between(start, end))) // 미결제 + 해당기간 결제
+// 모든 예약 포함
                 )
                 .groupBy(r.event.eventId, r.createdAt.hour(), r.createdAt.dayOfMonth())
                 .fetch();
