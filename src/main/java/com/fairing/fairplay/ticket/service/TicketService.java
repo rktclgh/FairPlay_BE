@@ -9,7 +9,7 @@ import com.fairing.fairplay.ticket.entity.EventTicket;
 import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.entity.TicketVersion;
 import com.fairing.fairplay.ticket.entity.TypesEnum;
-import com.fairing.fairplay.ticket.repository.EventTicketRepository;
+import com.fairing.fairplay.event.repository.EventTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketVersionRepository;
 import jakarta.validation.Valid;
