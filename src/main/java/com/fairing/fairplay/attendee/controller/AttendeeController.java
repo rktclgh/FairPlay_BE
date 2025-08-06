@@ -38,35 +38,38 @@ public class AttendeeController {
     return ResponseEntity.status(HttpStatus.CREATED).body(attendeeService.saveGuest(token, dto));
   }
 
-  // 참석자 전체 조회 -> 단체 예약일 경우에만 접근 가능. authenticationprincipal 추가 필요
+  // 참석자 전체 조회 -> 단체 예약일 경우에만 접근 가능.
   @GetMapping("/{reservationId}")
-  public ResponseEntity<AttendeeListInfoResponseDto> findAll(@PathVariable Long reservationId) {
-    return ResponseEntity.status(HttpStatus.OK).body(attendeeService.findAll(reservationId));
+  public ResponseEntity<AttendeeListInfoResponseDto> findAll(@PathVariable Long reservationId,
+      @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.status(HttpStatus.OK).body(attendeeService.findAll(reservationId, userDetails));
   }
 
-  // 참석자 정보 변경 -> 단체 예약일 경우에만 접근 가능 authenticationprincipal 추가 필요
+  // 참석자 정보 변경 -> 단체 예약일 경우에만 접근 가능
   @PatchMapping("/{attendeeId}")
   public ResponseEntity<AttendeeInfoResponseDto> updateAttendee(@PathVariable Long attendeeId,
-      @RequestBody AttendeeUpdateRequestDto dto) {
+      @RequestBody AttendeeUpdateRequestDto dto,
+      @AuthenticationPrincipal CustomUserDetails userDetails) {
     return ResponseEntity.status(HttpStatus.OK)
-        .body(attendeeService.updateAttendee(attendeeId, dto));
+        .body(attendeeService.updateAttendee(attendeeId, dto, userDetails));
   }
 
   // 행사별 예약자 명단 조회 (행사 관리자)
   @GetMapping("/events/{eventId}")
   public ResponseEntity<List<AttendeeInfoResponseDto>> getAttendees(@PathVariable Long eventId,
-                                                                    @AuthenticationPrincipal CustomUserDetails userDetails) {
-    List<Attendee> attendees = attendeeService.getAttendeesByEvent(eventId, userDetails.getUserId());
+      @AuthenticationPrincipal CustomUserDetails userDetails) {
+    List<Attendee> attendees = attendeeService.getAttendeesByEvent(eventId,
+        userDetails.getUserId());
 
     List<AttendeeInfoResponseDto> response = attendees.stream()
-            .map(attendee -> AttendeeInfoResponseDto.builder()
-                    .attendeeId(attendee.getId())
-                    .reservationId(attendee.getReservation().getReservationId())
-                    .name(attendee.getName())
-                    .email(attendee.getEmail())
-                    .phone(attendee.getPhone())
-                    .build())
-            .toList();
+        .map(attendee -> AttendeeInfoResponseDto.builder()
+            .attendeeId(attendee.getId())
+            .reservationId(attendee.getReservation().getReservationId())
+            .name(attendee.getName())
+            .email(attendee.getEmail())
+            .phone(attendee.getPhone())
+            .build())
+        .toList();
 
     return ResponseEntity.ok(response);
   }
