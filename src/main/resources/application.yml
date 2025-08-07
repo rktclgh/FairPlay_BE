@@ -68,3 +68,9 @@ cloud:
       auto: false
     stack:
       auto: false # CloudFormation 스택 자동 생성 비활성화
+    credentials:
+      access-key: ${AWS_ACCESS_KEY}
+      secret-key: ${AWS_SECRET_KEY}
+
+server:
+  port: 9000

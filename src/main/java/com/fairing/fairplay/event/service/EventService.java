@@ -7,9 +7,13 @@ import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
 import com.fairing.fairplay.event.repository.*;
+import com.fairing.fairplay.file.dto.S3UploadRequestDto;
+import com.fairing.fairplay.file.dto.S3UploadResponseDto;
+import com.fairing.fairplay.file.service.FileService;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.repository.EventAdminRepository;
 import com.fairing.fairplay.wishlist.repository.WishlistRepository;
@@ -56,6 +60,7 @@ public class EventService {
     private final EventScheduleRepository eventScheduleRepository;
     private final S3Client s3client;
     private final AwsS3Service awsS3Service;
+    private final FileService fileService;
 
     @Value("${cloud.aws.s3.bucket-name}")
     private String bucket;
@@ -162,6 +167,9 @@ public class EventService {
 
         // 행사 정보 설정
         setEventDetailInfo(eventDetail, eventDetailRequestDto);
+
+        // 파일 처리
+        processFiles(eventDetail, eventDetailRequestDto, eventId);
 
         // 카테고리 설정
         setCategories(eventDetail, eventDetailRequestDto);
@@ -307,6 +315,9 @@ public class EventService {
 
         // 행사 정보 설정
         setEventDetailInfo(eventDetail, eventDetailRequestDto);
+
+        // 파일 처리
+        processFiles(eventDetail, eventDetailRequestDto, eventId);
 
         // 카테고리 설정
         setCategories(eventDetail, eventDetailRequestDto);
@@ -656,19 +667,48 @@ public class EventService {
                 .build();
     }
 
-    // S3 tmp -> 확정 위치로 파일 이동, destKey 리스트 반환
-    private List<String> moveS3FilesToPermanent (List<String> tmpKeys, String prefix) {
-        List<String> destKeys = new ArrayList<>();
-        if (tmpKeys == null || tmpKeys.isEmpty()) return destKeys;
-
-        for (String tmpKey : tmpKeys) {
-            String filename = tmpKey.substring(tmpKey.lastIndexOf("/") + 1);
-            String destKey = awsS3Service.moveToPermanent(tmpKey,"event/" + prefix);
-                // e.g. uploads/event/{1/detail/content}/filename
-                // e.g. uploads/event/{1/detail/policy}/filename
-            destKeys.add(destKey);
+    private void processFiles(EventDetail eventDetail, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
+        log.info("파일 처리 시작");
+        if (eventDetailRequestDto.getTempFiles() == null || eventDetailRequestDto.getTempFiles().isEmpty()) {
+            return;
         }
-        return destKeys;
+
+        for (EventDetailRequestDto.FileUploadDto fileDto : eventDetailRequestDto.getTempFiles()) {
+            String directoryPrefix = "event/" + eventId + "/" + fileDto.getUsage();
+
+            S3UploadResponseDto s3UploadResponseDto = fileService.uploadFile(S3UploadRequestDto.builder()
+                    .s3Key(fileDto.getS3Key())
+                    .eventId(eventId)
+                    .originalFileName(fileDto.getOriginalFileName())
+                    .fileType(fileDto.getFileType())
+                    .fileSize(fileDto.getFileSize())
+                    .directoryPrefix(directoryPrefix)
+                    .build());
+
+            String tempUrl = "/api/uploads/download?key=" + fileDto.getS3Key();
+            String publicUrl = s3UploadResponseDto.getFileUrl();
+
+            switch (fileDto.getUsage()) {
+                case "thumbnail":
+                    eventDetail.setThumbnailUrl(publicUrl);
+                    break;
+                case "content":
+                    if (eventDetail.getContent() != null) {
+                        eventDetail.setContent(eventDetail.getContent().replace(tempUrl, publicUrl));
+                    }
+                    break;
+                case "bio":
+                    if (eventDetail.getBio() != null) {
+                        eventDetail.setBio(eventDetail.getBio().replace(tempUrl, publicUrl));
+                    }
+                    break;
+                case "policy":
+                    if (eventDetail.getPolicy() != null) {
+                        eventDetail.setPolicy(eventDetail.getPolicy().replace(tempUrl, publicUrl));
+                    }
+                    break;
+            }
+        }
     }
 
 

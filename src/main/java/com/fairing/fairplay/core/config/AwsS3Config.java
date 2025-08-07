@@ -12,12 +12,13 @@ public class AwsS3Config {
     @Value("${cloud.aws.s3.bucket-name}")
     private String bucketName;
 
+    @Value("${cloud.aws.region.static}")
+    private String region;
 
     @Bean
     public S3Client s3Client() {
-
         return S3Client.builder()
-                .region(Region.AP_NORTHEAST_2)
+                .region(Region.of(region))
                 .build();
     }
 

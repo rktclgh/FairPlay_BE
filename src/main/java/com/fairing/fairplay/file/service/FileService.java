@@ -10,14 +10,14 @@ import com.fairing.fairplay.file.dto.S3UploadResponseDto;
 import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.repository.FileRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class FileService {
 
     private final FileRepository fileRepository;
@@ -27,8 +27,9 @@ public class FileService {
 
     @Transactional
     public S3UploadResponseDto uploadFile(S3UploadRequestDto requestDto) {
-        String directory = determineDirectory(requestDto.getEventId(), requestDto.getEventApplyId());
+        String directory = requestDto.getDirectoryPrefix();
         String newKey = awsS3Service.moveToPermanent(requestDto.getS3Key(), directory);
+        log.info("FileService: Uploaded file to newKey: {}", newKey);
 
         Event event = requestDto.getEventId() != null ? eventRepository.findById(requestDto.getEventId()).orElse(null) : null;
         EventApply eventApply = requestDto.getEventApplyId() != null ? eventApplyRepository.findById(requestDto.getEventApplyId()).orElse(null) : null;
@@ -52,16 +53,6 @@ public class FileService {
                 .fileId(savedFile.getId())
                 .fileUrl(awsS3Service.getPublicUrl(newKey))
                 .build();
-    }
-
-    private String determineDirectory(Long eventId, Long eventApplyId) {
-        if (eventId != null) {
-            return "events/" + eventId;
-        } else if (eventApplyId != null) {
-            return "event-applies/" + eventApplyId;
-        } else {
-            return "etc";
-        }
     }
 
     private String extractFileName(String key) {
