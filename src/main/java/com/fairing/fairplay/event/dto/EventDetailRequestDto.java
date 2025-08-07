@@ -38,4 +38,7 @@ public class EventDetailRequestDto { // 행사 상세 등록
     private Boolean reentryAllowed;
     private Boolean checkOutAllowed;
 
+    private String thumbnailFileKey;
+    private List<String> contentFileKeys;
+    private List<String> policyFileKeys;
 }

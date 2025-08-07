@@ -3,6 +3,7 @@ package com.fairing.fairplay.event.service;
 import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
 import com.fairing.fairplay.event.repository.*;
@@ -17,17 +18,16 @@ import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hashids.Hashids;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -54,6 +54,11 @@ public class EventService {
     private final PaymentRepository paymentRepository;
     private final ReservationRepository reservationRepository;
     private final EventScheduleRepository eventScheduleRepository;
+    private final S3Client s3client;
+    private final AwsS3Service awsS3Service;
+
+    @Value("${cloud.aws.s3.bucket-name}")
+    private String bucket;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -494,7 +499,8 @@ public class EventService {
 
         Location location = eventDetail.getLocation();
         if (mode.equals("create")) {
-            location = new Location();
+            Location existingLocation = locationRepository.findByPlaceName(eventDetailRequestDto.getPlaceName());
+            location = Objects.requireNonNullElseGet(existingLocation, Location::new);
         }
 
         if (eventDetailRequestDto.getAddress() != null) location.setAddress(eventDetailRequestDto.getAddress());
@@ -649,4 +655,21 @@ public class EventService {
                 .checkOutAllowed(detail.getCheckOutAllowed())
                 .build();
     }
+
+    // S3 tmp -> 확정 위치로 파일 이동, destKey 리스트 반환
+    private List<String> moveS3FilesToPermanent (List<String> tmpKeys, String prefix) {
+        List<String> destKeys = new ArrayList<>();
+        if (tmpKeys == null || tmpKeys.isEmpty()) return destKeys;
+
+        for (String tmpKey : tmpKeys) {
+            String filename = tmpKey.substring(tmpKey.lastIndexOf("/") + 1);
+            String destKey = awsS3Service.moveToPermanent(tmpKey,"event/" + prefix);
+                // e.g. uploads/event/{1/detail/content}/filename
+                // e.g. uploads/event/{1/detail/policy}/filename
+            destKeys.add(destKey);
+        }
+        return destKeys;
+    }
+
+
 }

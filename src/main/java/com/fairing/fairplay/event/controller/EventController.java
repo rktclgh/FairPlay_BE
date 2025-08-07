@@ -5,9 +5,9 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.event.service.EventService;
-import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -28,7 +29,10 @@ public class EventController {
 
     private final EventService eventService;
     private final EventRepository eventRepository;
-    private final UserRepository userRepository;
+    private final S3Client s3client;
+
+    @Value("${cloud.aws.s3.bucket-name}")
+    private String bucket;
 
     private static final Integer ADMIN = 1;    // 전체 관리자
     private static final Integer EVENT = 2;    // 행사 관리자
@@ -163,7 +167,8 @@ public class EventController {
     /*********************** 헬퍼 메소드 ***********************/
     private void checkAuth(@AuthenticationPrincipal CustomUserDetails userDetails, Integer authority) {
         log.info("기본 권한 확인");
-
+        log.info("userDetails RoleId: {}", userDetails.getRoleId());
+        log.info("authority RoleId: {}", authority);
         if (userDetails.getRoleId() > authority) {
             throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
         }
