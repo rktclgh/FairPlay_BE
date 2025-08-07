@@ -210,7 +210,7 @@ public class EventController {
 
 
     /*********************** 헬퍼 메소드 ***********************/
-    private void checkAuth(@AuthenticationPrincipal CustomUserDetails userDetails, Integer authority) {
+    private void checkAuth(CustomUserDetails userDetails, Integer authority) {
         log.info("기본 권한 확인");
         log.info("userDetails RoleId: {}", userDetails.getRoleId());
         log.info("authority RoleId: {}", authority);
@@ -254,7 +254,7 @@ public class EventController {
         throw new CustomException(HttpStatus.FORBIDDEN, "해당 행사에 대한 권한이 없습니다.");
     }
 
-    private void checkEventManager(@AuthenticationPrincipal CustomUserDetails userDetails, Long eventId) {
+    private void checkEventManager(CustomUserDetails userDetails, Long eventId) {
         log.info("행사 관리자 추가 권한 확인");
         Long managerId = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."))
@@ -262,7 +262,11 @@ public class EventController {
 
         Integer authority = userDetails.getRoleId();
 
-        if (!authority.equals(ADMIN) && !managerId.equals(userDetails.getUserId())) throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+        if (!authority.equals(ADMIN) && !managerId.equals(userDetails.getUserId())) {
+            log.warn("권한 없는 이벤트 접근 시도 - 사용자 ID: {}, 이벤트 ID: {}, 매니저 ID: {}",
+                    userDetails.getUserId(), eventId, managerId);
+            throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+        }
     }
 
 

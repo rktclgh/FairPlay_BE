@@ -56,7 +56,7 @@ public class SecurityConfig {
                                 "/api/qr-tickets/reissue",
                                 "/ws/**", // ★ 반드시 필요
                                 "/api/chat/**",
-                                "api/uploads/temp"
+                                "/api/uploads/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

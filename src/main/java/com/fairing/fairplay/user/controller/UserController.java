@@ -122,7 +122,7 @@ public class UserController {
         return ResponseEntity.ok(responseDto);
     }
 
-    private void checkAuth(@AuthenticationPrincipal CustomUserDetails userDetails, Integer authority) {
+    private void checkAuth(CustomUserDetails userDetails, Integer authority) {
         log.info("기본 권한 확인");
 
         if (userDetails.getRoleId() > authority) {
@@ -130,7 +130,7 @@ public class UserController {
         }
     }
 
-    private void checkEventManager(@AuthenticationPrincipal CustomUserDetails userDetails, Long eventId) {
+    private void checkEventManager(CustomUserDetails userDetails, Long eventId) {
         log.info("행사 관리자 추가 권한 확인");
         Long managerId = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."))
