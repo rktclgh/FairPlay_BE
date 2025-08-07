@@ -35,6 +35,11 @@ public class EventController {
     @Value("${cloud.aws.s3.bucket-name}")
     private String bucket;
 
+    private static final Integer ADMIN = 1;    // 전체 관리자
+    private static final Integer EVENT = 2;    // 행사 관리자
+    private static final Integer BOOTH = 3;    // 부스 관리자
+    private static final Integer COMMON = 4;   // 일반 사용자
+
     // 권한 코드 상수 (DB의 user_role_code.code와 일치)
     private static final String ADMIN_ROLE = "ADMIN";         // 전체 관리자
     private static final String EVENT_MANAGER_ROLE = "EVENT_MANAGER";   // 행사 담당자
@@ -50,7 +55,7 @@ public class EventController {
             @RequestBody EventRequestDto eventRequestDto
     ) {
         // 전체 관리자 권한
-        checkAdminRole(userDetails);
+        checkAuth(userDetails, ADMIN);
 
         EventResponseDto responseDto = eventService.createEvent(userDetails.getUserId(), eventRequestDto);
         return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
@@ -62,9 +67,11 @@ public class EventController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
 
-        // 전체 관리자 OR 행사 담당자 권한
-        checkEventManagerRole(userDetails, eventId);
+        // 전체 관리자 OR 행사 관리자 권한
+        checkAuth(userDetails, EVENT);
         Long loginUserId = userDetails.getUserId();
+
+        checkEventManager(userDetails, eventId);
 
         EventDetailResponseDto responseDto = eventService.createEventDetail(loginUserId, eventDetailRequestDto, eventId);
         return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
@@ -72,7 +79,7 @@ public class EventController {
 
 
     /*********************** READ ***********************/
-    
+
     // 사용자 권한 조회 API (프론트엔드에서 복잡한 권한 체크 대신 사용)
     @GetMapping("/user/role")
     public ResponseEntity<Map<String, Object>> getCurrentUserRole(
@@ -87,7 +94,7 @@ public class EventController {
         );
         return ResponseEntity.ok(roleInfo);
     }
-    
+
     // 특정 행사에 대한 권한 확인 API
     @GetMapping("/{eventId}/permission")
     public ResponseEntity<Map<String, Boolean>> checkEventPermission(
@@ -109,7 +116,7 @@ public class EventController {
             ));
         }
     }
-    
+
     // 행사 목록 조회 (메인페이지, 검색 등) - EventDetail 정보 등록해야 보임
     @GetMapping
     public ResponseEntity<EventSummaryResponseDto> getEvents(
@@ -147,9 +154,11 @@ public class EventController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable("eventId") Long eventId, @RequestBody EventRequestDto eventRequestDto /* , Auth */) {
 
-        // 전체 관리자 OR 행사 담당자 권한
-        checkEventManagerRole(userDetails, eventId);
+        // 전체 관리자 OR 행사 관리자 권한
+        checkAuth(userDetails, EVENT);
         Long loginUserId = userDetails.getUserId();
+
+        checkEventManager(userDetails, eventId);
 
         EventResponseDto responseDto = eventService.updateEvent(eventId, eventRequestDto, loginUserId);
         return ResponseEntity.ok(responseDto);
@@ -161,9 +170,11 @@ public class EventController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
 
-        // 전체 관리자 OR 행사 담당자 권한
-        checkEventManagerRole(userDetails, eventId);
+        // 전체 관리자 OR 행사 관리자 권한
+        checkAuth(userDetails, EVENT);
         Long loginUserId = userDetails.getUserId();
+
+        checkEventManager(userDetails, eventId);
 
         EventDetailResponseDto responseDto = eventService.updateEventDetail(loginUserId, eventDetailRequestDto, eventId);
         return new ResponseEntity<>(responseDto, HttpStatus.OK);
@@ -177,7 +188,7 @@ public class EventController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable("eventId") Long eventId
     ) {
-        checkAdminRole(userDetails);
+        checkAuth(userDetails, ADMIN);
 
         eventService.deleteEvent(eventId);
 
@@ -219,28 +230,39 @@ public class EventController {
 
     // 행사 담당자 권한 확인 (전체 관리자 OR 해당 행사의 담당자)
     private void checkEventManagerRole(CustomUserDetails userDetails, Long eventId) {
-        log.info("행사 담당자 권한 확인 - 사용자 역할: {}, 사용자 ID: {}", 
+        log.info("행사 담당자 권한 확인 - 사용자 역할: {}, 사용자 ID: {}",
                  userDetails.getRoleCode(), userDetails.getUserId());
 
         String userRole = userDetails.getRoleCode();
-        
+
         // 전체 관리자는 모든 행사에 접근 가능
         if (ADMIN_ROLE.equals(userRole)) {
             return;
         }
-        
+
         // 행사 담당자인 경우, 자신이 담당하는 행사만 접근 가능
         if (EVENT_MANAGER_ROLE.equals(userRole)) {
             Long managerId = eventRepository.findById(eventId)
                     .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."))
                     .getManager().getUserId();
-            
+
             if (managerId.equals(userDetails.getUserId())) {
                 return;
             }
         }
-        
+
         throw new CustomException(HttpStatus.FORBIDDEN, "해당 행사에 대한 권한이 없습니다.");
+    }
+
+    private void checkEventManager(@AuthenticationPrincipal CustomUserDetails userDetails, Long eventId) {
+        log.info("행사 관리자 추가 권한 확인");
+        Long managerId = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."))
+                .getManager().getUserId();
+
+        Integer authority = userDetails.getRoleId();
+
+        if (!authority.equals(ADMIN) && !managerId.equals(userDetails.getUserId())) throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
     }
 
 
