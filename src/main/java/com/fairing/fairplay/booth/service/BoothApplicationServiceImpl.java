@@ -53,7 +53,11 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
         BoothPaymentStatusCode paymentStatus = paymentCodeRepository.findByCode("PENDING")
                 .orElseThrow(() -> new EntityNotFoundException("결제 상태 코드 없음"));
 
-        BoothApplication entity = mapper.toEntity(dto, event, status, paymentStatus);
+        BoothType boothType = boothTypeRepository.findById(dto.getBoothTypeId())
+                .orElseThrow(() -> new EntityNotFoundException("선택한 부스 타입을 찾을 수 없습니다."));
+
+        BoothApplication entity = mapper.toEntity(dto, event, boothType, status, paymentStatus);
+
         BoothApplication saved = boothApplicationRepository.save(entity);
 
         return saved.getId();
@@ -87,8 +91,7 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
 
         // 승인 시 부스 생성
         if ("APPROVED".equals(newStatus.getCode())) {
-            BoothType boothType = boothTypeRepository.findById(1L)
-                    .orElseThrow(() -> new EntityNotFoundException("기본 부스 타입을 찾을 수 없습니다."));
+            BoothType boothType = application.getBoothType();
 
             // BoothAdmin 자동 생성 (없으면 생성)
             BoothAdmin boothAdmin = boothAdminRepository.findByEmail(application.getEmail())
