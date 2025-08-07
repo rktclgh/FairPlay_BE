@@ -75,6 +75,8 @@ dependencies {
 	implementation("commons-io:commons-io:2.16.1")
 	// implementation 'software.amazon.awssdk:auth'
 	// implementation 'software.amazon.awssdk:regions'
+
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 }
 
 sourceSets {

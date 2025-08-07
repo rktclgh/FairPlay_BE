@@ -31,6 +31,7 @@ public class AuthController {
         if (userDetails == null) {
             return ResponseEntity.badRequest().build();
         }
+        
         refreshTokenService.deleteRefreshToken(userDetails.getUserId());
         return ResponseEntity.ok().build();
     }

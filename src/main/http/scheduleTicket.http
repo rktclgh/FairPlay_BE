@@ -1,0 +1,27 @@
+### 회차별 티켓 설정 등록
+@eventId=1
+@scheduleId=2
+POST http://localhost:8080/api/events/{{eventId}}/schedule/{{scheduleId}}/tickets
+Content-type: application/json
+Accept: application/json
+
+[
+  {
+    "ticketId": 10,
+    "remainingStock": 100,
+    "salesStartAt": "2025-09-01T09:00:00",
+    "salesEndAt": "2025-09-20T18:00:00",
+    "visible": true
+  },
+  {
+    "ticketId": 11,
+    "remainingStock": 50,
+    "salesStartAt": "2025-09-01T09:00:00",
+    "salesEndAt": "2025-09-15T18:00:00",
+    "visible": false
+  }
+]
+
+### 회차별 티켓 목록 조회
+GET http://localhost:8080/api/events/{{eventId}}/schedule/{{scheduleId}}/tickets
+Content-type: application/json

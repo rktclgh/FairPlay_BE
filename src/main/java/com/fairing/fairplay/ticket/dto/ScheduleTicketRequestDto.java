@@ -17,7 +17,7 @@ import java.util.List;
 @Builder
 public class ScheduleTicketRequestDto { // 회차별 티켓 등록
 
-    private List<Long> tickets;             // 등록할 티켓 IDs
+    private Long ticketId;                  // 등록할 티켓 ID
     private Integer remainingStock;         // 회차당 재고
     private LocalDateTime salesStartAt;     // 해당 회차의 해당 티켓 판매 시작 시간
     private LocalDateTime salesEndAt;       // 해당 회차의 해당 티켓 판매 종료 시간

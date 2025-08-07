@@ -20,8 +20,15 @@ public class BoothApplicationController {
     private final BoothApplicationService boothApplicationService;
 
     // 공통 권한 체크 메서드
-    private void checkBoothManager(CustomUserDetails user) {
+    private void checkEventManager(CustomUserDetails user) {
         System.out.println(" 현재 사용자 권한: " + user.getRoleCode());
+        if (!"EVENT_MANAGER".equals(user.getRoleCode())) {
+            throw new AccessDeniedException("행사 관리자만 접근할 수 있습니다.");
+        }
+    }
+
+    private void checkBoothManager(CustomUserDetails user) {
+        System.out.println("현재 사용자 권한: " + user.getRoleCode());
         if (!"BOOTH_MANAGER".equals(user.getRoleCode())) {
             throw new AccessDeniedException("부스 관리자만 접근할 수 있습니다.");
         }
@@ -40,7 +47,7 @@ public class BoothApplicationController {
             @AuthenticationPrincipal CustomUserDetails user,
             @RequestParam Long eventId) {
 
-        checkBoothManager(user);
+        checkEventManager(user);
         List<BoothApplicationListDto> list = boothApplicationService.getBoothApplications(eventId);
         return ResponseEntity.ok(list);
     }
@@ -51,7 +58,7 @@ public class BoothApplicationController {
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id) {
 
-        checkBoothManager(user);
+        checkEventManager(user);
         BoothApplicationResponseDto dto = boothApplicationService.getBoothApplication(id);
         return ResponseEntity.ok(dto);
     }
@@ -64,9 +71,36 @@ public class BoothApplicationController {
             @PathVariable Long id,
             @RequestBody BoothApplicationStatusUpdateDto dto) {
 
-        checkBoothManager(user);
+        checkEventManager(user);
         boothApplicationService.updateStatus(id, dto);
         return ResponseEntity.ok().build();
     }
+
+    // 5. 행사 관리자 - 결제 상태 변경 처리
+    @PutMapping("/{id}/payment-status")
+    public ResponseEntity<Void> updatePaymentStatus(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long id,
+            @RequestBody BoothPaymentStatusUpdateDto dto) {
+
+        checkEventManager(user);
+        boothApplicationService.updatePaymentStatus(id, dto);
+        return ResponseEntity.ok().build();
+    }
+
+
+    // 6. 부스 관리자 - 취소 요청 (태스트 x)
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<Void> cancelApplication(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long id) {
+
+        checkBoothManager(user);
+        boothApplicationService.cancelApplication(id, user.getUserId());
+        return ResponseEntity.ok().build();
+    }
+
+
+
 }
 

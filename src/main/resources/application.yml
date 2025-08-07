@@ -21,7 +21,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
@@ -46,6 +46,7 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+
 jwt:
   secret: ${JWT_SECRET}
   access-token-validity-ms: 600000      # 10분(600,000 ms)
