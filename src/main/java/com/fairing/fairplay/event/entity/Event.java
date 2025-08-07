@@ -45,6 +45,9 @@ public class Event {
     @Column(nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT TRUE")
     private Boolean hidden = true;
 
+    @Column(name = "is_deleted", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    private Boolean isDeleted = false;
+
     @OneToOne(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private EventDetail eventDetail;
 

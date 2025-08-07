@@ -182,8 +182,21 @@ public class EventController {
 
 
     /*********************** DELETE ***********************/
-    // 행사 삭제
+    // 행사 소프트 딜리트 (hidden + isDeleted 처리)
     @DeleteMapping("/{eventId}")
+    public ResponseEntity<String> softDeleteEvent(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable("eventId") Long eventId
+    ) {
+        checkAuth(userDetails, ADMIN);
+
+        eventService.deleteEvent(eventId);
+
+        return ResponseEntity.ok("행사 삭제 완료 : " + eventId);
+    }
+
+    // 행사 삭제 (전체 관리자가 행사 잘못 생성했을 경우 등)
+    @DeleteMapping("/{eventId}/hard")
     public ResponseEntity<String> deleteEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable("eventId") Long eventId

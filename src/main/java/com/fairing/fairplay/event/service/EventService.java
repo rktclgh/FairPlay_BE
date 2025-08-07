@@ -347,6 +347,18 @@ public class EventService {
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, newVersion, "이벤트 상세 정보가 업데이트되었습니다.");
     }
 
+    // 행사 소프트 딜리트
+    @Transactional
+    public void softDeleteEvent(Long eventId) {
+        log.info("행사 소프트 딜리트 시작");
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+
+        event.setIsDeleted(true);
+        event.setHidden(true);  // 숨김 처리
+    }
+
 
     // 행사 삭제 - 하위 테이블 데이터도 모두 삭제
     @Transactional
