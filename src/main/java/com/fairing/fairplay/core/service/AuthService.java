@@ -68,7 +68,7 @@ public class AuthService {
                 user.getUserId(),
                 user.getEmail(),
                 user.getRoleCode().getName(),
-                user.getRoleCode().getUserRoleCodeId()
+                user.getRoleCode().getId()
         );
         String refreshToken = jwtTokenProvider.generateRefreshToken(
                 user.getUserId(),
@@ -108,7 +108,7 @@ public class AuthService {
                 user.getUserId(),
                 user.getEmail(),
                 user.getRoleCode().getName(),
-                user.getRoleCode().getUserRoleCodeId()
+                user.getRoleCode().getId()
         );
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(
                 user.getUserId(),
@@ -220,7 +220,7 @@ public class AuthService {
                 user.getUserId(),
                 user.getEmail(),
                 user.getRoleCode().getName(),
-                user.getRoleCode().getUserRoleCodeId()
+                user.getRoleCode().getId()
         );
         String ourRefreshToken = jwtTokenProvider.generateRefreshToken(
                 user.getUserId(),
