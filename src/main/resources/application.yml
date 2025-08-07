@@ -46,6 +46,10 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+
+  web: # <<<< ★ 반드시 여기에 추가!
+    resources:
+      add-mappings: true # <<<< ★ 이거 필수!
 jwt:
   secret: ${JWT_SECRET}
   access-token-validity-ms: 600000      # 10분(600,000 ms)

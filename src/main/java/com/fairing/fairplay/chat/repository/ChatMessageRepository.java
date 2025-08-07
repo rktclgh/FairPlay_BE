@@ -12,4 +12,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     // 안 읽은 메시지 개수 (특정 방, 특정 유저 기준)
     Long countByChatRoomAndIsReadFalseAndSenderIdNot(ChatRoom chatRoom, Long senderId);
+
+    // 읽지 않은 메시지 목록 (내가 보낸 게 아닌)
+    List<ChatMessage> findByChatRoomAndIsReadFalseAndSenderIdNot(ChatRoom chatRoom, Long senderId);
 }

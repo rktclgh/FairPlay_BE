@@ -8,4 +8,14 @@ import lombok.Setter;
 public class ChatMessageRequestDto {
     private Long chatRoomId;
     private String content;
+    private Long senderId;
+    
+    @Override
+    public String toString() {
+        return "ChatMessageRequestDto{" +
+                "chatRoomId=" + chatRoomId +
+                ", content='" + content + '\'' +
+                ", senderId=" + senderId +
+                '}';
+    }
 }

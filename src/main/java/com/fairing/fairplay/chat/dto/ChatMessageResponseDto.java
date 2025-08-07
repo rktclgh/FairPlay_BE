@@ -14,4 +14,16 @@ public class ChatMessageResponseDto {
     private String content;
     private LocalDateTime sentAt;
     private Boolean isRead;
+    
+    @Override
+    public String toString() {
+        return "ChatMessageResponseDto{" +
+                "chatMessageId=" + chatMessageId +
+                ", chatRoomId=" + chatRoomId +
+                ", senderId=" + senderId +
+                ", content='" + content + '\'' +
+                ", sentAt=" + sentAt +
+                ", isRead=" + isRead +
+                '}';
+    }
 }

@@ -15,4 +15,11 @@ public class ChatEventHelperService {
                 .map(e -> e.getManager().getUserId())
                 .orElse(1L);
     }
+
+    // eventId로 이벤트 제목 리턴
+    public String getEventTitle(Long eventId) {
+        return eventRepository.findById(eventId)
+                .map(e -> e.getTitleKr())
+                .orElse("이벤트 문의");
+    }
 }

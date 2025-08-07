@@ -74,4 +74,18 @@ public class ChatMessageService {
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
         return chatMessageRepository.countByChatRoomAndIsReadFalseAndSenderIdNot(chatRoom, myUserId);
     }
+
+    @Transactional
+    public void markRoomMessagesAsRead(Long chatRoomId, Long myUserId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+        
+        // 내가 보낸 메시지가 아닌 읽지 않은 메시지들을 읽음으로 처리
+        List<ChatMessage> unreadMessages = chatMessageRepository.findByChatRoomAndIsReadFalseAndSenderIdNot(chatRoom, myUserId);
+        for (ChatMessage message : unreadMessages) {
+            message.setIsRead(true);
+        }
+        chatMessageRepository.saveAll(unreadMessages);
+    }
+
 }

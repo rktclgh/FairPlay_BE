@@ -24,17 +24,19 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers("/ws/**", "/ws/chat/**") // ★ 반드시 추가
+                        .disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/",                // 루트 경로 (index.html)
                                 "/index.html",      // 메인 정적 페이지
-                                "/assets/**",       // vite 등 빌드 시 산출물
-                                "/images/**",       // 이미지 리소스(필요시)
+                                "/assets/**",
+                                "/images/**",
                                 "/favicon.ico",
-                                "/static/**",       // 혹시 모듈/서브폴더 등
-                                "/manifest.json",   // PWA/프론트 프로젝트일 때
+                                "/static/**",
+                                "/manifest.json",
                                 "/robots.txt",
                                 "/api/users/signup",
                                 "/api/auth/login",
@@ -53,8 +55,7 @@ public class SecurityConfig {
                                 "/api/users/event-admin/*/public",
                                 "/api/qr-tickets/*",
                                 "/api/qr-tickets/reissue",
-                                // === WebSocket, 채팅 API 허용 추가 ===
-                                "/ws/**",
+                                "/ws/**", // ★ 반드시 필요
                                 "/api/chat/**"
                         ).permitAll()
                         .anyRequest().authenticated()

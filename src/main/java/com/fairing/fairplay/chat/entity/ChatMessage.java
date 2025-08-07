@@ -32,4 +32,5 @@ public class ChatMessage {
 
     @Column(nullable = false)
     private Boolean isRead = false;
+
 }
