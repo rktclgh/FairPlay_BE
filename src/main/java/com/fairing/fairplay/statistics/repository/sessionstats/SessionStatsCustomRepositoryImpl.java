@@ -1,6 +1,6 @@
 package com.fairing.fairplay.statistics.repository.sessionstats;
 
-import com.fairing.fairplay.statistics.entity.EventSessionStatistics;
+import com.fairing.fairplay.statistics.entity.reservation.EventSessionStatistics;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.reservation.entity.QReservationStatusCode;
 import com.fairing.fairplay.attendee.entity.QAttendee;

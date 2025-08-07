@@ -48,4 +48,9 @@ public class TicketVersion {
     public void setSnapshotFromDto(TicketSnapshotDto dto) {
         this.snapshot = JsonUtil.toJson(dto);
     }
+
+    @PrePersist
+    public void prePersist() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

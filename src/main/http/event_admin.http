@@ -1,0 +1,15 @@
+@access_token=
+
+### 행사 관리자 정보 확인
+@eventId = 1003
+GET http://localhost:8080/api/users/event-admin/{{eventId}}
+Content-Type: application/json
+
+### 행사 관리자 정보 수정
+PATCH http://localhost:8080/api/users/event-admin/{{eventId}}
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+   "contactEmail": "event_admin@google.com"
+}

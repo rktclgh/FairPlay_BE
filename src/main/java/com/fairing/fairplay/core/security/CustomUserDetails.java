@@ -15,6 +15,7 @@ public class CustomUserDetails implements UserDetails {
     private final String email;
     private final String name;
     private final String phone;
+    private final Integer roleId;
     private final String roleCode;   // ex: "ADMIN", "COMMON"
     private final String roleName;   // ex: "전체 관리자" (한글)
     private final LocalDateTime deletedAt;
@@ -25,6 +26,7 @@ public class CustomUserDetails implements UserDetails {
         this.name = user.getName();
         this.phone = user.getPhone();
         // roleCode가 null이면 익셉션 방지. (실제로는 null 아니어야 정상)
+        this.roleId = user.getRoleCode() != null ? user.getRoleCode().getId() : null;
         this.roleCode = user.getRoleCode() != null ? user.getRoleCode().getCode() : null;
         this.roleName = user.getRoleCode() != null ? user.getRoleCode().getName() : null;
         this.deletedAt = user.getDeletedAt();
@@ -34,7 +36,7 @@ public class CustomUserDetails implements UserDetails {
     public Collection<? extends GrantedAuthority> getAuthorities() {
         // 권한 없으면 빈 Set 반환 (실제론 roleCode가 null이 나오면 DB/로직 점검 필요)
         if (roleCode == null) return Collections.emptySet();
-        return Collections.singleton(() -> "ROLE_" + roleCode);
+        return Collections.singleton(() -> roleCode);
     }
 
     @Override public String getPassword() { return null; } // 필요시 user.getPassword()

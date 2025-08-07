@@ -1,15 +1,18 @@
 package com.fairing.fairplay.ticket.entity;
 
+import com.fairing.fairplay.ticket.dto.ScheduleTicketRequestDto;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "schedule_ticket")
 public class ScheduleTicket {
@@ -43,5 +46,33 @@ public class ScheduleTicket {
         this.ticket = ticket;
         this.eventSchedule = eventSchedule;
         this.id = new ScheduleTicketId(ticket.getTicketId(), eventSchedule.getScheduleId());
+    }
+
+    public static List<ScheduleTicket> fromList(List<ScheduleTicketRequestDto> ticketList, Long eventId, Long scheduleId) {
+        List<ScheduleTicket> tickets = new ArrayList<>();
+
+        ticketList.forEach(dto -> {
+            Ticket ticket = Ticket.builder()
+                    .ticketId(dto.getTicketId())
+                    .build();
+
+            EventSchedule schedule = EventSchedule.builder()
+                    .scheduleId(scheduleId)
+                    .build();
+
+            ScheduleTicket scheduleTicket = ScheduleTicket.builder()
+                    .id(new ScheduleTicketId(dto.getTicketId(), scheduleId))
+                    .ticket(ticket)
+                    .eventSchedule(schedule)
+                    .remainingStock(dto.getRemainingStock())
+                    .salesStartAt(dto.getSalesStartAt())
+                    .salesEndAt(dto.getSalesEndAt())
+                    .visible(dto.getVisible())
+                    .build();
+
+            tickets.add(scheduleTicket);
+        });
+
+        return tickets;
     }
 }

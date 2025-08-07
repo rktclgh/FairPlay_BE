@@ -1,6 +1,6 @@
 package com.fairing.fairplay.statistics.repository.ticketstats;
 
-import com.fairing.fairplay.statistics.entity.EventTicketStatistics;
+import com.fairing.fairplay.statistics.entity.reservation.EventTicketStatistics;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.ticket.entity.QTicket;
 import com.querydsl.core.Tuple;

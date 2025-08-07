@@ -14,4 +14,7 @@ public class BoothApplicationListDto {
 
     private String statusCode;
     private String paymentStatus;
+    private String boothTypeName;
+
+    private Long boothTypeId;
 }

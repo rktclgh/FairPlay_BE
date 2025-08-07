@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
+import com.fairing.fairplay.booth.entity.BoothType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -29,6 +29,10 @@ public class BoothApplication {
 
     @Column(name = "booth_description", columnDefinition = "TEXT")
     private String boothDescription;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "booth_type_id", nullable = false)
+    private BoothType boothType;
 
     @Column(name = "manager_name", nullable = false, length = 20)
     private String managerName;

@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ShareTicketSaveRequestDto {
 
-  private Long reservationId;
-  private Integer totalAllowed;
-  private LocalDateTime expiredAt;
+  private Long reservationId; // 예약ID
+  private Integer totalAllowed; // 구매한 티켓 총 개수
+  private LocalDateTime expiredAt; // 만료 날짜 (행사 시작일 or 티켓 사용일 -1)
 }
