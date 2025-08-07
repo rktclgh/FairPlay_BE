@@ -13,6 +13,7 @@ public class BoothApplicationMapper {
     // 고객 신청 요청 DTO → 엔티티 변환
     public BoothApplication toEntity(BoothApplicationRequestDto dto,
                                      Event event,
+                                     BoothType boothType,
                                      BoothApplicationStatusCode status,
                                      BoothPaymentStatusCode paymentStatus) {
 
@@ -29,8 +30,10 @@ public class BoothApplicationMapper {
         entity.setBoothApplicationStatusCode(status);
         entity.setBoothPaymentStatusCode(paymentStatus);
         entity.setApplyAt(LocalDateTime.now());
+        entity.setBoothType(boothType);
 
-        // 👇 신청 기간
+
+        // 신청 기간
         entity.setStartDate(dto.getStartDate());
         entity.setEndDate(dto.getEndDate());
 
@@ -42,6 +45,7 @@ public class BoothApplicationMapper {
         return BoothApplicationListDto.builder()
                 .id(entity.getId())
                 .boothTitle(entity.getBoothTitle())
+                .boothTypeName(entity.getBoothType().getName())
                 .applyAt(entity.getApplyAt())
                 .statusCode(entity.getBoothApplicationStatusCode().getCode())
                 .paymentStatus(entity.getBoothPaymentStatusCode().getCode())
@@ -59,6 +63,7 @@ public class BoothApplicationMapper {
                 .email(entity.getEmail())
                 .contactNumber(entity.getContactNumber())
                 .officialUrl(entity.getOfficialUrl())
+                .boothTypeName(entity.getBoothType().getName())
                 .startDate(entity.getStartDate())
                 .endDate(entity.getEndDate())
                 .statusCode(entity.getBoothApplicationStatusCode().getCode())
