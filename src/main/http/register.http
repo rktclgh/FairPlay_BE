@@ -3,9 +3,11 @@ POST http://localhost:8080/api/users/signup
 Content-Type: application/json
 
 {
-  "email": "admin2@fairplay.com",
-  "name": "전체관리자2",
-  "password": "1234",
+  "email": "admin4@fairplay.com",
+  "name": "홍길동",
+  "nickname": "전체관리자4",
+  "phone": "010-1234-1234",
+  "password": "!abcd1234",
   "roleCodeId": 1
 }
 
