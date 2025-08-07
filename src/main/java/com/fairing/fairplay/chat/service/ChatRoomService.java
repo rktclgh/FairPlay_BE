@@ -20,7 +20,7 @@ public class ChatRoomService {
         if (eventId == null) {
             // 전체관리자 문의
             return chatRoomRepository.findByUserIdAndTargetTypeAndTargetIdAndEventIdIsNull(
-                    userId, targetType.name(), targetId
+                    userId, targetType, targetId
             );
         }
         // 행사/부스/기타 문의
