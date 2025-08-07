@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface UserRepository extends JpaRepository<Users, Long> {
@@ -26,4 +27,8 @@ public interface UserRepository extends JpaRepository<Users, Long> {
         List<Users> users = findByRoleCodeCodeOrderByUserIdAsc(roleCode);
         return users.isEmpty() ? Optional.empty() : Optional.of(users.get(0));
     }
+
+    // 특정 사용자 ID들 중에서 특정 권한을 가진 사용자들 조회
+    @Query("SELECT u FROM Users u WHERE u.userId IN :userIds AND u.roleCode.code = :roleCode")
+    List<Users> findByUserIdInAndRoleCode_Code(@Param("userIds") Set<Long> userIds, @Param("roleCode") String roleCode);
 }
