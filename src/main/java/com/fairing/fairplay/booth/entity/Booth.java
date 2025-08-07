@@ -7,6 +7,7 @@ import com.fairing.fairplay.ticket.entity.BoothTicket;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -15,6 +16,7 @@ import java.util.Set;
 
 @Entity
 @Getter
+@Setter
 @NoArgsConstructor
 public class Booth {
 
