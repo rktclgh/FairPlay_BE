@@ -15,8 +15,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
@@ -30,31 +32,89 @@ public class ChatRestController {
     private final ChatRoomRepository chatRoomRepository;
     private final UserRepository userRepository;
 
-    // [유저/관리자] 내 채팅방 리스트
+    // [유저/관리자] 내 채팅방 리스트 (역할에 따라 자동으로 관리자 채팅방도 포함)
     @GetMapping("/rooms")
     public List<ChatRoomResponseDto> getMyChatRooms(@AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
-        return chatRoomService.getRoomsByUser(userId)
-                .stream()
-                .map(room -> {
-                    // 읽지 않은 메시지 수 계산
-                    Long unreadCount = chatMessageService.countUnreadMessages(room.getChatRoomId(), userId);
-                    
-                    return ChatRoomResponseDto.builder()
-                            .chatRoomId(room.getChatRoomId())
-                            .eventId(room.getEventId())
-                            .userId(room.getUserId())
-                            .targetType(room.getTargetType().name())
-                            .targetId(room.getTargetId())
-                            .createdAt(room.getCreatedAt())
-                            .closedAt(room.getClosedAt())
-                            .eventTitle(room.getEventId() != null ? 
-                                chatEventHelperService.getEventTitle(room.getEventId()) : 
-                                "전체 관리자 문의")
-                            .unreadCount(unreadCount)
-                            .build();
-                })
+        String userRole = userDetails.getRoleCode();
+        
+        // 기본 사용자 채팅방
+        List<ChatRoom> userRooms = chatRoomService.getRoomsByUser(userId);
+        List<ChatRoomResponseDto> allRooms = new ArrayList<>();
+        
+        // 사용자가 참여한 채팅방 추가
+        for (ChatRoom room : userRooms) {
+            Long unreadCount = chatMessageService.countUnreadMessages(room.getChatRoomId(), userId);
+            allRooms.add(ChatRoomResponseDto.builder()
+                    .chatRoomId(room.getChatRoomId())
+                    .eventId(room.getEventId())
+                    .userId(room.getUserId())
+                    .targetType(room.getTargetType().name())
+                    .targetId(room.getTargetId())
+                    .createdAt(room.getCreatedAt())
+                    .closedAt(room.getClosedAt())
+                    .eventTitle(room.getEventId() != null ? 
+                        chatEventHelperService.getEventTitle(room.getEventId()) : 
+                        "전체 관리자 문의")
+                    .unreadCount(unreadCount)
+                    .build());
+        }
+        
+        // 관리자인 경우 관리하는 채팅방도 추가 (백엔드에서 역할 체크)
+        if ("ADMIN".equals(userRole)) {
+            // 전체 관리자: 모든 ADMIN 타입 채팅방
+            List<ChatRoom> adminRooms = chatRoomService.getRoomsByManager(TargetType.ADMIN, userId);
+            addManagerRooms(allRooms, adminRooms, userId);
+            
+        } else if ("EVENT_MANAGER".equals(userRole)) {
+            // 행사 담당자: 자신이 담당하는 EVENT_MANAGER 타입 채팅방
+            List<ChatRoom> eventManagerRooms = chatRoomService.getRoomsByManager(TargetType.EVENT_MANAGER, userId);
+            addManagerRooms(allRooms, eventManagerRooms, userId);
+            
+        } else if ("BOOTH_MANAGER".equals(userRole)) {
+            // 부스 담당자: 자신이 담당하는 BOOTH_MANAGER 타입 채팅방
+            List<ChatRoom> boothManagerRooms = chatRoomService.getRoomsByManager(TargetType.BOOTH_MANAGER, userId);
+            addManagerRooms(allRooms, boothManagerRooms, userId);
+        }
+        
+        return allRooms.stream()
+                .distinct() // 중복 제거
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt())) // 최신순 정렬
                 .collect(Collectors.toList());
+    }
+    
+    // 관리자 채팅방을 추가하는 헬퍼 메소드
+    private void addManagerRooms(List<ChatRoomResponseDto> allRooms, List<ChatRoom> managerRooms, Long userId) {
+        Set<Long> existingRoomIds = allRooms.stream()
+                .map(ChatRoomResponseDto::getChatRoomId)
+                .collect(Collectors.toSet());
+        
+        for (ChatRoom room : managerRooms) {
+            if (!existingRoomIds.contains(room.getChatRoomId())) {
+                // 관리자로서 읽지 않은 메시지 수 계산
+                Long unreadCount = chatMessageService.countUnreadMessages(room.getChatRoomId(), userId);
+                
+                // 사용자 이름 가져오기
+                String userName = userRepository.findById(room.getUserId())
+                    .map(user -> user.getName())
+                    .orElse("알 수 없는 사용자");
+                
+                allRooms.add(ChatRoomResponseDto.builder()
+                    .chatRoomId(room.getChatRoomId())
+                    .eventId(room.getEventId())
+                    .userId(room.getUserId())
+                    .targetType(room.getTargetType().name())
+                    .targetId(room.getTargetId())
+                    .createdAt(room.getCreatedAt())
+                    .closedAt(room.getClosedAt())
+                    .eventTitle(room.getEventId() != null ? 
+                        chatEventHelperService.getEventTitle(room.getEventId()) : 
+                        "전체 관리자 문의")
+                    .userName(userName)
+                    .unreadCount(unreadCount)
+                    .build());
+            }
+        }
     }
 
     // [관리자] 내가 관리하는 채팅방 리스트 (인증 없이 테스트)
@@ -226,6 +286,32 @@ public class ChatRestController {
                 .createdAt(room.getCreatedAt())
                 .closedAt(room.getClosedAt())
                 .eventTitle(chatEventHelperService.getEventTitle(eventId))
+                .build();
+    }
+
+    // 👉 전체 관리자 문의용 API (1:N 구조로 ADMIN 권한 사용자들이 모두 볼 수 있음)
+    @PostMapping("/admin-inquiry")
+    public ChatRoomResponseDto adminInquiry(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long userId = userDetails.getUserId();
+        
+        // ADMIN 권한을 가진 사용자 ID를 찾아서 연결
+        Long adminUserId = chatEventHelperService.getAdminUserId();
+        
+        ChatRoom room = chatRoomService.getOrCreateRoom(
+                userId, TargetType.ADMIN, adminUserId, null
+        );
+
+        return ChatRoomResponseDto.builder()
+                .chatRoomId(room.getChatRoomId())
+                .eventId(room.getEventId())
+                .userId(room.getUserId())
+                .targetType(room.getTargetType().name())
+                .targetId(room.getTargetId())
+                .createdAt(room.getCreatedAt())
+                .closedAt(room.getClosedAt())
+                .eventTitle("전체 관리자 문의")
                 .build();
     }
 }

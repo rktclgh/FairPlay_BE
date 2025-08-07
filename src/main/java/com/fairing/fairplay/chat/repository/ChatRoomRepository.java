@@ -9,8 +9,8 @@ import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
-    // 전체관리자 문의 (eventId = null) → targetType은 String 타입!
-    Optional<ChatRoom> findByUserIdAndTargetTypeAndTargetIdAndEventIdIsNull(Long userId, String targetType, Long targetId);
+    // 전체관리자 문의 (eventId = null) → targetType은 Enum 타입!
+    Optional<ChatRoom> findByUserIdAndTargetTypeAndTargetIdAndEventIdIsNull(Long userId, TargetType targetType, Long targetId);
 
     // 행사/부스/기타 문의 (eventId != null) → targetType은 Enum 타입!
     Optional<ChatRoom> findByUserIdAndTargetTypeAndTargetIdAndEventId(Long userId, TargetType targetType, Long targetId, Long eventId);
