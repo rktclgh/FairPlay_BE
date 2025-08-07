@@ -2,13 +2,12 @@ package com.fairing.fairplay.booth.service;
 
 import com.fairing.fairplay.booth.dto.*;
 import com.fairing.fairplay.booth.entity.*;
-import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
-import com.fairing.fairplay.booth.repository.BoothApplicationStatusCodeRepository;
-import com.fairing.fairplay.booth.repository.BoothPaymentStatusCodeRepository;
+import com.fairing.fairplay.booth.repository.*;
 import com.fairing.fairplay.booth.mapper.BoothApplicationMapper;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 
+import com.fairing.fairplay.user.entity.BoothAdmin;
 import com.fairing.fairplay.user.entity.UserRoleCode;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
@@ -33,6 +32,9 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
     private final BoothApplicationMapper mapper;
     private final UserRepository userRepository;
     private final UserRoleCodeRepository userRoleCodeRepository;
+    private final BoothRepository boothRepository;
+    private final BoothTypeRepository boothTypeRepository;
+    private final BoothAdminRepository boothAdminRepository;
 
 
     @Override
@@ -82,6 +84,40 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
         application.setBoothApplicationStatusCode(newStatus);
         application.setAdminComment(dto.getAdminComment());
         application.setStatusUpdatedAt(LocalDateTime.now());
+
+        // 승인 시 부스 생성
+        if ("APPROVED".equals(newStatus.getCode())) {
+            BoothType boothType = boothTypeRepository.findById(1L)
+                    .orElseThrow(() -> new EntityNotFoundException("기본 부스 타입을 찾을 수 없습니다."));
+
+            // BoothAdmin 자동 생성 (없으면 생성)
+            BoothAdmin boothAdmin = boothAdminRepository.findByEmail(application.getEmail())
+                    .orElseGet(() -> {
+                        Users user = userRepository.findByEmail(application.getEmail())
+                                .orElseThrow(() -> new EntityNotFoundException("사용자 없음"));
+
+                        BoothAdmin newAdmin = new BoothAdmin();
+                        newAdmin.setUser(user);
+                        newAdmin.setEmail(application.getEmail());
+                        newAdmin.setManagerName(application.getManagerName());
+                        newAdmin.setContactNumber(application.getContactNumber());
+                        newAdmin.setOfficialUrl(application.getOfficialUrl());
+
+                        return boothAdminRepository.save(newAdmin);
+                    });
+
+            Booth booth = new Booth();
+            booth.setEvent(application.getEvent());
+            booth.setBoothTitle(application.getBoothTitle());
+            booth.setBoothDescription(application.getBoothDescription());
+            booth.setStartDate(application.getStartDate());
+            booth.setEndDate(application.getEndDate());
+            booth.setLocation("위치 미정");
+            booth.setBoothType(boothType);
+            booth.setBoothAdmin(boothAdmin);
+
+            boothRepository.save(booth);
+        }
     }
 
     @Override
