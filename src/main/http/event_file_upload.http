@@ -1,4 +1,4 @@
-@access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzNSIsImVtYWlsIjoiYWRtaW40QGZhaXJwbGF5LmNvbSIsInJvbGUiOiLsoITssrQg6rSA66as7J6QIiwiaWF0IjoxNzU0NTQ4Nzc1LCJleHAiOjE3NTQ1NDkzNzV9.qJElvCF-_pC3UF43bNRagqcWKUnFC6QMzvItiFRppJw
+@access_token=
 
 ### 1단계: 파일 임시 업로드
 # 먼저 이 요청을 실행하여 파일을 임시 업로드하고, 응답으로 받은 JSON에서
@@ -29,7 +29,7 @@ Content-Type: image/jpeg
 # - originalFileName: 1단계의 "name" 값
 # - fileType: 1단계의 "type" 값
 # - fileSize: 실제 파일 크기 (bytes)
-POST http://localhost:9000/api/events/1/details
+PATCH http://localhost:9000/api/events/1/details
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 Origin: http://localhost:5173
@@ -40,13 +40,51 @@ Origin: http://localhost:5173
   "startDate": "2025-10-01",
   "endDate": "2025-10-03",
   "mainCategoryId": 1,
-  "subCategoryId": 1,
+  "subCategoryId": 101,
   "tempFiles": [
     {
       "s3Key": "여기에_1단계_key값_붙여넣기",
-      "originalFileName": "여기에_1단계_name값_붙여넣기",
-      "fileType": "여기에_1단계_type값_붙여넣기",
+      "originalFileName": "malone.jpg",
+      "fileType": "image/jpeg",
       "fileSize": 12345,
+      "usage": "content"
+    }
+  ]
+}
+
+### 3단계: 파일 삭제 테스트
+# 이전에 업로드하여 DB에 저장된 파일의 ID를 사용하여 삭제를 테스트합니다.
+# {fileId}를 실제 파일 ID로 변경하세요. (DB에서 확인)
+DELETE http://localhost:9000/api/files/2
+Authorization: Bearer {{access_token}}
+Origin: http://localhost:5173
+
+### 4단계: 이미지 교체 테스트 (기존 파일 삭제 + 새 파일 업로드)
+# 1. 먼저 1단계 요청을 다시 실행하여 새로운 임시 파일 정보를 얻습니다.
+# 2. 아래 JSON 본문에서 "deletedFileIds"에 삭제할 기존 파일의 ID를 넣고,
+#    "tempFiles"에 1단계에서 얻은 새로운 임시 파일 정보를 채워넣습니다.
+# 3. {eventId}를 실제 행사 ID로, {{access_token}}을 실제 JWT 토큰으로 변경하세요.
+PATCH http://localhost:9000/api/events/1/details
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+Origin: http://localhost:5173
+
+{
+  "content": "<p>행사 내용입니다. (업데이트됨)</p><img src=\"/api/uploads/download?여기에_1단계_key값_붙여넣기\">",
+  "policy": "환불 정책입니다. (업데이트됨)",
+  "startDate": "2025-10-01",
+  "endDate": "2025-10-03",
+  "mainCategoryId": 1,
+  "subCategoryId": 101,
+  "deletedFileIds": [
+    4
+  ],
+  "tempFiles": [
+    {
+      "s3Key": "여기에_1단계_key값_붙여넣기",
+      "originalFileName": "malone.jpg",
+      "fileType": "image/jpeg",
+      "fileSize": 67890,
       "usage": "content"
     }
   ]

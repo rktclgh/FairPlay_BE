@@ -63,7 +63,7 @@ public class EventService {
     private final FileService fileService;
 
     @Value("${cloud.aws.s3.bucket-name}")
-    private String bucket;
+    private String bucketName;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -669,6 +669,16 @@ public class EventService {
 
     private void processFiles(EventDetail eventDetail, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
         log.info("파일 처리 시작");
+
+        // 1. 삭제할 파일 처리
+        if (eventDetailRequestDto.getDeletedFileIds() != null && !eventDetailRequestDto.getDeletedFileIds().isEmpty()) {
+            log.info("삭제할 파일 ID: {}", eventDetailRequestDto.getDeletedFileIds());
+            for (Long fileId : eventDetailRequestDto.getDeletedFileIds()) {
+                fileService.deleteFile(fileId);
+            }
+        }
+
+        // 2. 새로 업로드할 파일 처리
         if (eventDetailRequestDto.getTempFiles() == null || eventDetailRequestDto.getTempFiles().isEmpty()) {
             return;
         }

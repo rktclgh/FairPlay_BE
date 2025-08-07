@@ -1,5 +1,6 @@
 package com.fairing.fairplay.file.service;
 
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.entity.EventApply;
@@ -11,6 +12,7 @@ import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.repository.FileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +55,15 @@ public class FileService {
                 .fileId(savedFile.getId())
                 .fileUrl(awsS3Service.getPublicUrl(newKey))
                 .build();
+    }
+
+    @Transactional
+    public void deleteFile(Long fileId) {
+        File file = fileRepository.findById(fileId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
+
+        awsS3Service.deleteFile(file.getFileUrl());
+        fileRepository.delete(file);
     }
 
     private String extractFileName(String key) {

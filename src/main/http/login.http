@@ -1,5 +1,5 @@
 ### 일반 사용자 로그인
-POST http://localhost:8080/api/auth/login
+POST http://localhost:9000/api/auth/login
 Content-Type: application/json
 
 {
@@ -8,7 +8,7 @@ Content-Type: application/json
 }
 
 ### 부스 관리자 로그인
-POST http://localhost:8080/api/auth/login
+POST http://localhost:9000/api/auth/login
 Content-Type: application/json
 
 {
@@ -17,7 +17,7 @@ Content-Type: application/json
 }
 
 ### 행사 관리자 로그인
-POST http://localhost:8080/api/auth/login
+POST http://localhost:9000/api/auth/login
 Content-Type: application/json
 
 {
@@ -26,7 +26,7 @@ Content-Type: application/json
 }
 
 ### 전체 관리자 로그인
-POST http://localhost:8080/api/auth/login
+POST http://localhost:9000/api/auth/login
 Content-Type: application/json
 
 {
@@ -36,10 +36,10 @@ Content-Type: application/json
 
 
 ### 로그아웃
-POST http://localhost:8080/api/auth/logout
+POST http://localhost:9000/api/auth/logout
 Content-Type: application/json
 
 
 ### 리프레시
-POST http://localhost:8080/api/auth/refresh
+POST http://localhost:9000/api/auth/refresh
 Content-Type: application/json

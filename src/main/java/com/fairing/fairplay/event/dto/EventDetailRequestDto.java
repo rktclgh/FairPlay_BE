@@ -39,6 +39,7 @@ public class EventDetailRequestDto { // 행사 상세 등록
     private Boolean checkOutAllowed;
 
     private List<FileUploadDto> tempFiles; // 임시 업로드 파일 정보
+    private List<Long> deletedFileIds; // 삭제할 파일 ID 목록
 
     @Getter
     @Setter
