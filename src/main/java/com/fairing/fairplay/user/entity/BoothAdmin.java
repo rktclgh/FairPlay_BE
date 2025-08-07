@@ -12,9 +12,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import com.fairing.fairplay.user.entity.Users;
+import lombok.Setter;
 
 @Entity
 @Getter
+@Setter
 @NoArgsConstructor
 @Table(name = "booth_admin")
 public class BoothAdmin {
