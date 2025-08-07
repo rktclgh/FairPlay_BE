@@ -20,7 +20,7 @@ public class EventSummaryDto {  // 메인페이지, 검색 등에서 표시될 �
     private LocalDate startDate;                // 행사 시작일
     private LocalDate endDate;                  // 행사 종료일
     private String thumbnailUrl;                // 썸네일 URL
-    private String region;                  // 지역 코드
+    private String region;                  // 지역명
 
     @QueryProjection
     public EventSummaryDto(Long id, String eventCode, Boolean hidden, String title,
