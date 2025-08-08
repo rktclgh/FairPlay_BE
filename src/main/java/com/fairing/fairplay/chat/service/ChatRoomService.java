@@ -18,7 +18,7 @@ public class ChatRoomService {
 
     public Optional<ChatRoom> getChatRoom(Long userId, TargetType targetType, Long targetId, Long eventId) {
         if (eventId == null) {
-            // 전체관리자 문의
+            // 전체관리자 문의 - eventId가 null인 경우
             return chatRoomRepository.findByUserIdAndTargetTypeAndTargetIdAndEventIdIsNull(
                     userId, targetType, targetId
             );
@@ -35,7 +35,7 @@ public class ChatRoomService {
                         .userId(userId)
                         .targetType(targetType)
                         .targetId(targetId)
-                        .eventId(eventId)
+                        .eventId(eventId)  // null 허용
                         .createdAt(LocalDateTime.now())
                         .build()));
     }
