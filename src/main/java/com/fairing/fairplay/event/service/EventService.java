@@ -90,7 +90,7 @@ public class EventService {
      *      5. version 1로 설정
      */
 
-    // 전체 관리자가 구독 생성
+    // 전체 관리자가 행사 생성
     @Transactional
     public EventResponseDto createEvent(Long adminId, EventRequestDto eventRequestDto) {
 
@@ -253,30 +253,49 @@ public class EventService {
                 .toList();
 
         int versionNumber = eventVersionRepository.findTopByEventOrderByVersionNumberDesc(event)
-                .map(latestVersion -> latestVersion.getVersionNumber())
+                .map(EventVersion::getVersionNumber)
                 .orElse(1);
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, versionNumber, "이벤트 상세 정보 조회가 완료되었습니다.");
     }
 
-    // 행사명 및 숨김 상태 업데이트
+    // 썸네일 및 숨김 상태 업데이트
     @Transactional
-    public EventResponseDto updateEvent(Long eventId, EventRequestDto eventRequestDto, Long managerId) {
+    public EventResponseDto updateEvent(Long eventId, EventStatusThumbnailDto eventRequestDto, Long managerId) {
 
         Event event = checkEventAndDetail(eventId, "update");
+        Integer newVersion = createVersion(event, managerId);
+        EventDetail eventDetail = event.getEventDetail();
 
-        if (eventRequestDto.getTitleKr() != null) {
-            event.setTitleKr(eventRequestDto.getTitleKr());
+        // 썸네일 파일 처리
+        if (eventRequestDto.getThumbnailFile() != null) {
+            EventStatusThumbnailDto.FileUploadDto fileDto = eventRequestDto.getThumbnailFile();
+            String directoryPrefix = "event/" + eventId + "/thumbnail";
+
+            // 기존 썸네일 삭제
+            if (eventDetail.getThumbnailUrl() != null && !eventDetail.getThumbnailUrl().isEmpty()) {
+                String existingS3Key = awsS3Service.getS3KeyFromPublicUrl(eventDetail.getThumbnailUrl());
+                if (existingS3Key != null) {
+                    fileService.deleteFileByS3Key(existingS3Key);
+                }
+            }
+
+            S3UploadResponseDto s3UploadResponseDto = fileService.uploadFile(S3UploadRequestDto.builder()
+                    .s3Key(fileDto.getS3Key())
+                    .eventId(eventId)
+                    .originalFileName(fileDto.getOriginalFileName())
+                    .fileType(fileDto.getFileType())
+                    .fileSize(fileDto.getFileSize())
+                    .directoryPrefix(directoryPrefix)
+                    .build());
+            eventDetail.setThumbnailUrl(s3UploadResponseDto.getFileUrl());
+            log.info("썸네일 변경 완료");
         }
 
-        if (eventRequestDto.getTitleEng() != null) {
-            event.setTitleEng(eventRequestDto.getTitleEng());
-        }
 
         if (eventRequestDto.getHidden() != null) {
             event.setHidden(eventRequestDto.getHidden());
+            log.info("숨김 상태 변경");
         }
-
-        Integer newVersion = createVersion(event, managerId);
 
         Event savedEvent = eventRepository.save(event);
 
@@ -349,16 +368,20 @@ public class EventService {
 
     // 행사 소프트 딜리트
     @Transactional
-    public void softDeleteEvent(Long eventId) {
+    public void softDeleteEvent(Long eventId, Long managerId) {
         log.info("행사 소프트 딜리트 시작");
 
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
 
+        createVersion(event, managerId);
+
         event.setIsDeleted(true);
         event.setHidden(true);  // 숨김 처리
-    }
 
+        eventRepository.saveAndFlush(event);
+        log.info("행사 소프트 딜리트 완료");
+    }
 
     // 행사 삭제 - 하위 테이블 데이터도 모두 삭제
     @Transactional
