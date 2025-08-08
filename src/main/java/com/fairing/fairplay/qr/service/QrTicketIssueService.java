@@ -39,7 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class QrTicketManager {
+public class QrTicketIssueService{
 
   private final QrTicketRepository qrTicketRepository;
   private final ReservationRepository reservationRepository;
