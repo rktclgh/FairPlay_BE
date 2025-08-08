@@ -17,4 +17,7 @@ public class BannerResponseDto {
     private LocalDateTime startDate;
     private LocalDateTime endDate;
     private String statusCode;
+    private String bannerTypeCode;
+    private boolean hot;
+    private boolean mdPick;
 }

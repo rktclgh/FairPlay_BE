@@ -62,8 +62,8 @@ public class ChatRestController {
         
         // 관리자인 경우 관리하는 채팅방도 추가 (백엔드에서 역할 체크)
         if ("ADMIN".equals(userRole)) {
-            // 전체 관리자: 모든 ADMIN 타입 채팅방
-            List<ChatRoom> adminRooms = chatRoomService.getRoomsByManager(TargetType.ADMIN, userId);
+            // 전체 관리자: 모든 ADMIN 타입 채팅방 (1:N 구조)
+            List<ChatRoom> adminRooms = chatRoomService.getAllAdminRooms();
             addManagerRooms(allRooms, adminRooms, userId);
             
         } else if ("EVENT_MANAGER".equals(userRole)) {

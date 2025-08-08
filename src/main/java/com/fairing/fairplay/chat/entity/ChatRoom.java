@@ -20,14 +20,14 @@ public class ChatRoom {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long chatRoomId;
 
-    @Column
+    @Column(nullable = true)
     private Long eventId;  // 전체관리자 문의면 null
 
     @Column(nullable = false)
     private Long userId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private TargetType targetType; // import 필요
 
     @Column(nullable = false)

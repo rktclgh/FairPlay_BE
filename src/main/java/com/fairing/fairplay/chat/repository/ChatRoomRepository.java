@@ -20,4 +20,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     // 특정 관리자/운영자가 관리하는 채팅방 리스트 (운영자/관리자 채팅 관리용)
     List<ChatRoom> findByTargetTypeAndTargetIdOrderByCreatedAtDesc(TargetType targetType, Long targetId);
+
+    // ADMIN 타입의 모든 채팅방 조회 (전체 관리자가 모든 문의를 볼 수 있도록)
+    List<ChatRoom> findByTargetTypeOrderByCreatedAtDesc(TargetType targetType);
 }

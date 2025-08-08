@@ -1,6 +1,7 @@
 package com.fairing.fairplay.statistics.repository.salesstats;
 
 import com.fairing.fairplay.payment.entity.QPaymentStatusCode;
+import com.fairing.fairplay.payment.entity.QPaymentTargetType;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.statistics.dto.sales.RawSalesData;
 import com.fairing.fairplay.ticket.entity.QEventSchedule;
@@ -42,7 +43,8 @@ public class SalesRawDataRepositoryImpl implements SalesRawDataRepository {
                         ps.code
                 )
                 .from(p)
-                .join(r).on(p.reservation.reservationId.eq(r.reservationId))
+                .join(r).on(p.targetId.eq(r.reservationId)
+                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION")))
                 .join(s).on(r.schedule.scheduleId.eq(s.scheduleId))
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .join(ps).on(p.paymentStatusCode.paymentStatusCodeId.eq(ps.paymentStatusCodeId))
@@ -84,7 +86,8 @@ public class SalesRawDataRepositoryImpl implements SalesRawDataRepository {
                         ps.code
                 )
                 .from(p)
-                .join(r).on(p.reservation.reservationId.eq(r.reservationId))
+                .join(r).on(p.targetId.eq(r.reservationId)
+                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION")))
                 .join(s).on(r.schedule.scheduleId.eq(s.scheduleId))
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .join(ps).on(p.paymentStatusCode.paymentStatusCodeId.eq(ps.paymentStatusCodeId))
@@ -122,7 +125,8 @@ public class SalesRawDataRepositoryImpl implements SalesRawDataRepository {
         return queryFactory
                 .select(p.count())
                 .from(p)
-                .join(r).on(p.reservation.reservationId.eq(r.reservationId))
+                .join(r).on(p.targetId.eq(r.reservationId)
+                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION")))
                 .join(s).on(r.schedule.scheduleId.eq(s.scheduleId))
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .join(ps).on(p.paymentStatusCode.paymentStatusCodeId.eq(ps.paymentStatusCodeId))

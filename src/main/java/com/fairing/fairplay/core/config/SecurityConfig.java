@@ -56,7 +56,9 @@ public class SecurityConfig {
                                 "/api/qr-tickets/*",
                                 "/api/qr-tickets/reissue",
                                 "/ws/**", // ★ 반드시 필요
-                                "/api/chat/**"
+                                "/api/chat/**",
+                                "/api/uploads/**",
+                                "/api/payments/complete"  // PG사에서 호출하는 결제 완료 웹훅
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

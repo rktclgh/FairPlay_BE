@@ -1,27 +1,38 @@
 package com.fairing.fairplay.event.service;
 
+import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
 import com.fairing.fairplay.event.repository.*;
+import com.fairing.fairplay.file.dto.S3UploadRequestDto;
+import com.fairing.fairplay.file.dto.S3UploadResponseDto;
+import com.fairing.fairplay.file.service.FileService;
+import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.payment.repository.PaymentRepository;
+import com.fairing.fairplay.reservation.entity.Reservation;
+import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.repository.EventAdminRepository;
+import com.fairing.fairplay.wishlist.repository.WishlistRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hashids.Hashids;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import software.amazon.awssdk.services.s3.S3Client;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.time.LocalDate;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -43,6 +54,17 @@ public class EventService {
     private final EventVersionRepository eventVersionRepository;
     private final EventTicketRepository eventTicketIdRepository;
     private final BoothRepository boothRepository;
+    private final WishlistRepository wishlistRepository;
+    private final BoothApplicationRepository boothApplicationRepository;
+    private final PaymentRepository paymentRepository;
+    private final ReservationRepository reservationRepository;
+    private final EventScheduleRepository eventScheduleRepository;
+    private final S3Client s3client;
+    private final AwsS3Service awsS3Service;
+    private final FileService fileService;
+
+    @Value("${cloud.aws.s3.bucket-name}")
+    private String bucketName;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -69,7 +91,7 @@ public class EventService {
      *      5. version 1로 설정
      */
 
-    // 전체 관리자가 구독 생성
+    // 전체 관리자가 행사 생성
     @Transactional
     public EventResponseDto createEvent(Long adminId, EventRequestDto eventRequestDto) {
 
@@ -105,7 +127,7 @@ public class EventService {
         // Hashid로 고유 코드 생성
         Event savedEvent = eventRepository.save(event);
         String eventCode = encode(savedEvent.getEventId());
-        savedEvent.setEventCode(eventCode);
+        savedEvent.setEventCode("EVT-" + eventCode);
 
         // 첫 번째 버전 생성
         log.info("첫 번째 버전 생성 for eventId: {}", savedEvent.getEventId());
@@ -147,6 +169,9 @@ public class EventService {
         // 행사 정보 설정
         setEventDetailInfo(eventDetail, eventDetailRequestDto);
 
+        // 파일 처리
+        processFiles(eventDetail, eventDetailRequestDto, eventId);
+
         // 카테고리 설정
         setCategories(eventDetail, eventDetailRequestDto);
 
@@ -176,9 +201,21 @@ public class EventService {
 
     // 행사 목록 조회 (메인페이지, 검색 등) - EventDetail 정보 등록해야 보임
     @Transactional
-    public EventSummaryResponseDto getEvents(Pageable pageable) {
-        Page<EventSummaryDto> eventPage = eventQueryRepository.findEventSummaries(pageable);
+    public EventSummaryResponseDto getEvents(
+            String keyword, Integer mainCategoryId, Integer subCategoryId,
+            String regionName, LocalDate fromDate, LocalDate toDate, Pageable pageable) {
+        log.info("행사 목록 조회 필터");
+        log.info("keyword : {}", keyword);
+        log.info("mainCategoryId : {}", mainCategoryId);
+        log.info("subCategoryId : {}", subCategoryId);
+        log.info("regionName : {}", regionName);
+        log.info("fromDate : {}", fromDate);
+        log.info("toDate : {}", toDate);
 
+        Page<EventSummaryDto> eventPage = eventQueryRepository.findEventSummariesWithFilters (
+                keyword, mainCategoryId, subCategoryId, regionName, fromDate, toDate, pageable);
+
+        log.info("행사 목록 조회 완료: {}", eventPage.getTotalElements());
         return EventSummaryResponseDto.builder()
                 .message("행사 목록 조회가 완료되었습니다.")
                 .events(eventPage.getContent())
@@ -216,31 +253,53 @@ public class EventService {
                         .build())
                 .toList();
 
+        event.incrementViewCount();
+        log.info("행사 조회 성공 및 조회 수 증가: {}", event.getViewCount());
+
         int versionNumber = eventVersionRepository.findTopByEventOrderByVersionNumberDesc(event)
-                .map(latestVersion -> latestVersion.getVersionNumber())
+                .map(EventVersion::getVersionNumber)
                 .orElse(1);
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, versionNumber, "이벤트 상세 정보 조회가 완료되었습니다.");
     }
 
-    // 행사명 및 숨김 상태 업데이트
+    // 썸네일 및 숨김 상태 업데이트
     @Transactional
-    public EventResponseDto updateEvent(Long eventId, EventRequestDto eventRequestDto, Long managerId) {
+    public EventResponseDto updateEvent(Long eventId, EventStatusThumbnailDto eventRequestDto, Long managerId) {
 
         Event event = checkEventAndDetail(eventId, "update");
+        Integer newVersion = createVersion(event, managerId);
+        EventDetail eventDetail = event.getEventDetail();
 
-        if (eventRequestDto.getTitleKr() != null) {
-            event.setTitleKr(eventRequestDto.getTitleKr());
+        // 썸네일 파일 처리
+        if (eventRequestDto.getThumbnailFile() != null) {
+            EventStatusThumbnailDto.FileUploadDto fileDto = eventRequestDto.getThumbnailFile();
+            String directoryPrefix = "event/" + eventId + "/thumbnail";
+
+            // 기존 썸네일 삭제
+            if (eventDetail.getThumbnailUrl() != null && !eventDetail.getThumbnailUrl().isEmpty()) {
+                String existingS3Key = awsS3Service.getS3KeyFromPublicUrl(eventDetail.getThumbnailUrl());
+                if (existingS3Key != null) {
+                    fileService.deleteFileByS3Key(existingS3Key);
+                }
+            }
+
+            S3UploadResponseDto s3UploadResponseDto = fileService.uploadFile(S3UploadRequestDto.builder()
+                    .s3Key(fileDto.getS3Key())
+                    .eventId(eventId)
+                    .originalFileName(fileDto.getOriginalFileName())
+                    .fileType(fileDto.getFileType())
+                    .fileSize(fileDto.getFileSize())
+                    .directoryPrefix(directoryPrefix)
+                    .build());
+            eventDetail.setThumbnailUrl(s3UploadResponseDto.getFileUrl());
+            log.info("썸네일 변경 완료");
         }
 
-        if (eventRequestDto.getTitleEng() != null) {
-            event.setTitleEng(eventRequestDto.getTitleEng());
-        }
 
         if (eventRequestDto.getHidden() != null) {
             event.setHidden(eventRequestDto.getHidden());
+            log.info("숨김 상태 변경");
         }
-
-        Integer newVersion = createVersion(event, managerId);
 
         Event savedEvent = eventRepository.save(event);
 
@@ -280,6 +339,9 @@ public class EventService {
         // 행사 정보 설정
         setEventDetailInfo(eventDetail, eventDetailRequestDto);
 
+        // 파일 처리
+        processFiles(eventDetail, eventDetailRequestDto, eventId);
+
         // 카테고리 설정
         setCategories(eventDetail, eventDetailRequestDto);
 
@@ -308,6 +370,22 @@ public class EventService {
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, newVersion, "이벤트 상세 정보가 업데이트되었습니다.");
     }
 
+    // 행사 소프트 딜리트
+    @Transactional
+    public void softDeleteEvent(Long eventId, Long managerId) {
+        log.info("행사 소프트 딜리트 시작");
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+
+        createVersion(event, managerId);
+
+        event.setIsDeleted(true);
+        event.setHidden(true);  // 숨김 처리
+
+        eventRepository.saveAndFlush(event);
+        log.info("행사 소프트 딜리트 완료");
+    }
 
     // 행사 삭제 - 하위 테이블 데이터도 모두 삭제
     @Transactional
@@ -316,6 +394,28 @@ public class EventService {
 
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+
+        boolean hasPayments = !paymentRepository.findByEvent_EventId(eventId).isEmpty();
+        boolean hasBoothPayments = boothApplicationRepository.findByEvent_EventId(eventId).stream()
+                .anyMatch(app -> app.getBoothPaymentStatusCode().getId() != 1);
+
+        if (hasPayments || hasBoothPayments) {
+            if (!event.getStatusCode().getCode().equals("ENDED")) {
+                throw new CustomException(HttpStatus.BAD_REQUEST, "결제 내역이 있는 행사는 종료된 후에만 삭제할 수 있습니다.");
+            }
+        }
+
+        // 1. Payment 삭제 (이벤트 기반으로 직접 삭제)
+        List<Payment> payments = paymentRepository.findByEvent_EventId(eventId);
+        if (!payments.isEmpty()) {
+            paymentRepository.deleteAll(payments);
+        }
+        
+        // 2. Reservation 삭제
+        List<Reservation> reservations = reservationRepository.findByEvent_EventId(eventId);
+        reservationRepository.deleteAll(reservations);
+
+        // 3. 나머지 엔티티 삭제
         EventDetail eventDetail = event.getEventDetail();
 
         if (eventDetail != null) {
@@ -326,12 +426,62 @@ public class EventService {
             externalLinkRepository.deleteAll(event.getExternalLinks());
         }
 
+        eventTicketIdRepository.deleteAll(event.getEventTickets());
+
+        boothRepository.deleteAll(event.getBooths());
+
+        eventScheduleRepository.deleteAll(eventScheduleRepository.findByEvent_EventId(eventId));
+
+        wishlistRepository.deleteAllByEvent(event);
+
+        boothApplicationRepository.deleteAllByEvent(event);
+
         eventVersionRepository.deleteAll(event.getEventVersions());
+        eventRepository.deleteById(eventId);
+
+        log.info("행사 삭제 완료");
+    }
+
+    // 행사 강제 삭제
+    @Transactional
+    public void forcedDeleteEvent(Long eventId) {
+        log.info("행사 강제 삭제");
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
+
+        // 1. Payment 삭제 (이벤트 기반으로 직접 삭제)
+        List<Payment> payments = paymentRepository.findByEvent_EventId(eventId);
+        if (!payments.isEmpty()) {
+            paymentRepository.deleteAll(payments);
+        }
+        
+        // 2. Reservation 삭제
+        List<Reservation> reservations = reservationRepository.findByEvent_EventId(eventId);
+        reservationRepository.deleteAll(reservations);
+
+        // 3. 나머지 엔티티 삭제
+        EventDetail eventDetail = event.getEventDetail();
+
+        if (eventDetail != null) {
+            eventDetailRepository.delete(eventDetail);
+        }
+
+        if (event.getExternalLinks() != null) {
+            externalLinkRepository.deleteAll(event.getExternalLinks());
+        }
 
         eventTicketIdRepository.deleteAll(event.getEventTickets());
 
         boothRepository.deleteAll(event.getBooths());
 
+        eventScheduleRepository.deleteAll(eventScheduleRepository.findByEvent_EventId(eventId));
+
+        wishlistRepository.deleteAllByEvent(event);
+
+        boothApplicationRepository.deleteAllByEvent(event);
+
+        eventVersionRepository.deleteAll(event.getEventVersions());
         eventRepository.deleteById(eventId);
 
         log.info("행사 삭제 완료");
@@ -401,7 +551,8 @@ public class EventService {
 
         Location location = eventDetail.getLocation();
         if (mode.equals("create")) {
-            location = new Location();
+            Location existingLocation = locationRepository.findByPlaceName(eventDetailRequestDto.getPlaceName());
+            location = Objects.requireNonNullElseGet(existingLocation, Location::new);
         }
 
         if (eventDetailRequestDto.getAddress() != null) location.setAddress(eventDetailRequestDto.getAddress());
@@ -528,6 +679,7 @@ public class EventService {
                 .createdAt(detail.getCreatedAt())
                 .updatedAt(detail.getUpdatedAt())
                 .version(version)
+                .viewCount(event.getViewCount())
                 .titleKr(event.getTitleKr())
                 .titleEng(event.getTitleEng())
                 .hidden(event.getHidden())
@@ -556,4 +708,60 @@ public class EventService {
                 .checkOutAllowed(detail.getCheckOutAllowed())
                 .build();
     }
+
+    private void processFiles(EventDetail eventDetail, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
+        log.info("파일 처리 시작");
+
+        // 1. 삭제할 파일 처리
+        if (eventDetailRequestDto.getDeletedFileIds() != null && !eventDetailRequestDto.getDeletedFileIds().isEmpty()) {
+            log.info("삭제할 파일 ID: {}", eventDetailRequestDto.getDeletedFileIds());
+            for (Long fileId : eventDetailRequestDto.getDeletedFileIds()) {
+                fileService.deleteFile(fileId);
+            }
+        }
+
+        // 2. 새로 업로드할 파일 처리
+        if (eventDetailRequestDto.getTempFiles() == null || eventDetailRequestDto.getTempFiles().isEmpty()) {
+            return;
+        }
+
+        for (EventDetailRequestDto.FileUploadDto fileDto : eventDetailRequestDto.getTempFiles()) {
+            String directoryPrefix = "event/" + eventId + "/" + fileDto.getUsage();
+
+            S3UploadResponseDto s3UploadResponseDto = fileService.uploadFile(S3UploadRequestDto.builder()
+                    .s3Key(fileDto.getS3Key())
+                    .eventId(eventId)
+                    .originalFileName(fileDto.getOriginalFileName())
+                    .fileType(fileDto.getFileType())
+                    .fileSize(fileDto.getFileSize())
+                    .directoryPrefix(directoryPrefix)
+                    .build());
+
+            String tempUrl = "/api/uploads/download?key=" + fileDto.getS3Key();
+            String publicUrl = s3UploadResponseDto.getFileUrl();
+
+            switch (fileDto.getUsage()) {
+                case "thumbnail":
+                    eventDetail.setThumbnailUrl(publicUrl);
+                    break;
+                case "content":
+                    if (eventDetail.getContent() != null) {
+                        eventDetail.setContent(eventDetail.getContent().replace(tempUrl, publicUrl));
+                    }
+                    break;
+                case "bio":
+                    if (eventDetail.getBio() != null) {
+                        eventDetail.setBio(eventDetail.getBio().replace(tempUrl, publicUrl));
+                    }
+                    break;
+                case "policy":
+                    if (eventDetail.getPolicy() != null) {
+                        eventDetail.setPolicy(eventDetail.getPolicy().replace(tempUrl, publicUrl));
+                    }
+                    break;
+            }
+        }
+    }
+
+
 }

@@ -1,16 +1,14 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
-
 import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
-
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
-
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -43,13 +41,13 @@ public class QrTicketAttendeeService {
     }
   }
 
-  public AttendeeTypeCode findPrimaryTypeCode(){
+  public AttendeeTypeCode findPrimaryTypeCode() {
     return attendeeTypeCodeRepository.findByCode(AttendeeTypeCode.PRIMARY).orElseThrow(
         () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "참석자 타입이 옳지 않습니다.")
     );
   }
 
-  public AttendeeTypeCode findGuestTypeCode(){
+  public AttendeeTypeCode findGuestTypeCode() {
     return attendeeTypeCodeRepository.findByCode(AttendeeTypeCode.GUEST).orElseThrow(
         () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "참석자 타입이 옳지 않습니다.")
     );
@@ -60,11 +58,11 @@ public class QrTicketAttendeeService {
         () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "참석자 타입 코드가 옳지 않습니다.")
     );
 
-    if (attendeeTypeCode.getId() == 1) {
+    if (Objects.equals(attendeeTypeCode.getCode(), AttendeeTypeCode.PRIMARY)) {
       return attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Id(
               dto.getReservationId(), attendeeTypeCode.getId())
           .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "대표 참석자를 찾을 수 없습니다."));
-    } else if (attendeeTypeCode.getId() == 2) {
+    } else if (Objects.equals(attendeeTypeCode.getCode(), AttendeeTypeCode.GUEST)) {
       if (dto.getAttendeeId() == null) {
         throw new CustomException(HttpStatus.BAD_REQUEST, "동반자 참석자 ID가 필요합니다.");
       }
