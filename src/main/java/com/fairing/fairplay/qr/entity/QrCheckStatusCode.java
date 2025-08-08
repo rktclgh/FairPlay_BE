@@ -20,6 +20,8 @@ import lombok.Setter;
 @Builder
 @Table(name = "qr_check_status_code")
 public class QrCheckStatusCode {
+  public static final String CHECKIN = "CHECKIN";
+  public static final String CHECKOUT = "CHECKOUT";
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
