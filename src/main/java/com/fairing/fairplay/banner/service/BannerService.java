@@ -4,6 +4,10 @@ import com.fairing.fairplay.banner.dto.*;
 import com.fairing.fairplay.banner.entity.*;
 import com.fairing.fairplay.banner.repository.*;
 import com.fairing.fairplay.admin.entity.AdminAccount;
+import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.file.dto.S3UploadRequestDto;
+import com.fairing.fairplay.file.dto.S3UploadResponseDto;
+import com.fairing.fairplay.file.service.FileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,15 +24,29 @@ public class BannerService {
     private final BannerStatusCodeRepository bannerStatusCodeRepository;
     private final BannerActionCodeRepository bannerActionCodeRepository;
     private final BannerLogRepository bannerLogRepository;
+    private final FileService fileService;
+    private final AwsS3Service awsS3Service;
 
     // 배너 등록
     @Transactional
     public BannerResponseDto createBanner(BannerRequestDto dto, Long adminId) {
         BannerStatusCode statusCode = getStatusCode(dto.getStatusCode());
 
+        // S3 업로드 처리
+        String directoryPrefix = "banner"; // 영구 저장 디렉토리
+        S3UploadResponseDto uploadResult = fileService.uploadFile(
+                S3UploadRequestDto.builder()
+                        .s3Key(dto.getS3Key()) // 프론트에서 받은 임시 s3Key
+                        .originalFileName(dto.getOriginalFileName())
+                        .fileType(dto.getFileType())
+                        .fileSize(dto.getFileSize())
+                        .directoryPrefix(directoryPrefix)
+                        .build()
+        );
+
         Banner banner = new Banner(
                 dto.getTitle(),
-                dto.getImageUrl(),
+                uploadResult.getFileUrl(),
                 dto.getLinkUrl(),
                 dto.getPriority(),
                 dto.getStartDate(),
@@ -48,10 +66,27 @@ public class BannerService {
         Banner banner = getBanner(bannerId);
         BannerStatusCode statusCode = getStatusCode(dto.getStatusCode());
 
-        banner.updateInfo(dto.getTitle(), dto.getImageUrl(), dto.getLinkUrl(),
-                dto.getStartDate(), dto.getEndDate(), dto.getPriority());
-        banner.updateStatus(statusCode);
+        // 새 이미지가 있을 경우 S3 재업로드
+        if (dto.getS3Key() != null) {
+            String directoryPrefix = "banner";
+            S3UploadResponseDto uploadResult = fileService.uploadFile(
+                    S3UploadRequestDto.builder()
+                            .s3Key(dto.getS3Key())
+                            .originalFileName(dto.getOriginalFileName())
+                            .fileType(dto.getFileType())
+                            .fileSize(dto.getFileSize())
+                            .directoryPrefix(directoryPrefix)
+                            .build()
+            );
 
+            banner.updateInfo(dto.getTitle(), uploadResult.getFileUrl(), dto.getLinkUrl(),
+                    dto.getStartDate(), dto.getEndDate(), dto.getPriority());
+        } else {
+            banner.updateInfo(dto.getTitle(), dto.getImageUrl(), dto.getLinkUrl(),
+                    dto.getStartDate(), dto.getEndDate(), dto.getPriority());
+        }
+
+        banner.updateStatus(statusCode);
         logBannerAction(banner, adminId, "UPDATE");
 
         return toDto(banner);
