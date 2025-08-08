@@ -220,17 +220,16 @@ public class QrTicketManager {
       dto.setReservationDate(formattedDate);
     }
 
-    // 가상의 상영 정보 설정 예시
-    ViewingScheduleInfo viewingScheduleInfo = getMockSchedule(reservation.getEvent().getEventId(),
+    ViewingScheduleInfo viewingScheduleInfo = getViewingScheduleInfo(reservation.getEvent().getEventId(),
         reservation.getSchedule().getScheduleId());
     dto.setViewingScheduleInfo(viewingScheduleInfo);
     return dto;
   }
 
-  private ViewingScheduleInfo getMockSchedule(Long eventId, Long scheduleId) {
+  private ViewingScheduleInfo getViewingScheduleInfo(Long eventId, Long scheduleId) {
 
     EventSchedule eventSchedule = eventScheduleRepository.findByEvent_EventIdAndScheduleId(eventId,
-        scheduleId).orElse(null);
+        scheduleId).orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "일정 정보를 찾을 수 없습니다."));;
 
     String date = getDate(eventSchedule.getDate());
     String dayOfWeek = getDayOfWeek(eventSchedule.getWeekday());
