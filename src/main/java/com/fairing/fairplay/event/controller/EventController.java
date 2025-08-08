@@ -148,11 +148,11 @@ public class EventController {
 
 
     /*********************** UPDATE ***********************/
-    // 행사명 및 숨김 상태 업데이트
+    // 썸네일 및 숨김 상태 업데이트
     @PatchMapping("/{eventId}")
     public ResponseEntity<EventResponseDto> updateEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable("eventId") Long eventId, @RequestBody EventRequestDto eventRequestDto /* , Auth */) {
+            @PathVariable("eventId") Long eventId, @RequestBody EventStatusThumbnailDto eventRequestDto /* , Auth */) {
 
         // 전체 관리자 OR 행사 관리자 권한
         checkAuth(userDetails, EVENT);
@@ -182,8 +182,21 @@ public class EventController {
 
 
     /*********************** DELETE ***********************/
-    // 행사 삭제
+    // 행사 소프트 딜리트 (hidden + isDeleted 처리)
     @DeleteMapping("/{eventId}")
+    public ResponseEntity<String> softDeleteEvent(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable("eventId") Long eventId
+    ) {
+        checkAuth(userDetails, ADMIN);
+
+        eventService.softDeleteEvent(eventId, userDetails.getUserId());
+
+        return ResponseEntity.ok("행사 삭제 완료 : " + eventId);
+    }
+
+    // 행사 삭제 (전체 관리자가 행사 잘못 생성했을 경우 등)
+    @DeleteMapping("/{eventId}/hard")
     public ResponseEntity<String> deleteEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable("eventId") Long eventId

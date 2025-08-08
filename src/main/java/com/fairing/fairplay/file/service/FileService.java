@@ -66,6 +66,15 @@ public class FileService {
         fileRepository.delete(file);
     }
 
+    @Transactional
+    public void deleteFileByS3Key(String s3Key) {
+        File file = fileRepository.findByFileUrlContaining(s3Key)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
+
+        awsS3Service.deleteFile(file.getFileUrl());
+        fileRepository.delete(file);
+    }
+
     private String extractFileName(String key) {
         return key.substring(key.lastIndexOf('/') + 1);
     }
