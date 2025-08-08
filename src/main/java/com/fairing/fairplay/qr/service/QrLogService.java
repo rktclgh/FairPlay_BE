@@ -44,7 +44,7 @@ public class QrLogService {
   // invalid 로그 저장 -
 
   // qr 체크인/체크아웃 로그 저장
-  public QrCheckLog save(QrTicket qrTicket, String checkStatusCode){
+  public QrCheckLog save(QrTicket qrTicket, String checkStatusCode) {
     QrCheckLog qrCheckLog = QrCheckLog.builder()
         .qrTicket(qrTicket)
         .checkStatusCode(findByCode(checkStatusCode))
@@ -53,7 +53,8 @@ public class QrLogService {
   }
 
   private QrCheckStatusCode findByCode(String qrCheckStatusCode) {
-    return qrCheckStatusCodeRepository.findByCode(qrCheckStatusCode).orElseThrow(() -> new CustomException(
-        HttpStatus.INTERNAL_SERVER_ERROR,"QR 체크인 상태 코드가 올바르지 않습니다."));
+    return qrCheckStatusCodeRepository.findByCode(qrCheckStatusCode)
+        .orElseThrow(() -> new CustomException(
+            HttpStatus.BAD_REQUEST, "QR 체크인 상태 코드가 올바르지 않습니다."));
   }
 }

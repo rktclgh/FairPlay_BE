@@ -40,7 +40,7 @@ public class QrTicketEntryService {
     // 예약자 조회
     Attendee attendee = findAttendeeByReservation(dto.getReservationId());
     // 예약자와 현재 로그인한 사용자 일치 여부 조회
-    if(userDetails.getUserId().equals(attendee.getReservation().getUser().getUserId())) {
+    if(!userDetails.getUserId().equals(attendee.getReservation().getUser().getUserId()))  {
       throw new CustomException(HttpStatus.UNAUTHORIZED,"예약자와 현재 로그인한 사용자가 일치하지 않습니다.");
     }
     // QR 티켓 조회
@@ -63,7 +63,7 @@ public class QrTicketEntryService {
     // 예약자 조회
     Attendee attendee = findAttendeeByReservation(dto.getReservationId());
     // 예약자와 현재 로그인한 사용자 일치 여부 조회
-    if(userDetails.getUserId().equals(attendee.getReservation().getUser().getUserId())) {
+    if(!userDetails.getUserId().equals(attendee.getReservation().getUser().getUserId()))  {
       throw new CustomException(HttpStatus.UNAUTHORIZED,"예약자와 현재 로그인한 사용자가 일치하지 않습니다.");
     }
     // QR 티켓 조회
