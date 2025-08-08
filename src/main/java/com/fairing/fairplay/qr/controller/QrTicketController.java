@@ -27,7 +27,8 @@ public class QrTicketController {
 
   // 마이페이지에서 QR 티켓 조회
   @PostMapping
-  public ResponseEntity<QrTicketResponseDto> issueMember(@RequestBody QrTicketRequestDto dto, @AuthenticationPrincipal
+  public ResponseEntity<QrTicketResponseDto> issueMember(@RequestBody QrTicketRequestDto dto,
+      @AuthenticationPrincipal
       CustomUserDetails userDetails) {
     return ResponseEntity.ok(qrTicketService.issueMember(dto, userDetails));
   }

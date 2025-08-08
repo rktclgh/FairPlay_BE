@@ -41,7 +41,7 @@ public class QrTicketBatchService {
     return reservationRepositoryCustom.findReservationsOneDayBeforeEventWithoutRepresentatives();
   }
 
-  // 비회원 QR 티켓 링크 발급 -> 스케쥴러가 실행. 오전9시 실행 batch 도입 예정
+  // 비회원 QR 티켓 링크 발급
   public void generateQrLink(List<Tuple> reservations) {
     QReservation reservation = QReservation.reservation;
     QAttendee attendee = QAttendee.attendee;

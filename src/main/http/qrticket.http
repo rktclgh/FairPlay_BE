@@ -1,0 +1,40 @@
+### 마이페이지에서 QR 티켓 조회
+POST http://localhost:8080/api/qr-tickets
+Content-Type: application/json
+
+{
+  "attendeeId": 1,
+  "eventId": 1,
+  "ticketId": 1,
+  "reservationId": 1
+}
+
+### 비회원 QR 티켓 링크 통한 QR 티켓 조회
+@token = n5fGh9fQ
+GET http://localhost:8080/api/qr-tickets/{{token}}
+
+### QR 티켓 새로고침 버튼 클릭 시 재발급
+POST http://localhost:8080/api/qr-tickets/reissue
+Content-Type: application/json
+
+{
+  "qrUrlToken": ""
+}
+
+### 행사 관리자 QR 티켓 리셋
+POST http://localhost:8080/api/qr-tickets/admin/reissue
+Content-Type: application/json
+
+{
+  "attendeeId": 1,
+  "ticketNo": "EVT202408A-20250806-0001"
+}
+
+### QR 티켓 강제 재발급해 메일 발송
+POST http://localhost:8080/api/qr-tickets/admin/reissue/send-email
+Content-Type: application/json
+
+{
+  "attendeeId": 2,
+  "ticketNo": "EVT202408A-20250806-0002"
+}

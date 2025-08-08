@@ -15,7 +15,7 @@ public class QrLinkService {
 
   public String generateQrLink(QrTicketRequestDto dto){
     String token = qrLinkTokenGenerator.generateToken(dto);
-    return "https://your-site.com/qr-tickets/" + token;
+    return "https://your-site.com/qr-tickets/" + token; // 수정 예정
   }
 
   public QrTicketRequestDto decodeToDto(String token){
