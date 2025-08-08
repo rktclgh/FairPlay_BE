@@ -16,4 +16,10 @@ public class BannerRequestDto {
     private LocalDateTime startDate;
     private LocalDateTime endDate;
     private String statusCode;
+
+    private String s3Key;
+    private String originalFileName;
+    private String fileType;
+    private Long fileSize;
+
 }
