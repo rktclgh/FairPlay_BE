@@ -4,6 +4,7 @@ import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.CheckInResponseDto;
 import com.fairing.fairplay.qr.dto.GuestManualCheckInRequestDto;
 import com.fairing.fairplay.qr.dto.GuestQrCheckInRequestDto;
@@ -35,9 +36,13 @@ public class QrTicketEntryService {
   private final QrLogService qrLogService;
 
   // 회원 QR 코드 체크인
-  public CheckInResponseDto checkIn(MemberQrCheckInRequestDto dto) {
+  public CheckInResponseDto checkIn(MemberQrCheckInRequestDto dto, CustomUserDetails userDetails) {
     // 예약자 조회
     Attendee attendee = findAttendeeByReservation(dto.getReservationId());
+    // 예약자와 현재 로그인한 사용자 일치 여부 조회
+    if(userDetails.getUserId().equals(attendee.getReservation().getUser().getUserId())) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"예약자와 현재 로그인한 사용자가 일치하지 않습니다.");
+    }
     // QR 티켓 조회
     QrTicket qrTicket = findQrTicket(attendee);
     // qrcode 비교
@@ -54,9 +59,13 @@ public class QrTicketEntryService {
   }
 
   // 회원 수동 코드 체크인
-  public CheckInResponseDto checkIn(MemberManualCheckInRequestDto dto) {
+  public CheckInResponseDto checkIn(MemberManualCheckInRequestDto dto, CustomUserDetails userDetails) {
     // 예약자 조회
     Attendee attendee = findAttendeeByReservation(dto.getReservationId());
+    // 예약자와 현재 로그인한 사용자 일치 여부 조회
+    if(userDetails.getUserId().equals(attendee.getReservation().getUser().getUserId())) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"예약자와 현재 로그인한 사용자가 일치하지 않습니다.");
+    }
     // QR 티켓 조회
     QrTicket qrTicket = findQrTicket(attendee);
     // 수동 코드 비교
@@ -136,7 +145,7 @@ public class QrTicketEntryService {
       throw new CustomException(HttpStatus.BAD_REQUEST, "만료된 QR 티켓입니다.");
     }
 
-    QrLog qrLog = qrLogRepository.findQrActionCode_Code("").orElse(null);
+    QrLog qrLog = qrLogRepository.findByActionCode_Code("").orElse(null);
 
     // 재입장 여부 확인
     if (qrLog != null && !qrTicket.getReentryAllowed()) {

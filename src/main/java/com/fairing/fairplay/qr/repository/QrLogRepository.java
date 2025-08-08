@@ -5,6 +5,6 @@ import java.util.Optional;
 import org.springframework.data.repository.CrudRepository;
 
 public interface QrLogRepository extends CrudRepository<QrLog, Long> {
-  Optional<QrLog> findQrActionCode_Code(String qrCode);
+  Optional<QrLog> findByActionCode_Code(String qrCode);
 
 }

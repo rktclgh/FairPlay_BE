@@ -85,14 +85,14 @@ public class QrTicketController {
   @PostMapping("/check-in/member/qr")
   public ResponseEntity<CheckInResponseDto> checkInWithQrByMember(@RequestBody
   MemberQrCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ResponseEntity.ok(qrTicketService.checkInWithQrByMember(dto));
+    return ResponseEntity.ok(qrTicketService.checkInWithQrByMember(dto, userDetails));
   }
 
   // 체크인 2
   @PostMapping("/check-in/member/manual")
   public ResponseEntity<CheckInResponseDto> checkInWithManualByMember(@RequestBody
   MemberManualCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ResponseEntity.ok(qrTicketService.checkInWithManualByMember(dto));
+    return ResponseEntity.ok(qrTicketService.checkInWithManualByMember(dto, userDetails));
   }
 
   // 체크인 3

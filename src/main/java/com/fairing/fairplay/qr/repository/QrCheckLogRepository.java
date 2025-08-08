@@ -10,5 +10,5 @@ public interface QrCheckLogRepository extends CrudRepository<QrCheckLog, Long> {
   Optional<QrCheckLog> findTop1ByQrTicketAndCheckStatusCode_CodeOrderByCreatedAtDesc(
       QrTicket qrTicket, String checkStatusCode);
 
-  QrCheckLog existsQrTicketAndCheckStatusCode_Code(String checkStatusCodeCode);
+  boolean existsByQrTicketAndCheckStatusCode_Code(QrTicket qrTicket, String checkStatusCodeCode);
 }

@@ -62,21 +62,36 @@ public class QrTicketService {
     return qrTicketIssueService.reissueAdminQrTicket(dto);
   }
 
+  /*
+   * 체크인
+   * 1. 회원+QR
+   * 2. 회원+수동
+   * 3. 비회원+QR
+   * 4. 비회원+수동
+   *
+   */
+
+  // 체크인 1
   @Transactional
-  public CheckInResponseDto checkInWithQrByMember(MemberQrCheckInRequestDto dto) {
-    return qrTicketEntryService.checkIn(dto);
+  public CheckInResponseDto checkInWithQrByMember(MemberQrCheckInRequestDto dto,
+      CustomUserDetails userDetails) {
+    return qrTicketEntryService.checkIn(dto, userDetails);
   }
 
+  // 체크인 2
   @Transactional
-  public CheckInResponseDto checkInWithManualByMember(MemberManualCheckInRequestDto dto) {
-    return qrTicketEntryService.checkIn(dto);
+  public CheckInResponseDto checkInWithManualByMember(MemberManualCheckInRequestDto dto,
+      CustomUserDetails userDetails) {
+    return qrTicketEntryService.checkIn(dto, userDetails);
   }
 
+  // 체크인 3
   @Transactional
   public CheckInResponseDto checkInWithQrByGuest(GuestQrCheckInRequestDto dto) {
     return qrTicketEntryService.checkIn(dto);
   }
 
+  // 체크인 4
   @Transactional
   public CheckInResponseDto checkInWithManualByGuest(GuestManualCheckInRequestDto dto) {
     return qrTicketEntryService.checkIn(dto);
