@@ -1,33 +1,21 @@
 package com.fairing.fairplay.qr.util;
 
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
+import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.hashids.Hashids;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-// QR 티켓 조회용 토큰 관련 유틸 클래스
 @Component
 @RequiredArgsConstructor
-public class QrLinkTokenGenerator {
+public class CodeValidator {
 
   private final Hashids hashids;
+  private final QrTicketRepository qrTicketRepository;
 
-  // QR 티켓 조회 화면 token
-  public String generateToken(QrTicketRequestDto dto) {
-    // hashids는 long 배열만 받음
-    // 숫자 배열을 인코딩해 짧고 URL 안전한 문자열로 만듦
-    // ex. nk2s0
-    long[] numbers = new long[]{
-        safeLong(dto.getReservationId()),
-        safeLong(dto.getAttendeeId()),
-        safeLong(dto.getEventId()),
-        safeLong(dto.getTicketId())
-    };
-
-    return hashids.encode(numbers);
-  }
-
-  // 암호화된 문자열을 DTO 객체로 만듦
+  // QrUrlToken 검증
   public QrTicketRequestDto decodeToDto(String token) {
     if (token == null || token.trim().isEmpty()) {
       throw new IllegalArgumentException("QR 링크 토큰이 비어 있습니다.");
@@ -55,13 +43,19 @@ public class QrLinkTokenGenerator {
     }
   }
 
+  // 수동코드 검증
+  public void validateManualCode(String manualCode) {
+    if (manualCode == null) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "수동 코드를 입력하세요.");
+    }
+    String pattern = "^[A-Z]{4}-[A-Z]{4}$"; // 예시: 대문자 4글자-대문자 4글자
+    if (!manualCode.matches(pattern)) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "수동 코드 형식이 올바르지 않습니다.");
+    }
+  }
+
   // 토큰 문자열 -> long[]으로 변환
   private long[] decodeToken(String token) {
     return hashids.decode(token);
-  }
-
-  // DTO 값이 null일 때 오류 방지용
-  private long safeLong(Long val) {
-    return val == null ? 0L : val;
   }
 }
