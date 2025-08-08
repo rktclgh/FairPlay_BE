@@ -676,6 +676,7 @@ public class EventService {
                 .createdAt(detail.getCreatedAt())
                 .updatedAt(detail.getUpdatedAt())
                 .version(version)
+                .viewCount(event.getViewCount())
                 .titleKr(event.getTitleKr())
                 .titleEng(event.getTitleEng())
                 .hidden(event.getHidden())
