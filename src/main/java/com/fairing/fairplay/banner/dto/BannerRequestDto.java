@@ -2,6 +2,7 @@ package com.fairing.fairplay.banner.dto;
 
 import lombok.Getter;
 import lombok.Setter;
+import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 
@@ -21,5 +22,10 @@ public class BannerRequestDto {
     private String originalFileName;
     private String fileType;
     private Long fileSize;
+
+    @NotNull
+    private Long bannerTypeId;
+    private boolean hot;
+    private boolean mdPick;
 
 }
