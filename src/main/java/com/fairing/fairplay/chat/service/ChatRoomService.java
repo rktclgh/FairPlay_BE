@@ -18,7 +18,7 @@ public class ChatRoomService {
 
     public Optional<ChatRoom> getChatRoom(Long userId, TargetType targetType, Long targetId, Long eventId) {
         if (eventId == null) {
-            // 전체관리자 문의
+            // 전체관리자 문의 - eventId가 null인 경우
             return chatRoomRepository.findByUserIdAndTargetTypeAndTargetIdAndEventIdIsNull(
                     userId, targetType, targetId
             );
@@ -35,7 +35,7 @@ public class ChatRoomService {
                         .userId(userId)
                         .targetType(targetType)
                         .targetId(targetId)
-                        .eventId(eventId)
+                        .eventId(eventId)  // null 허용
                         .createdAt(LocalDateTime.now())
                         .build()));
     }
@@ -46,5 +46,10 @@ public class ChatRoomService {
 
     public List<ChatRoom> getRoomsByManager(TargetType targetType, Long targetId) {
         return chatRoomRepository.findByTargetTypeAndTargetIdOrderByCreatedAtDesc(targetType, targetId);
+    }
+
+    // ADMIN이 모든 ADMIN 타입 채팅방을 볼 수 있도록 하는 메서드
+    public List<ChatRoom> getAllAdminRooms() {
+        return chatRoomRepository.findByTargetTypeOrderByCreatedAtDesc(TargetType.ADMIN);
     }
 }
