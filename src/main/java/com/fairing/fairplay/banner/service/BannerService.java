@@ -3,13 +3,14 @@ package com.fairing.fairplay.banner.service;
 import com.fairing.fairplay.banner.dto.*;
 import com.fairing.fairplay.banner.entity.*;
 import com.fairing.fairplay.banner.repository.*;
-import com.fairing.fairplay.admin.entity.AdminAccount;
 import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
 import com.fairing.fairplay.file.dto.S3UploadResponseDto;
 import com.fairing.fairplay.file.service.FileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.fairing.fairplay.user.entity.Users;
+
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -140,12 +141,11 @@ public class BannerService {
         BannerActionCode actionCode = bannerActionCodeRepository.findByCode(actionCodeStr)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배너 액션 코드: " + actionCodeStr));
 
-        // adminId만으로 proxy admin 객체 생성
-        AdminAccount proxyAdmin = new AdminAccount(adminId);
+        Users proxyUser = new Users(adminId);
 
         BannerLog log = BannerLog.builder()
                 .banner(banner)
-                .changedBy(proxyAdmin)
+                .changedBy(proxyUser)
                 .actionCode(actionCode)
                 .build();
 
