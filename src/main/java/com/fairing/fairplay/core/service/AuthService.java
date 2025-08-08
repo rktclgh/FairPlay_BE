@@ -67,7 +67,8 @@ public class AuthService {
         String accessToken = jwtTokenProvider.generateAccessToken(
                 user.getUserId(),
                 user.getEmail(),
-                user.getRoleCode().getName()
+                user.getRoleCode().getName(),
+                user.getRoleCode().getId()
         );
         String refreshToken = jwtTokenProvider.generateRefreshToken(
                 user.getUserId(),
@@ -80,7 +81,7 @@ public class AuthService {
                 jwtTokenProvider.getRefreshTokenExpiry()
         );
 
-        return new LoginResponse(accessToken, refreshToken);
+        return new LoginResponse(accessToken, refreshToken, user.getUserId(), user.getEmail(), user.getName(), user.getPhone());
     }
 
     // 리프레시 토큰 재발급
@@ -106,7 +107,8 @@ public class AuthService {
         String newAccessToken = jwtTokenProvider.generateAccessToken(
                 user.getUserId(),
                 user.getEmail(),
-                user.getRoleCode().getName()
+                user.getRoleCode().getName(),
+                user.getRoleCode().getId()
         );
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(
                 user.getUserId(),
@@ -119,7 +121,7 @@ public class AuthService {
                 jwtTokenProvider.getRefreshTokenExpiry()
         );
 
-        return new LoginResponse(newAccessToken, newRefreshToken);
+        return new LoginResponse(newAccessToken, newRefreshToken, user.getUserId(), user.getEmail(), user.getName(), user.getPhone());
     }
 
     public LoginResponse kakaoLogin(String code) {
@@ -217,7 +219,8 @@ public class AuthService {
         String ourAccessToken = jwtTokenProvider.generateAccessToken(
                 user.getUserId(),
                 user.getEmail(),
-                user.getRoleCode().getName()
+                user.getRoleCode().getName(),
+                user.getRoleCode().getId()
         );
         String ourRefreshToken = jwtTokenProvider.generateRefreshToken(
                 user.getUserId(),
@@ -229,7 +232,7 @@ public class AuthService {
                 jwtTokenProvider.getRefreshTokenExpiry()
         );
 
-        return new LoginResponse(ourAccessToken, ourRefreshToken);
+        return new LoginResponse(ourAccessToken, ourRefreshToken, user.getUserId(), user.getEmail(), user.getName(), user.getPhone());
     }
 
 }

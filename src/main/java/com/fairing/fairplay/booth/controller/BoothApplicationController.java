@@ -88,7 +88,7 @@ public class BoothApplicationController {
         return ResponseEntity.ok().build();
     }
 
-    /*
+
     // 6. 부스 관리자 - 취소 요청 (태스트 x)
     @PutMapping("/{id}/cancel")
     public ResponseEntity<Void> cancelApplication(
@@ -99,7 +99,7 @@ public class BoothApplicationController {
         boothApplicationService.cancelApplication(id, user.getUserId());
         return ResponseEntity.ok().build();
     }
-*/
+
 
 
 }

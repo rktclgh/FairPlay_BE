@@ -1,19 +1,20 @@
 @access_token=
 
 ### 행사 등록
-POST http://localhost:8080/api/events
+POST http://localhost:9000/api/events
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 
 {
-  "email": "eventManager3@fairplay.com",
-  "titleKr": "서울 겨울 콘서트 2025",
-  "titleEng": "SEOUL WINTER CONCERT 2025"
+  "email": "postmalone@fairplay.com",
+  "titleKr": "포스트 말론 2025 내한 공연",
+  "titleEng": "POST MALONE LIVE in SEOUL 2025",
+  "hidden": false
 }
 
 ### 행사 상세 등록
-@createEventDetailId=1017
-POST http://localhost:8080/api/events/{{createEventDetailId}}/details
+@createEventDetailId=8
+POST http://localhost:9000/api/events/{{createEventDetailId}}/details
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 
@@ -53,24 +54,28 @@ Authorization: Bearer {{access_token}}
 }
 
 
-### 행사 목록 조회 (메인페이지/검색용)
-GET http://localhost:8080/api/events
+### 행사 목록 조회 (메인페이지)
+GET http://localhost:9000/api/events
+Accept: application/json
+
+### 행사 목록 조회 (검색용)
+GET http://localhost:9000/api/events?keyword=콘서트&mainCategoryId=4&regionName=서울&fromDate=2025-08-01&toDate=2025-10-31
 Accept: application/json
 
 
 ### 행사 목록 조회 (행사 정보 리스트)
-GET http://localhost:8080/api/events/list
+GET http://localhost:9000/api/events/list
 Accept: application/json
 
 ### 행사 상세 조회
 @readEventDetailId = 1015
-GET http://localhost:8080/api/events/{{readEventDetailId}}/details
+GET http://localhost:9000/api/events/{{readEventDetailId}}/details
 Accept: application/json
 
 
 ### 행사명 및 숨김 상태 업데이트
-@updateEventId = 1015
-PATCH http://localhost:8080/api/events/{{updateEventId}}
+@updateEventId = 4
+PATCH http://localhost:9000/api/events/{{updateEventId}}
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 
@@ -80,17 +85,22 @@ Authorization: Bearer {{access_token}}
 }
 
 ### 행사 상세 업데이트
-@updateEventDetailId = 1004
-PATCH http://localhost:8080/api/events/{{updateEventDetailId}}/details
+@updateEventDetailId = 1
+PATCH http://localhost:9000/api/events/{{updateEventDetailId}}/details
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 
 {
   "titleKr": "서울 겨울 콘서트 : 2025",
-  "hostName": "SBS"
+  "hostName": "SBS",
+  "thumbnailUrl": "/images/gd2.png"
 }
 
 ### 행사 삭제
 @deleteEventId = 1014
-DELETE http://localhost:8080/api/events/{{deleteEventId}}
+DELETE http://localhost:9000/api/events/{{deleteEventId}}
+Authorization: Bearer {{access_token}}
+
+### 행사 강제 삭제
+DELETE http://localhost:9000/api/events/{{deleteEventId}}/force
 Authorization: Bearer {{access_token}}
