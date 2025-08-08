@@ -57,10 +57,6 @@ public class QrTicketIssueService{
       CustomUserDetails userDetails) {
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
-    if (userDetails.getUserId().equals(reservation.getUser().getUserId())) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "현재 로그인된 사용자와 예약자가 일치하지 않습니다.");
-    }
-
     if (!userDetails.getRoleCode().equals(ROLE_COMMON)) {
       throw new CustomException(HttpStatus.FORBIDDEN,
           "일반 사용자가 아닙니다. 현재 로그인된 사용자 권한: " + userDetails.getRoleCode());
@@ -112,15 +108,15 @@ public class QrTicketIssueService{
   public QrTicketReissueResponseDto reissueAdminQrTicketByUser(QrTicketReissueRequestDto dto) {
     QrTicket qrTicket = qrTicketRepository.findByTicketNo(dto.getTicketNo()).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND,
-            "티켓 번호에 해당하는 QR 티켓을 찾을 수 없습니다: " + dto.getTicketNo())
+            "해당 티켓 번호에 일치하는 QR 티켓이 존재하지 않습니다. ticketNo: " + dto.getTicketNo())
     );
 
     if (!Objects.equals(qrTicket.getAttendee().getId(), dto.getAttendeeId())) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "티켓 사용자와 요청한 사용자의 ID가 일치하지 않습니다.");
+      throw new CustomException(HttpStatus.FORBIDDEN, "해당 티켓은 요청한 사용자 소유가 아닙니다.");
     }
 
     if (!qrTicket.getAttendee().getAttendeeTypeCode().getCode().equals("PRIMARY")) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "대표자가 아니므로 마이페이지에 QR 티켓 링크를 표시할 수 없습니다.");
+      throw new CustomException(HttpStatus.FORBIDDEN, "대표자가 아니므로 마이페이지에 QR 티켓을 조회하실 수 없습니다.");
     }
 
     // 재발급된 QR 티켓 - qrcode, manualcode null 처리
@@ -137,11 +133,11 @@ public class QrTicketIssueService{
   public QrTicketReissueResponseDto reissueAdminQrTicket(QrTicketReissueRequestDto dto) {
     QrTicket qrTicket = qrTicketRepository.findByTicketNo(dto.getTicketNo()).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND,
-            "티켓 번호에 해당하는 QR 티켓을 찾을 수 없습니다: " + dto.getTicketNo())
+            "해당 티켓 번호에 일치하는 QR 티켓이 존재하지 않습니다. ticketNo: " + dto.getTicketNo())
     );
 
     if (!Objects.equals(qrTicket.getAttendee().getId(), dto.getAttendeeId())) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "티켓을 예약한 ID와 입력한 참석자의 ID가 일치하지 않습니다.");
+      throw new CustomException(HttpStatus.FORBIDDEN, "해당 티켓은 요청한 사용자 소유가 아닙니다.");
     }
 
     // 재발급된 QR 티켓 - qrcode, manualcode null 처리

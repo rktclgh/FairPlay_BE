@@ -71,16 +71,16 @@ public class ShareTicketService {
   // 공유폼 token 유효성 검사
   public ShareTicket validateAndUseToken(String token) {
     ShareTicket shareTicket = shareTicketRepository.findByLinkToken(token)
-        .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 링크입니다."));
+        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND,"요청하신 링크를 찾을 수 없습니다."));
 
     // 만료된 링크 (행사시작 1일전)
     if (shareTicket.getExpired()) {
-      throw new LinkExpiredException("링크가 만료되었습니다.", "/link-expired");
+      throw new LinkExpiredException("해당 링크는 더 이상 유효하지 않습니다.", "/link-expired");
     }
 
     // 티켓 구매 수 == 폼 제출 횟수
     if (shareTicket.isFull()) {
-      throw new LinkExpiredException("참가자 인원이 모두 등록되었습니다.", "/link-closed");
+      throw new LinkExpiredException("참가자 등록이 이미 마감되었습니다.", "/link-closed");
     }
     return shareTicket;
   }
