@@ -95,6 +95,15 @@ public class AwsS3Service {
         return s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toExternalForm();
     }
 
+    public String getS3KeyFromPublicUrl(String publicUrl) {
+        String bucketUrl = "https://" + bucketName + ".s3.";
+        if (publicUrl.startsWith(bucketUrl)) {
+            String urlWithoutSchema = publicUrl.substring(8);
+            return urlWithoutSchema.substring(urlWithoutSchema.indexOf("/") + 1);
+        }
+        return null;
+    }
+
     // 파일 삭제
     public void deleteFile(String key) {
         s3Client.deleteObject(DeleteObjectRequest.builder()
