@@ -21,7 +21,7 @@ public class QrTicketRepositoryCustom {
 
   private final JPAQueryFactory queryFactory;
 
-  public List<Tuple> findAllByEventDate(LocalDate targetDate){
+  public List<Tuple> findAllByEventDate(LocalDate targetDate) {
     QAttendee attendee = QAttendee.attendee;
     QReservation reservation = QReservation.reservation;
     QEvent event = QEvent.event;
@@ -42,6 +42,7 @@ public class QrTicketRepositoryCustom {
         .where(
             eventDetail.startDate.eq(targetDate)
         )
+        .orderBy(reservation.reservationId.asc(), attendee.id.asc())
         .fetch();
   }
 }
