@@ -9,9 +9,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
-    List<Payment> findByReservationEventEventId(Long eventId);
-
-    void deleteAllByReservationIn(List<Reservation> reservations);
 
     Optional<Payment> findByMerchantUid(String merchantUid);
 

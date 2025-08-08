@@ -10,6 +10,7 @@ import com.fairing.fairplay.event.repository.*;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
 import com.fairing.fairplay.file.dto.S3UploadResponseDto;
 import com.fairing.fairplay.file.service.FileService;
+import com.fairing.fairplay.payment.entity.Payment;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
@@ -394,7 +395,7 @@ public class EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
 
-        boolean hasPayments = !paymentRepository.findByReservationEventEventId(eventId).isEmpty();
+        boolean hasPayments = !paymentRepository.findByEvent_EventId(eventId).isEmpty();
         boolean hasBoothPayments = boothApplicationRepository.findByEvent_EventId(eventId).stream()
                 .anyMatch(app -> app.getBoothPaymentStatusCode().getId() != 1);
 
@@ -404,13 +405,14 @@ public class EventService {
             }
         }
 
-        // 1. Payment 삭제
-        List<Reservation> reservations = reservationRepository.findByEvent_EventId(eventId);
-        if (!reservations.isEmpty()) {
-            paymentRepository.deleteAllByReservationIn(reservations);
+        // 1. Payment 삭제 (이벤트 기반으로 직접 삭제)
+        List<Payment> payments = paymentRepository.findByEvent_EventId(eventId);
+        if (!payments.isEmpty()) {
+            paymentRepository.deleteAll(payments);
         }
-
+        
         // 2. Reservation 삭제
+        List<Reservation> reservations = reservationRepository.findByEvent_EventId(eventId);
         reservationRepository.deleteAll(reservations);
 
         // 3. 나머지 엔티티 삭제
@@ -448,13 +450,14 @@ public class EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null));
 
-        // 1. Payment 삭제
-        List<Reservation> reservations = reservationRepository.findByEvent_EventId(eventId);
-        if (!reservations.isEmpty()) {
-            paymentRepository.deleteAllByReservationIn(reservations);
+        // 1. Payment 삭제 (이벤트 기반으로 직접 삭제)
+        List<Payment> payments = paymentRepository.findByEvent_EventId(eventId);
+        if (!payments.isEmpty()) {
+            paymentRepository.deleteAll(payments);
         }
-
+        
         // 2. Reservation 삭제
+        List<Reservation> reservations = reservationRepository.findByEvent_EventId(eventId);
         reservationRepository.deleteAll(reservations);
 
         // 3. 나머지 엔티티 삭제
