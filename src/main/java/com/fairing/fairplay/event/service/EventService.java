@@ -252,6 +252,9 @@ public class EventService {
                         .build())
                 .toList();
 
+        event.incrementViewCount();
+        log.info("행사 조회 성공 및 조회 수 증가: {}", event.getViewCount());
+
         int versionNumber = eventVersionRepository.findTopByEventOrderByVersionNumberDesc(event)
                 .map(EventVersion::getVersionNumber)
                 .orElse(1);

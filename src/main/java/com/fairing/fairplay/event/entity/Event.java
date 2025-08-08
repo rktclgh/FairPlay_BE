@@ -48,6 +48,9 @@ public class Event {
     @Column(name = "is_deleted", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
     private Boolean isDeleted = false;
 
+    @Column(name = "view_count", nullable = false, columnDefinition = "INT NOT NULL DEFAULT 0") // null 불가능
+    private int viewCount=0; // 조회수
+
     @OneToOne(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private EventDetail eventDetail;
 
@@ -68,5 +71,12 @@ public class Event {
         if (detail.getEvent() != this) {
             detail.setEvent(this);
         }
+    }
+
+    /**
+     * 조회수를 1 증가
+     */
+    public void incrementViewCount() {
+        this.viewCount++;
     }
 }
