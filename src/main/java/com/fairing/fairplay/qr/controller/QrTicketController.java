@@ -103,7 +103,7 @@ public class QrTicketController {
   }
 
   // 체크인 4
-  @PostMapping("/check-in/guest/qr")
+  @PostMapping("/check-in/guest/manual")
   public ResponseEntity<CheckInResponseDto> checkInWithManualByGuest(@RequestBody
   GuestManualCheckInRequestDto dto) {
     return ResponseEntity.ok(qrTicketService.checkInWithManualByGuest(dto));
