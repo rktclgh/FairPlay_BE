@@ -50,6 +50,16 @@ public class Banner {
     @JoinColumn(name = "banner_status_code_id", nullable = false)
     private BannerStatusCode bannerStatusCode;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "banner_type_id", nullable = false)
+    private BannerType bannerType;
+
+    @Column(nullable = false)
+    private boolean hot = false;
+
+    @Column(name="md_pick", nullable = false)
+    private boolean mdPick = false;
+
     public void updateStatus(BannerStatusCode newStatus) {
         this.bannerStatusCode = newStatus;
     }
@@ -58,18 +68,21 @@ public class Banner {
         this.priority = newPriority;
     }
 
-    public void updateInfo(String title, String imageUrl, String linkUrl, LocalDateTime startDate, LocalDateTime endDate, Integer priority) {
+    public void updateInfo(String title, String imageUrl, String linkUrl, LocalDateTime startDate, LocalDateTime endDate, Integer priority,BannerType bannerType, boolean hot, boolean mdPick) {
         this.title = title;
         this.imageUrl = imageUrl;
         this.linkUrl = linkUrl;
         this.startDate = startDate;
         this.endDate = endDate;
         this.priority = priority;
+        this.bannerType = bannerType;
+        this.hot = hot;
+        this.mdPick = mdPick;
     }
 
     public Banner(String title, String imageUrl, String linkUrl,
                   Integer priority, LocalDateTime startDate, LocalDateTime endDate,
-                  BannerStatusCode statusCode) {
+                  BannerStatusCode statusCode, BannerType bannerType, boolean hot, boolean mdPick) {
         this.title = title;
         this.imageUrl = imageUrl;
         this.linkUrl = linkUrl;
@@ -77,6 +90,9 @@ public class Banner {
         this.startDate = startDate;
         this.endDate = endDate;
         this.bannerStatusCode = statusCode;
+        this.bannerType = bannerType;
+        this.hot = hot;
+        this.mdPick = mdPick;
     }
 
 }
