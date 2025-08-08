@@ -72,5 +72,3 @@ cloud:
       access-key: ${AWS_ACCESS_KEY}
       secret-key: ${AWS_SECRET_KEY}
 
-server:
-  port: 9000
