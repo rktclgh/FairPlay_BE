@@ -37,7 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Users user = userRepository.findById(userId)
                     .orElse(null); // 없으면 인증 처리 안 함(토큰 변조 가능성)
 
-            if (user != null) {
+            if (user != null && user.getDeletedAt() == null) {
                 // 🟢 CustomUserDetails 생성
                 CustomUserDetails userDetails = new CustomUserDetails(user);
 
