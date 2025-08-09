@@ -41,7 +41,7 @@ public class QrTicketRepositoryCustom {
         .join(eventSchedule.event, event) // 행사 회차가 소속된 이벤트
         .join(event.eventDetail, eventDetail) // 이벤트에 대한 상세 정보
         .where(
-            eventDetail.startDate.eq(targetDate) // 조회 대상 날짜와 같은 이벤트만 필터링
+            eventSchedule.date.eq(targetDate) // 조회 대상 날짜와 같은 이벤트만 필터링
         )
         .orderBy(reservation.reservationId.asc(), attendee.id.asc()) // 예약 ID와 참석자 ID 기준 결과 정렬
         .fetch();

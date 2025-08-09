@@ -39,7 +39,7 @@ public class CodeValidator {
           .ticketId(numbers[3] == 0 ? null : numbers[3])
           .build();
     } catch (Exception e) {
-      throw new IllegalArgumentException("토큰 디코딩 중 오류가 발생했습니다: " + e.getMessage(), e);
+      throw new CustomException(HttpStatus.BAD_REQUEST,"토큰 디코딩 중 오류가 발생했습니다: " + e.getMessage(), e);
     }
   }
 
