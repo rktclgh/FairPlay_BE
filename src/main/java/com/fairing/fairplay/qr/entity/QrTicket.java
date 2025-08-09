@@ -1,7 +1,7 @@
 package com.fairing.fairplay.qr.entity;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
-import com.fairing.fairplay.ticket.entity.EventTicket;
+import com.fairing.fairplay.ticket.entity.EventSchedule;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,7 +9,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
@@ -40,11 +39,8 @@ public class QrTicket {
   private Attendee attendee;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumns({
-      @JoinColumn(name = "ticket_id", referencedColumnName = "ticket_id"),
-      @JoinColumn(name = "event_id", referencedColumnName = "event_id")
-  })
-  private EventTicket eventTicket;
+  @JoinColumn(name = "schedule_id", nullable = false)
+  private EventSchedule eventSchedule;
 
   @Column(name = "expired_at", nullable = false)
   private LocalDateTime expiredAt;

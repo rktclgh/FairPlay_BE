@@ -18,8 +18,8 @@ public interface QrTicketRepository extends JpaRepository<QrTicket, Long> {
             q.qrCode,
             q.manualCode)
         FROM QrTicket q
-        JOIN q.eventTicket et
-        JOIN et.event e
+        JOIN q.eventSchedule es
+        JOIN es.event e
         JOIN e.eventDetail ed
         JOIN ed.location l
         WHERE q.id = :qrTicketId

@@ -20,8 +20,11 @@ import lombok.Setter;
 @Builder
 @Table(name = "qr_check_status_code")
 public class QrCheckStatusCode {
-  public static final String CHECKIN = "CHECKIN";
-  public static final String CHECKOUT = "CHECKOUT";
+  public static final String ENTRY = "ENTRY";
+  public static final String EXIT = "EXIT";
+  public static final String REENTRY = "REENTRY";
+  public static final String DUPLICATE = "DUPLICATE";
+  public static final String INVALID = "INVALID";
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
