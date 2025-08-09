@@ -46,10 +46,10 @@ public interface BoothExperienceReservationRepository extends JpaRepository<Boot
            "AND ber.experienceStatusCode.code = 'IN_PROGRESS'")
     List<BoothExperienceReservation> findInProgressReservations(@Param("experience") BoothExperience experience);
 
-    // 다음 대기 순번 조회
+    // 다음 대기 순번 조회 (WAITING 상태만 대상으로 최적화)
     @Query("SELECT COALESCE(MAX(ber.queuePosition), 0) + 1 FROM BoothExperienceReservation ber " +
-           "WHERE ber.boothExperience = :experience AND ber.experienceStatusCode.code IN ('WAITING', 'READY')")
-    Integer findNextQueuePosition(@Param("experience") BoothExperience experience);
+           "WHERE ber.boothExperience.experienceId = :experienceId AND ber.experienceStatusCode.code = 'WAITING'")
+    Integer findNextQueuePosition(@Param("experienceId") Long experienceId);
 
     // 사용자별 특정 이벤트 예약 목록
     @Query("SELECT ber FROM BoothExperienceReservation ber WHERE ber.user = :user " +

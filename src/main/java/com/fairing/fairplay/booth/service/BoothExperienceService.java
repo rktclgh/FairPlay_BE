@@ -88,7 +88,8 @@ public class BoothExperienceService {
                                                                   BoothExperienceReservationRequestDto requestDto) {
         log.info("부스 체험 예약 시작 - 체험 ID: {}, 사용자 ID: {}", experienceId, userId);
 
-        BoothExperience experience = boothExperienceRepository.findById(experienceId)
+        // Pessimistic Lock으로 체험 조회 (동시성 제어)
+        BoothExperience experience = boothExperienceRepository.findByIdWithPessimisticLock(experienceId)
                 .orElseThrow(() -> new IllegalArgumentException("체험을 찾을 수 없습니다: " + experienceId));
 
         Users user = userRepository.findById(userId)
@@ -101,8 +102,8 @@ public class BoothExperienceService {
         BoothExperienceStatusCode waitingStatus = statusCodeRepository.findByCode("WAITING")
                 .orElseThrow(() -> new IllegalStateException("대기 상태 코드를 찾을 수 없습니다"));
 
-        // 다음 대기 순번 조회 (동시성 처리)
-        Integer nextPosition = reservationRepository.findNextQueuePosition(experience);
+        // 다음 대기 순번 조회 (동시성 처리 - experienceId 사용)
+        Integer nextPosition = reservationRepository.findNextQueuePosition(experienceId);
 
         BoothExperienceReservation reservation = BoothExperienceReservation.builder()
                 .boothExperience(experience)

@@ -1,4 +1,18 @@
-### ===============================
+### 부스 관리자 로그인 (체험 등록/관리용)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "b1@f.com",
+  "password": "1234"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("access_token", response.body.accessToken);
+        console.log("Booth Access token saved: " + response.body.accessToken);
+    }
+%}
 
 ### 변수 설정
 @baseUrl = http://localhost:8080
@@ -6,8 +20,8 @@
 @experienceId = 3
 @reservationId = 2
 @userId = 1
-@access_token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzOCIsImVtYWlsIjoiZTFAZi5jb20iLCJyb2xlIjoi7ZaJ7IKsIOuLtOuLueyekCIsInJvbGVJZCI6MiwiaWF0IjoxNzU0NzA5MjAzLCJleHAiOjE3NTQ3MDk4MDN9.JjfyTPD-1VVbfYDWRZwiu7c-NFfSEls6XhicMaHjt6M
-@booth_access_token = {{booth_access_token}}
+@access_token = {{ access_token }}
+@booth_access_token = {{ booth_access_token }}
 
 
 ### 부스 체험 API 테스트
@@ -326,3 +340,71 @@ Authorization: Bearer {{access_token}}
   "statusCode": "CANCELLED",
   "notes": "완료된 예약 취소 시도"
 }
+
+### ===============================
+### 동시성 테스트 케이스
+### ===============================
+
+### 동시 예약 테스트 1 - 동일한 체험에 여러 사용자가 동시 예약
+POST {{baseUrl}}/api/booth-experiences/{{experienceId}}/reservations?userId=1
+Content-Type: application/json
+
+{
+  "notes": "동시성 테스트 - 사용자 1"
+}
+
+### 동시 예약 테스트 2 - 동일한 체험에 여러 사용자가 동시 예약
+POST {{baseUrl}}/api/booth-experiences/{{experienceId}}/reservations?userId=2
+Content-Type: application/json
+
+{
+  "notes": "동시성 테스트 - 사용자 2"
+}
+
+### 동시 예약 테스트 3 - 동일한 체험에 여러 사용자가 동시 예약
+POST {{baseUrl}}/api/booth-experiences/{{experienceId}}/reservations?userId=3
+Content-Type: application/json
+
+{
+  "notes": "동시성 테스트 - 사용자 3"
+}
+
+### 동시 예약 테스트 4 - 동일한 체험에 여러 사용자가 동시 예약
+POST {{baseUrl}}/api/booth-experiences/{{experienceId}}/reservations?userId=4
+Content-Type: application/json
+
+{
+  "notes": "동시성 테스트 - 사용자 4"
+}
+
+### 동시 예약 테스트 5 - 동일한 체험에 여러 사용자가 동시 예약
+POST {{baseUrl}}/api/booth-experiences/{{experienceId}}/reservations?userId=5
+Content-Type: application/json
+
+{
+  "notes": "동시성 테스트 - 사용자 5"
+}
+
+### 대기 순번 확인 - 위의 동시 예약들이 순차적으로 배정되었는지 확인
+GET {{baseUrl}}/api/booth-experiences/{{experienceId}}/queue-status
+Content-Type: application/json
+
+### ===============================
+### 동시성 테스트 시나리오 설명
+### ===============================
+### 
+### 테스트 목적: Pessimistic Lock이 올바르게 동작하는지 확인
+### 
+### 1. 위의 5개 예약 요청을 동시에 실행 (IntelliJ HTTP Client에서 Ctrl+Enter로 빠르게 연속 실행)
+### 2. 대기열 상태 조회로 queuePosition이 1, 2, 3, 4, 5로 중복 없이 순차 배정되었는지 확인
+### 3. 만약 동시성 처리가 제대로 되지 않았다면 같은 queuePosition을 가진 예약들이 발생할 수 있음
+### 
+### 기대 결과:
+### - 모든 예약이 성공적으로 생성됨
+### - queuePosition이 중복 없이 1부터 순차적으로 배정됨
+### - 데이터베이스 무결성이 유지됨
+### 
+### 추가 테스트:
+### - 동일한 사용자가 중복 예약을 시도하는 경우
+### - 최대 대기 인원을 초과하여 예약하는 경우
+### - Lock timeout이 발생하는 경우 (5초 초과 대기)

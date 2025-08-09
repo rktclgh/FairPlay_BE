@@ -2,13 +2,18 @@ package com.fairing.fairplay.booth.repository;
 
 import com.fairing.fairplay.booth.entity.Booth;
 import com.fairing.fairplay.booth.entity.BoothExperience;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BoothExperienceRepository extends JpaRepository<BoothExperience, Long> {
@@ -36,4 +41,10 @@ public interface BoothExperienceRepository extends JpaRepository<BoothExperience
     // 특정 이벤트의 특정 날짜 체험 조회
     @Query("SELECT be FROM BoothExperience be WHERE be.booth.event.eventId = :eventId AND be.experienceDate = :date")
     List<BoothExperience> findByEventIdAndDate(@Param("eventId") Long eventId, @Param("date") LocalDate date);
+
+    // Pessimistic Lock을 사용한 체험 조회 (동시성 제어)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints({@QueryHint(name = "javax.persistence.lock.timeout", value = "5000")})  // 5초 타임아웃
+    @Query("SELECT e FROM BoothExperience e WHERE e.experienceId = :experienceId")
+    Optional<BoothExperience> findByIdWithPessimisticLock(@Param("experienceId") Long experienceId);
 }
