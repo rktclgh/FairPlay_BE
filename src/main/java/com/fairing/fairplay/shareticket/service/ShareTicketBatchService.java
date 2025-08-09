@@ -25,9 +25,9 @@ public class ShareTicketBatchService {
   public List<ShareTicket> fetchExpiredBatch(int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
 
-    LocalDate now = LocalDate.now(); // 2025-08-06
+    LocalDate now = LocalDate.now(); // 2025-08-10
     LocalDateTime startDate = now.atStartOfDay();
-    LocalDateTime endDate = now.plusDays(1).atStartOfDay();
+    LocalDateTime endDate = now.plusDays(1).atStartOfDay(); // 11
     log.info("fetchExpiredBatch startDate: {}, endDate: {}", startDate, endDate);
 
     return shareTicketRepository.findAllByExpiredAtGreaterThanEqualAndExpiredAtLessThan(

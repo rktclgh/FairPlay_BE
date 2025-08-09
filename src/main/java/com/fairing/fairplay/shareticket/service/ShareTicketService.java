@@ -2,12 +2,16 @@ package com.fairing.fairplay.shareticket.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
+import com.fairing.fairplay.payment.entity.Payment;
+
+import com.fairing.fairplay.payment.repository.PaymentRepository;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.dto.ShareTicketSaveRequestDto;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.repository.ShareTicketRepository;
 import java.nio.ByteBuffer;
+
 import java.util.Base64;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +27,10 @@ public class ShareTicketService {
 
   private final ShareTicketRepository shareTicketRepository;
   private final ReservationRepository reservationRepository;
+  private final PaymentRepository paymentRepository;
 
+  private static final String RESERVATION = "RESERVATION";
+  private static final String COMPLETED = "COMPLETED";
   // 공유 폼 링크 생성 -> 예약 성공 시 예약 서비스 단계에서 사용
   @Transactional
   public String generateToken(ShareTicketSaveRequestDto dto) {
@@ -34,6 +41,17 @@ public class ShareTicketService {
     // 예약 유무 조회
     Reservation reservation = reservationRepository.findById(dto.getReservationId())
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다."));
+
+    // 결제 내역 조회
+    Payment payment = paymentRepository.findByTargetIdAndPaymentTargetType_PaymentTargetCode(
+        reservation.getReservationId(), RESERVATION).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND, "결제 내역을 찾을 수 없습니다.")
+    );
+
+    // 정상적으로 결제 처리된 예약인지 조회
+    if (!payment.getPaymentStatusCode().getCode().equals(COMPLETED)) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "결제가 정상적으로 처리되지 않았습니다.");
+    }
 
     // 예약 ID 기준 폼이 생성되어있는지 조회
     if (shareTicketRepository.existsByReservation_ReservationId(dto.getReservationId())) {
@@ -52,7 +70,7 @@ public class ShareTicketService {
     } while (shareTicketRepository.existsByLinkToken(token));
 
     if (dto.getTotalAllowed() == null || dto.getTotalAllowed() <= 0) {
-      throw new IllegalArgumentException("허용 인원은 1명 이상이어야 합니다.");
+      throw new CustomException(HttpStatus.BAD_REQUEST,"허용 인원은 1명 이상이어야 합니다.");
     }
 
     ShareTicket shareTicket = ShareTicket.builder()
@@ -61,7 +79,8 @@ public class ShareTicketService {
         .expired(false) // 만료 여부
         .submittedCount(1) // 대표자 제출
         .reservation(reservation) // 예약 연결
-        .expiredAt(dto.getExpiredAt()) // 폼 만료 기한 (행사 시작일 or 티켓 사용일 -1)
+        .expiredAt(reservation.getSchedule().getDate().minusDays(1)
+            .atStartOfDay()) // 폼 만료 기한 (행사 시작일 하루 전)
         .build();
 
     shareTicketRepository.save(shareTicket);
@@ -71,7 +90,7 @@ public class ShareTicketService {
   // 공유폼 token 유효성 검사
   public ShareTicket validateAndUseToken(String token) {
     ShareTicket shareTicket = shareTicketRepository.findByLinkToken(token)
-        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND,"요청하신 링크를 찾을 수 없습니다."));
+        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "요청하신 링크를 찾을 수 없습니다."));
 
     // 만료된 링크 (행사시작 1일전)
     if (shareTicket.getExpired()) {

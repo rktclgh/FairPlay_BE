@@ -15,4 +15,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findByEvent_EventId(Long eventId);
 
     List<Payment> findByUser_UserId(Long userId);
+
+    Optional<Payment> findByTargetIdAndPaymentTargetType_PaymentTargetCode(Long targetId, String paymentTargetType);
 }

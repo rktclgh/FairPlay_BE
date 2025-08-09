@@ -4,7 +4,6 @@ import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeListInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeSaveRequestDto;
 import com.fairing.fairplay.attendee.dto.AttendeeUpdateRequestDto;
-import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.service.AttendeeService;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
@@ -58,19 +57,8 @@ public class AttendeeController {
   @GetMapping("/events/{eventId}")
   public ResponseEntity<List<AttendeeInfoResponseDto>> getAttendees(@PathVariable Long eventId,
       @AuthenticationPrincipal CustomUserDetails userDetails) {
-    List<Attendee> attendees = attendeeService.getAttendeesByEvent(eventId,
+    List<AttendeeInfoResponseDto> response = attendeeService.getAttendeesByEvent(eventId,
         userDetails.getUserId());
-
-    List<AttendeeInfoResponseDto> response = attendees.stream()
-        .map(attendee -> AttendeeInfoResponseDto.builder()
-            .attendeeId(attendee.getId())
-            .reservationId(attendee.getReservation().getReservationId())
-            .name(attendee.getName())
-            .email(attendee.getEmail())
-            .phone(attendee.getPhone())
-            .build())
-        .toList();
-
     return ResponseEntity.ok(response);
   }
 }

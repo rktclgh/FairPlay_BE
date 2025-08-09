@@ -1,6 +1,5 @@
 package com.fairing.fairplay.shareticket.dto;
 
-import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,5 +13,4 @@ public class ShareTicketSaveRequestDto {
 
   private Long reservationId; // 예약ID
   private Integer totalAllowed; // 구매한 티켓 총 개수
-  private LocalDateTime expiredAt; // 만료 날짜 (행사 시작일 or 티켓 사용일 -1)
 }
