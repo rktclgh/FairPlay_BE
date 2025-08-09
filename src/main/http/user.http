@@ -1,0 +1,119 @@
+### 변수 설정
+@baseUrl = http://localhost:8080
+
+### ===============================
+### 회원가입 (테스트용 사용자 생성)
+### ===============================
+
+### 일반 사용자 회원가입
+POST {{baseUrl}}/api/users/signup
+Content-Type: application/json
+
+{
+  "email": "u1@f.com",
+  "password": "1234",
+  "name": "사용자1",
+  "nickname": "user1",
+  "phone": "010-1111-1111",
+  "roleCodeId": 4
+}
+
+### 부스 관리자 회원가입
+POST {{baseUrl}}/api/users/signup
+Content-Type: application/json
+
+{
+  "email": "b1@f.com",
+  "password": "1234",
+  "name": "부스1",
+  "nickname": "boothM1",
+  "phone": "010-2222-2222",
+  "roleCodeId": 3
+}
+
+### 행사 관리자 회원가입
+POST {{baseUrl}}/api/users/signup
+Content-Type: application/json
+
+{
+  "email": "e1@f.com",
+  "password": "1234",
+  "name": "행사1",
+  "nickname": "eventM1",
+  "phone": "010-3333-3333",
+  "roleCodeId": 2
+}
+
+### 전체 관리자 회원가입
+POST {{baseUrl}}/api/users/signup
+Content-Type: application/json
+
+{
+  "email": "a1@f.com",
+  "password": "1234",
+  "name": "전체1",
+  "nickname": "전체1",
+  "phone": "010-4444-4444",
+  "roleCodeId": 1
+}
+
+### 이메일 중복 확인
+GET {{baseUrl}}/api/users/check-email?email=test@example.com
+Content-Type: application/json
+
+### 닉네임 중복 확인
+GET {{baseUrl}}/api/users/check-nickname?nickname=testuser
+Content-Type: application/json
+
+### ===============================
+### 로그인 및 토큰 획득
+### ===============================
+
+### 행사 관리자 로그인 (부스 신청 승인용)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "e1@f.com",
+  "password": "1234"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("access_token", response.body.accessToken);
+        console.log("Access token saved: " + response.body.accessToken);
+    }
+%}
+
+### 부스 관리자 로그인 (체험 등록/관리용)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "b1@f.com",
+  "password": "1234"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("booth_access_token", response.body.accessToken);
+        console.log("Booth Access token saved: " + response.body.accessToken);
+    }
+%}
+
+
+### 전체 관리자 로그인
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "a1@f.com",
+  "password": "1234"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("booth_access_token", response.body.accessToken);
+        console.log("Booth Access token saved: " + response.body.accessToken);
+    }
+%}
