@@ -58,7 +58,7 @@ public class AttendeeController {
   public ResponseEntity<List<AttendeeInfoResponseDto>> getAttendees(@PathVariable Long eventId,
       @AuthenticationPrincipal CustomUserDetails userDetails) {
     List<AttendeeInfoResponseDto> response = attendeeService.getAttendeesByEvent(eventId,
-        userDetails.getUserId());
+        userDetails);
     return ResponseEntity.ok(response);
   }
 }

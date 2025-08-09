@@ -14,6 +14,7 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
+
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -104,14 +105,18 @@ public class AttendeeService {
   }
 
   // 행사별 예약자 명단 조회 (행사 관리자)
-  public List<AttendeeInfoResponseDto> getAttendeesByEvent(Long eventId, Long userId) {
+  public List<AttendeeInfoResponseDto> getAttendeesByEvent(Long eventId,
+      CustomUserDetails userDetails) {
+    // 행사 관리자 권한 검증
+    if ("COMMON".equals(userDetails.getRoleCode())) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "행사별 예약자 명단을 조회할 권한이 없습니다.");
+    }
     // eventId 유효성 검사
     if (eventId == null || eventId <= 0) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "유효하지 않은 행사 ID입니다.");
     }
 
-    // 행사 관리자 권한 검증
-    List<Attendee> attendees =  attendeeRepository.findByEventId(eventId);
+    List<Attendee> attendees = attendeeRepository.findByEventId(eventId);
     return attendees.stream()
         .map(this::buildAttendeeInfoResponse)
         .toList();

@@ -31,6 +31,7 @@ public class ShareTicketService {
 
   private static final String RESERVATION = "RESERVATION";
   private static final String COMPLETED = "COMPLETED";
+
   // 공유 폼 링크 생성 -> 예약 성공 시 예약 서비스 단계에서 사용
   @Transactional
   public String generateToken(ShareTicketSaveRequestDto dto) {
@@ -43,13 +44,11 @@ public class ShareTicketService {
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다."));
 
     // 결제 내역 조회
-    Payment payment = paymentRepository.findByTargetIdAndPaymentTargetType_PaymentTargetCode(
-        reservation.getReservationId(), RESERVATION).orElseThrow(
-        () -> new CustomException(HttpStatus.NOT_FOUND, "결제 내역을 찾을 수 없습니다.")
-    );
 
-    // 정상적으로 결제 처리된 예약인지 조회
-    if (!payment.getPaymentStatusCode().getCode().equals(COMPLETED)) {
+    boolean hasCompleted = paymentRepository
+        .existsByTargetIdAndPaymentTargetType_PaymentTargetCodeAndPaymentStatusCode_Code(
+            reservation.getReservationId(), RESERVATION, COMPLETED);
+    if (!hasCompleted) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "결제가 정상적으로 처리되지 않았습니다.");
     }
 
@@ -70,7 +69,7 @@ public class ShareTicketService {
     } while (shareTicketRepository.existsByLinkToken(token));
 
     if (dto.getTotalAllowed() == null || dto.getTotalAllowed() <= 0) {
-      throw new CustomException(HttpStatus.BAD_REQUEST,"허용 인원은 1명 이상이어야 합니다.");
+      throw new CustomException(HttpStatus.BAD_REQUEST, "허용 인원은 1명 이상이어야 합니다.");
     }
 
     ShareTicket shareTicket = ShareTicket.builder()
