@@ -1,0 +1,10 @@
+### 리뷰 저장
+POST http://localhost:8080/api/reviews
+Content-Type: application/json
+
+{
+  "reservationId": 1,
+  "star": 0,
+  "isPublic": true,
+  "comment": "행사 리뷰 테스트입니다."
+}

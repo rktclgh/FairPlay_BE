@@ -3,15 +3,18 @@ package com.fairing.fairplay.review.service;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.review.dto.EventDto;
 import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
 import com.fairing.fairplay.review.dto.ReviewDto;
 import com.fairing.fairplay.review.dto.ReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewSaveRequestDto;
+import com.fairing.fairplay.review.dto.ReviewSaveResponseDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateRequestDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateResponseDto;
 import com.fairing.fairplay.review.entity.Review;
 import com.fairing.fairplay.review.repository.ReviewRepository;
+
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import java.time.DayOfWeek;
@@ -38,23 +41,56 @@ public class ReviewService {
   private final UserRepository userRepository;
   private final EventRepository eventRepository;
   private final ReviewReactionService reviewReactionService;
+  private final ReviewReservationService reviewReservationService;
 
   // 본인이 예매한 행사에 대해서만 리뷰 작성 가능
   @Transactional
-  public void save(ReviewSaveRequestDto dto) {
+  public ReviewSaveResponseDto save(ReviewSaveRequestDto dto) {
     // user 임시 설정
-    Users user = userRepository.getReferenceById(1L);
+    Users user = userRepository.findByUserId(1L).orElseThrow(() ->
+        new CustomException(HttpStatus.NOT_FOUND, "사용자를 조회할 수 없습니다."));
 
-    // reservation 검증 추가 예정
+    // user의 사용자 권한이 일반 사용자인지 검증
+    if (!user.getRoleCode().getCode().equals("COMMON")) {
+      throw new CustomException(HttpStatus.FORBIDDEN,
+          "리뷰를 작성할 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
+    }
+
+    // 리뷰 작성자와 예약자가 일치하는지 조회
+    Reservation reservation = reviewReservationService.checkReservationIdAndUser(
+        dto.getReservationId(), user);
+
+    // 리뷰 별점 유효성 검증
+    if (dto.getStar() < 0 || dto.getStar() > 5) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "별점은 1~5 사이어야 합니다.");
+    }
+
+    // 예약이 취소되었는지 검증
+    if (reservation.isCanceled()) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "취소된 예약은 리뷰를 작성할 수 없습니다.");
+    }
+
+    // 리뷰 작성 가능 기간 제한
+    LocalDate endDate = reservation.getSchedule().getDate();
+    if (endDate.plusDays(7).isBefore(LocalDateTime.now().toLocalDate())) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "리뷰 작성 기간이 만료되었습니다.");
+    }
+
+    // 이미 작성한 리뷰가 있는지 조회
+    if (reviewRepository.existsByReservationAndUser(reservation, user)) {
+      throw new CustomException(HttpStatus.CONFLICT, "이미 리뷰를 작성한 행사입니다.");
+    }
+
     Review review = Review.builder()
         .user(user)
-        .reservationId(dto.getReservationId())
+        .reservation(reservation)
         .comment(dto.getComment())
         .isPublic(dto.getIsPublic())
         .star(dto.getStar())
         .build();
 
-    reviewRepository.save(review);
+    Review saveReview = reviewRepository.save(review);
+    return buildReviewSaveResponse(saveReview);
   }
 
   // 행사 상세 페이지 - 특정 행사 리뷰 조회
@@ -151,12 +187,23 @@ public class ReviewService {
         .build();
   }
 
+  private ReviewSaveResponseDto buildReviewSaveResponse(Review review) {
+    return ReviewSaveResponseDto.builder()
+        .reviewId(review.getId())
+        .comment(review.getComment())
+        .star(review.getStar())
+        .isPublic(review.getIsPublic())
+        .star(review.getStar())
+        .createdAt(review.getCreatedAt())
+        .build();
+  }
+
   private ReviewResponseDto toReviewResponseDto(Review review, Long reactionCount) {
     // Event event = review.getReservation(); // 엔티티 기준
     // event 조회
     Event event = eventRepository.findById(1L)
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND,
-            "이벤트를 찾을 수 없습니다. id=" + review.getReservationId()));
+            "이벤트를 찾을 수 없습니다. id=" + review.getReservation().getReservationId()));
 
     // 조회한 리뷰 관련 행사 정보
     EventDto eventDto = EventDto.builder()

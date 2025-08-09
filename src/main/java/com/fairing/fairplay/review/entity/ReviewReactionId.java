@@ -20,5 +20,4 @@ public class ReviewReactionId implements Serializable {
 
   @Column(name = "user_id", nullable = false, updatable = false)
   private Long userId;
-
 }

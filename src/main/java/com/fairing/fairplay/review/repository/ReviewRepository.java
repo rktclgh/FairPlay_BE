@@ -1,5 +1,6 @@
 package com.fairing.fairplay.review.repository;
 
+import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.review.entity.Review;
 import com.fairing.fairplay.user.entity.Users;
 import java.util.Optional;
@@ -23,4 +24,5 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
   Optional<Review> findByIdAndUser(Long reviewId, Users user);
   Page<Review> findByUser(Users user, Pageable pageable);
+  boolean existsByReservationAndUser(Reservation reservation, Users user);
 }

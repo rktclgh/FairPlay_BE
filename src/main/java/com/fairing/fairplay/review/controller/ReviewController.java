@@ -3,6 +3,7 @@ package com.fairing.fairplay.review.controller;
 import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
 import com.fairing.fairplay.review.dto.ReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewSaveRequestDto;
+import com.fairing.fairplay.review.dto.ReviewSaveResponseDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateRequestDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateResponseDto;
 import com.fairing.fairplay.review.service.ReviewService;
@@ -31,9 +32,8 @@ public class ReviewController {
 
   // 리뷰 저장
   @PostMapping
-  public ResponseEntity<Void> saveReview(@RequestBody ReviewSaveRequestDto dto) {
-    reviewService.save(dto);
-    return new ResponseEntity<>(HttpStatus.CREATED);
+  public ResponseEntity<ReviewSaveResponseDto> saveReview(@RequestBody ReviewSaveRequestDto dto) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(reviewService.save(dto));
   }
 
   // 행사 상세 페이지 리뷰 조회
