@@ -36,7 +36,6 @@ public class QrTicketBatchService {
   private final QrLinkService qrLinkService;
   private final QrTicketRepositoryCustom qrTicketRepositoryCustom;
   private final CodeGenerator codeGenerator;
-  private final ScheduleTicketService scheduleTicketService;
 
   // 행사 1일 남은 예약건 조회
   public List<Tuple> fetchQrTicketBatch() {
