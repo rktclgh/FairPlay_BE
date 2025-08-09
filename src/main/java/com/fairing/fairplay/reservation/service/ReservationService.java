@@ -4,6 +4,7 @@ import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.notification.dto.NotificationRequestDto;
 import com.fairing.fairplay.notification.service.NotificationService;
+import com.fairing.fairplay.reservation.dto.ReservationAttendeeDto;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.entity.ReservationLog;
@@ -11,15 +12,27 @@ import com.fairing.fairplay.reservation.entity.ReservationStatusCode;
 import com.fairing.fairplay.reservation.entity.ReservationStatusCodeEnum;
 import com.fairing.fairplay.reservation.repository.ReservationLogRepository;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.entity.ScheduleTicket;
+import com.fairing.fairplay.ticket.entity.ScheduleTicketId;
+import com.fairing.fairplay.ticket.entity.Ticket;
+import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
+import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
+import com.fairing.fairplay.ticket.repository.TicketRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -29,12 +42,10 @@ public class ReservationService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final ReservationLogRepository reservationLogRepository;
-    private final NotificationService notificationService; // NotificationService 주입
-    /*
+    private final NotificationService notificationService;
     private final EventScheduleRepository eventScheduleRepository;
     private final TicketRepository ticketRepository;
     private final ScheduleTicketRepository scheduleTicketRepository;
-     */
 
     // 예약 신청
     @Transactional
@@ -46,38 +57,161 @@ public class ReservationService {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자 ID: " + userId));
 
-        // 일정 등록 여부 확인 (Null 허용)
-        if(requestDto.getScheduleId() != null){
-
+        // 일정 정보 확인 (null일 수 있음)
+        EventSchedule schedule = null;
+        if (requestDto.getScheduleId() != null) {
+            schedule = eventScheduleRepository.findById(requestDto.getScheduleId())
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 일정 ID: " + requestDto.getScheduleId()));
         }
 
-        // 티켓 오픈 확인, 티켓 판매 기간 확인
+        // 티켓 정보 확인
+        Ticket ticket = ticketRepository.findById(requestDto.getTicketId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + requestDto.getTicketId()));
 
-        /*
+        // 티켓 재고 및 판매 기간 확인 (일정이 있는 경우만)
+        if (schedule != null) {
+            ScheduleTicketId scheduleTicketId = new ScheduleTicketId(ticket.getTicketId(), schedule.getScheduleId());
+            
+            // 🔒 동시성 문제 해결: 비관적 락으로 재고 조회
+            ScheduleTicket scheduleTicket = scheduleTicketRepository.findByIdWithPessimisticLock(scheduleTicketId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 일정에 대한 티켓이 존재하지 않습니다."));
 
-        EventSchedule schedule = eventScheduleRepository.getReferenceById(requestDto.getScheduleId());
-        Ticket ticket = ticketRepository.getReferenceById(requestDto.getTicketId());
+            // 판매 기간 확인
+            LocalDateTime now = LocalDateTime.now();
+            if (now.isBefore(scheduleTicket.getSalesStartAt()) || now.isAfter(scheduleTicket.getSalesEndAt())) {
+                throw new IllegalStateException("티켓 판매 기간이 아닙니다.");
+            }
 
-        Reservation reservationParam =  new Reservation(event, schedule, ticket, user, requestDto.getQuantity(), requestDto.getPrice());
+            // 🚀 원자적 재고 차감 (더 안전한 방법)
+            int updatedRows = scheduleTicketRepository.decreaseStockIfAvailable(
+                    ticket.getTicketId(), 
+                    schedule.getScheduleId(), 
+                    requestDto.getQuantity()
+            );
+            
+            if (updatedRows == 0) {
+                // 재고 부족으로 업데이트 실패
+                throw new IllegalStateException("재고가 부족합니다. 다시 시도해 주세요.");
+            }
+        }
+
+        // 예약 생성 (초기 상태는 PENDING)
+        ReservationStatusCode pendingStatus = new ReservationStatusCode(ReservationStatusCodeEnum.PENDING.getId());
+        
+        Reservation reservationParam = new Reservation(event, schedule, ticket, user, requestDto.getQuantity(), requestDto.getPrice());
+        reservationParam.setReservationStatusCode(pendingStatus);
+        reservationParam.setCreatedAt(LocalDateTime.now());
+        reservationParam.setUpdatedAt(LocalDateTime.now());
+        
         Reservation reservation = reservationRepository.save(reservationParam);
 
-        // --- 알림 생성 로직 추가 ---
+        // 예약 상태 로깅
+        createReservationLog(reservation, ReservationStatusCodeEnum.PENDING, userId);
+
+        // 알림 생성
         NotificationRequestDto notificationDto = NotificationRequestDto.builder()
                 .userId(userId)
                 .typeCode("RESERVATION")
                 .methodCode("WEB")
-                .title(event.getName() + " 예약 완료!")
-                .message(user.getName() + " 님, " + event.getName() + " 박람회 예약이 성공적으로 완료되었습니다.")
+                .title(event.getTitleKr() + " 예약 완료!")
+                .message(user.getName() + " 님, " + event.getTitleKr() + " 박람회 예약이 성공적으로 완료되었습니다.")
                 .url("https://fair-play.ink/event/" + event.getEventId())
                 .build();
         
         notificationService.createNotification(notificationDto);
-        // --------------------------
 
         return reservation;
-         */
+    }
 
-        return null;
+    // 예약 수정
+    @Transactional
+    public Reservation updateReservation(ReservationRequestDto requestDto, Long userId) {
+        // 기존 예약 조회
+        Reservation existingReservation = reservationRepository.findById(requestDto.getReservationId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약 ID: " + requestDto.getReservationId()));
+
+        // 예약자 본인 확인
+        if (!existingReservation.getUser().getUserId().equals(userId)) {
+            throw new IllegalStateException("예약 수정 권한이 없습니다.");
+        }
+
+        // 취소된 예약인지 확인
+        if (existingReservation.getReservationStatusCode().getId() == ReservationStatusCodeEnum.CANCELLED.getId()) {
+            throw new IllegalStateException("취소된 예약은 수정할 수 없습니다.");
+        }
+
+        // 행사 시작 전인지 확인
+        LocalDate today = LocalDate.now();
+        if (existingReservation.getSchedule() != null &&
+                existingReservation.getSchedule().getDate().isBefore(today)) {
+            throw new IllegalStateException("행사가 이미 시작되어 수정이 불가능합니다.");
+        }
+
+        // 새로운 티켓 정보 확인 (티켓 변경이 있는 경우)
+        Ticket newTicket = null;
+        if (requestDto.getTicketId() != null && !requestDto.getTicketId().equals(existingReservation.getTicket().getTicketId())) {
+            newTicket = ticketRepository.findById(requestDto.getTicketId())
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + requestDto.getTicketId()));
+        }
+
+        // 수량 변경이나 티켓 변경이 있는 경우 재고 처리
+        if (existingReservation.getSchedule() != null) {
+            // 🔒 기존 예약 재고 복원 (원자적 처리)
+            scheduleTicketRepository.increaseStock(
+                    existingReservation.getTicket().getTicketId(),
+                    existingReservation.getSchedule().getScheduleId(),
+                    existingReservation.getQuantity()
+            );
+
+            // 새로운 예약에 대한 재고 확인 및 차감
+            Ticket targetTicket = newTicket != null ? newTicket : existingReservation.getTicket();
+            ScheduleTicketId newScheduleTicketId = new ScheduleTicketId(
+                    targetTicket.getTicketId(),
+                    existingReservation.getSchedule().getScheduleId()
+            );
+            
+            // 판매 기간 확인을 위해 락으로 조회
+            ScheduleTicket newScheduleTicket = scheduleTicketRepository.findByIdWithPessimisticLock(newScheduleTicketId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 일정에 대한 티켓이 존재하지 않습니다."));
+
+            // 판매 기간 확인
+            LocalDateTime now = LocalDateTime.now();
+            if (now.isBefore(newScheduleTicket.getSalesStartAt()) || now.isAfter(newScheduleTicket.getSalesEndAt())) {
+                throw new IllegalStateException("티켓 판매 기간이 아닙니다.");
+            }
+
+            // 🚀 원자적 재고 차감
+            int updatedRows = scheduleTicketRepository.decreaseStockIfAvailable(
+                    targetTicket.getTicketId(),
+                    existingReservation.getSchedule().getScheduleId(),
+                    requestDto.getQuantity()
+            );
+            
+            if (updatedRows == 0) {
+                // 재고 부족으로 실패 - 이미 복원한 재고를 다시 차감
+                scheduleTicketRepository.decreaseStockIfAvailable(
+                        existingReservation.getTicket().getTicketId(),
+                        existingReservation.getSchedule().getScheduleId(),
+                        existingReservation.getQuantity()
+                );
+                throw new IllegalStateException("재고가 부족합니다. 다시 시도해 주세요.");
+            }
+        }
+
+        // 예약 정보 업데이트
+        if (newTicket != null) {
+            existingReservation.setTicket(newTicket);
+        }
+        existingReservation.setQuantity(requestDto.getQuantity());
+        existingReservation.setPrice(requestDto.getPrice());
+        existingReservation.setUpdatedAt(LocalDateTime.now());
+
+        Reservation updatedReservation = reservationRepository.save(existingReservation);
+
+        // 예약 수정 로깅
+        createReservationLog(updatedReservation, ReservationStatusCodeEnum.fromId(updatedReservation.getReservationStatusCode().getId()), userId);
+
+        return updatedReservation;
     }
 
     // 예약 상세 조회
@@ -122,16 +256,14 @@ public class ReservationService {
         ReservationStatusCode cancelledStatus = new ReservationStatusCode(ReservationStatusCodeEnum.CANCELLED.getId());
         reservation.setReservationStatusCode(cancelledStatus);
 
-        // 취소된 티켓 수량만큼 재고 증가
-        /*
-        ScheduleTicketId scheduleTicketId = new ScheduleTicketId(reservation.getTicket().getTicketId(), reservation.getSchedule().getScheduleId());
-        ScheduleTicket scheduleTicket = scheduleTicketRepository.findById(scheduleTicketId);
-        if (scheduleTicket != null) {
-            scheduleTicket.setRemainingStock(
-                scheduleTicket.getRemainingStock() + reservation.getQuantity()
+        // 🔒 취소된 티켓 수량만큼 재고 증가 (일정이 있는 경우만)
+        if (reservation.getSchedule() != null) {
+            scheduleTicketRepository.increaseStock(
+                    reservation.getTicket().getTicketId(),
+                    reservation.getSchedule().getScheduleId(),
+                    reservation.getQuantity()
             );
         }
-        */
 
         reservationRepository.save(reservation);
 
@@ -154,5 +286,85 @@ public class ReservationService {
     @Transactional(readOnly = true)
     public List<Reservation> getMyReservations(Long userId) {
         return reservationRepository.findByUser_userId(userId);
+    }
+
+    // 예약자 명단 조회 (행사 관리자용)
+    @Transactional(readOnly = true)
+    public List<ReservationAttendeeDto> getReservationAttendees(Long eventId, String status) {
+        List<Reservation> reservations;
+        
+        if (status != null && !status.isEmpty()) {
+            // 상태별 필터링이 필요한 경우 repository에 메서드 추가 필요
+            reservations = reservationRepository.findByEvent_EventId(eventId);
+            // TODO: 상태별 필터링 로직 구현
+        } else {
+            reservations = reservationRepository.findByEvent_EventId(eventId);
+        }
+        
+        return reservations.stream()
+                .map(ReservationAttendeeDto::from)
+                .toList();
+    }
+
+    // 예약자 명단 엑셀 파일 생성
+    @Transactional(readOnly = true)
+    public byte[] generateAttendeesExcel(Long eventId, String status) throws IOException {
+        List<ReservationAttendeeDto> attendees = getReservationAttendees(eventId, status);
+        
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("예약자 명단");
+            
+            // 헤더 스타일 생성
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            
+            // 헤더 생성
+            Row headerRow = sheet.createRow(0);
+            String[] headers = {
+                "예약번호", "예약자명", "이메일", "전화번호", "행사명", "일정", 
+                "티켓명", "수량", "가격", "예약상태", "예약일시", "수정일시", "취소여부", "취소일시"
+            };
+            
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            
+            // 데이터 행 생성
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            int rowNum = 1;
+            
+            for (ReservationAttendeeDto attendee : attendees) {
+                Row row = sheet.createRow(rowNum++);
+                
+                row.createCell(0).setCellValue(attendee.getReservationId());
+                row.createCell(1).setCellValue(attendee.getUserName());
+                row.createCell(2).setCellValue(attendee.getUserEmail());
+                row.createCell(3).setCellValue(attendee.getUserPhone());
+                row.createCell(4).setCellValue(attendee.getEventName());
+                row.createCell(5).setCellValue(attendee.getScheduleName());
+                row.createCell(6).setCellValue(attendee.getTicketName());
+                row.createCell(7).setCellValue(attendee.getQuantity());
+                row.createCell(8).setCellValue(attendee.getPrice());
+                row.createCell(9).setCellValue(attendee.getReservationStatus());
+                row.createCell(10).setCellValue(attendee.getCreatedAt() != null ? attendee.getCreatedAt().format(formatter) : "");
+                row.createCell(11).setCellValue(attendee.getUpdatedAt() != null ? attendee.getUpdatedAt().format(formatter) : "");
+                row.createCell(12).setCellValue(attendee.isCanceled() ? "예" : "아니오");
+                row.createCell(13).setCellValue(attendee.getCanceledAt() != null ? attendee.getCanceledAt().format(formatter) : "");
+            }
+            
+            // 컬럼 너비 자동 조정
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            
+            workbook.write(out);
+            return out.toByteArray();
+        }
     }
 }
