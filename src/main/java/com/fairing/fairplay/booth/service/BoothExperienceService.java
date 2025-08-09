@@ -292,4 +292,48 @@ public class BoothExperienceService {
         reservationRepository.saveAll(waitingReservations);
         log.info("대기 순번 재정렬 완료 - 체험 ID: {}", experience.getExperienceId());
     }
+
+    // 사용자 본인 예약 취소 (보안 검증 포함)
+    @Transactional
+    public void cancelUserReservation(Long reservationId, Long userId) {
+        log.info("사용자 예약 취소 시작 - 예약 ID: {}, 사용자 ID: {}", reservationId, userId);
+
+        BoothExperienceReservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
+
+        // 예약자 본인 확인 (보안 검증)
+        if (!reservation.getUser().getUserId().equals(userId)) {
+            throw new IllegalStateException("본인의 예약만 취소할 수 있습니다.");
+        }
+
+        // 이미 취소된 예약인지 확인
+        if ("CANCELLED".equals(reservation.getExperienceStatusCode().getCode())) {
+            throw new IllegalStateException("이미 취소된 예약입니다.");
+        }
+
+        // 완료된 예약인지 확인
+        if ("COMPLETED".equals(reservation.getExperienceStatusCode().getCode())) {
+            throw new IllegalStateException("완료된 예약은 취소할 수 없습니다.");
+        }
+
+        // 체험 진행중인 예약인지 확인
+        if ("IN_PROGRESS".equals(reservation.getExperienceStatusCode().getCode())) {
+            throw new IllegalStateException("현재 체험 진행중인 예약은 취소할 수 없습니다.");
+        }
+
+        // 체험 날짜가 지났는지 확인
+        BoothExperience experience = reservation.getBoothExperience();
+        if (experience.getExperienceDate().isBefore(java.time.LocalDate.now())) {
+            throw new IllegalStateException("체험 날짜가 지난 예약은 취소할 수 없습니다.");
+        }
+
+        // 취소 상태로 변경
+        BoothExperienceStatusCode cancelledStatus = statusCodeRepository.findByCode("CANCELLED")
+                .orElseThrow(() -> new IllegalStateException("취소 상태 코드를 찾을 수 없습니다"));
+
+        processStatusChange(reservation, cancelledStatus, "사용자 취소");
+        reservationRepository.save(reservation);
+
+        log.info("사용자 예약 취소 완료 - 예약 ID: {}", reservationId);
+    }
 }

@@ -2,12 +2,14 @@ package com.fairing.fairplay.booth.controller;
 
 import com.fairing.fairplay.booth.dto.*;
 import com.fairing.fairplay.booth.service.BoothExperienceService;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -121,17 +123,13 @@ public class BoothExperienceController {
     @DeleteMapping("/reservations/{reservationId}")
     public ResponseEntity<Void> cancelReservation(
             @Parameter(description = "예약 ID") @PathVariable Long reservationId,
-            @Parameter(description = "사용자 ID") @RequestParam Long userId) {
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
         
+        Long userId = userDetails.getUserId();
         log.info("예약 취소 - 예약 ID: {}, 사용자 ID: {}", reservationId, userId);
         
-        // 취소 상태로 변경
-        BoothExperienceStatusUpdateDto cancelDto = BoothExperienceStatusUpdateDto.builder()
-                .statusCode("CANCELLED")
-                .notes("사용자 취소")
-                .build();
-        
-        boothExperienceService.updateReservationStatus(reservationId, cancelDto);
+        // 본인 예약 확인 및 취소 처리
+        boothExperienceService.cancelUserReservation(reservationId, userId);
         return ResponseEntity.ok().build();
     }
 

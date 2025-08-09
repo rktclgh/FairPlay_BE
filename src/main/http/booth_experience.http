@@ -158,10 +158,11 @@ Authorization: Bearer {{access_token}}
 }
 
 ### ===============================
-### 10. 예약 취소 (참여자)
+### 10. 예약 취소 (참여자) - 본인 인증 포함
 ### ===============================
-DELETE {{baseUrl}}/api/booth-experiences/reservations/{{reservationId}}?userId={{userId}}
+DELETE {{baseUrl}}/api/booth-experiences/reservations/{{reservationId}}
 Content-Type: application/json
+Authorization: Bearer {{access_token}}
 
 ### ===============================
 ### 11. 대기열 현황 조회
