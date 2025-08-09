@@ -14,6 +14,7 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
+
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -62,12 +63,7 @@ public class AttendeeService {
         reservationId);
 
     List<AttendeeInfoResponseDto> result = attendees.stream()
-        .map(attendee -> AttendeeInfoResponseDto.builder()
-            .attendeeId(attendee.getId())
-            .name(attendee.getName())
-            .email(attendee.getEmail())
-            .phone(attendee.getPhone())
-            .build())
+        .map(this::buildAttendeeInfoResponse)
         .toList();
 
     return AttendeeListInfoResponseDto.builder()
@@ -85,18 +81,18 @@ public class AttendeeService {
     // 예약 있는지 조회
     Reservation reservation = findReservation(dto.getReservationId());
 
-    // 대표자와 현재 수정 요청한 요청자의 ID 비교
-    if (!Objects.equals(reservation.getUser().getUserId(), userId)) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "현재 사용자와 티켓 소유주가 일치하지 않습니다.");
-    }
-
     // 참석자 정보 조회 -> 예약ID + 참석자ID
     Attendee attendee = attendeeRepository.findByIdAndReservation_ReservationId(attendeeId,
             reservation.getReservationId())
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
 
+    // 대표자와 현재 수정 요청한 요청자의 ID 비교
+    if (!Objects.equals(reservation.getUser().getUserId(), userId)) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "현재 사용자와 티켓 소유주가 일치하지 않습니다.");
+    }
+
     // 수정하려는 정보가 대표자일 경우 수정 불가하므로 예외 발생
-    if ("PRIMARY".equals(attendee.getAttendeeTypeCode().getCode().trim())) {
+    if (AttendeeTypeCode.PRIMARY.equals(attendee.getAttendeeTypeCode().getCode().trim())) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "대표자 정보는 수정할 수 없습니다.");
     }
 
@@ -105,32 +101,33 @@ public class AttendeeService {
     attendee.setPhone(dto.getPhone());
     attendee.setName(dto.getName());
 
-    return AttendeeInfoResponseDto.builder()
-        .attendeeId(attendee.getId())
-        .reservationId(attendee.getReservation().getReservationId())
-        .name(attendee.getName())
-        .email(attendee.getEmail())
-        .phone(attendee.getPhone())
-        .build();
+    return buildAttendeeInfoResponse(attendee);
   }
 
   // 행사별 예약자 명단 조회 (행사 관리자)
-  public List<Attendee> getAttendeesByEvent(Long eventId, Long userId) {
+  public List<AttendeeInfoResponseDto> getAttendeesByEvent(Long eventId,
+      CustomUserDetails userDetails) {
+    // 행사 관리자 권한 검증
+    if ("COMMON".equals(userDetails.getRoleCode())) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "행사별 예약자 명단을 조회할 권한이 없습니다.");
+    }
     // eventId 유효성 검사
     if (eventId == null || eventId <= 0) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "유효하지 않은 행사 ID입니다.");
     }
 
-    // 행사 관리자 권한 검증
-
-    return attendeeRepository.findByEventId(eventId);
+    List<Attendee> attendees = attendeeRepository.findByEventId(eventId);
+    return attendees.stream()
+        .map(this::buildAttendeeInfoResponse)
+        .toList();
   }
 
   // DB save 로직 분리
   private AttendeeInfoResponseDto saveAttendee(String attendeeType, AttendeeSaveRequestDto dto,
       Long reservationId) {
     AttendeeTypeCode attendeeTypeCode = attendeeTypeCodeRepository.findByCode(attendeeType)
-        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST,"잘못된 참석자 유형 값입니다. 입력값: "+attendeeType));
+        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST,
+            "잘못된 참석자 유형 값입니다. 입력값: " + attendeeType));
 
     Reservation reservation = findReservation(reservationId);
 
@@ -142,12 +139,16 @@ public class AttendeeService {
         .reservation(reservation)
         .build();
     Attendee savedAttendee = attendeeRepository.save(attendee);
+    return buildAttendeeInfoResponse(savedAttendee);
+  }
+
+  private AttendeeInfoResponseDto buildAttendeeInfoResponse(Attendee attendee) {
     return AttendeeInfoResponseDto.builder()
-        .attendeeId(savedAttendee.getId())
-        .reservationId(savedAttendee.getReservation().getReservationId())
-        .name(savedAttendee.getName())
-        .email(savedAttendee.getEmail())
-        .phone(savedAttendee.getPhone())
+        .attendeeId(attendee.getId())
+        .reservationId(attendee.getReservation().getReservationId())
+        .name(attendee.getName())
+        .email(attendee.getEmail())
+        .phone(attendee.getPhone())
         .build();
   }
 

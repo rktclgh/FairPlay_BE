@@ -106,7 +106,7 @@ public class QrTicketBatchService {
 
           log.info("[QrTicketInitProvider] List<Tuple> results - e: {}", e.getTitleKr());
 
-          LocalDateTime expiredAt = LocalDateTime.of(es.getDate(), es.getEndTime()); //만료시간 설정
+          LocalDateTime expiredAt = LocalDateTime.of(es.getDate(), es.getEndTime()); //만료날짜+시간 설정
           String ticketNo = codeGenerator.generateTicketNo(eventCode); // 티켓번호 설정
 
           return QrTicket.builder()
