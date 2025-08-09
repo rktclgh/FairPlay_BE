@@ -143,12 +143,13 @@ public class QrTicketIssueService{
     // 재발급된 QR 티켓 - qrcode, manualcode null 처리
     QrTicket resetQrTicket = resetQrTicket(qrTicket);
     Attendee attendee = resetQrTicket.getAttendee();
+    Reservation reservation = attendee.getReservation();
 
     QrTicketRequestDto qrTicketRequestDto = QrTicketRequestDto.builder()
-        .reservationId(resetQrTicket.getAttendee().getReservation().getReservationId())
-        .eventId(resetQrTicket.getEventTicket().getEvent().getEventId())
-        .ticketId(resetQrTicket.getEventTicket().getTicket().getTicketId())
-        .attendeeId(resetQrTicket.getAttendee().getId())
+        .reservationId(reservation.getReservationId())
+        .eventId(resetQrTicket.getEventSchedule().getEvent().getEventId())
+        .ticketId(reservation.getTicket().getTicketId())
+        .attendeeId(attendee.getId())
         .build();
 
     // 메일 전송
