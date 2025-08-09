@@ -68,7 +68,9 @@ public class ChatPresenceService {
         String key = "user:" + userId;
         LocalDateTime lastSeen = onlineUsers.get(key);
         
-        if (lastSeen == null) return false;
+        if (lastSeen == null) {
+            return false;
+        }
         
         return lastSeen.isAfter(LocalDateTime.now().minusMinutes(ONLINE_EXPIRE_MINUTES));
     }
