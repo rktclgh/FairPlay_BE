@@ -54,8 +54,6 @@ public class QrLogService {
 
     // 중복 스캔
     preventDuplicateScan(qrTicket, checkStatus);
-    // 잘못된 입퇴장 스캔
-    preventInvalidScan(qrTicket, checkStatus);
   }
 
   // 입장 (QR 코드 스캔+수동 코드)
@@ -64,6 +62,9 @@ public class QrLogService {
     QrActionCode qrActionCode = validateQrActionCode(checkInType);
     // entryType = ENTRY, REENTRY
     QrCheckStatusCode qrCheckStatusCode = validateQrCheckStatusCode(entryType);
+
+    // 잘못된 입퇴장 스캔 -> ENTRY, REENTRY, EXIT
+    preventInvalidScan(qrTicket, entryType);
 
     saveQrLog(qrTicket, qrActionCode);
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
@@ -124,27 +125,43 @@ public class QrLogService {
     Optional<QrCheckLog> lastLogOpt = qrCheckLogRepository.findTop1ByQrTicketOrderByCreatedAtDesc(
         qrTicket);
 
-    if (lastLogOpt.isPresent()) {
-      String lastStatus = lastLogOpt.get().getCheckStatusCode().getCode();
-
-      boolean isValid = false;
-
-      if (checkStatus.equals(QrCheckStatusCode.ENTRY)) {
-        // ENTRY 시 직전 상태가 EXIT 여야함
-        isValid = QrCheckStatusCode.EXIT.equals(lastStatus);
-      } else if (checkStatus.equals(QrCheckStatusCode.EXIT)) {
-        // EXIT 시 직전 상태가 ENTRY 또는 REENTRY 여야 함
-        isValid = QrCheckStatusCode.ENTRY.equals(lastStatus) || QrCheckStatusCode.REENTRY.equals(
-            lastStatus);
-      }
-
-      if (!isValid) {
+    // 처음 입장하여 직전 로그가 없는데 EXIT 스캔하는 경우
+    if (lastLogOpt.isEmpty()) {
+      if (QrCheckStatusCode.EXIT.equals(checkStatus) || QrCheckStatusCode.REENTRY.equals(
+          checkStatus)) {
         invalidQrLog(qrTicket);
-        throw new CustomException(HttpStatus.BAD_REQUEST,
-            "잘못된 입퇴장 동작입니다. 마지막 상태: "
-                + lastLogOpt.get().getCheckStatusCode().getName());
+        throw new CustomException(HttpStatus.BAD_REQUEST, "첫 스캔은 ENTRY만 허용됩니다.");
       }
+      return;
     }
+
+    boolean isValid = isQrCheckStatusCodeValid(checkStatus, lastLogOpt.get());
+
+    // 만약 isValid가 false로 변경 -> 직전 statuscode가 올바르지 않음
+    if (!isValid) {
+      invalidQrLog(qrTicket);
+      throw new CustomException(HttpStatus.BAD_REQUEST,
+          "잘못된 입퇴장 동작입니다. 마지막 상태: "
+              + lastLogOpt.get().getCheckStatusCode().getName());
+    }
+  }
+
+  private boolean isQrCheckStatusCodeValid(String checkStatus, QrCheckLog lastLogOpt) {
+    String lastStatus = lastLogOpt.getCheckStatusCode().getCode();
+
+    boolean isValid = true;
+    if (QrCheckStatusCode.ENTRY.equals(checkStatus)) {
+      // ENTRY는 직전이 EXIT 여야 입장 가능
+      isValid = QrCheckStatusCode.EXIT.equals(lastStatus);
+    } else if (QrCheckStatusCode.REENTRY.equals(checkStatus)) {
+      // REENTRY는 직전이 EXIT 여야 입장 가능
+      isValid = QrCheckStatusCode.EXIT.equals(lastStatus);
+    } else if (QrCheckStatusCode.EXIT.equals(checkStatus)) {
+      // EXIT는 직전이 ENTRY, REENTRY 여야 입장 가능
+      isValid = QrCheckStatusCode.ENTRY.equals(lastStatus) || QrCheckStatusCode.REENTRY.equals(
+          lastStatus);
+    }
+    return isValid;
   }
 
   // 중복 스캔 방지 - 최근 기록을 보고 너무 짧은 시간 내의 동일 상태 코드를 막음
