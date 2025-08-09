@@ -11,4 +11,6 @@ public interface QrCheckLogRepository extends JpaRepository<QrCheckLog, Long> {
       QrTicket qrTicket, String checkStatusCode);
 
   boolean existsByQrTicketAndCheckStatusCode_Code(QrTicket qrTicket, String checkStatusCodeCode);
+
+  Optional<QrCheckLog> findTop1ByQrTicketOrderByCreatedAtDesc(QrTicket qrTicket);
 }
