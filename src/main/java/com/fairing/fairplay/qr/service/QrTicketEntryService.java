@@ -175,7 +175,7 @@ public class QrTicketEntryService {
         qrTicket, "CHECKOUT");
 
     // 체크아웃
-    boolean checkOutAllowed = qrTicket.getEventTicket().getEvent().getEventDetail()
+    boolean checkOutAllowed = qrTicket.getEventSchedule().getEvent().getEventDetail()
         .getCheckOutAllowed();
 
     boolean hasCheckIn = qrLogCheckInOpt.isPresent();
@@ -193,7 +193,7 @@ public class QrTicketEntryService {
   }
 
   // 검증 완료 후 디비 데이터 저장
-  private LocalDateTime processCheckIn(QrTicket ticket) {
+  private LocalDateTime processCheckIn(QrTicket ticket ) {
     // qr코드 상태변경 log
     qrLogSave(ticket, "CHECKIN");
     // 체크인 상태변경 log
@@ -204,6 +204,6 @@ public class QrTicketEntryService {
 
   // QR 로그 저장
   private void qrLogSave(QrTicket qrTicket, String type){
-    qrLogService.save(qrTicket, type);
+//    qrLogService(qrTicket, type);
   }
 }

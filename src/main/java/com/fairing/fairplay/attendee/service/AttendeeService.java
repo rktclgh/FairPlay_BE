@@ -55,7 +55,7 @@ public class AttendeeService {
 
     // 대표자와 현재 수정 요청한 요청자의 ID 비교
     if (!Objects.equals(reservation.getUser().getUserId(), userId)) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "현재 요청한 요청자와 대표자가 일치하지 않습니다.");
+      throw new CustomException(HttpStatus.FORBIDDEN, "현재 사용자와 티켓 소유주가 일치하지 않습니다.");
     }
 
     List<Attendee> attendees = attendeeRepository.findAllByReservation_ReservationIdOrderByIdAsc(
@@ -87,7 +87,7 @@ public class AttendeeService {
 
     // 대표자와 현재 수정 요청한 요청자의 ID 비교
     if (!Objects.equals(reservation.getUser().getUserId(), userId)) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "현재 요청한 요청자와 대표자가 일치하지 않습니다.");
+      throw new CustomException(HttpStatus.FORBIDDEN, "현재 사용자와 티켓 소유주가 일치하지 않습니다.");
     }
 
     // 참석자 정보 조회 -> 예약ID + 참석자ID
@@ -97,7 +97,7 @@ public class AttendeeService {
 
     // 수정하려는 정보가 대표자일 경우 수정 불가하므로 예외 발생
     if ("PRIMARY".equals(attendee.getAttendeeTypeCode().getCode().trim())) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "대표자 정보는 수정할 수 없습니다.");
+      throw new CustomException(HttpStatus.BAD_REQUEST, "대표자 정보는 수정할 수 없습니다.");
     }
 
     // 정보 변경
@@ -130,7 +130,7 @@ public class AttendeeService {
   private AttendeeInfoResponseDto saveAttendee(String attendeeType, AttendeeSaveRequestDto dto,
       Long reservationId) {
     AttendeeTypeCode attendeeTypeCode = attendeeTypeCodeRepository.findByCode(attendeeType)
-        .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 타입입니다."));
+        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST,"잘못된 참석자 유형 값입니다. 입력값: "+attendeeType));
 
     Reservation reservation = findReservation(reservationId);
 
