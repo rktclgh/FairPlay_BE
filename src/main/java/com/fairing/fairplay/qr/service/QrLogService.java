@@ -83,6 +83,14 @@ public class QrLogService {
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
   }
 
+  public boolean hasCheckRecord(QrTicket qrTicket, String qrCheckStatus) {
+    return qrCheckLogRepository.findTop1ByQrTicketAndCheckStatusCode_CodeOrderByCreatedAtDesc(qrTicket, qrCheckStatus).isPresent();
+  }
+
+  public boolean hasQrRecord(QrTicket qrTicket, String qrActionCode) {
+    return qrLogRepository.findTop1ByQrTicketAndActionCode_CodeOrderByCreatedAtDesc(qrTicket, qrActionCode).isPresent();
+  }
+
   // 비정상 중복 스캔
   public void duplicateQrLog(QrTicket qrTicket) {
     QrActionCode invalidQrActionCode = validateQrActionCode(QrActionCode.INVALID);
