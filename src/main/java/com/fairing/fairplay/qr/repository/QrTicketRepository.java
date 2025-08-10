@@ -29,4 +29,8 @@ public interface QrTicketRepository extends JpaRepository<QrTicket, Long> {
   Optional<QrTicket> findByAttendee(Attendee attendee);
 
   Optional<QrTicket> findByTicketNo(String ticketNo);
+
+  @Query("select qt from QrTicket qt join qt.attendee a where a.id = :attendeeId and a.reservation.reservationId = :reservationId")
+  Optional<QrTicket> findByAttendeeIdAndReservationId(@Param("attendeeId") Long attendeeId,
+      @Param("reservationId") Long reservationId);
 }

@@ -36,6 +36,7 @@ public class QrTicketBatchService {
   private final QrLinkService qrLinkService;
   private final QrTicketRepositoryCustom qrTicketRepositoryCustom;
   private final CodeGenerator codeGenerator;
+  private final QrLogService qrLogService;
 
   // 행사 1일 남은 예약건 조회
   public List<Tuple> fetchQrTicketBatch() {
@@ -75,7 +76,16 @@ public class QrTicketBatchService {
   @Transactional
   public void createQrTicket() {
     List<QrTicket> qrTickets = scheduleCreateQrTicket();
+
+    // 발급할 티켓이 없을 경우
+    if (qrTickets == null || qrTickets.isEmpty()) {
+      return;
+    }
+
     qrTicketRepository.saveAll(qrTickets);
+    qrTicketRepository.flush();
+
+    qrLogService.issuedQrLog(qrTickets);
   }
 
   /*
@@ -91,6 +101,13 @@ public class QrTicketBatchService {
     List<Tuple> results = qrTicketRepositoryCustom.findAllByEventDate(targetDate);
 
     return results.stream()
+        .filter(tuple -> {
+          Attendee a = tuple.get(0, Attendee.class);
+          Reservation r = tuple.get(2, Reservation.class);
+
+          // true면 이미 발급됐으니 필터링에서 제외
+          return !qrTicketRepository.findByAttendeeIdAndReservationId(a.getId(), r.getReservationId()).isPresent();
+        })
         .map(tuple -> {
           Attendee a = tuple.get(0, Attendee.class);
           Event e = tuple.get(1, Event.class);
@@ -98,14 +115,11 @@ public class QrTicketBatchService {
           Boolean reentryAllowed = tuple.get(3, Boolean.class);
           EventSchedule es = tuple.get(4, EventSchedule.class);
 
-          if (e == null || r == null || reentryAllowed == null || es == null) {
+          if (a == null || e == null || r == null || reentryAllowed == null || es == null) {
             throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "엔티티가 조회되지 않았습니다.");
           }
 
           String eventCode = e.getEventCode();
-
-          log.info("[QrTicketInitProvider] List<Tuple> results - e: {}", e.getTitleKr());
-
           LocalDateTime expiredAt = LocalDateTime.of(es.getDate(), es.getEndTime()); //만료날짜+시간 설정
           String ticketNo = codeGenerator.generateTicketNo(eventCode); // 티켓번호 설정
 

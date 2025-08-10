@@ -11,10 +11,12 @@ import com.fairing.fairplay.qr.repository.QrCheckLogRepository;
 import com.fairing.fairplay.qr.repository.QrCheckStatusCodeRepository;
 import com.fairing.fairplay.qr.repository.QrLogRepository;
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /*
 * 서비스	책임
@@ -40,60 +42,59 @@ public class QrLogService {
   private final QrCheckLogRepository qrCheckLogRepository;
   private final QrActionCodeRepository qrActionCodeRepository;
   private final QrCheckStatusCodeRepository qrCheckStatusCodeRepository;
+  private final QrEntryValidateService qrEntryValidateService;
 
   // QR 코드 발급
-  public void issuedQrLog(QrTicket qrTicket) {
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void issuedQrLog(List<QrTicket> qrTickets) {
     QrActionCode qrActionCode = validateQrActionCode(QrActionCode.ISSUED);
-    saveQrLog(qrTicket, qrActionCode);
+    saveQrLog(qrTickets, qrActionCode);
   }
 
   // QR 코드 스캔
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void scannedQrLog(QrTicket qrTicket, String checkStatus) {
-    QrActionCode qrActionCode = validateQrActionCode(QrActionCode.SCANNED);
+    QrActionCode qrActionCode = validateQrActionCode(checkStatus);
+    // 중복 스캔 -> QrLog: invalid, QrChecktLog: duplicate 저장
+    qrEntryValidateService.preventDuplicateScan(qrTicket, checkStatus);
+    // 중복 스캔 아닐 경우 ENTRY 스캔을 위해 QrLog: scanned만 저장
     saveQrLog(qrTicket, qrActionCode);
-
-    // 중복 스캔
-    preventDuplicateScan(qrTicket, checkStatus);
   }
 
   // 입장 (QR 코드 스캔+수동 코드)
-  public void entryQrLog(QrTicket qrTicket, String checkInType, String entryType) {
-    // checkInType = CHECKED_IN, MANUAL_CHECKED_IN
-    QrActionCode qrActionCode = validateQrActionCode(checkInType);
-    // entryType = ENTRY, REENTRY
-    QrCheckStatusCode qrCheckStatusCode = validateQrCheckStatusCode(entryType);
-
-    // 잘못된 입퇴장 스캔 -> ENTRY, REENTRY, EXIT
-    preventInvalidScan(qrTicket, entryType);
-
-    saveQrLog(qrTicket, qrActionCode);
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public LocalDateTime entryQrLog(QrTicket qrTicket, String actionCodeType,
+      String checkStatusCode) {
+    // actionCodeType = CHECKED_IN, MANUAL_CHECKED_IN
+    QrActionCode qrActionCode = validateQrActionCode(actionCodeType);
+    // checkStatusCode = ENTRY, REENTRY
+    QrCheckStatusCode qrCheckStatusCode = validateQrCheckStatusCode(
+        checkStatusCode);
+    // 잘못된 입퇴장 스캔 -> ENTRY, REENTRY
+    qrEntryValidateService.preventInvalidScan(qrTicket, checkStatusCode);
+    // qrLog: CHECKED_IN or MANUAL_CHECKED_IN 저장
+    LocalDateTime entryTime = saveQrLog(qrTicket, qrActionCode);
+    // qrCheckLog: ENTRY or REENTRY 저장
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    return entryTime;
   }
 
+  // 퇴장 (QR 코드 스캔 or 수동 코드)
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void exitQrLog(QrTicket qrTicket) {
-    QrActionCode qrActionCode = validateQrActionCode(QrActionCode.SCANNED);
-    QrCheckStatusCode qrCheckStatusCode = validateQrCheckStatusCode(QrCheckStatusCode.EXIT);
-
-    // 중복 스캔
-    preventDuplicateScan(qrTicket, QrCheckStatusCode.EXIT);
+    // checkStatusCode = EXIT
+    QrCheckStatusCode qrCheckStatusCode = validateQrCheckStatusCode(
+        QrCheckStatusCode.EXIT);
     // 잘못된 입퇴장 스캔
-    preventInvalidScan(qrTicket, QrCheckStatusCode.EXIT);
-
-    saveQrLog(qrTicket, qrActionCode);
+    qrEntryValidateService.preventInvalidScan(qrTicket, QrCheckStatusCode.EXIT);
+    // qrCheckLog: EXIT 저장
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
   }
 
-  public boolean hasCheckRecord(QrTicket qrTicket, String qrCheckStatus) {
-    return qrCheckLogRepository.findTop1ByQrTicketAndCheckStatusCode_CodeOrderByCreatedAtDesc(qrTicket, qrCheckStatus).isPresent();
-  }
-
-  public boolean hasQrRecord(QrTicket qrTicket, String qrActionCode) {
-    return qrLogRepository.findTop1ByQrTicketAndActionCode_CodeOrderByCreatedAtDesc(qrTicket, qrActionCode).isPresent();
-  }
-
-  // 비정상 중복 스캔
+  // 비정상 중복 스캔 -> 스캔할 때 검토
   public void duplicateQrLog(QrTicket qrTicket) {
-    QrActionCode invalidQrActionCode = validateQrActionCode(QrActionCode.INVALID);
+    QrActionCode invalidQrActionCode = validateQrActionCode(
+        QrActionCode.INVALID);
     QrCheckStatusCode duplicateQrCheckStatusCode = validateQrCheckStatusCode(
         QrCheckStatusCode.DUPLICATE);
 
@@ -101,89 +102,38 @@ public class QrLogService {
     saveQrCheckLog(qrTicket, duplicateQrCheckStatusCode);
   }
 
-  // 잘못된 스캔
+  // 잘못된 스캔 -> 입장, 퇴장 시 검토
   public void invalidQrLog(QrTicket qrTicket) {
     QrActionCode qrActionCode = validateQrActionCode(QrActionCode.INVALID);
-    QrCheckStatusCode qrCheckStatusCode = validateQrCheckStatusCode(QrCheckStatusCode.INVALID);
+    QrCheckStatusCode qrCheckStatusCode = validateQrCheckStatusCode(
+        QrCheckStatusCode.INVALID);
 
     saveQrLog(qrTicket, qrActionCode);
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
   }
 
-  // QrLog 저장 - ISSUED, SCAN, CHECKED_IN, MANUAL_CHECKED_IN, INVALID
-  private void saveQrLog(QrTicket qrTicket, QrActionCode qrActionCode) {
-    QrLog qrLog = QrLog.builder()
-        .qrTicket(qrTicket)
-        .actionCode(qrActionCode)
-        .build();
-    qrLogRepository.save(qrLog);
+  // 특정 qr 티켓의 최근 checkstatus 로그 조회
+  public QrCheckLog hasCheckRecord(QrTicket qrTicket, String qrCheckStatus) {
+    return qrCheckLogRepository.findTop1ByQrTicketAndCheckStatusCode_CodeOrderByCreatedAtDesc(
+        qrTicket, qrCheckStatus).orElse(null);
   }
 
-  // QrCheckLog 저장 - CHECKIN, CHECKOUT
-  private void saveQrCheckLog(QrTicket qrTicket, QrCheckStatusCode qrCheckStatusCode) {
-    QrCheckLog qrCheckLog = QrCheckLog.builder()
-        .qrTicket(qrTicket)
-        .checkStatusCode(qrCheckStatusCode)
-        .build();
-    qrCheckLogRepository.save(qrCheckLog);
+  // 특정 qr 티켓의 최근 qrActionCode 로그 조회
+  public boolean hasQrRecord(QrTicket qrTicket, String qrActionCode) {
+    return qrLogRepository.findTop1ByQrTicketAndActionCode_CodeOrderByCreatedAtDesc(qrTicket,
+        qrActionCode).isPresent();
   }
 
-  // 잘못된 순서로 스캔 ( checkStatus - 시도하려는 동작 )
-  public void preventInvalidScan(QrTicket qrTicket, String checkStatus) {
-    Optional<QrCheckLog> lastLogOpt = qrCheckLogRepository.findTop1ByQrTicketOrderByCreatedAtDesc(
-        qrTicket);
-
-    // 처음 입장하여 직전 로그가 없는데 EXIT 스캔하는 경우
-    if (lastLogOpt.isEmpty()) {
-      if (QrCheckStatusCode.EXIT.equals(checkStatus) || QrCheckStatusCode.REENTRY.equals(
-          checkStatus)) {
-        invalidQrLog(qrTicket);
-        throw new CustomException(HttpStatus.BAD_REQUEST, "첫 스캔은 ENTRY만 허용됩니다.");
-      }
-      return;
-    }
-
-    boolean isValid = isQrCheckStatusCodeValid(checkStatus, lastLogOpt.get());
-
-    // 만약 isValid가 false로 변경 -> 직전 statuscode가 올바르지 않음
-    if (!isValid) {
-      invalidQrLog(qrTicket);
-      throw new CustomException(HttpStatus.BAD_REQUEST,
-          "잘못된 입퇴장 동작입니다. 마지막 상태: "
-              + lastLogOpt.get().getCheckStatusCode().getName());
-    }
-  }
-
-  private boolean isQrCheckStatusCodeValid(String checkStatus, QrCheckLog lastLogOpt) {
-    String lastStatus = lastLogOpt.getCheckStatusCode().getCode();
-
-    boolean isValid = true;
-    if (QrCheckStatusCode.ENTRY.equals(checkStatus)) {
-      // ENTRY는 직전이 EXIT 여야 입장 가능
-      isValid = QrCheckStatusCode.EXIT.equals(lastStatus);
-    } else if (QrCheckStatusCode.REENTRY.equals(checkStatus)) {
-      // REENTRY는 직전이 EXIT 여야 입장 가능
-      isValid = QrCheckStatusCode.EXIT.equals(lastStatus);
-    } else if (QrCheckStatusCode.EXIT.equals(checkStatus)) {
-      // EXIT는 직전이 ENTRY, REENTRY 여야 입장 가능
-      isValid = QrCheckStatusCode.ENTRY.equals(lastStatus) || QrCheckStatusCode.REENTRY.equals(
-          lastStatus);
-    }
-    return isValid;
-  }
-
-  // 중복 스캔 방지 - 최근 기록을 보고 너무 짧은 시간 내의 동일 상태 코드를 막음
-  private void preventDuplicateScan(QrTicket qrTicket, String statusCode) {
-    Optional<QrCheckLog> lastLogOpt = qrCheckLogRepository.findTop1ByQrTicketAndCheckStatusCode_CodeOrderByCreatedAtDesc(
-        qrTicket, statusCode);
-
-    // 5초 간격으로 빠르게 스캔했을 경우
-    if (lastLogOpt.isPresent()) {
-      QrCheckLog lastLog = lastLogOpt.get();
-      if (lastLog.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(5))) {
-        duplicateQrLog(qrTicket);
-        throw new CustomException(HttpStatus.CONFLICT, "QR 코드를 너무 빠르게 스캔하였습니다.");
-      }
+  // 과거 로그 조회해 현재 스캔이 ENTRY인지 REENTRY인지 판단
+  public String determineEntryOrReEntry(QrTicket qrTicket) {
+    QrCheckLog lastLogOpt = qrCheckLogRepository.findTop1ByQrTicketOrderByCreatedAtDesc(qrTicket)
+        .orElse(null);
+    if (lastLogOpt == null) {
+      // 이전 로그 기록이 없을 때 최초 입장 판단
+      return QrCheckStatusCode.ENTRY;
+    } else {
+      // 직전 로그가 하나라도 있으면 재입장 판단
+      return QrCheckStatusCode.REENTRY;
     }
   }
 
@@ -198,5 +148,46 @@ public class QrLogService {
     return qrCheckStatusCodeRepository.findByCode(qrCheckStatusCode)
         .orElseThrow(() -> new CustomException(
             HttpStatus.BAD_REQUEST, "QR 체크인 상태 코드가 올바르지 않습니다."));
+  }
+
+  // QrLog 저장 - ISSUED, SCAN, CHECKED_IN, MANUAL_CHECKED_IN, INVALID
+  private LocalDateTime saveQrLog(QrTicket qrTicket, QrActionCode qrActionCode) {
+    QrLog qrLog = QrLog.builder()
+        .qrTicket(qrTicket)
+        .actionCode(qrActionCode)
+        .build();
+    qrLogRepository.save(qrLog);
+    qrLogRepository.flush();
+    return qrLog.getCreatedAt();
+  }
+
+  // QrLog 다건 저장
+  private void saveQrLog(List<QrTicket> qrTickets, QrActionCode qrActionCode) {
+    final int BATCH_SIZE = 500; // 성능/메모리 상황에 맞춰 조절
+    for (int i = 0; i < qrTickets.size(); i += BATCH_SIZE) {
+      int end = Math.min(i + BATCH_SIZE, qrTickets.size());
+      List<QrTicket> batch = qrTickets.subList(i, end);
+
+      List<QrLog> logs = batch.stream()
+          .map(ticket -> QrLog.builder()
+              .qrTicket(ticket)
+              .actionCode(qrActionCode)
+              .createdAt(LocalDateTime.now())
+              .build())
+          .toList();
+
+      qrLogRepository.saveAll(logs);
+      qrLogRepository.flush(); // 중간 flush로 메모리 사용량 줄임
+    }
+  }
+
+  // QrCheckLog 저장 - CHECKIN, CHECKOUT
+  private void saveQrCheckLog(QrTicket qrTicket, QrCheckStatusCode qrCheckStatusCode) {
+    QrCheckLog qrCheckLog = QrCheckLog.builder()
+        .qrTicket(qrTicket)
+        .checkStatusCode(qrCheckStatusCode)
+        .build();
+    qrCheckLogRepository.save(qrCheckLog);
+    qrCheckLogRepository.flush();
   }
 }
