@@ -87,14 +87,6 @@ public class EventComparisonService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 통계 계산 및 저장
-     */
-    @Transactional
-    public void calculateDailyStats(LocalDate targetDate) {
-        List<EventComparisonStatistics> stats = customRepository.calculate(targetDate);
-        comparisonRepository.saveAll(stats);
-    }
 
     private EventComparisonResponseDto convertToResponse(EventComparisonStatistics stats) {
         String status = determineEventStatus(stats.getStartDate(), stats.getEndDate());
