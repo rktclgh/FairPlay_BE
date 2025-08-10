@@ -14,11 +14,12 @@ import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepositoryCustom;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
-import com.fairing.fairplay.ticket.service.ScheduleTicketService;
+
 import com.querydsl.core.Tuple;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -87,8 +88,15 @@ public class QrTicketBatchService {
     qrTicketRepository.saveAll(qrTickets);
     qrTicketRepository.flush();
 
+    List<Long> ticketIds = qrTickets.stream()
+        .map(QrTicket::getId)
+        .collect(Collectors.toList());
+
+    List<QrTicket> persistedTickets = qrTicketRepository.findAllById(ticketIds);
+    log.info("🚩 persistedTickets 생성됨: {}", persistedTickets.size());
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.ISSUED);
-    qrLogService.issuedQrLog(qrTickets, qrActionCode);
+    log.info("🚩 qrActionCode: {}", qrActionCode.getCode());
+    qrLogService.issuedQrLog(persistedTickets, qrActionCode);
   }
 
   /*

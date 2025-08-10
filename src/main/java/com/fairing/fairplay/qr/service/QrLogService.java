@@ -11,6 +11,7 @@ import com.fairing.fairplay.qr.repository.QrLogRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,26 +19,27 @@ import org.springframework.transaction.annotation.Transactional;
 // QR과 관련된 로그 서비스
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class QrLogService {
 
   private final QrLogRepository qrLogRepository;
   private final QrCheckLogRepository qrCheckLogRepository;
 
   // QR 코드 발급
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  @Transactional
   public void issuedQrLog(List<QrTicket> qrTickets, QrActionCode qrActionCode) {
     saveQrLog(qrTickets, qrActionCode);
   }
 
   // QR 코드 스캔
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  @Transactional
   public void scannedQrLog(QrTicket qrTicket, QrActionCode qrActionCode) {
     // 중복 스캔 아닐 경우 ENTRY 스캔을 위해 QrLog: scanned만 저장
     saveQrLog(qrTicket, qrActionCode);
   }
 
   // 입장 (QR 코드 스캔+수동 코드)
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  @Transactional
   public LocalDateTime entryQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
       QrCheckStatusCode qrCheckStatusCode) {
     // qrLog: CHECKED_IN or MANUAL_CHECKED_IN 저장
@@ -48,7 +50,7 @@ public class QrLogService {
   }
 
   // 퇴장 (QR 코드 스캔 or 수동 코드)
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  @Transactional
   public void exitQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
       QrCheckStatusCode qrCheckStatusCode) {
 //    // checkStatusCode = EXIT
@@ -116,6 +118,7 @@ public class QrLogService {
     for (int i = 0; i < qrTickets.size(); i += BATCH_SIZE) {
       int end = Math.min(i + BATCH_SIZE, qrTickets.size());
       List<QrTicket> batch = qrTickets.subList(i, end);
+      log.info("🚩 List<QrTicket> batch: {}", batch.size());
 
       List<QrLog> logs = batch.stream()
           .map(ticket -> QrLog.builder()
@@ -124,7 +127,7 @@ public class QrLogService {
               .createdAt(LocalDateTime.now())
               .build())
           .toList();
-
+      log.info("🚩 logs: {}", logs.size());
       qrLogRepository.saveAll(logs);
       qrLogRepository.flush(); // 중간 flush로 메모리 사용량 줄임
     }
