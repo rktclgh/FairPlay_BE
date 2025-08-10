@@ -32,7 +32,7 @@ public class QrLogService {
   }
 
   // QR 코드 스캔
-  @Transactional
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void scannedQrLog(QrTicket qrTicket, QrActionCode qrActionCode) {
     // 중복 스캔 아닐 경우 ENTRY 스캔을 위해 QrLog: scanned만 저장
     saveQrLog(qrTicket, qrActionCode);
