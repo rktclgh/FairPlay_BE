@@ -29,7 +29,12 @@ public class EventComparisonController {
      * 상태별 필터링
      */
     @GetMapping("/filter/status")
-    public List<EventComparisonResponseDto> getEventsByStatus(@RequestParam String status) {
+    public List<EventComparisonResponseDto> getEventsByStatus(
+            @RequestParam
+            @jakarta.validation.constraints.Pattern(regexp = "ONGOING|UPCOMING|ENDED", message = "status must be one of [ONGOING, UPCOMING, ENDED]")
+            String status
+            )
+    {
         return eventComparisonService.getEventsByStatus(status);
     }
 
