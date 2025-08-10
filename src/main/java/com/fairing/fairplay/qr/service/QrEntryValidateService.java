@@ -15,6 +15,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -26,13 +27,14 @@ public class QrEntryValidateService {
   private final QrCheckStatusCodeRepository qrCheckStatusCodeRepository;
 
   // 재입장 가능 여부 검토
+   @Transactional(readOnly = true)
   public void verifyReEntry(QrTicket qrTicket) {
     EntryPolicyDto entryPolicy = buildEntryPolicy(qrTicket);
 
     boolean hasEntry = qrLogService.hasCheckRecord(qrTicket, QrCheckStatusCode.ENTRY) != null;
     boolean hasExit = qrLogService.hasCheckRecord(qrTicket, QrCheckStatusCode.EXIT) != null;
 
-    if (entryPolicy.getReentryAllowed()) {
+    if (entryPolicy.isReentryAllowed()) {
       verifyAllowedReEntry(entryPolicy, hasEntry, hasExit);
     } else {
       verifyDisallowedReEntry(hasEntry, hasExit);
@@ -41,17 +43,17 @@ public class QrEntryValidateService {
 
   // 재입장 가능한 행사일 경우 재입장 가능 여부 검토
   public void verifyAllowedReEntry(EntryPolicyDto entryPolicy, boolean hasEntry, boolean hasExit) {
-    if (entryPolicy.getCheckInAllowed() && entryPolicy.getCheckOutAllowed()) {
+    if (entryPolicy.isCheckInAllowed() && entryPolicy.isCheckOutAllowed()) {
       // 입/퇴장 모두 스캔
       if (!hasEntry || !hasExit) {
         throw new CustomException(HttpStatus.UNAUTHORIZED, "입장 및 퇴장 기록이 모두 있어야 재입장 가능합니다.");
       }
-    } else if (entryPolicy.getCheckInAllowed()) {
+    } else if (entryPolicy.isCheckInAllowed()) {
       // 입장만 스캔
       if (!hasEntry) {
         throw new CustomException(HttpStatus.UNAUTHORIZED, "입장 기록이 없어 재입장할 수 없습니다.");
       }
-    } else if (entryPolicy.getCheckOutAllowed()) {
+    } else if (entryPolicy.isCheckOutAllowed()) {
       // 퇴장만 스캔
       if (!hasExit) {
         throw new CustomException(HttpStatus.UNAUTHORIZED, "퇴장 기록이 없어 재입장할 수 없습니다.");
@@ -79,13 +81,13 @@ public class QrEntryValidateService {
     // 이전 로그가 없는 경우(초기 상태)
     if (lastLogOpt.isEmpty()) {
       // EXIT은 불가.단. 퇴장 스캔만하고 입장 스캔을 하지 않는 행사일 경우가 아니어야함.
-      if (QrCheckStatusCode.EXIT.equals(checkStatus) && !(!entryPolicy.getCheckInAllowed()
-          && entryPolicy.getCheckOutAllowed())) {
+      if (QrCheckStatusCode.EXIT.equals(checkStatus) && !(!entryPolicy.isCheckInAllowed()
+          && entryPolicy.isCheckOutAllowed())) {
         qrLogService.invalidQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
         throw new CustomException(HttpStatus.BAD_REQUEST, "입장 처리가 완료된 티켓이 아닙니다.");
       }
       // 재입장 허용되지 않는 행사인데 재입장 스캔할 경우 예외 발생
-      if (QrCheckStatusCode.REENTRY.equals(checkStatus) && !entryPolicy.getReentryAllowed()) {
+      if (QrCheckStatusCode.REENTRY.equals(checkStatus) && !entryPolicy.isReentryAllowed()) {
         qrLogService.invalidQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
         throw new CustomException(HttpStatus.UNAUTHORIZED, "재입장이 허용되지 않는 행사입니다.");
       }
@@ -106,9 +108,9 @@ public class QrEntryValidateService {
       EntryPolicyDto entryPolicy) {
     String lastStatus = lastLogOpt.getCheckStatusCode().getCode();
 
-    boolean reentryAllowed = entryPolicy.getCheckInAllowed();
-    boolean checkInAllowed = entryPolicy.getCheckInAllowed();
-    boolean checkOutAllowed = entryPolicy.getCheckOutAllowed();
+    boolean reentryAllowed = entryPolicy.isReentryAllowed();
+    boolean checkInAllowed = entryPolicy.isCheckInAllowed();
+    boolean checkOutAllowed = entryPolicy.isCheckOutAllowed();
 
     /*
      * 입장 스캔 퇴장 스캔 재입장가능

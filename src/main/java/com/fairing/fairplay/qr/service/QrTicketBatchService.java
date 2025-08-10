@@ -19,6 +19,7 @@ import com.querydsl.core.Tuple;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -111,14 +112,30 @@ public class QrTicketBatchService {
 
     List<Tuple> results = qrTicketRepositoryCustom.findAllByEventDate(targetDate);
 
+    // attendeeId, reservationId 집합 추출
+    Set<Long> attendeeIds = results.stream()
+        .map(tuple -> tuple.get(0, Attendee.class).getId())
+        .collect(Collectors.toSet());
+
+    Set<Long> reservationIds = results.stream()
+        .map(tuple -> tuple.get(2, Reservation.class).getReservationId())
+        .collect(Collectors.toSet());
+
+    // 이미 발급된 티켓을 한 번에 조회
+    Set<String> issuedTicketKeys = qrTicketRepository
+        .findByAttendeeIdsAndReservationIds(attendeeIds, reservationIds)
+        .stream()
+        .map(ticket -> ticket.getAttendee().getId() + "_" + ticket.getAttendee().getReservation().getReservationId())
+        .collect(Collectors.toSet());
+
+
+
     return results.stream()
         .filter(tuple -> {
           Attendee a = tuple.get(0, Attendee.class);
           Reservation r = tuple.get(2, Reservation.class);
-
-          // true면 이미 발급됐으니 필터링에서 제외
-          return !qrTicketRepository.findByAttendeeIdAndReservationId(a.getId(),
-              r.getReservationId()).isPresent();
+          String key = a.getId() + "_" + r.getReservationId();
+          return !issuedTicketKeys.contains(key);
         })
         .map(tuple -> {
           Attendee a = tuple.get(0, Attendee.class);

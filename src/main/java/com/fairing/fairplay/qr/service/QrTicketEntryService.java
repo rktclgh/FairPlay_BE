@@ -195,14 +195,14 @@ public class QrTicketEntryService {
     QrTicket qrTicket = findQrTicket(dto.getAttendee());
     // QrActionCode 검토
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.SCANNED);
-    // 중복 스캔 -> QrLog: invalid, QrChecktLog: duplicate 저장
-    qrEntryValidateService.preventDuplicateScan(qrTicket, qrActionCode.getCode());
     // 코드 스캔 기록
     qrLogService.scannedQrLog(qrTicket, qrActionCode);
     // 재입장 가능 여부 검토 - 입장 기록 자체가 있는지 조회
     qrEntryValidateService.verifyReEntry(qrTicket);
     // 현재 입장이 최초입장인지 재입장인지 판단 QrCheckStatusCode.ENTRY, rCheckStatusCode.REENTRY
     String entryType = qrLogService.determineEntryOrReEntry(qrTicket);
+    // 중복 스캔 -> QrLog: invalid, QrChecktLog: duplicate 저장
+    qrEntryValidateService.preventDuplicateScan(qrTicket, entryType);
     // 코드 비교
     if (QR.equals(dto.getCodeType())) {
       verifyQrCode(qrTicket, dto.getCodeValue());

@@ -4,16 +4,17 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Getter
-@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
 public class EntryPolicyDto {
 
-  private Boolean checkInAllowed;
-  private Boolean checkOutAllowed;
-  private Boolean reentryAllowed;
+  @Builder.Default
+  private boolean checkInAllowed = false;
+  @Builder.Default
+  private boolean checkOutAllowed = false;
+  @Builder.Default
+  private boolean reentryAllowed = false;
 }

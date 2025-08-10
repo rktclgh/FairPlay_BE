@@ -1,5 +1,6 @@
 package com.fairing.fairplay.qr.service;
 
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.qr.entity.QrActionCode;
 import com.fairing.fairplay.qr.entity.QrCheckLog;
 import com.fairing.fairplay.qr.entity.QrCheckStatusCode;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +36,7 @@ public class QrLogService {
   // QR 코드 스캔
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void scannedQrLog(QrTicket qrTicket, QrActionCode qrActionCode) {
-    // 중복 스캔 아닐 경우 ENTRY 스캔을 위해 QrLog: scanned만 저장
+    // ENTRY 스캔을 위해 QrLog: scanned만 저장
     saveQrLog(qrTicket, qrActionCode);
   }
 
@@ -115,21 +117,37 @@ public class QrLogService {
   // QrLog 다건 저장
   private void saveQrLog(List<QrTicket> qrTickets, QrActionCode qrActionCode) {
     final int BATCH_SIZE = 500; // 성능/메모리 상황에 맞춰 조절
+    int successCount = 0;
+    int failCount = 0;
     for (int i = 0; i < qrTickets.size(); i += BATCH_SIZE) {
       int end = Math.min(i + BATCH_SIZE, qrTickets.size());
       List<QrTicket> batch = qrTickets.subList(i, end);
-      log.info("🚩 List<QrTicket> batch: {}", batch.size());
+      log.info("Processing batch {}/{}: size={}",
+          (i / BATCH_SIZE) + 1,
+          (qrTickets.size() + BATCH_SIZE - 1) / BATCH_SIZE,
+          batch.size());
 
-      List<QrLog> logs = batch.stream()
-          .map(ticket -> QrLog.builder()
-              .qrTicket(ticket)
-              .actionCode(qrActionCode)
-              .createdAt(LocalDateTime.now())
-              .build())
-          .toList();
-      log.info("🚩 logs: {}", logs.size());
-      qrLogRepository.saveAll(logs);
-      qrLogRepository.flush(); // 중간 flush로 메모리 사용량 줄임
+      try {
+        List<QrLog> logs = batch.stream()
+            .map(ticket -> QrLog.builder()
+                .qrTicket(ticket)
+                .actionCode(qrActionCode)
+                .createdAt(LocalDateTime.now())
+                .build())
+            .toList();
+        qrLogRepository.saveAll(logs);
+        qrLogRepository.flush();
+        successCount += batch.size();
+      } catch (Exception e) {
+        log.error("Failed to save batch starting at index {}: {}", i, e.getMessage());
+        failCount += batch.size();
+      }
+    }
+
+    log.info("Batch processing completed: success={}, fail={}", successCount, failCount);
+    if (failCount > 0) {
+      throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR,
+          String.format("일부 로그 저장 실패: %d건", failCount));
     }
   }
 
