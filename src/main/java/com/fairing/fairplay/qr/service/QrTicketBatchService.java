@@ -5,6 +5,7 @@ import com.fairing.fairplay.attendee.entity.QAttendee;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
+import com.fairing.fairplay.qr.entity.QrActionCode;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.repository.QrTicketRepositoryCustom;
@@ -37,6 +38,7 @@ public class QrTicketBatchService {
   private final QrTicketRepositoryCustom qrTicketRepositoryCustom;
   private final CodeGenerator codeGenerator;
   private final QrLogService qrLogService;
+  private final QrEntryValidateService qrEntryValidateService;
 
   // 행사 1일 남은 예약건 조회
   public List<Tuple> fetchQrTicketBatch() {
@@ -85,7 +87,8 @@ public class QrTicketBatchService {
     qrTicketRepository.saveAll(qrTickets);
     qrTicketRepository.flush();
 
-    qrLogService.issuedQrLog(qrTickets);
+    QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.ISSUED);
+    qrLogService.issuedQrLog(qrTickets, qrActionCode);
   }
 
   /*
@@ -106,7 +109,8 @@ public class QrTicketBatchService {
           Reservation r = tuple.get(2, Reservation.class);
 
           // true면 이미 발급됐으니 필터링에서 제외
-          return !qrTicketRepository.findByAttendeeIdAndReservationId(a.getId(), r.getReservationId()).isPresent();
+          return !qrTicketRepository.findByAttendeeIdAndReservationId(a.getId(),
+              r.getReservationId()).isPresent();
         })
         .map(tuple -> {
           Attendee a = tuple.get(0, Attendee.class);
