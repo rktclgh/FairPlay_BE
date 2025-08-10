@@ -6,6 +6,7 @@ import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -55,9 +56,12 @@ public class SecurityConfig {
                                 "/api/qr-tickets/*",
                                 "/api/qr-tickets/reissue",
                                 "/ws/**", // ★ 반드시 필요
-                                "/api/chat/**",
-                                "/api/uploads/**"
+                                "/api/chat/rooms/**", // 채팅방 목록 조회만 허용
+                                "/api/chat/presence/status/**", // 사용자 온라인 상태 조회 허용
+                                "/api/uploads/**",
+                                "/api/payments/complete"  // PG사에서 호출하는 결제 완료 웹훅
                         ).permitAll()
+                        .requestMatchers("/api/chat/presence/connect", "/api/chat/presence/disconnect").authenticated() // JWT 인증 필요
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(

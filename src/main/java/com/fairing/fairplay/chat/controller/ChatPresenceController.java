@@ -42,13 +42,17 @@ public class ChatPresenceController {
     @PostMapping("/connect")
     public void userConnect(@AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
+        System.out.println("🟢 사용자 접속 요청: " + userId);
         chatPresenceService.setUserOnline(userId);
+        System.out.println("✅ 사용자 온라인 상태 설정 완료: " + userId);
     }
 
     @PostMapping("/disconnect")
     public void userDisconnect(@AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
+        System.out.println("🔴 사용자 연결해제 요청: " + userId);
         chatPresenceService.setUserOffline(userId);
+        System.out.println("✅ 사용자 오프라인 상태 설정 완료: " + userId);
     }
 
     @GetMapping("/status/{userId}")

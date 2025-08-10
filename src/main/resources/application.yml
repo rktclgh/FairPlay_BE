@@ -63,8 +63,8 @@ server:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-token-validity-ms: 600000      # 10분(600,000 ms)
-  refresh-token-validity-ms: 172800000  # 2일(172,800,000 ms)
+  access-token-validity-ms: 300000      # 5분(300,000 ms)
+  refresh-token-validity-ms: 600000  # 10분
   refresh-token-prefix: "refresh_token:"
 
 
@@ -86,3 +86,9 @@ cloud:
       access-key: ${AWS_ACCESS_KEY}
       secret-key: ${AWS_SECRET_KEY}
 
+
+# 아임포트 설정
+iamport:
+  api-key: ${IAMPORT_API_KEY}
+  secret-key: ${IAMPORT_SECRET_KEY}
+  base-url: ${IAMPORT_BASE_URL:https://api.iamport.kr}

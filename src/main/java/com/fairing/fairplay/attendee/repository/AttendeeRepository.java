@@ -25,6 +25,7 @@ public interface AttendeeRepository extends JpaRepository<Attendee, Long> {
         JOIN a.reservation r
         JOIN r.event e
         WHERE e.eventId = :eventId
+        ORDER BY a.createdAt ASC
     """)
   List<Attendee> findByEventId(Long eventId);
 }
