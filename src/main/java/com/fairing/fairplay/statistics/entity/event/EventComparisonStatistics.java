@@ -24,7 +24,7 @@ import java.time.LocalDateTime;
 public class EventComparisonStatistics {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "stats_comparison_id", nullable = false)
     private Long statsComparisonId;
 
