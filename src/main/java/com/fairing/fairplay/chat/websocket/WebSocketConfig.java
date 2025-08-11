@@ -24,6 +24,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setSessionCookieNeeded(false)
                 .setHeartbeatTime(25000)  // 25초마다 heartbeat
                 .setDisconnectDelay(30000); // 30초 disconnect delay
+
+        // 알림 전용 WebSocket 엔드포인트 추가
+        registry.addEndpoint("/ws/notifications")
+                .setAllowedOriginPatterns("*")
+                .addInterceptors(jwtHandshakeInterceptor)
+                .withSockJS()
+                .setSessionCookieNeeded(false)
+                .setHeartbeatTime(25000)
+                .setDisconnectDelay(30000);
     }
 
     @Override
