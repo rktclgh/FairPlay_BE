@@ -47,8 +47,13 @@ public class EventComparisonStatsCustomRepositoryImpl implements EventComparison
                 )
                 .from(e)
                 .leftJoin(r).on(r.event.eq(e))
-                .leftJoin(dailySales).on(dailySales.eventId.eq(e.eventId))
-                .where(d.createdAt.loe(end))
+                .leftJoin(dailySales).on(
+                        dailySales.eventId.eq(e.eventId)
+                                .and(dailySales.statDate.eq(targetDate))
+                )
+                .where(d.createdAt.loe(end)
+                .and(r.createdAt.between(start, end))
+                .and(dailySales.statDate.eq(targetDate)))
                 .groupBy(e.eventId, e.titleKr, d.startDate, d.endDate)
                 .fetch();
 
