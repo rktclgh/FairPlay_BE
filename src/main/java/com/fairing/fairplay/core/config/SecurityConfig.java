@@ -19,8 +19,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtTokenProvider jwtTokenProvider;
-    private final UserRepository userRepository;
+        private final JwtTokenProvider jwtTokenProvider;
+        private final UserRepository userRepository;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -65,9 +65,12 @@ public class SecurityConfig {
                                 "/api/payments/complete",  // PG사에서 호출하는 결제 완료 웹훅
                                 "/api/events/apply", // 행사 등록 신청
                                 "/api/events/apply/check",
-                                "/api/events/user/role"
+                                "/api/events/user/role",
+                                "/api/super-admin/**"
                         ).permitAll()
-                        .requestMatchers("/api/chat/presence/connect", "/api/chat/presence/disconnect").authenticated() // JWT 인증 필요
+                        .requestMatchers("/api/chat/presence/connect",
+                                "/api/chat/presence/disconnect")
+                        .authenticated() // JWT 인증
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(

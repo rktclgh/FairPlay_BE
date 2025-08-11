@@ -13,11 +13,11 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/event-Populairty")
+@RequestMapping("/api/event-popularity")
 @RequiredArgsConstructor
 public class EventPopularityController {
 
-    private final EventPopularityService EventPopService;
+    private final EventPopularityService eventPopularityService;
 
     /**
      * 이벤트 인기 통계 목록 - 페이징 조회
@@ -37,7 +37,7 @@ public class EventPopularityController {
             @RequestParam(required = false) String subCategory,
             Pageable pageable
     ) {
-        return EventPopService.getEventsByCategory(startDate, endDate, mainCategory, subCategory, pageable);
+        return eventPopularityService.getEventsByCategory(startDate, endDate, mainCategory, subCategory, pageable);
     }
 
     @GetMapping("/search")
@@ -46,16 +46,16 @@ public class EventPopularityController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String mainCategory,
             @RequestParam(required = false) String subCategory,
-            @RequestParam(required = false) String keyword
+            @RequestParam(required = true) String keyword
     ) {
-        return  EventPopService.searchEvents( startDate,  endDate, keyword,  mainCategory, subCategory);
+        return  eventPopularityService.searchEvents( startDate,  endDate, keyword,  mainCategory, subCategory);
     }
 
     @GetMapping("/report")
     public EventPopularityPageResponseDto getReportPopularity(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate){
-        return EventPopService.getPopularityPageData(startDate, endDate );
+        return eventPopularityService.getPopularityPageData(startDate, endDate );
     }
 
 

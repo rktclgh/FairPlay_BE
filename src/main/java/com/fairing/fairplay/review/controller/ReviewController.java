@@ -3,6 +3,7 @@ package com.fairing.fairplay.review.controller;
 import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
 import com.fairing.fairplay.review.dto.ReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewSaveRequestDto;
+import com.fairing.fairplay.review.dto.ReviewSaveResponseDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateRequestDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateResponseDto;
 import com.fairing.fairplay.review.service.ReviewService;
@@ -31,16 +32,15 @@ public class ReviewController {
 
   // 리뷰 저장
   @PostMapping
-  public ResponseEntity<Void> saveReview(@RequestBody ReviewSaveRequestDto dto) {
-    reviewService.save(dto);
-    return new ResponseEntity<>(HttpStatus.CREATED);
+  public ResponseEntity<ReviewSaveResponseDto> saveReview(@RequestBody ReviewSaveRequestDto dto) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(reviewService.save(dto));
   }
 
   // 행사 상세 페이지 리뷰 조회
   // GET /events/{eventId}/reviews?page=0&size=10&sort=createdDate,desc
   @GetMapping("/{eventId}")
   public ResponseEntity<Page<ReviewResponseDto>> getReviewForEvent(@PathVariable Long eventId,
-      @PageableDefault(size = 10, sort = "createdDate", direction = Sort.Direction.DESC) Pageable pageable) {
+      @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
     return ResponseEntity.status(HttpStatus.OK)
         .body(reviewService.getReviewForEvent(eventId, pageable));
   }
@@ -48,7 +48,7 @@ public class ReviewController {
   // 마이페이지 리뷰 조회
   @GetMapping
   public ResponseEntity<Page<ReviewResponseDto>> getReviewForUser(
-      @PageableDefault(size = 10, sort = "createdDate", direction = Sort.Direction.DESC) Pageable pageable) {
+      @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
     return ResponseEntity.status(HttpStatus.OK)
         .body(reviewService.getReviewForUser(1L, pageable));
   }

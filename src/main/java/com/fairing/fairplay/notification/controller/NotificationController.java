@@ -60,4 +60,21 @@ public class NotificationController {
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return ResponseEntity.ok(notificationService.getLogsByUser(notificationId, userDetails.getUserId()));
     }
+
+    // 테스트용 웹소켓 알림 생성 (개발/테스트 환경에서만 사용)
+    @PostMapping("/test")
+    public ResponseEntity<NotificationResponseDto> createTestNotification(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        NotificationRequestDto testDto = NotificationRequestDto.builder()
+                .userId(userDetails.getUserId())
+                .typeCode("SYSTEM")
+                .methodCode("WEB")
+                .title("테스트 웹소켓 알림")
+                .message("웹소켓 알림 시스템이 정상적으로 작동합니다!")
+                .url("/mypage/info")
+                .build();
+        
+        NotificationResponseDto result = notificationService.createNotification(testDto);
+        return ResponseEntity.ok(result);
+    }
 }

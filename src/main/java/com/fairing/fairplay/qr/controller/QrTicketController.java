@@ -1,17 +1,19 @@
 package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.qr.dto.CheckInResponseDto;
-import com.fairing.fairplay.qr.dto.GuestManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.GuestQrCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.MemberManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.MemberQrCheckInRequestDto;
+import com.fairing.fairplay.qr.dto.scan.AdminForceCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
+import com.fairing.fairplay.qr.dto.scan.GuestManualCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.GuestQrCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.MemberManualCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.MemberQrCheckRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
+import com.fairing.fairplay.qr.service.EntryExitService;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class QrTicketController {
 
   private final QrTicketService qrTicketService;
+  private final EntryExitService entryExitService;
 
   // 마이페이지에서 QR 티켓 조회
   @PostMapping
@@ -82,29 +85,72 @@ public class QrTicketController {
 
   // 체크인 1
   @PostMapping("/check-in/member/qr")
-  public ResponseEntity<CheckInResponseDto> checkInWithQrByMember(@RequestBody
-  MemberQrCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ResponseEntity.ok(qrTicketService.checkInWithQrByMember(dto, userDetails));
+  public ResponseEntity<CheckResponseDto> checkInWithQrByMember(@RequestBody
+  MemberQrCheckRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.ok(entryExitService.checkInWithQrByMember(dto, userDetails));
   }
 
   // 체크인 2
   @PostMapping("/check-in/member/manual")
-  public ResponseEntity<CheckInResponseDto> checkInWithManualByMember(@RequestBody
-  MemberManualCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ResponseEntity.ok(qrTicketService.checkInWithManualByMember(dto, userDetails));
+  public ResponseEntity<CheckResponseDto> checkInWithManualByMember(@RequestBody
+  MemberManualCheckRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.ok(entryExitService.checkInWithManualByMember(dto, userDetails));
   }
 
   // 체크인 3
   @PostMapping("/check-in/guest/qr")
-  public ResponseEntity<CheckInResponseDto> checkInWithQrByGuest(@RequestBody
-  GuestQrCheckInRequestDto dto) {
-    return ResponseEntity.ok(qrTicketService.checkInWithQrByGuest(dto));
+  public ResponseEntity<CheckResponseDto> checkInWithQrByGuest(@RequestBody
+  GuestQrCheckRequestDto dto) {
+    return ResponseEntity.ok(entryExitService.checkInWithQrByGuest(dto));
   }
 
   // 체크인 4
   @PostMapping("/check-in/guest/manual")
-  public ResponseEntity<CheckInResponseDto> checkInWithManualByGuest(@RequestBody
-  GuestManualCheckInRequestDto dto) {
-    return ResponseEntity.ok(qrTicketService.checkInWithManualByGuest(dto));
+  public ResponseEntity<CheckResponseDto> checkInWithManualByGuest(@RequestBody
+  GuestManualCheckRequestDto dto) {
+    return ResponseEntity.ok(entryExitService.checkInWithManualByGuest(dto));
+  }
+
+  /*
+   * 체크아웃
+   * 1. 회원 + QR
+   * 2. 회원 + 수동
+   * 3. 비회원 + QR
+   * 4. 비회원 + 수동
+   * */
+
+  // 체크아웃 1
+  @PostMapping("/check-out/member/qr")
+  public ResponseEntity<CheckResponseDto> checkOutWithQrByMember(@RequestBody
+  MemberQrCheckRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.ok(entryExitService.checkOutWithQrByMember(dto, userDetails));
+  }
+
+  // 체크아웃 2
+  @PostMapping("/check-out/member/manual")
+  public ResponseEntity<CheckResponseDto> checkOutWithManualByMember(@RequestBody
+  MemberManualCheckRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.ok(entryExitService.checkOutWithManualByMember(dto, userDetails));
+  }
+
+  // 체크아웃 3
+  @PostMapping("/check-out/guest/qr")
+  public ResponseEntity<CheckResponseDto> checkOutWithQrByGuest(@RequestBody
+  GuestQrCheckRequestDto dto) {
+    return ResponseEntity.ok(entryExitService.checkOutWithQrByGuest(dto));
+  }
+
+  // 체크아웃 4
+  @PostMapping("/check-out/guest/manual")
+  public ResponseEntity<CheckResponseDto> checkOutWithManualByGuest(@RequestBody
+  GuestManualCheckRequestDto dto) {
+    return ResponseEntity.ok(entryExitService.checkOutWithManualByGuest(dto));
+  }
+
+  // 관리자 강제 입퇴장
+  @PostMapping("/admin/check")
+  public ResponseEntity<CheckResponseDto> adminForceCheck(
+      @RequestBody AdminForceCheckRequestDto dto) {
+    return ResponseEntity.ok(entryExitService.adminForceCheck(dto));
   }
 }

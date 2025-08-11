@@ -6,6 +6,8 @@ import com.fairing.fairplay.statistics.dto.event.EventComparisonResponseDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -38,11 +40,5 @@ public class EventComparisonController {
         return eventComparisonService.getEventsByStatus(status);
     }
 
-    /**
-     * 통계 계산 (관리자용)
-     */
-    @PostMapping("/calculate")
-    public void calculateStats(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate targetDate) {
-        eventComparisonService.calculateDailyStats(targetDate);
-    }
+
 }

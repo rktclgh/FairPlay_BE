@@ -24,6 +24,13 @@ public class EventPopularityService {
 
     public EventPopularityPageResponseDto getPopularityPageData(LocalDate startDate, LocalDate endDate) {
 
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("시작일과 종료일은 필수 입력 값입니다.");
+        }
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("시작일은 종료일 이전이어야 합니다.");
+        }
+
         // 1. 전체 인기 행사 통계
        List<EventPopularityStatisticsListDto> allStats = popularityRepository.aggregatedPopularity(startDate,  endDate ,"" ,"");
 
