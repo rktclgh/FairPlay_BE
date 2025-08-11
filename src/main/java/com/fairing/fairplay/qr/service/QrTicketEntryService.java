@@ -1,7 +1,10 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.scan.AdminCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.AdminForceCheckRequestDto;
 import com.fairing.fairplay.qr.dto.scan.CheckInRequestDto;
 import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
 import com.fairing.fairplay.qr.dto.scan.GuestManualCheckRequestDto;
@@ -12,10 +15,13 @@ import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.entity.QrActionCode;
 import com.fairing.fairplay.qr.entity.QrCheckStatusCode;
 import com.fairing.fairplay.qr.entity.QrTicket;
+import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.CodeValidator;
+import com.fairing.fairplay.user.repository.UserRepository;
 import java.time.LocalDateTime;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /*
@@ -40,6 +46,8 @@ public class QrTicketEntryService {
 
   private static final String QR = "QR";
   private static final String MANUAL = "MANUAL";
+  private final UserRepository userRepository;
+  private final QrTicketRepository qrTicketRepository;
 
   // 회원 QR 코드 체크인
   public CheckResponseDto checkIn(MemberQrCheckRequestDto dto, CustomUserDetails userDetails) {
@@ -112,6 +120,11 @@ public class QrTicketEntryService {
     return processCheckInCommon(checkInRequestDto);
   }
 
+  // 강제 입퇴장 체크인
+  public CheckResponseDto adminForceCheck(AdminForceCheckRequestDto dto) {
+    return processAdminForceCheck(dto);
+  }
+
   /**
    * 체크인 공통 로직
    */
@@ -156,5 +169,39 @@ public class QrTicketEntryService {
     // 잘못된 입퇴장 스캔 -> ENTRY, REENTRY
     qrEntryValidateService.preventInvalidScan(qrTicket, qrCheckStatusCode.getCode());
     return qrLogService.entryQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
+  }
+
+  // 관리자 강제 입퇴장
+  private CheckResponseDto processAdminForceCheck(AdminForceCheckRequestDto dto) {
+    QrTicket qrTicket = qrTicketRepository.findByTicketNo(dto.getTicketNo()).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND, "티켓 번호와 일치하는 티켓이 없습니다.")
+    );
+
+    Attendee attendee = qrTicket.getAttendee();
+
+    QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(
+        dto.getQrCheckStatusCode());
+    QrActionCode qrActionCode = switch (qrCheckStatusCode.getCode()) {
+      case QrCheckStatusCode.ENTRY ->
+          qrEntryValidateService.validateQrActionCode(QrActionCode.FORCE_CHECKED_IN);
+      case QrCheckStatusCode.EXIT ->
+          qrEntryValidateService.validateQrActionCode(QrActionCode.FORCE_CHECKED_OUT);
+      default -> throw new CustomException(HttpStatus.BAD_REQUEST, "유효하지 않은 체크 상태 코드입니다.");
+    };
+
+    AdminCheckRequestDto adminCheckRequestDto = AdminCheckRequestDto.builder()
+        .attendee(attendee)
+        .qrTicket(qrTicket)
+        .qrActionCode(qrActionCode)
+        .qrCheckStatusCode(qrCheckStatusCode)
+        .build();
+    // 강제 처리 → 검증 로직 건너뛰고 바로 기록
+    LocalDateTime checkInTime = qrLogService.forceCheckQrLog(adminCheckRequestDto.getQrTicket(),
+        adminCheckRequestDto.getQrActionCode(),
+        adminCheckRequestDto.getQrCheckStatusCode());
+    return CheckResponseDto.builder()
+        .message("관리자 강제 " + adminCheckRequestDto.getQrCheckStatusCode().getCode() + " 완료")
+        .checkInTime(checkInTime)
+        .build();
   }
 }

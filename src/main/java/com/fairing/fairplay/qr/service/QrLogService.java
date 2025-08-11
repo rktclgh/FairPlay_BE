@@ -59,6 +59,13 @@ public class QrLogService {
     return null;
   }
 
+  @Transactional
+  public LocalDateTime forceCheckQrLog(QrTicket qrTicket, QrActionCode qrActionCode, QrCheckStatusCode qrCheckStatusCode) {
+    saveQrLog(qrTicket, qrActionCode);
+    saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    return null;
+  }
+
   // 비정상 중복 스캔 -> 스캔할 때 검토
   public void duplicateQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
       QrCheckStatusCode qrCheckStatusCode) {

@@ -1,6 +1,7 @@
 package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.scan.AdminForceCheckRequestDto;
 import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
 import com.fairing.fairplay.qr.dto.scan.GuestManualCheckRequestDto;
 import com.fairing.fairplay.qr.dto.scan.GuestQrCheckRequestDto;
@@ -144,5 +145,12 @@ public class QrTicketController {
   public ResponseEntity<CheckResponseDto> checkOutWithManualByGuest(@RequestBody
   GuestManualCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.checkOutWithManualByGuest(dto));
+  }
+
+  // 관리자 강제 입퇴장
+  @PostMapping("/admin/check")
+  public ResponseEntity<CheckResponseDto> adminForceCheck(
+      @RequestBody AdminForceCheckRequestDto dto) {
+    return ResponseEntity.ok(entryExitService.adminForceCheck(dto));
   }
 }

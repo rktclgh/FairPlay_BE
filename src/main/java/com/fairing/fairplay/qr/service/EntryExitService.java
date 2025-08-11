@@ -1,6 +1,7 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.scan.AdminForceCheckRequestDto;
 import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
 import com.fairing.fairplay.qr.dto.scan.GuestManualCheckRequestDto;
 import com.fairing.fairplay.qr.dto.scan.GuestQrCheckRequestDto;
@@ -86,4 +87,8 @@ public class EntryExitService {
     return qrTicketExitService.checkOut(dto);
   }
 
+  @Transactional
+  public CheckResponseDto adminForceCheck(AdminForceCheckRequestDto dto) {
+    return qrTicketEntryService.adminForceCheck(dto);
+  }
 }
