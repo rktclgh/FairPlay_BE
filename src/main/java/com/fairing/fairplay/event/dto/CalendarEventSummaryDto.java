@@ -5,7 +5,8 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
+@lombok.EqualsAndHashCode(of = {"eventId","title"})
 public class CalendarEventSummaryDto {
-    private Long eventId;
-    private String title;
+    @lombok.NonNull private Long eventId;
+    @lombok.NonNull private String title;
 }
