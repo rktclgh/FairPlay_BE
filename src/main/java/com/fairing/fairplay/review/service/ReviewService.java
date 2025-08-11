@@ -48,10 +48,10 @@ public class ReviewService {
     Users user = findUserOrThrow(1L);
 
     // 1. user의 사용자 권한이 일반 사용자인지 검증
-    if (!user.getRoleCode().getCode().equals("COMMON")) {
-      throw new CustomException(HttpStatus.FORBIDDEN,
-          "리뷰를 작성할 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
-    }
+//    if (!user.getRoleCode().getCode().equals("COMMON")) {
+//      throw new CustomException(HttpStatus.FORBIDDEN,
+//          "리뷰를 작성할 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
+//    }
 
     // 2. 리뷰 작성자와 예약자가 일치하는지 조회
     Reservation reservation = reviewReservationService.checkReservationIdAndUser(
@@ -76,7 +76,7 @@ public class ReviewService {
         .user(user)
         .reservation(reservation)
         .comment(dto.getComment())
-        .isPublic(dto.isPublic())
+        .visible(dto.isVisible())
         .star(dto.getStar())
         .build();
 
@@ -157,14 +157,14 @@ public class ReviewService {
 
     // 6.  리뷰 수정 (createdAt, reaction 수정 불가)
     review.setStar(dto.getStar());
-    review.setIsPublic(dto.isPublic());
+    review.setVisible(dto.isVisible());
     review.setComment(dto.getComment());
     review.setUpdatedAt(LocalDateTime.now());
 
     return ReviewUpdateResponseDto.builder()
         .reviewId(reviewId)
         .comment(dto.getComment())
-        .isPublic(dto.isPublic())
+        .visible(dto.isVisible())
         .star(dto.getStar())
         .build();
   }
@@ -207,15 +207,15 @@ public class ReviewService {
         .reviewId(review.getId())
         .comment(review.getComment())
         .star(review.getStar())
-        .isPublic(review.getIsPublic())
+        .visible(review.isVisible())
         .createdAt(review.getCreatedAt())
         .build();
   }
 
-  private ReviewResponseDto buildReviewResponse(Review review, Long reactionCount, boolean isMine) {
+  private ReviewResponseDto buildReviewResponse(Review review, Long reactionCount, boolean owner) {
     EventDto eventDto = buildEvent(review.getReservation());
     ReviewDto reviewDto = buildReview(review, reactionCount);
-    return new ReviewResponseDto(eventDto, reviewDto, isMine);
+    return new ReviewResponseDto(eventDto, reviewDto, owner);
   }
 
   private EventDto buildEvent(Reservation reservation) {
@@ -242,7 +242,7 @@ public class ReviewService {
         .star(review.getStar())
         .reactions(reactionCount)
         .comment(review.getComment())
-        .isPublic(review.getIsPublic())
+        .visible(review.isVisible())
         .createdAt(review.getCreatedAt())
         .build();
   }
