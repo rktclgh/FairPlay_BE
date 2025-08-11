@@ -80,10 +80,11 @@ public class EventComparisonService {
     public List<EventComparisonResponseDto> getEventsByStatus(String status) {
         List<EventComparisonStatistics> stats;
 
-        if ("all".equals(status)) {
+        String normalized = (status == null) ? "all" : status.trim().toLowerCase(java.util.Locale.ROOT);
+        if ("all".equals(normalized))  {
             stats = comparisonRepository.findAll();
         } else {
-            stats = customRepository.findByStatus(status, LocalDate.now());
+            stats = customRepository.findByStatus(normalized, LocalDate.now());
         }
 
         return stats.stream()
