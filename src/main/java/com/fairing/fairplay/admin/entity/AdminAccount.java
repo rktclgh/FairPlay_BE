@@ -31,8 +31,8 @@ public class AdminAccount {
     private Boolean active = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "admin_role_code_id", nullable = false)
-    private AdminRoleCode adminRoleCode;
+    @JoinColumn(name = "user_role_code", nullable = false)
+    private AdminRoleCode userRoleCode;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

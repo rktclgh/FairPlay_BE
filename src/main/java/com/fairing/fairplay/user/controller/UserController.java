@@ -27,10 +27,10 @@ public class UserController {
     private final UserRepository userRepository;
     private final EventRepository eventRepository;
 
-    private static final Integer ADMIN = 1;    // 전체 관리자
-    private static final Integer EVENT = 2;    // 행사 관리자
-    private static final Integer BOOTH = 3;    // 부스 관리자
-    private static final Integer COMMON = 4;   // 일반 사용자
+    private static final Integer ADMIN = 1; // 전체 관리자
+    private static final Integer EVENT = 2; // 행사 관리자
+    private static final Integer BOOTH = 3; // 부스 관리자
+    private static final Integer COMMON = 4; // 일반 사용자
 
     // 회원가입
     @PostMapping("/signup")
@@ -50,8 +50,7 @@ public class UserController {
     @PostMapping("/mypage/edit")
     public ResponseEntity<UserResponseDto> updateMyInfo(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestBody UserUpdateRequestDto dto
-    ) {
+            @RequestBody UserUpdateRequestDto dto) {
         Long userId = userDetails.getUserId();
         return ResponseEntity.ok(userService.updateMyInfo(userId, dto));
     }
@@ -68,8 +67,7 @@ public class UserController {
     @PutMapping("/mypage/password")
     public ResponseEntity<Void> changePassword(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestBody UserPasswordUpdateRequestDto dto
-    ) {
+            @RequestBody UserPasswordUpdateRequestDto dto) {
         Long userId = userDetails.getUserId();
         userService.changePassword(userId, dto.getCurrentPassword(), dto.getNewPassword());
         return ResponseEntity.ok().build();
@@ -144,8 +142,8 @@ public class UserController {
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."))
                 .getRoleCode().getId();
 
-        if (!authority.equals(ADMIN) && !managerId.equals(loginUserId)) throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+        if (!authority.equals(ADMIN) && !managerId.equals(loginUserId))
+            throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
     }
-
 
 }
