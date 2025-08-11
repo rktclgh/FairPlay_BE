@@ -19,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import com.querydsl.core.types.dsl.Expressions;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,9 +49,9 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 .select(
                         e.eventId,
                         e.titleKr,
-                        e.viewCount.sum().coalesce(0),         // 조회수 합계
-                        r.countDistinct().coalesce(0L),         // 예약 수
-                        w.countDistinct().coalesce(0L)          // 찜 수
+                        e.viewCount.sum().coalesce(0),                 // 조회수(누적 조회수)
+                        r.reservationId.countDistinct().coalesce(0L),   // 예약 수 (PK 기준)
+                        w.wishlistId.countDistinct().coalesce(0L)       // 찜 수 (PK 기준)
                 )
                 .from(e)
                 .leftJoin(r).on(
@@ -71,7 +72,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                         .viewCount(Long.valueOf(t.get(e.viewCount.sum())))
                         .reservationCount(t.get(r.countDistinct()))
                         .wishlistCount(t.get(w.countDistinct()))
-                        .calculatedAt(LocalDateTime.now())
+                        .calculatedAt(targetDate.atStartOfDay())
                         .build()
                 ).toList();
     }
@@ -88,7 +89,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
         QEventDetail d = QEventDetail.eventDetail;
 
         BooleanBuilder builder = new BooleanBuilder();
-        builder.and(eps.calculatedAt.between(startDate.atStartOfDay(), endDate.atStartOfDay()));
+        builder.and(eps.calculatedAt.between( startDate.atStartOfDay(), endDate.plusDays(1).atStartOfDay()));
 
         if (mainCategory != null && !mainCategory.isBlank()) {
             builder.and(d.mainCategory.groupName.stringValue().eq(mainCategory));
@@ -103,22 +104,19 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 .select(Projections.constructor(EventPopularityStatisticsListDto.class,
                         eps.eventId,
                         eps.eventTitle,
-                        eps.viewCount.sum(),
-                        eps.reservationCount.sum(),
-                        eps.wishlistCount.sum(),
+                        eps.viewCount.sum().coalesce(0L),
+                        eps.reservationCount.sum().coalesce(0L),
+                        eps.wishlistCount.sum().coalesce(0L),
                         d.mainCategory,
                         d.subCategory,
                         Expressions.numberTemplate(Integer.class,
-                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum()),
+                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum().coalesce(0L)),
                         eps.calculatedAt.max()
                 ))
                 .from(eps)
-                .leftJoin(d).on(
-                        d.event.eventId.eq(eps.eventId)
-                                .and(d.createdAt.between(startDate.atStartOfDay(), endDate.atStartOfDay()))
-                )
+                .leftJoin(d).on(d.event.eventId.eq(eps.eventId))
                 .where(builder)
-                .groupBy(eps.eventId, eps.eventTitle, d.mainCategory, d.subCategory)
+                .groupBy(eps.eventId, eps.eventTitle)
                 .orderBy(eps.viewCount.sum().desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
@@ -128,10 +126,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
         Long total = queryFactory
                 .select(eps.eventId.countDistinct())
                 .from(eps)
-                .leftJoin(d).on(
-                        d.event.eventId.eq(eps.eventId)
-                                .and(d.createdAt.between(startDate.atStartOfDay(), endDate.atStartOfDay()))
-                )
+                .leftJoin(d).on(d.event.eventId.eq(eps.eventId))
                 .where(builder)
                 .fetchOne();
 
@@ -150,7 +145,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
         QEventDetail d = QEventDetail.eventDetail;
 
         BooleanBuilder builder = new BooleanBuilder();
-        builder.and(eps.calculatedAt.between(startDate.atStartOfDay(), endDate.atStartOfDay()));
+        builder.and(eps.calculatedAt.between(startDate.atStartOfDay(), endDate.plusDays(1).atStartOfDay()));
 
         if (mainCategory != null && !mainCategory.isBlank()) {
             builder.and(d.mainCategory.groupName.stringValue().eq(mainCategory));
@@ -164,21 +159,19 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 .select(Projections.constructor(EventPopularityStatisticsListDto.class,
                         eps.eventId,
                         eps.eventTitle,
-                        eps.viewCount.sum(),
-                        eps.reservationCount.sum(),
-                        eps.wishlistCount.sum(),
+                        eps.viewCount.sum().coalesce(0L),
+                        eps.reservationCount.sum().coalesce(0L),
+                        eps.wishlistCount.sum().coalesce(0L),
                         d.mainCategory,
                         d.subCategory,
                         Expressions.numberTemplate(Integer.class,
-                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum()),
+                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)",eps.viewCount.sum().coalesce(0L)),
                         eps.calculatedAt.max()
                 ))
                 .from(eps)
-                .leftJoin(d).on(
-                        d.event.eventId.eq(eps.eventId)
-                                .and(d.createdAt.between(startDate.atStartOfDay(), endDate.atStartOfDay()))
-                )
-                .where(eps.calculatedAt.between(startDate.atStartOfDay(), endDate.atStartOfDay()))
+                .leftJoin(d).on(d.event.eventId.eq(eps.eventId))
+                .where(builder)
+                .groupBy(eps.eventId, eps.eventTitle, d.mainCategory, d.subCategory)
 
                 .groupBy(eps.eventId, eps.eventTitle)
                 .orderBy(eps.viewCount.sum().desc())
@@ -280,20 +273,19 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                         eps.popularityId,
                         eps.eventId,
                         eps.eventTitle,
-                        eps.viewCount.sum(),
-                        eps.reservationCount.sum(),
-                        eps.wishlistCount.sum(),
+                        eps.viewCount.sum().coalesce(0L),
+                        eps.reservationCount.sum().coalesce(0L),
+                        eps.wishlistCount.sum().coalesce(0L),
                         d.mainCategory,
                         d.subCategory,
                         Expressions.numberTemplate(Integer.class,
-                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum()),
+                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum().coalesce(0L)),
                         eps.calculatedAt.max()
                 ))
                 .from(eps)
                 .leftJoin(d).on(d.event.eventId.eq(eps.eventId))
                 .where(builder)
                 .groupBy(
-                        eps.popularityId,
                         eps.eventId,
                         eps.eventTitle,
                         d.mainCategory,

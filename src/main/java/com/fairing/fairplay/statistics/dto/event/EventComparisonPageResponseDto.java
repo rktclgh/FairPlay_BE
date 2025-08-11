@@ -11,9 +11,11 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class EventComparisonPageResponseDto {
-    private List<EventComparisonResponseDto> allEvents;
+    @Builder.Default
+    private List<EventComparisonResponseDto> allEvents = java.util.Collections.emptyList();
     private EventStatsOverviewResponseDto overallStats;
-    private List<EventComparisonResponseDto> topRevenueEvents;
-    private Map<String, Long> statusCounts;
-    //private List<Map<String, Object>> chartData;
+    @Builder.Default
+    private List<EventComparisonResponseDto> topRevenueEvents = java.util.Collections.emptyList();
+    @Builder.Default
+    private Map<String, Long> statusCounts = java.util.Collections.emptyMap();
 }

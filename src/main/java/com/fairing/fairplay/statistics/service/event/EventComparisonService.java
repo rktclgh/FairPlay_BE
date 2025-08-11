@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -40,8 +41,11 @@ public class EventComparisonService {
 
         // 3. 매출 상위 행사 TOP 3
         List<EventComparisonResponseDto> topRevenueEvents = allEvents.stream()
-                .sorted((a, b) -> Long.compare(b.getTotalSales(), a.getTotalSales()))
-                .limit(3)
+                .sorted(java.util.Comparator
+                .comparing(EventComparisonResponseDto::getTotalSales,
+                java.util.Comparator.nullsLast(Long::compareTo))
+                .reversed())
+        .limit(3)
                 .collect(Collectors.toList());
 
         // 4. 상태별 통계
@@ -76,10 +80,11 @@ public class EventComparisonService {
     public List<EventComparisonResponseDto> getEventsByStatus(String status) {
         List<EventComparisonStatistics> stats;
 
-        if ("all".equals(status)) {
+        String normalized = (status == null) ? "all" : status.trim().toLowerCase(java.util.Locale.ROOT);
+        if ("all".equals(normalized))  {
             stats = comparisonRepository.findAll();
         } else {
-            stats = customRepository.findByStatus(status, LocalDate.now());
+            stats = customRepository.findByStatus(normalized, LocalDate.now());
         }
 
         return stats.stream()
@@ -87,20 +92,12 @@ public class EventComparisonService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 통계 계산 및 저장
-     */
-    @Transactional
-    public void calculateDailyStats(LocalDate targetDate) {
-        List<EventComparisonStatistics> stats = customRepository.calculate(targetDate);
-        comparisonRepository.saveAll(stats);
-    }
 
     private EventComparisonResponseDto convertToResponse(EventComparisonStatistics stats) {
         String status = determineEventStatus(stats.getStartDate(), stats.getEndDate());
 
         return EventComparisonResponseDto.builder()
-                .statsId(stats.getStatsId())
+                .statsId(stats.getStatsComparisonId())
                 .eventId(stats.getEventId())
                 .eventName(stats.getEventTitle()) // 실제로는 Event 엔티티 조인 필요
                 .status(status)
@@ -131,7 +128,7 @@ public class EventComparisonService {
         return EventStatsOverviewResponseDto.builder()
                 .totalUsers(totalUsers)
                 .totalReservations(totalReservations)
-                .totalSales(totalSales)
+                .totalSales(BigDecimal.valueOf(totalSales))
                 .totalEvents((long) allStats.size())
                 .build();
     }
