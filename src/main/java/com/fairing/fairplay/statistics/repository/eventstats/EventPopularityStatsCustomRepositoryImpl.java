@@ -19,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import com.querydsl.core.types.dsl.Expressions;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -103,13 +104,13 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 .select(Projections.constructor(EventPopularityStatisticsListDto.class,
                         eps.eventId,
                         eps.eventTitle,
-                        eps.viewCount.sum(),
-                        eps.reservationCount.sum(),
-                        eps.wishlistCount.sum(),
+                        eps.viewCount.sum().coalesce(0L),
+                        eps.reservationCount.sum().coalesce(0L),
+                        eps.wishlistCount.sum().coalesce(0L),
                         d.mainCategory,
                         d.subCategory,
                         Expressions.numberTemplate(Integer.class,
-                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum()),
+                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum().coalesce(0L)),
                         eps.calculatedAt.max()
                 ))
                 .from(eps)
@@ -158,13 +159,13 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 .select(Projections.constructor(EventPopularityStatisticsListDto.class,
                         eps.eventId,
                         eps.eventTitle,
-                        eps.viewCount.sum(),
-                        eps.reservationCount.sum(),
-                        eps.wishlistCount.sum(),
+                        eps.viewCount.sum().coalesce(0L),
+                        eps.reservationCount.sum().coalesce(0L),
+                        eps.wishlistCount.sum().coalesce(0L),
                         d.mainCategory,
                         d.subCategory,
                         Expressions.numberTemplate(Integer.class,
-                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum()),
+                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)",eps.viewCount.sum().coalesce(0L)),
                         eps.calculatedAt.max()
                 ))
                 .from(eps)
@@ -272,13 +273,13 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                         eps.popularityId,
                         eps.eventId,
                         eps.eventTitle,
-                        eps.viewCount.sum(),
-                        eps.reservationCount.sum(),
-                        eps.wishlistCount.sum(),
+                        eps.viewCount.sum().coalesce(0L),
+                        eps.reservationCount.sum().coalesce(0L),
+                        eps.wishlistCount.sum().coalesce(0L),
                         d.mainCategory,
                         d.subCategory,
                         Expressions.numberTemplate(Integer.class,
-                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum()),
+                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum().coalesce(0L)),
                         eps.calculatedAt.max()
                 ))
                 .from(eps)

@@ -11,9 +11,9 @@ import java.time.LocalDateTime;
         name = "event_comparison_statistics",
         indexes = {
         @Index(name = "idx_event_id", columnList = "event_id"),
-        @Index(name = "idx_start_date", columnList = "startDate"),
-        @Index(name = "idx_end_date", columnList = "endDate"),
-        @Index(name = "uk_event_period", columnList = "event_id,startDate,endDate", unique = true)
+        @Index(name = "idx_start_date", columnList = "start_date"),
+        @Index(name = "idx_end_date", columnList = "end_date"),
+        @Index(name = "uk_event_period", columnList = "event_id,start_date,end_date", unique = true)
 }
         )
 @Getter
@@ -40,7 +40,10 @@ public class EventComparisonStatistics {
     @Column(precision = 5, scale = 4, nullable = false)
     private BigDecimal cancellationRate = BigDecimal.ZERO;
 
+    @Column(name = "start_date")
     private LocalDate startDate;
+
+    @Column(name = "end_date")
     private LocalDate endDate;
 
     @Column(name = "last_updated_at")
