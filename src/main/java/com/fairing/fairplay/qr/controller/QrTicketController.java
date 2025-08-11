@@ -1,12 +1,11 @@
 package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.qr.dto.scan.CheckInResponseDto;
-import com.fairing.fairplay.qr.dto.scan.CheckOutResponseDto;
-import com.fairing.fairplay.qr.dto.scan.GuestManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.GuestQrCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.MemberManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.MemberQrCheckInRequestDto;
+import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
+import com.fairing.fairplay.qr.dto.scan.GuestManualCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.GuestQrCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.MemberManualCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.MemberQrCheckRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
@@ -85,29 +84,29 @@ public class QrTicketController {
 
   // 체크인 1
   @PostMapping("/check-in/member/qr")
-  public ResponseEntity<CheckInResponseDto> checkInWithQrByMember(@RequestBody
-  MemberQrCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+  public ResponseEntity<CheckResponseDto> checkInWithQrByMember(@RequestBody
+  MemberQrCheckRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
     return ResponseEntity.ok(entryExitService.checkInWithQrByMember(dto, userDetails));
   }
 
   // 체크인 2
   @PostMapping("/check-in/member/manual")
-  public ResponseEntity<CheckInResponseDto> checkInWithManualByMember(@RequestBody
-  MemberManualCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+  public ResponseEntity<CheckResponseDto> checkInWithManualByMember(@RequestBody
+  MemberManualCheckRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
     return ResponseEntity.ok(entryExitService.checkInWithManualByMember(dto, userDetails));
   }
 
   // 체크인 3
   @PostMapping("/check-in/guest/qr")
-  public ResponseEntity<CheckInResponseDto> checkInWithQrByGuest(@RequestBody
-  GuestQrCheckInRequestDto dto) {
+  public ResponseEntity<CheckResponseDto> checkInWithQrByGuest(@RequestBody
+  GuestQrCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.checkInWithQrByGuest(dto));
   }
 
   // 체크인 4
   @PostMapping("/check-in/guest/manual")
-  public ResponseEntity<CheckInResponseDto> checkInWithManualByGuest(@RequestBody
-  GuestManualCheckInRequestDto dto) {
+  public ResponseEntity<CheckResponseDto> checkInWithManualByGuest(@RequestBody
+  GuestManualCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.checkInWithManualByGuest(dto));
   }
 
@@ -121,29 +120,29 @@ public class QrTicketController {
 
   // 체크아웃 1
   @PostMapping("/check-out/member/qr")
-  public ResponseEntity<CheckOutResponseDto> checkOutWithQrByMember(@RequestBody
-  MemberQrCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+  public ResponseEntity<CheckResponseDto> checkOutWithQrByMember(@RequestBody
+  MemberQrCheckRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
     return ResponseEntity.ok(entryExitService.checkOutWithQrByMember(dto, userDetails));
   }
 
   // 체크아웃 2
   @PostMapping("/check-out/member/manual")
-  public ResponseEntity<CheckOutResponseDto> checkOutWithManualByMember(@RequestBody
-  MemberManualCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+  public ResponseEntity<CheckResponseDto> checkOutWithManualByMember(@RequestBody
+  MemberManualCheckRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
     return ResponseEntity.ok(entryExitService.checkOutWithManualByMember(dto, userDetails));
   }
 
   // 체크아웃 3
   @PostMapping("/check-out/guest/qr")
-  public ResponseEntity<CheckOutResponseDto> checkOutWithQrByGuest(@RequestBody
-  GuestQrCheckInRequestDto dto) {
+  public ResponseEntity<CheckResponseDto> checkOutWithQrByGuest(@RequestBody
+  GuestQrCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.checkOutWithQrByGuest(dto));
   }
 
   // 체크아웃 4
   @PostMapping("/check-out/guest/manual")
-  public ResponseEntity<CheckOutResponseDto> checkOutWithManualByGuest(@RequestBody
-  GuestManualCheckInRequestDto dto) {
+  public ResponseEntity<CheckResponseDto> checkOutWithManualByGuest(@RequestBody
+  GuestManualCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.checkOutWithManualByGuest(dto));
   }
 }

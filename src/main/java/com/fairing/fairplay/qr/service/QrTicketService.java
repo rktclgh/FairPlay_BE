@@ -1,12 +1,6 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.qr.dto.scan.CheckInResponseDto;
-import com.fairing.fairplay.qr.dto.scan.CheckOutResponseDto;
-import com.fairing.fairplay.qr.dto.scan.GuestManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.GuestQrCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.MemberManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.MemberQrCheckInRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
@@ -25,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class QrTicketService {
 
   private final QrTicketIssueService qrTicketIssueService;
-  private final EntryExitService entryExitService;
 
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional

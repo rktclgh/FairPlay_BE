@@ -11,8 +11,8 @@ import lombok.Setter;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class MemberQrCheckInRequestDto {
+public class MemberManualCheckRequestDto {
 
   private Long reservationId;
-  private String qrCode;
+  private String manualCode;
 }

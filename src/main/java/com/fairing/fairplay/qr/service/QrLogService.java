@@ -53,8 +53,7 @@ public class QrLogService {
 
   // 퇴장 (QR 코드 스캔 or 수동 코드)
   @Transactional
-  public LocalDateTime exitQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
-      QrCheckStatusCode qrCheckStatusCode) {
+  public LocalDateTime exitQrLog(QrTicket qrTicket, QrCheckStatusCode qrCheckStatusCode) {
     // qrCheckLog: EXIT 저장
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
     return null;

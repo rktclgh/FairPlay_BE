@@ -19,5 +19,4 @@ public class CheckOutRequestDto {
   private String codeType;// QR or MANUAL
   private boolean requireUserMatch;// 회원 체크아웃할때 참석자=로그인정보 일치하는지 여부 조회
   private CustomUserDetails userDetails;// 회원
-  private String qrActionCode; // CHECKED_IN, MANUAL_CHECKED_IN
 }

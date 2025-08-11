@@ -3,11 +3,11 @@ package com.fairing.fairplay.qr.service;
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.scan.CheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.CheckInResponseDto;
-import com.fairing.fairplay.qr.dto.scan.GuestManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.GuestQrCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.MemberManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.MemberQrCheckInRequestDto;
+import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
+import com.fairing.fairplay.qr.dto.scan.GuestManualCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.GuestQrCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.MemberManualCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.MemberQrCheckRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.entity.QrActionCode;
 import com.fairing.fairplay.qr.entity.QrCheckStatusCode;
@@ -42,7 +42,7 @@ public class QrTicketEntryService {
   private static final String MANUAL = "MANUAL";
 
   // 회원 QR 코드 체크인
-  public CheckInResponseDto checkIn(MemberQrCheckInRequestDto dto, CustomUserDetails userDetails) {
+  public CheckResponseDto checkIn(MemberQrCheckRequestDto dto, CustomUserDetails userDetails) {
     // 예약자 조회
     Attendee attendee = qrTicketAttendeeService.findAttendee(dto.getReservationId(), null);
     CheckInRequestDto checkInRequestDto = CheckInRequestDto.builder()
@@ -58,7 +58,7 @@ public class QrTicketEntryService {
   }
 
   // 회원 수동 코드 체크인
-  public CheckInResponseDto checkIn(MemberManualCheckInRequestDto dto,
+  public CheckResponseDto checkIn(MemberManualCheckRequestDto dto,
       CustomUserDetails userDetails) {
     // 예약자 조회
     Attendee attendee = qrTicketAttendeeService.findAttendee(dto.getReservationId(), null);
@@ -75,7 +75,7 @@ public class QrTicketEntryService {
   }
 
   // 비회원 QR 코드 체크인
-  public CheckInResponseDto checkIn(GuestQrCheckInRequestDto dto) {
+  public CheckResponseDto checkIn(GuestQrCheckRequestDto dto) {
     // qr 티켓 링크 token 조회
     QrTicketRequestDto qrLinkTokenInfo = codeValidator.decodeToDto(dto.getQrLinkToken());
 
@@ -94,7 +94,7 @@ public class QrTicketEntryService {
   }
 
   // 비회원 수동 코드 체크인
-  public CheckInResponseDto checkIn(GuestManualCheckInRequestDto dto) {
+  public CheckResponseDto checkIn(GuestManualCheckRequestDto dto) {
     // qr 티켓 링크 token 조회
     QrTicketRequestDto qrLinkTokenInfo = codeValidator.decodeToDto(dto.getQrLinkToken());
 
@@ -115,7 +115,7 @@ public class QrTicketEntryService {
   /**
    * 체크인 공통 로직
    */
-  private CheckInResponseDto processCheckInCommon(CheckInRequestDto dto) {
+  private CheckResponseDto processCheckInCommon(CheckInRequestDto dto) {
     if (dto.isRequireUserMatch()) {
       // 회원, 비회원 여부에 따라 참석자=로그인한 사용자 여부 조회
       qrTicketVerificationService.validateUserMatch(dto.getAttendee(), dto.getUserDetails());
@@ -140,7 +140,7 @@ public class QrTicketEntryService {
     }
     // QR 티켓 처리
     LocalDateTime checkInTime = processCheckIn(qrTicket, dto.getQrActionCode(), entryType);
-    return CheckInResponseDto.builder()
+    return CheckResponseDto.builder()
         .message("체크인 완료되었습니다.")
         .checkInTime(checkInTime)
         .build();

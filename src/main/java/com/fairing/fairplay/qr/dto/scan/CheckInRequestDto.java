@@ -14,6 +14,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CheckInRequestDto {
+
   private Attendee attendee;//회원
   private String codeValue;// qr 또는 manual 실제 값
   private String codeType;// QR or MANUAL

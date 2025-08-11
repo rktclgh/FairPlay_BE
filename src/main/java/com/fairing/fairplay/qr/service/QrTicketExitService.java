@@ -4,11 +4,11 @@ import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.scan.CheckOutRequestDto;
-import com.fairing.fairplay.qr.dto.scan.CheckOutResponseDto;
-import com.fairing.fairplay.qr.dto.scan.GuestManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.GuestQrCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.MemberManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.scan.MemberQrCheckInRequestDto;
+import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
+import com.fairing.fairplay.qr.dto.scan.GuestManualCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.GuestQrCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.MemberManualCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.MemberQrCheckRequestDto;
 import com.fairing.fairplay.qr.entity.QrActionCode;
 import com.fairing.fairplay.qr.entity.QrCheckStatusCode;
 import com.fairing.fairplay.qr.entity.QrTicket;
@@ -31,7 +31,7 @@ public class QrTicketExitService {
   private static final String MANUAL = "MANUAL";
 
   // 회원 QR 코드 체크아웃
-  public CheckOutResponseDto checkOut(MemberQrCheckInRequestDto dto,
+  public CheckResponseDto checkOut(MemberQrCheckRequestDto dto,
       CustomUserDetails userDetails) {
     // 예약자 조회
     Attendee attendee = qrTicketAttendeeService.findAttendee(dto.getReservationId(), null);
@@ -41,14 +41,13 @@ public class QrTicketExitService {
         .userDetails(userDetails)
         .codeType(QR)
         .codeValue(dto.getQrCode())
-        .qrActionCode(QrActionCode.CHECKED_IN)
         .build();
 
     return processCheckOutCommon(checkOutRequestDto);
   }
 
   // 회원 수동 코드 체크아웃
-  public CheckOutResponseDto checkOut(MemberManualCheckInRequestDto dto,
+  public CheckResponseDto checkOut(MemberManualCheckRequestDto dto,
       CustomUserDetails userDetails) {
     // 예약자 조회
     Attendee attendee = qrTicketAttendeeService.findAttendee(dto.getReservationId(), null);
@@ -58,14 +57,13 @@ public class QrTicketExitService {
         .userDetails(userDetails)
         .codeType(MANUAL)
         .codeValue(dto.getManualCode())
-        .qrActionCode(QrActionCode.MANUAL_CHECKED_IN)
         .build();
 
     return processCheckOutCommon(checkOutRequestDto);
   }
 
   // 비회원 QR 코드 체크아웃
-  public CheckOutResponseDto checkOut(GuestQrCheckInRequestDto dto) {
+  public CheckResponseDto checkOut(GuestQrCheckRequestDto dto) {
     // qr 티켓 링크 token 조회
     QrTicketRequestDto qrLinkTokenInfo = codeValidator.decodeToDto(dto.getQrLinkToken());
 
@@ -77,14 +75,13 @@ public class QrTicketExitService {
         .userDetails(null)
         .codeType(QR)
         .codeValue(dto.getQrCode())
-        .qrActionCode(QrActionCode.CHECKED_IN)
         .build();
 
     return processCheckOutCommon(checkOutRequestDto);
   }
 
   // 비회원 수동 코드 체크아웃
-  public CheckOutResponseDto checkOut(GuestManualCheckInRequestDto dto) {
+  public CheckResponseDto checkOut(GuestManualCheckRequestDto dto) {
     // qr 티켓 링크 token 조회
     QrTicketRequestDto qrLinkTokenInfo = codeValidator.decodeToDto(dto.getQrLinkToken());
 
@@ -96,7 +93,6 @@ public class QrTicketExitService {
         .userDetails(null)
         .codeType(MANUAL)
         .codeValue(dto.getManualCode())
-        .qrActionCode(QrActionCode.MANUAL_CHECKED_IN)
         .build();
 
     return processCheckOutCommon(checkOutRequestDto);
@@ -105,7 +101,7 @@ public class QrTicketExitService {
   /**
    * 체크아웃 공통 로직
    */
-  private CheckOutResponseDto processCheckOutCommon(CheckOutRequestDto dto) {
+  private CheckResponseDto processCheckOutCommon(CheckOutRequestDto dto) {
     if (dto.isRequireUserMatch()) {
       // 회원, 비회원 여부에 따라 참석자=로그인한 사용자 여부 조회
       qrTicketVerificationService.validateUserMatch(dto.getAttendee(), dto.getUserDetails());
@@ -129,23 +125,20 @@ public class QrTicketExitService {
       qrTicketVerificationService.verifyManualCode(qrTicket, dto.getCodeValue());
     }
     // QR 티켓 처리
-    LocalDateTime checkInTime = processCheckOut(qrTicket, dto.getQrActionCode(),
-        qrCheckStatusCode.getCode());
-    return CheckOutResponseDto.builder()
+    LocalDateTime checkInTime = processCheckOut(qrTicket, qrCheckStatusCode.getCode());
+    return CheckResponseDto.builder()
         .message("체크아웃 완료되었습니다.")
         .checkInTime(checkInTime)
         .build();
   }
 
   // 검증 완료 후 디비 데이터 저장
-  private LocalDateTime processCheckOut(QrTicket qrTicket, String checkInType, String entryType) {
-    // actionCodeType = CHECKED_IN, MANUAL_CHECKED_IN
-    QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(checkInType);
+  private LocalDateTime processCheckOut(QrTicket qrTicket, String entryType) {
     // checkStatusCode = EXIT
     QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(
         entryType);
     // 잘못된 입퇴장 스캔 -> EXIT
     qrEntryValidateService.preventInvalidScan(qrTicket, qrCheckStatusCode.getCode());
-    return qrLogService.exitQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
+    return qrLogService.exitQrLog(qrTicket, qrCheckStatusCode);
   }
 }
