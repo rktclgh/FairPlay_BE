@@ -41,8 +41,11 @@ public class EventComparisonService {
 
         // 3. 매출 상위 행사 TOP 3
         List<EventComparisonResponseDto> topRevenueEvents = allEvents.stream()
-                .sorted((a, b) -> Long.compare(b.getTotalSales(), a.getTotalSales()))
-                .limit(3)
+                .sorted(java.util.Comparator
+                .comparing(EventComparisonResponseDto::getTotalSales,
+                java.util.Comparator.nullsLast(Long::compareTo))
+                .reversed())
+        .limit(3)
                 .collect(Collectors.toList());
 
         // 4. 상태별 통계
