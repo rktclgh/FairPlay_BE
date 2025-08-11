@@ -49,7 +49,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 .select(
                         e.eventId,
                         e.titleKr,
-                        e.viewCount.sum().coalesce(0),                 // 조회수(누적 조회수)
+                        e.viewCount.max().coalesce(0),                   // 조회수(누적 조회수)
                         r.reservationId.countDistinct().coalesce(0L),   // 예약 수 (PK 기준)
                         w.wishlistId.countDistinct().coalesce(0L)       // 찜 수 (PK 기준)
                 )
@@ -69,9 +69,9 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 .map(t -> EventPopularityStatistics.builder()
                         .eventId(t.get(e.eventId))
                         .eventTitle(t.get(e.titleKr))
-                        .viewCount(Long.valueOf(t.get(e.viewCount.sum())))
-                        .reservationCount(t.get(r.countDistinct()))
-                        .wishlistCount(t.get(w.countDistinct()))
+                        .viewCount(t.get(e.viewCount.max().coalesce(0L)))
+                        .reservationCount(t.get(r.reservationId.countDistinct().coalesce(0L)))
+                        .wishlistCount(t.get(w.wishlistId.countDistinct().coalesce(0L)))
                         .calculatedAt(targetDate.atStartOfDay())
                         .build()
                 ).toList();
