@@ -63,4 +63,8 @@ public class Users {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    public Users(Long userId) {
+        this.userId = userId;
+    }
 }

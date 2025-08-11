@@ -3,6 +3,7 @@ package com.fairing.fairplay.statistics.repository.hourlystats;
 import com.fairing.fairplay.statistics.entity.hourly.EventHourlyStatistics;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.payment.entity.QPayment;
+import com.fairing.fairplay.payment.entity.QPaymentTargetType;
 import com.fairing.fairplay.statistics.entity.hourly.QEventHourlyStatistics;
 import com.fairing.fairplay.statistics.entity.sales.EventDailySalesStatistics;
 import com.fairing.fairplay.statistics.entity.sales.QEventDailySalesStatistics;
@@ -34,6 +35,8 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime end = endDate.plusDays(1).atStartOfDay();
 
+        QPaymentTargetType ptt = QPaymentTargetType.paymentTargetType;
+
         List<Tuple> results = queryFactory
                 .select(
                         r.event.eventId,
@@ -44,7 +47,9 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                         p.amount.sum().coalesce(BigDecimal.ZERO)
                 )
                 .from(r)
-                .leftJoin(p).on(p.reservation.eq(r))
+                .leftJoin(p).on(p.targetId.eq(r.reservationId)
+                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION")))
+                .leftJoin(p.paymentTargetType, ptt)
                 .where(
                         r.event.eventId.eq(eventId)
                                 .and(r.createdAt.between(start, end))
@@ -78,11 +83,12 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
         BigDecimal realRevenue = queryFactory
                 .select(p.amount.sum().coalesce(BigDecimal.valueOf(0)))
                 .from(p)
-                .join(p.reservation, r)
+                .join(r).on(p.targetId.eq(r.reservationId)
+                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION")))
                 .where(
                         r.event.eventId.eq(eventId),
                         p.paidAt.between(hourStart, hourEnd),
-                        p.paymentStatusCode.code.eq("COMPLETED")
+                        p.paymentStatusCode.paymentStatusCodeId.eq(2) // COMPLETED 상태 (하드코딩)
                 )
                 .fetchOne();
 
@@ -172,7 +178,8 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                                 .otherwise(BigDecimal.ZERO)
                 )
                 .from(r)
-                .leftJoin(p).on(p.reservation.eq(r))
+                .leftJoin(p).on(p.targetId.eq(r.reservationId)
+                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION")))
                 .where(
                         r.createdAt.between(start, end)
                                 .and(p.paidAt.isNull().or(p.paidAt.between(start, end))) // 결제가 같은 날에 이루어진 경우만

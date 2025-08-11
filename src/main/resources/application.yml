@@ -42,15 +42,67 @@ spring:
 
   data:
     redis:
+<<<<<<< HEAD
       host: localhost
       port: 6379
 jwt:
   secret: KJbldsh2389dAjsdkljAD9821jhJHJJDHASjkllhHJksdhsuadhjku1l23jkh98AJA
   access-token-validity-ms: 600000 # 10분(600,000 ms)
   refresh-token-validity-ms: 172800000 # 2일(172,800,000 ms)
+=======
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
+# 웹소켓 설정 (배포환경 최적화)
+websocket:
+  heartbeat:
+    client: 25000    # 클라이언트 heartbeat (25초)
+    server: 25000    # 서버 heartbeat (25초)
+  disconnect-delay: 30000  # 연결 끊김 지연 시간
+  message-size-limit: 65536  # 메시지 크기 제한 (64KB)
+
+# 서버 설정
+server:
+  tomcat:
+    connection-timeout: 60s
+    keep-alive-timeout: 60s
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-validity-ms: 300000      # 5분(300,000 ms)
+  refresh-token-validity-ms: 600000  # 10분
+>>>>>>> b54f95211f4b458ad32afdb371f89f84fa31bc28
   refresh-token-prefix: "refresh_token:"
 
 kakao:
+<<<<<<< HEAD
   client-id: e34bd1d27d40bfefb5f832b63d51f80e
   redirect-uri: http://localhost:5173/auth/kakao/callback
   client-secret:
+=======
+  client-id: ${KAKAO_CLIENT_ID}
+  redirect-uri: ${KAKAO_REDIRECT_URI}
+  client-secret: ${KAKAO_CLIENT_SECRET:}
+
+cloud:
+  aws:
+    s3:
+      bucket-name: ${AWS_S3_BUCKET_NAME} # S3 버킷 이름
+    region:
+      static: ap-northeast-2 # ← 한국(서울) 리전으로 고정
+      auto: false
+    stack:
+      auto: false # CloudFormation 스택 자동 생성 비활성화
+    credentials:
+      access-key: ${AWS_ACCESS_KEY}
+      secret-key: ${AWS_SECRET_KEY}
+    cloudfront:
+      domain: ${AWS_CLOUDFRONT_DOMAIN}
+
+
+# 아임포트 설정
+iamport:
+  api-key: ${IAMPORT_API_KEY}
+  secret-key: ${IAMPORT_SECRET_KEY}
+  base-url: ${IAMPORT_BASE_URL:https://api.iamport.kr}
+>>>>>>> b54f95211f4b458ad32afdb371f89f84fa31bc28

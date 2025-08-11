@@ -5,7 +5,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import com.fairing.fairplay.admin.entity.AdminAccount;
+import com.fairing.fairplay.user.entity.Users;
 
 import java.time.LocalDateTime;
 
@@ -26,7 +26,7 @@ public class BannerLog {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "changed_by", nullable = false)
-    private AdminAccount changedBy;
+    private Users changedBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "banner_action_code_id", nullable = false)
@@ -41,7 +41,7 @@ public class BannerLog {
     }
 
     @Builder
-    public BannerLog(Banner banner, AdminAccount changedBy, BannerActionCode actionCode) {
+    public BannerLog(Banner banner, Users changedBy, BannerActionCode actionCode) {
         this.banner = banner;
         this.changedBy = changedBy;
         this.actionCode = actionCode;

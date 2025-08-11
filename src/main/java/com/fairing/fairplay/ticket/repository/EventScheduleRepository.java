@@ -12,4 +12,6 @@ public interface EventScheduleRepository extends JpaRepository<EventSchedule, Lo
 
     Optional<EventSchedule> findByEvent_EventIdAndScheduleId(Long eventId, Long scheduleId);
 
+    List<EventSchedule> findByEvent_EventId(Long eventId);
+
 }

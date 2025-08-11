@@ -20,6 +20,11 @@ import lombok.Setter;
 @Builder
 @Table(name = "qr_action_code")
 public class QrActionCode {
+  public static final String ISSUED = "ISSUED";
+  public static final String SCANNED = "SCANNED";
+  public static final String CHECKED_IN = "CHECKED_IN";
+  public static final String MANUAL_CHECKED_IN = "MANUAL_CHECKED_IN";
+  public static final String INVALID = "INVALID";
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)

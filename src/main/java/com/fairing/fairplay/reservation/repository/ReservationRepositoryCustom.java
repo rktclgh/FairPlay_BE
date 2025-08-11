@@ -62,7 +62,7 @@ public class ReservationRepositoryCustom {
         .where(
             schedule.date.eq(tomorrow),
             reservation.canceled.isFalse(),
-            reservation.reservationStatusCode.id.eq(2)
+            reservation.reservationStatusCode.code.eq(RESERVATION_STATUS_CONFIRMED)
         )
         .fetch();
 

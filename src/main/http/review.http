@@ -1,0 +1,36 @@
+@reviewId=
+@eventId=1
+
+### 리뷰 저장
+POST http://localhost:8080/api/reviews
+Content-Type: application/json
+
+{
+  "reservationId": 1,
+  "star": 4,
+  "visible": true,
+  "comment": "행사 리뷰 테스트입니다."
+}
+
+### 마이페이지 리뷰 조회
+GET http://localhost:8080/api/reviews
+Content-Type: application/json
+
+### 행사별 리뷰 조회
+GET http://localhost:8080/api/reviews/{{eventId}}?page=0&size=10&sort=createdAt,desc
+Content-Type: application/json
+
+### 리뷰 수정
+PATCH http://localhost:8080/api/reviews/{{reviewId}}
+Content-Type: application/json
+
+{
+  "star": 0,
+  "comment": "",
+  "visible": true
+}
+
+### 리뷰 삭제
+DELETE http://localhost:8080/api/reviews/{{reviewId}}
+Content-Type: application/json
+

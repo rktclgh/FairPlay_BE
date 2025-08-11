@@ -11,8 +11,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class ReviewSaveRequestDto {
+
   private Long reservationId;
   private Integer star;
-  private Boolean isPublic;
+  private boolean visible;
   private String comment;
 }

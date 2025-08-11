@@ -22,8 +22,8 @@ public class JwtTokenProvider {
         this.refreshTokenValidityInMillis = refreshTokenValidityInMillis;
     }
 
-    // 액세스 토큰 발급 (userId, email, 권한명)
-    public String generateAccessToken(Long userId, String email, String roleName) {
+    // 액세스 토큰 발급 (userId, email, 권한명, 권한ID)
+    public String generateAccessToken(Long userId, String email, String roleName, Integer roleId) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + accessTokenValidityInMillis);
 
@@ -31,6 +31,7 @@ public class JwtTokenProvider {
                 .setSubject(userId.toString())
                 .claim("email", email)
                 .claim("role", roleName)
+                .claim("roleId", roleId)
                 .setIssuedAt(now)
                 .setExpiration(expiry)
                 .signWith(SignatureAlgorithm.HS256, secretKey.getBytes())
@@ -77,6 +78,12 @@ public class JwtTokenProvider {
     public String getRole(String token) {
         Claims claims = getClaims(token);
         return (String) claims.get("role");
+    }
+
+    // 권한ID 추출
+    public Integer getRoleId(String token) {
+        Claims claims = getClaims(token);
+        return (Integer) claims.get("roleId");
     }
 
     // 만료여부

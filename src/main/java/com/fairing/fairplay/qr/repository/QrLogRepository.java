@@ -1,8 +1,12 @@
 package com.fairing.fairplay.qr.repository;
 
 import com.fairing.fairplay.qr.entity.QrLog;
-import org.springframework.data.repository.CrudRepository;
+import com.fairing.fairplay.qr.entity.QrTicket;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface QrLogRepository extends CrudRepository<QrLog, Long> {
+public interface QrLogRepository extends JpaRepository<QrLog, Long> {
+  Optional<QrLog> findByActionCode_Code(String qrActionCode);
 
+  Optional<QrLog> findTop1ByQrTicketAndActionCode_CodeOrderByCreatedAtDesc(QrTicket qrTicket, String qrActionCode);
 }

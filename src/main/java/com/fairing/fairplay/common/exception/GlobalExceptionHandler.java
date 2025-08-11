@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -94,12 +96,26 @@ public class GlobalExceptionHandler {
   // 10. CustomException
   @ExceptionHandler(CustomException.class)
   public ResponseEntity<ErrorResponse> handleCustomException(CustomException ex) {
+    log.error("CustomException 발생: {}", ex.getMessage(), ex);
     String message = ex.getMessage() != null ? ex.getMessage() : "에러가 발생했습니다.";
     return buildErrorResponse(ex.getStatus(), message);
   }
 
+  // 11. S3 NoSuchKeyException - S3에서 파일을 찾을 수 없을 때
+  @ExceptionHandler(NoSuchKeyException.class)
+  public ResponseEntity<ErrorResponse> handleNoSuchKeyException(NoSuchKeyException ex) {
+    log.error("S3 NoSuchKeyException 발생: {}", ex.getMessage(), ex);
+    return buildErrorResponse(HttpStatus.NOT_FOUND, "요청한 파일을 찾을 수 없습니다. (S3 키 불일치 또는 권한 부족)");
+  }
 
-  // 11. HttpClientErrorException - RestTemplate이 4xx 오류를 응답받을 때 사용됨
+  // 12. SdkClientException - AWS SDK 클라이언트 측 오류 (자격 증명, 네트워크 등)
+  @ExceptionHandler(SdkClientException.class)
+  public ResponseEntity<ErrorResponse> handleSdkClientException(SdkClientException ex) {
+    log.error("AWS SdkClientException 발생: {}", ex.getMessage(), ex);
+    return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "AWS 서비스 연결 오류 또는 자격 증명 문제. 관리자에게 문의하세요.");
+  }
+
+  // 13. HttpClientErrorException - RestTemplate이 4xx 오류를 응답받을 때 사용됨
   @ExceptionHandler(HttpClientErrorException.class)
   public ResponseEntity<ErrorResponse> handleHttpClientError(HttpClientErrorException ex) {
     return buildErrorResponse(HttpStatus.valueOf(ex.getStatusCode().value()),

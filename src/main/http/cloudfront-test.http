@@ -1,0 +1,97 @@
+### CloudFront CDN 연동 테스트
+
+### 환경 설정 확인
+# 다음 환경 변수가 설정되어 있는지 확인하세요:
+# - AWS_CLOUDFRONT_DOMAIN=your-cloudfront-domain.cloudfront.net
+# - AWS_S3_BUCKET_NAME=your-bucket-name
+# - AWS_ACCESS_KEY=your-access-key
+# - AWS_SECRET_KEY=your-secret-key
+
+@access_token=
+
+### 1. 파일 임시 업로드 (CloudFront 연동 확인)
+POST http://localhost:8080/api/uploads/temp
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="test-image.jpg"
+Content-Type: image/jpeg
+
+< D:\myWork\FairPlay\FairPlay_BE\src\main\files\malone.jpg
+--boundary--
+
+### 2. 행사 생성 시 CloudFront URL 확인
+POST http://localhost:8080/api/events/1/details
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "titleKr": "CloudFront 테스트 행사",
+  "titleEng": "CloudFront Test Event",
+  "content": "<p>CloudFront CDN을 통한 이미지 테스트</p><img src=\"/api/uploads/download?key=1단계에서_받은_key값\">",
+  "tempFiles": [
+    {
+      "s3Key": "1단계에서_받은_key값",
+      "originalFileName": "test-image.jpg",
+      "fileType": "image/jpeg",
+      "fileSize": 67890,
+      "usage": "content"
+    }
+  ]
+}
+
+### 3. 행사 조회로 CloudFront URL 확인
+# 응답에서 모든 이미지 URL이 CloudFront 도메인으로 반환되는지 확인
+# 예상 응답:
+# {
+#   "thumbnailUrl": "https://your-cloudfront-domain.cloudfront.net/uploads/event/1/thumbnail-uuid.jpg",
+#   "content": "<p>CloudFront CDN을 통한 이미지 테스트</p><img src=\"https://your-cloudfront-domain.cloudfront.net/uploads/event/1/content-uuid.jpg\">"
+# }
+GET http://localhost:8080/api/events/1/details
+
+### 4. Event Apply에서 CloudFront URL 확인
+POST http://localhost:8080/api/events/apply
+Content-Type: application/json
+
+{
+  "eventEmail": "cloudfront-test@example.com",
+  "businessNumber": "123-45-67890",
+  "verified": false,
+  "managerName": "CloudFront 테스터",
+  "email": "tester@example.com",
+  "contactNumber": "010-1234-5678",
+  "titleKr": "CloudFront 연동 테스트",
+  "titleEng": "CloudFront Integration Test",
+  "locationId": 1,
+  "locationDetail": "온라인",
+  "startDate": "2025-02-01",
+  "endDate": "2025-02-03",
+  "mainCategoryId": 1,
+  "subCategoryId": 1,
+  "tempFiles": [
+    {
+      "s3Key": "uploads/tmp/2025-01-15/business-license-uuid.pdf",
+      "originalFileName": "business-license.pdf",
+      "fileType": "application/pdf",
+      "fileSize": 512000,
+      "usage": "application_file"
+    }
+  ]
+}
+
+### 5. CloudFront URL에서 S3 키 추출 테스트
+# 이 기능은 파일 삭제 시 사용됩니다
+# CloudFront URL: https://your-cloudfront-domain.cloudfront.net/uploads/event/1/image.jpg
+# 예상 S3 키: uploads/event/1/image.jpg
+
+### CloudFront 설정 확인 방법
+# 1. AWS CloudFront 콘솔에서 Distribution이 정상 배포되었는지 확인
+# 2. Origin이 S3 버킷으로 올바르게 설정되었는지 확인  
+# 3. Behaviors에서 적절한 캐싱 정책이 설정되었는지 확인
+# 4. 브라우저에서 CloudFront URL로 직접 접근하여 파일이 로드되는지 확인
+
+### 예상 결과
+# - 모든 파일 업로드 응답에서 fileUrl이 CloudFront URL로 반환
+# - 행사 조회 시 썸네일, 배너, 콘텐츠 이미지가 모두 CloudFront URL
+# - Event Apply 조회 시 첨부 파일들이 CloudFront URL로 반환
+# - 파일 삭제 시 CloudFront URL에서 S3 키를 정확히 추출하여 삭제 성공

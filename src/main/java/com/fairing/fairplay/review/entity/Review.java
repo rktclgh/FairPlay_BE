@@ -1,5 +1,6 @@
 package com.fairing.fairplay.review.entity;
 
+import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.user.entity.Users;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -22,8 +23,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
-/*참석자*/
-/*추후 reservation 폴더로 이동될 가능성 있음*/
+/*리뷰*/
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
@@ -38,14 +38,9 @@ public class Review {
   @Column(name = "review_id", nullable = false, updatable = false)
   private Long id;
 
-  /*
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "reservation_id")
   private Reservation reservation;
-  */
-  // 임시 설정
-  @Column(name = "reservation_id", nullable = false, updatable = false)
-  private Long reservationId;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "user_id", nullable = false, updatable = false)
@@ -65,9 +60,9 @@ public class Review {
   @Builder.Default
   private Integer star = 0;
 
-  @Column(name = "is_public")
+  @Column(name = "visible")
   @Builder.Default
-  private Boolean isPublic = true;
+  private boolean visible = true;
 
   @OneToMany(mappedBy = "review", cascade = CascadeType.REMOVE, orphanRemoval = true)
   private List<ReviewReaction> reactions = new ArrayList<>();

@@ -22,6 +22,7 @@ public class EventDetailResponseDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Integer version;
+    private Integer viewCount;
 
     /******************/
 
