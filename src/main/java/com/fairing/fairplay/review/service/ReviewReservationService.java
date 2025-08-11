@@ -17,4 +17,10 @@ public class ReviewReservationService {
     return reservationRepository.findByReservationIdAndUser(reservationId,user).orElseThrow(()->
         new CustomException(HttpStatus.FORBIDDEN,"해당 사용자의 예약 정보를 찾을 수 없습니다."));
   }
+
+  public void checkReservationIsCancelled(Reservation reservation){
+    if(reservation.isCanceled()){
+      throw new CustomException(HttpStatus.BAD_REQUEST,"예약이 취소되어 리뷰를 작성하실 수 없습니다.");
+    }
+  }
 }

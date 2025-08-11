@@ -14,6 +14,6 @@ public class ReviewSaveRequestDto {
 
   private Long reservationId;
   private Integer star;
-  private Boolean isPublic;
+  private boolean isPublic;
   private String comment;
 }

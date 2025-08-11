@@ -2,7 +2,6 @@ package com.fairing.fairplay.review.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.entity.Event;
-import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.review.dto.EventDto;
 import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
@@ -39,7 +38,6 @@ public class ReviewService {
 
   private final ReviewRepository reviewRepository;
   private final UserRepository userRepository;
-  private final EventRepository eventRepository;
   private final ReviewReactionService reviewReactionService;
   private final ReviewReservationService reviewReservationService;
 
@@ -47,45 +45,38 @@ public class ReviewService {
   @Transactional
   public ReviewSaveResponseDto save(ReviewSaveRequestDto dto) {
     // user 임시 설정
-    Users user = userRepository.findByUserId(1L).orElseThrow(() ->
-        new CustomException(HttpStatus.NOT_FOUND, "사용자를 조회할 수 없습니다."));
+    Users user = findUserOrThrow(1L);
 
-    // user의 사용자 권한이 일반 사용자인지 검증
+    // 1. user의 사용자 권한이 일반 사용자인지 검증
     if (!user.getRoleCode().getCode().equals("COMMON")) {
       throw new CustomException(HttpStatus.FORBIDDEN,
           "리뷰를 작성할 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
     }
 
-    // 리뷰 작성자와 예약자가 일치하는지 조회
+    // 2. 리뷰 작성자와 예약자가 일치하는지 조회
     Reservation reservation = reviewReservationService.checkReservationIdAndUser(
         dto.getReservationId(), user);
 
-    // 리뷰 별점 유효성 검증
-    if (dto.getStar() < 0 || dto.getStar() > 5) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "별점은 1~5 사이어야 합니다.");
-    }
+    // 3. 예약이 취소되었는지 검증
+    reviewReservationService.checkReservationIsCancelled(reservation);
 
-    // 예약이 취소되었는지 검증
-    if (reservation.isCanceled()) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "취소된 예약은 리뷰를 작성할 수 없습니다.");
-    }
-
-    // 리뷰 작성 가능 기간 제한
+    // 4. 리뷰 작성 가능 기간 제한
     LocalDate endDate = reservation.getSchedule().getDate();
-    if (endDate.plusDays(7).isBefore(LocalDateTime.now().toLocalDate())) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "리뷰 작성 기간이 만료되었습니다.");
-    }
+    validateReviewPeriod(endDate);
 
-    // 이미 작성한 리뷰가 있는지 조회
+    // 5. 이미 작성한 리뷰가 있는지 조회
     if (reviewRepository.existsByReservationAndUser(reservation, user)) {
       throw new CustomException(HttpStatus.CONFLICT, "이미 리뷰를 작성한 행사입니다.");
     }
+
+    // 6. 리뷰 별점 유효성 검증
+    validateStar(dto.getStar());
 
     Review review = Review.builder()
         .user(user)
         .reservation(reservation)
         .comment(dto.getComment())
-        .isPublic(dto.getIsPublic())
+        .isPublic(dto.isPublic())
         .star(dto.getStar())
         .build();
 
@@ -93,34 +84,33 @@ public class ReviewService {
     return buildReviewSaveResponse(saveReview);
   }
 
-  // 행사 상세 페이지 - 특정 행사 리뷰 조회
+  // 행사 상세 페이지 - 특정 행사 리뷰 조회. CustomUserDetails 추가 예정
   public Page<ReviewResponseDto> getReviewForEvent(Long eventId, Pageable pageable) {
+    Long loginUserId = 1L;
+    Users user = null;
+    if(loginUserId != null) {
+      user = findUserOrThrow(loginUserId);
+    }
 
-//    // 1. 리뷰 페이징 조회
-//    Page<Review> reviewPage = reviewRepository.findByEventId(eventId, pageable);
-//
-//    // 2. 리뷰 ID 추출
-//    List<Long> reviewIds = reviewPage.stream()
-//        .map(Review::getId)
-//        .toList();
-//
-//    // 3. 리뷰별 좋아요 갯수 한번에 조회
-//    Map<Long, Long> reactionCountMap = reviewReactionService.findReactionCountsByReviewIds(
-//        reviewIds);
-//
-//    // 4. DTO 변환
-//    return reviewPage.map(review -> {
-//      long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
-//      return toReviewResponseDto(review, reactionCount);
-//    });
-    return null;
+    Page<Review> reviewPage = reviewRepository.findByEventId(eventId, pageable);
+
+    List<Long> reviewIds = reviewPage.stream()
+        .map(Review::getId)
+        .toList();
+
+    Map<Long, Long> reactionCountMap = reviewReactionService.findReactionCountsByReviewIds(reviewIds);
+
+    return reviewPage.map(review -> {
+      long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
+      boolean isMine = (loginUserId != null && review.getUser().getUserId().equals(loginUserId));
+      return buildReviewResponse(review, reactionCount, isMine);
+    });
   }
 
   // 마이페이지 - 본인의 모든 리뷰 조회
   public Page<ReviewResponseDto> getReviewForUser(Long userId, Pageable pageable) {
     // 1.  사용자 존재 여부 확인
-    Users user = userRepository.findById(userId)
-        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "사용자를 조회할 수 없습니다."));
+    Users user = findUserOrThrow(userId);
 
     // 2. 리뷰 페이징 조회
     Page<Review> reviewPage = reviewRepository.findByUser(user, pageable);
@@ -137,7 +127,7 @@ public class ReviewService {
     // 5. DTO 변환
     return reviewPage.map(review -> {
       long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
-      return toReviewResponseDto(review, reactionCount);
+      return buildReviewResponse(review, reactionCount, true);
     });
   }
 
@@ -146,23 +136,35 @@ public class ReviewService {
   public ReviewUpdateResponseDto updateReview(Long userId, Long reviewId,
       ReviewUpdateRequestDto dto) {
     // 1.  사용자 존재 여부 확인
-    Users user = userRepository.findById(userId)
-        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "사용자를 조회할 수 없습니다."));
+    Users user = findUserOrThrow(userId);
 
-    // 2.  리뷰 조회
+    // 2. 사용자 타입 확인
+    if (!user.getRoleCode().getCode().equals("COMMON")) {
+      throw new CustomException(HttpStatus.FORBIDDEN,
+          "해당 리뷰를 수정할 수 있는 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
+    }
+
+    // 3.  리뷰 조회
     Review review = reviewRepository.findByIdAndUser(reviewId, user)
         .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "리뷰를 조회할 수 없습니다."));
 
-    // 3.  리뷰 수정 (createdAt, reaction 수정 불가)
+    // 4. 리뷰 수정 가능 기한 검증
+    LocalDate endDate = review.getReservation().getSchedule().getDate();
+    validateReviewPeriod(endDate);
+
+    // 5. 별점 검증
+    validateStar(dto.getStar());
+
+    // 6.  리뷰 수정 (createdAt, reaction 수정 불가)
     review.setStar(dto.getStar());
-    review.setIsPublic(dto.getIsPublic());
+    review.setIsPublic(dto.isPublic());
     review.setComment(dto.getComment());
     review.setUpdatedAt(LocalDateTime.now());
 
     return ReviewUpdateResponseDto.builder()
         .reviewId(reviewId)
         .comment(dto.getComment())
-        .isPublic(dto.getIsPublic())
+        .isPublic(dto.isPublic())
         .star(dto.getStar())
         .build();
   }
@@ -171,14 +173,27 @@ public class ReviewService {
   @Transactional
   public ReviewDeleteResponseDto deleteReview(Long userId, Long reviewId) {
     // 1.  사용자 존재 여부 확인
-    Users user = userRepository.findById(userId)
-        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "사용자를 조회할 수 없습니다."));
+    Users user = findUserOrThrow(userId);
+    // 2. 사용자 권한 확인
+    if (!user.getRoleCode().getCode().equals("COMMON")) {
+      throw new CustomException(HttpStatus.FORBIDDEN,
+          "해당 리뷰를 수정할 수 있는 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
+    }
 
-    // 2. 리뷰 작성자와 요청 사용자 일치 여부 확인
+    // 3. 리뷰 작성자와 요청 사용자 일치 여부 확인
     Review review = reviewRepository.findByIdAndUser(reviewId, user)
-        .orElseThrow(() -> new IllegalArgumentException("리뷰를 작성한 사용자와 로그인한 사용자가 일치하지 않습니다."));
+        .orElseThrow(
+            () -> new CustomException(HttpStatus.FORBIDDEN, "리뷰 작성자와 일치하지 않으므로 삭제하실 수 없습니다."));
 
-    // 3. 리뷰 삭제
+    // 4. 리뷰와 연결된 예약이 존재하는지 확인
+    Reservation reservation = reviewReservationService.checkReservationIdAndUser(
+        review.getReservation().getReservationId(), user);
+
+    // 5. 삭제 가능 기한 검증
+    LocalDate endDate = reservation.getSchedule().getDate();
+    validateDeletePeriod(endDate);
+
+    // 6. 리뷰 삭제
     reviewRepository.delete(review);
 
     return ReviewDeleteResponseDto.builder()
@@ -193,37 +208,36 @@ public class ReviewService {
         .comment(review.getComment())
         .star(review.getStar())
         .isPublic(review.getIsPublic())
-        .star(review.getStar())
         .createdAt(review.getCreatedAt())
         .build();
   }
 
-  private ReviewResponseDto toReviewResponseDto(Review review, Long reactionCount) {
-    // Event event = review.getReservation(); // 엔티티 기준
-    // event 조회
-    Event event = eventRepository.findById(1L)
-        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND,
-            "이벤트를 찾을 수 없습니다. id=" + review.getReservation().getReservationId()));
+  private ReviewResponseDto buildReviewResponse(Review review, Long reactionCount, boolean isMine) {
+    EventDto eventDto = buildEvent(review.getReservation());
+    ReviewDto reviewDto = buildReview(review, reactionCount);
+    return new ReviewResponseDto(eventDto, reviewDto, isMine);
+  }
 
-    // 조회한 리뷰 관련 행사 정보
-    EventDto eventDto = EventDto.builder()
+  private EventDto buildEvent(Reservation reservation) {
+    Event event = reservation.getEvent();
+    return EventDto.builder()
         .title(event.getTitleKr())
         .buildingName(event.getEventDetail().getLocation().getBuildingName())
         .address(event.getEventDetail().getLocation().getAddress())
-        //event_schedule 테이블 조회 예정
         .viewingScheduleInfo(EventDto.ViewingScheduleInfo.builder()
-            .date("2025-08-01")
-            .dayOfWeek("금")
-            .startTime("14:00")
+            .date(getDate(reservation.getSchedule().getDate()))
+            .dayOfWeek(getDayOfWeek(reservation.getSchedule().getWeekday()))
+            .startTime(getTime(reservation.getSchedule().getStartTime()))
             .build())
-        //event_detail 테이블 조회
         .eventScheduleInfo(EventDto.EventScheduleInfo.builder()
             .startDate(getDate(event.getEventDetail().getStartDate()))
             .endDate(getDate(event.getEventDetail().getEndDate()))
             .build())
         .build();
+  }
 
-    ReviewDto reviewDto = ReviewDto.builder()
+  private ReviewDto buildReview(Review review, Long reactionCount) {
+    return ReviewDto.builder()
         .reviewId(review.getId())
         .star(review.getStar())
         .reactions(reactionCount)
@@ -231,11 +245,39 @@ public class ReviewService {
         .isPublic(review.getIsPublic())
         .createdAt(review.getCreatedAt())
         .build();
+  }
 
-    return new ReviewResponseDto(
-        eventDto,
-        reviewDto
-    );
+  // 사용자 조회
+  private Users findUserOrThrow(Long userId) {
+    return userRepository.findById(userId)
+        .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "사용자를 조회할 수 없습니다."));
+  }
+
+  // 별점 검증
+  private void validateStar(Integer star) {
+    if (star == null || star < 0 || star > 5) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "별점은 0~5 사이어야 합니다.");
+    }
+  }
+
+  // 리뷰 작성 가능 기간 검증
+  private void validateReviewPeriod(LocalDate endDate) {
+    LocalDate now = LocalDate.now();
+
+    if (now.isBefore(endDate)) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "행사가 종료된 후에만 리뷰를 작성하실 수 있습니다.");
+    }
+    if (endDate.plusDays(7).isBefore(LocalDate.now())) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "리뷰 작성 기간이 만료되었습니다.");
+    }
+  }
+
+  // 리뷰 삭제 가능 기간 검증
+  private void validateDeletePeriod(LocalDate endDate) {
+    LocalDate now = LocalDate.now();
+    if (endDate.plusDays(30).isBefore(now)) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "리뷰 삭제 가능 기간이 만료되었습니다.");
+    }
   }
 
   private String getDate(LocalDate date) {
