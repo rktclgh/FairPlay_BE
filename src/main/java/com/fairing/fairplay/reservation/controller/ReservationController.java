@@ -4,15 +4,19 @@ package com.fairing.fairplay.reservation.controller;
 import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.reservation.dto.ReservationAttendeeDto;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
 import com.fairing.fairplay.reservation.dto.ReservationResponseDto;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -36,14 +40,7 @@ public class ReservationController {
             throw new IllegalStateException("예약 생성에 실패했습니다.");
         }
 
-        ReservationResponseDto response =  new ReservationResponseDto(
-                reservation.getEvent(),
-                reservation.getSchedule(),
-                reservation.getTicket(),
-                reservation.getUser(),
-                reservation.getQuantity(),
-                reservation.getPrice()
-        );
+        ReservationResponseDto response = ReservationResponseDto.from(reservation);
 
         return ResponseEntity.ok(response);
     }
@@ -60,14 +57,7 @@ public class ReservationController {
             throw new IllegalStateException("예약 조회에 실패했습니다.");
         }
 
-        ReservationResponseDto response =  new ReservationResponseDto(
-                reservation.getEvent(),
-                reservation.getSchedule(),
-                reservation.getTicket(),
-                reservation.getUser(),
-                reservation.getQuantity(),
-                reservation.getPrice()
-        );
+        ReservationResponseDto response = ReservationResponseDto.from(reservation);
 
         return ResponseEntity.ok(response);
     }
@@ -84,17 +74,56 @@ public class ReservationController {
         }
 
         List<ReservationResponseDto> response = reservations.stream()
-                .map(r -> new ReservationResponseDto(
-                        r.getEvent(),
-                        r.getSchedule(),
-                        r.getTicket(),
-                        r.getUser(),
-                        r.getQuantity(),
-                        r.getPrice()
-                ))
+                .map(ReservationResponseDto::from)
                 .toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    // 예약 수정
+    @PutMapping("/{reservationId}")
+    public ResponseEntity<ReservationResponseDto> updateReservation(@RequestBody ReservationRequestDto requestDto,
+                                                                    @PathVariable Long eventId,
+                                                                    @PathVariable Long reservationId,
+                                                                    @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long userId = userDetails.getUserId();
+        requestDto.setEventId(eventId);
+        requestDto.setReservationId(reservationId);
+        
+        Reservation reservation = reservationService.updateReservation(requestDto, userId);
+        
+        ReservationResponseDto response = ReservationResponseDto.from(reservation);
+        
+        return ResponseEntity.ok(response);
+    }
+
+    // 예약자 명단 조회 (행사 관리자용)
+    @GetMapping("/attendees")
+    public ResponseEntity<List<ReservationAttendeeDto>> getReservationAttendees(@PathVariable Long eventId,
+                                                                                @RequestParam(required = false) String status,
+                                                                                @AuthenticationPrincipal CustomUserDetails userDetails) {
+        // TODO: 행사 관리자 권한 확인 로직 추가 필요
+        List<ReservationAttendeeDto> attendees = reservationService.getReservationAttendees(eventId, status);
+        return ResponseEntity.ok(attendees);
+    }
+
+    // 예약자 명단 엑셀 다운로드 (행사 관리자용)
+    @GetMapping("/attendees/excel")
+    public ResponseEntity<byte[]> downloadAttendeesExcel(@PathVariable Long eventId,
+                                                         @RequestParam(required = false) String status,
+                                                         @AuthenticationPrincipal CustomUserDetails userDetails) throws IOException {
+        // TODO: 행사 관리자 권한 확인 로직 추가 필요
+        byte[] excelData = reservationService.generateAttendeesExcel(eventId, status);
+        
+        String filename = "event_" + eventId + "_attendees.xlsx";
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDispositionFormData("attachment", filename);
+        
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(excelData);
     }
 
     // 예약 취소

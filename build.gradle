@@ -76,6 +76,10 @@ dependencies {
 	// implementation 'software.amazon.awssdk:auth'
 	// implementation 'software.amazon.awssdk:regions'
 
+	// --- Apache POI (Excel) ---
+	implementation 'org.apache.poi:poi:5.2.4'
+	implementation 'org.apache.poi:poi-ooxml:5.2.4'
+
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 }
 

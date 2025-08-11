@@ -61,6 +61,7 @@ public class SecurityConfig {
                                 "/api/uploads/**",
                                 "/api/payments/complete"  // PG사에서 호출하는 결제 완료 웹훅
                         ).permitAll()
+                        .requestMatchers("/api/chat/presence/connect", "/api/chat/presence/disconnect").authenticated() // JWT 인증 필요
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
