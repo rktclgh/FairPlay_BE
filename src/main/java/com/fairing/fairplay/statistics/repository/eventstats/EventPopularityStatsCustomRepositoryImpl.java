@@ -69,7 +69,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 .map(t -> EventPopularityStatistics.builder()
                         .eventId(t.get(e.eventId))
                         .eventTitle(t.get(e.titleKr))
-                        .viewCount(t.get(e.viewCount.max().coalesce(0L)))
+                        .viewCount(Long.valueOf(t.get(e.viewCount.max().coalesce(0))))
                         .reservationCount(t.get(r.reservationId.countDistinct().coalesce(0L)))
                         .wishlistCount(t.get(w.wishlistId.countDistinct().coalesce(0L)))
                         .calculatedAt(targetDate.atStartOfDay())
@@ -89,7 +89,10 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
         QEventDetail d = QEventDetail.eventDetail;
 
         BooleanBuilder builder = new BooleanBuilder();
-        builder.and(eps.calculatedAt.between( startDate.atStartOfDay(), endDate.plusDays(1).atStartOfDay()));
+        builder.and(
+                eps.calculatedAt.goe(startDate.atStartOfDay())
+                        .and(eps.calculatedAt.lt(endDate.plusDays(1).atStartOfDay()))
+                );
 
         if (mainCategory != null && !mainCategory.isBlank()) {
             builder.and(d.mainCategory.groupName.stringValue().eq(mainCategory));
@@ -116,7 +119,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 .from(eps)
                 .leftJoin(d).on(d.event.eventId.eq(eps.eventId))
                 .where(builder)
-                .groupBy(eps.eventId, eps.eventTitle)
+                .groupBy(eps.eventId, eps.eventTitle,d.mainCategory, d.subCategory)
                 .orderBy(eps.viewCount.sum().desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
@@ -145,7 +148,10 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
         QEventDetail d = QEventDetail.eventDetail;
 
         BooleanBuilder builder = new BooleanBuilder();
-        builder.and(eps.calculatedAt.between(startDate.atStartOfDay(), endDate.plusDays(1).atStartOfDay()));
+        builder.and(
+                eps.calculatedAt.goe(startDate.atStartOfDay())
+                        .and(eps.calculatedAt.lt(endDate.plusDays(1).atStartOfDay()))
+        );
 
         if (mainCategory != null && !mainCategory.isBlank()) {
             builder.and(d.mainCategory.groupName.stringValue().eq(mainCategory));
@@ -187,7 +193,8 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
 
         // 공통 Where 조건
         BooleanExpression dateCondition =
-                eps.calculatedAt.between(startDate.atStartOfDay(), endDate.plusDays(1).atStartOfDay());
+                eps.calculatedAt.goe(startDate.atStartOfDay())
+                .and(eps.calculatedAt.lt(endDate.plusDays(1).atStartOfDay()));
 
         // Top5 조회수
         List<EventPopularityStatistics> top5View = queryFactory
@@ -253,10 +260,10 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
         QEventDetail d = QEventDetail.eventDetail;
 
         BooleanBuilder builder = new BooleanBuilder();
-        builder.and(eps.calculatedAt.between(
-                startDate.atStartOfDay(),
-                endDate.plusDays(1).atStartOfDay()
-        ));
+        builder.and(
+                eps.calculatedAt.goe(startDate.atStartOfDay())
+                        .and(eps.calculatedAt.lt(endDate.plusDays(1).atStartOfDay()))
+                );
 
         if (keyword != null && !keyword.isBlank()) {
             builder.and(eps.eventTitle.containsIgnoreCase(keyword));
