@@ -738,25 +738,25 @@ public class EventService {
                     .build());
 
             String tempUrl = "/api/uploads/download?key=" + fileDto.getS3Key();
-            String publicUrl = s3UploadResponseDto.getFileUrl();
+            String cdnUrl = s3UploadResponseDto.getFileUrl();
 
             switch (fileDto.getUsage()) {
                 case "thumbnail":
-                    eventDetail.setThumbnailUrl(publicUrl);
+                    eventDetail.setThumbnailUrl(cdnUrl);
                     break;
                 case "content":
                     if (eventDetail.getContent() != null) {
-                        eventDetail.setContent(eventDetail.getContent().replace(tempUrl, publicUrl));
+                        eventDetail.setContent(eventDetail.getContent().replace(tempUrl, cdnUrl));
                     }
                     break;
                 case "bio":
                     if (eventDetail.getBio() != null) {
-                        eventDetail.setBio(eventDetail.getBio().replace(tempUrl, publicUrl));
+                        eventDetail.setBio(eventDetail.getBio().replace(tempUrl, cdnUrl));
                     }
                     break;
                 case "policy":
                     if (eventDetail.getPolicy() != null) {
-                        eventDetail.setPolicy(eventDetail.getPolicy().replace(tempUrl, publicUrl));
+                        eventDetail.setPolicy(eventDetail.getPolicy().replace(tempUrl, cdnUrl));
                     }
                     break;
             }

@@ -1,9 +1,10 @@
-@access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzNSIsImVtYWlsIjoiYWRtaW40QGZhaXJwbGF5LmNvbSIsInJvbGUiOiLsoITssrQg6rSA66as7J6QIiwicm9sZUlkIjoxLCJpYXQiOjE3NTQ2MjAzOTksImV4cCI6MTc1NDYyMDk5OX0.blmk2FmRadHgwUbQJtl_EZjBSgALU15HsjusQebAryI
+@access_token=your-jwt-token
 
 ### 1단계: 파일 임시 업로드
 # 먼저 이 요청을 실행하여 파일을 임시 업로드하고, 응답으로 받은 JSON에서
 # "key", "name", "type" 값을 복사하여 2단계 요청에 사용하세요.
 # 파일 크기(fileSize)는 파일 탐색기에서 직접 확인해야 합니다.
+# 업로드된 파일은 CloudFront CDN을 통해 제공됩니다.
 POST http://localhost:8080/api/uploads/temp
 Content-Type: multipart/form-data; boundary=boundary
 Origin: http://localhost:5173
@@ -13,7 +14,7 @@ Origin: http://localhost:5173
 Content-Disposition: form-data; name="file"; filename="malone.jpg"
 Content-Type: image/jpeg
 
-< D:\myWork\FairPlay_BE\src\main\files\malone.jpg
+< D:\myWork\FairPlay\FairPlay_BE\src\main\files\malone.jpg
 --boundary--
 
 
@@ -29,6 +30,8 @@ Content-Type: image/jpeg
 # - originalFileName: 1단계의 "name" 값
 # - fileType: 1단계의 "type" 값
 # - fileSize: 실제 파일 크기 (bytes)
+# 
+# 파일은 CloudFront CDN URL로 자동 변환되어 응답됩니다.
 PATCH http://localhost:8080/api/events/1/details
 Content-Type: application/json
 Authorization: Bearer {{access_token}}

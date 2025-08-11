@@ -53,7 +53,7 @@ public class FileService {
 
         return S3UploadResponseDto.builder()
                 .fileId(savedFile.getId())
-                .fileUrl(awsS3Service.getPublicUrl(newKey))
+                .fileUrl(awsS3Service.getCdnUrl(newKey))
                 .build();
     }
 
