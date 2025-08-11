@@ -2,7 +2,6 @@ package com.fairing.fairplay.qr.util;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
-import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.hashids.Hashids;
 import org.springframework.http.HttpStatus;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Component;
 public class CodeValidator {
 
   private final Hashids hashids;
-  private final QrTicketRepository qrTicketRepository;
 
   // QrUrlToken 검증
   public QrTicketRequestDto decodeToDto(String token) {

@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface QrLogRepository extends JpaRepository<QrLog, Long> {
   Optional<QrLog> findByActionCode_Code(String qrActionCode);
 
-  boolean existsByQrTicketAndActionCode_Code(QrTicket qrTicket, String qrActionCode);
+  Optional<QrLog> findTop1ByQrTicketAndActionCode_CodeOrderByCreatedAtDesc(QrTicket qrTicket, String qrActionCode);
 }
