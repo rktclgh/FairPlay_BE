@@ -35,9 +35,9 @@ public class QrTicketBatchService {
 
   private final ReservationRepositoryCustom reservationRepositoryCustom;
   private final QrTicketRepository qrTicketRepository;
+  private final QrTicketRepositoryCustom qrTicketRepositoryCustom;
   private final QrEmailService qrEmailService;
   private final QrLinkService qrLinkService;
-  private final QrTicketRepositoryCustom qrTicketRepositoryCustom;
   private final CodeGenerator codeGenerator;
   private final QrLogService qrLogService;
   private final QrEntryValidateService qrEntryValidateService;

@@ -1,4 +1,4 @@
-package com.fairing.fairplay.qr.dto;
+package com.fairing.fairplay.qr.dto.scan;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.core.security.CustomUserDetails;

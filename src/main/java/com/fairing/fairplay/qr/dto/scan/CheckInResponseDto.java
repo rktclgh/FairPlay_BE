@@ -1,4 +1,4 @@
-package com.fairing.fairplay.qr.dto;
+package com.fairing.fairplay.qr.dto.scan;
 
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
