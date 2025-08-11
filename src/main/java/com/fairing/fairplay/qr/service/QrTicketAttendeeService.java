@@ -33,6 +33,32 @@ public class QrTicketAttendeeService {
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "QR 티켓을 찾을 수 없습니다."));
   }
 
+  /**
+   * Attendee 조회 (회원은 reservationId, 비회원은 attendeeId로)
+   */
+  public Attendee findAttendee(Long reservationId, Long attendeeId) {
+    if (reservationId != null) {
+      return findAttendeeByReservation(reservationId);
+    }
+    if (attendeeId != null) {
+      return findAttendeeByAttendee(attendeeId);
+    }
+    throw new CustomException(HttpStatus.BAD_REQUEST, "reservationId 또는 attendeeId 중 하나는 필수입니다.");
+  }
+
+  // 회원 attendee 조회
+  public Attendee findAttendeeByReservation(Long reservationId) {
+    return attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Code(
+            reservationId, AttendeeTypeCode.PRIMARY)
+        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자를 조회하지 못했습니다."));
+  }
+
+  // 비회원 attendee 조회
+  public Attendee findAttendeeByAttendee(Long attendeeId) {
+    return attendeeRepository.findById(attendeeId)
+        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자를 조회하지 못했습니다."));
+  }
+
   public Attendee loadAttendee(QrTicketRequestDto dto, Integer attendeeTypeCodeId) {
     if (attendeeTypeCodeId == null) {
       return loadWithoutType(dto);

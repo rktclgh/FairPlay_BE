@@ -25,6 +25,8 @@ public class QrActionCode {
   public static final String CHECKED_IN = "CHECKED_IN";
   public static final String MANUAL_CHECKED_IN = "MANUAL_CHECKED_IN";
   public static final String INVALID = "INVALID";
+  public static final String FORCE_CHECKED_IN = "FORCE_CHECKED_IN";
+  public static final String FORCE_CHECKED_OUT = "FORCE_CHECKED_OUT";
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
