@@ -6,6 +6,8 @@ import com.fairing.fairplay.notification.dto.*;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -21,6 +23,9 @@ public class NotificationService {
     private final NotificationLogRepository notificationLogRepository;
     private final com.fairing.fairplay.notification.service.NotificationEmailService notificationEmailService;
     private final UserRepository userRepository;
+    
+    @Autowired
+    private ApplicationContext applicationContext;
 
     // 알림 생성 (이메일 발송+로그)
     @Transactional
@@ -41,7 +46,9 @@ public class NotificationService {
                 .build();
         notificationRepository.save(notification);
 
-        // EMAIL이면 메일 발송
+        // METHOD에 따른 처리
+        NotificationResponseDto responseDto = toResponseDto(notification);
+        
         if ("EMAIL".equalsIgnoreCase(dto.getMethodCode())) {
             Users user = userRepository.findByUserId(dto.getUserId())
                     .orElseThrow(() -> new IllegalArgumentException("유저를 찾을 수 없습니다."));
@@ -52,8 +59,19 @@ public class NotificationService {
                     dto.getMessage(),
                     dto.getUrl()
             );
+        } else if ("WEB".equalsIgnoreCase(dto.getMethodCode())) {
+            // 웹소켓으로 실시간 알림 전송 (지연 로딩으로 순환 참조 해결)
+            try {
+                com.fairing.fairplay.notification.controller.NotificationWebSocketController webSocketController = 
+                    applicationContext.getBean(com.fairing.fairplay.notification.controller.NotificationWebSocketController.class);
+                webSocketController.sendNotificationToUser(dto.getUserId(), responseDto);
+            } catch (Exception e) {
+                // 웹소켓 전송 실패 시에도 알림은 DB에 저장됨
+                System.err.println("웹소켓 알림 전송 실패: " + e.getMessage());
+            }
         }
-        return toResponseDto(notification);
+        
+        return responseDto;
     }
 
     // 내 알림 리스트
