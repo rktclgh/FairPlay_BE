@@ -1,0 +1,17 @@
+@access_token=
+
+### Event 버전 목록 조회
+GET http://localhost:8080/api/events/1/versions?page=0&size=10&sort=versionNumber,desc
+Authorization: Bearer {{access_token}}
+
+### 특정 Event 버전 상세 조회
+GET http://localhost:8080/api/events/1/versions/13
+Authorization: Bearer {{access_token}}
+
+### Event 버전 복구 (관리자 전용)
+POST http://localhost:8080/api/events/1/versions/13/restore
+Authorization: Bearer {{access_token}}
+
+### Event 버전 비교
+GET http://localhost:8080/api/events/1/versions/compare?version1=12&version2=13
+Authorization: Bearer {{access_token}}

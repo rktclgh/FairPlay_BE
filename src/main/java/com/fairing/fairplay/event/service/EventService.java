@@ -267,7 +267,6 @@ public class EventService {
     public EventResponseDto updateEvent(Long eventId, EventStatusThumbnailDto eventRequestDto, Long managerId) {
 
         Event event = checkEventAndDetail(eventId, "update");
-        Integer newVersion = createVersion(event, managerId);
         EventDetail eventDetail = event.getEventDetail();
 
         // 썸네일 파일 처리
@@ -302,6 +301,7 @@ public class EventService {
         }
 
         Event savedEvent = eventRepository.save(event);
+        Integer newVersion = createVersion(savedEvent, managerId);
 
         return EventResponseDto.builder()
                 .message("행사 정보가 업데이트되었습니다.")
@@ -320,9 +320,6 @@ public class EventService {
 
         Event event = checkEventAndDetail(eventId, "update");
         EventDetail eventDetail = event.getEventDetail();
-
-        log.info("버전 생성 for eventId: {}", eventId);
-        Integer newVersion = createVersion(event, managerId);
 
         log.info("행사 상세 업데이트 for eventId: {}", eventId);
 
@@ -366,6 +363,9 @@ public class EventService {
         entityManager.flush();
         entityManager.refresh(event);
         entityManager.refresh(eventDetail);
+
+        log.info("버전 생성 for eventId: {}", eventId);
+        Integer newVersion = createVersion(event, managerId);
 
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, newVersion, "이벤트 상세 정보가 업데이트되었습니다.");
     }

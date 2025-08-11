@@ -35,6 +35,7 @@ public class EventSnapshotDto {
     private String officialUrl;
     private Integer eventTime;
     private String thumbnailUrl;
+    private String bannerUrl;
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer mainCategoryId;

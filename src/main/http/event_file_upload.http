@@ -1,4 +1,4 @@
-@access_token=your-jwt-token
+@access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzNSIsImVtYWlsIjoiYWRtaW40QGZhaXJwbGF5LmNvbSIsInJvbGUiOiLsoITssrQg6rSA66as7J6QIiwicm9sZUlkIjoxLCJpYXQiOjE3NTQ4ODA0MjAsImV4cCI6MTc1NDg4MDcyMH0.avn6u-ZdoVa6H-17H00g4SvIpoa5ODZKpYJCh8evtKA
 
 ### 1단계: 파일 임시 업로드
 # 먼저 이 요청을 실행하여 파일을 임시 업로드하고, 응답으로 받은 JSON에서
@@ -11,10 +11,10 @@ Origin: http://localhost:5173
 
 --boundary
 # 아래 "file.png"를 실제 업로드할 파일의 경로로 변경하세요. (예: C:/Users/test/image.png)
-Content-Disposition: form-data; name="file"; filename="malone.jpg"
-Content-Type: image/jpeg
+Content-Disposition: form-data; name="file"; filename="gd2.png"
+Content-Type: image/png
 
-< D:\myWork\FairPlay\FairPlay_BE\src\main\files\malone.jpg
+< D:\myWork\FairPlay\FairPlay_BE\src\main\files\gd2.png
 --boundary--
 
 
@@ -38,17 +38,12 @@ Authorization: Bearer {{access_token}}
 Origin: http://localhost:5173
 
 {
-  "content": "<p>행사 내용입니다.</p><img src=\"/api/uploads/download?key=여기에_1단계_key값_붙여넣기\">",
-  "policy": "환불 정책입니다.",
-  "startDate": "2025-10-01",
-  "endDate": "2025-10-03",
-  "mainCategoryId": 1,
-  "subCategoryId": 101,
+  "content": "<p>행사 내용입니다.</p><img src=\"/api/uploads/download?key=uploads/tmp2025-08-11/cd153674-6709-4337-a007-8a0ecd41fb34.png\">",
   "tempFiles": [
     {
-      "s3Key": "여기에_1단계_key값_붙여넣기",
-      "originalFileName": "malone.jpg",
-      "fileType": "image/jpeg",
+      "s3Key": "uploads/tmp2025-08-11/cd153674-6709-4337-a007-8a0ecd41fb34.png",
+      "originalFileName": "gd2.png",
+      "fileType": "image/png",
       "fileSize": 12345,
       "usage": "content"
     }
