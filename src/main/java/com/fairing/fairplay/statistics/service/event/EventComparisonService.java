@@ -93,7 +93,7 @@ public class EventComparisonService {
         String status = determineEventStatus(stats.getStartDate(), stats.getEndDate());
 
         return EventComparisonResponseDto.builder()
-                .statsId(stats.getStatsId())
+                .statsId(stats.getStatsComparisonId())
                 .eventId(stats.getEventId())
                 .eventName(stats.getEventTitle()) // 실제로는 Event 엔티티 조인 필요
                 .status(status)
