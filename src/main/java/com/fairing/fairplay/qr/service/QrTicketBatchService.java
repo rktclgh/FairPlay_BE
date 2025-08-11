@@ -5,6 +5,7 @@ import com.fairing.fairplay.attendee.entity.QAttendee;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
+import com.fairing.fairplay.qr.entity.QrActionCode;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.repository.QrTicketRepositoryCustom;
@@ -13,11 +14,13 @@ import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepositoryCustom;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
-import com.fairing.fairplay.ticket.service.ScheduleTicketService;
+
 import com.querydsl.core.Tuple;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -36,7 +39,8 @@ public class QrTicketBatchService {
   private final QrLinkService qrLinkService;
   private final QrTicketRepositoryCustom qrTicketRepositoryCustom;
   private final CodeGenerator codeGenerator;
-  private final ScheduleTicketService scheduleTicketService;
+  private final QrLogService qrLogService;
+  private final QrEntryValidateService qrEntryValidateService;
 
   // 행사 1일 남은 예약건 조회
   public List<Tuple> fetchQrTicketBatch() {
@@ -76,7 +80,24 @@ public class QrTicketBatchService {
   @Transactional
   public void createQrTicket() {
     List<QrTicket> qrTickets = scheduleCreateQrTicket();
+
+    // 발급할 티켓이 없을 경우
+    if (qrTickets == null || qrTickets.isEmpty()) {
+      return;
+    }
+
     qrTicketRepository.saveAll(qrTickets);
+    qrTicketRepository.flush();
+
+    List<Long> ticketIds = qrTickets.stream()
+        .map(QrTicket::getId)
+        .collect(Collectors.toList());
+
+    List<QrTicket> persistedTickets = qrTicketRepository.findAllById(ticketIds);
+    log.info("🚩 persistedTickets 생성됨: {}", persistedTickets.size());
+    QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.ISSUED);
+    log.info("🚩 qrActionCode: {}", qrActionCode.getCode());
+    qrLogService.issuedQrLog(persistedTickets, qrActionCode);
   }
 
   /*
@@ -91,7 +112,31 @@ public class QrTicketBatchService {
 
     List<Tuple> results = qrTicketRepositoryCustom.findAllByEventDate(targetDate);
 
+    // attendeeId, reservationId 집합 추출
+    Set<Long> attendeeIds = results.stream()
+        .map(tuple -> tuple.get(0, Attendee.class).getId())
+        .collect(Collectors.toSet());
+
+    Set<Long> reservationIds = results.stream()
+        .map(tuple -> tuple.get(2, Reservation.class).getReservationId())
+        .collect(Collectors.toSet());
+
+    // 이미 발급된 티켓을 한 번에 조회
+    Set<String> issuedTicketKeys = qrTicketRepository
+        .findByAttendeeIdsAndReservationIds(attendeeIds, reservationIds)
+        .stream()
+        .map(ticket -> ticket.getAttendee().getId() + "_" + ticket.getAttendee().getReservation().getReservationId())
+        .collect(Collectors.toSet());
+
+
+
     return results.stream()
+        .filter(tuple -> {
+          Attendee a = tuple.get(0, Attendee.class);
+          Reservation r = tuple.get(2, Reservation.class);
+          String key = a.getId() + "_" + r.getReservationId();
+          return !issuedTicketKeys.contains(key);
+        })
         .map(tuple -> {
           Attendee a = tuple.get(0, Attendee.class);
           Event e = tuple.get(1, Event.class);
@@ -99,14 +144,11 @@ public class QrTicketBatchService {
           Boolean reentryAllowed = tuple.get(3, Boolean.class);
           EventSchedule es = tuple.get(4, EventSchedule.class);
 
-          if (e == null || r == null || reentryAllowed == null || es == null) {
+          if (a == null || e == null || r == null || reentryAllowed == null || es == null) {
             throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "엔티티가 조회되지 않았습니다.");
           }
 
           String eventCode = e.getEventCode();
-
-          log.info("[QrTicketInitProvider] List<Tuple> results - e: {}", e.getTitleKr());
-
           LocalDateTime expiredAt = LocalDateTime.of(es.getDate(), es.getEndTime()); //만료날짜+시간 설정
           String ticketNo = codeGenerator.generateTicketNo(eventCode); // 티켓번호 설정
 
