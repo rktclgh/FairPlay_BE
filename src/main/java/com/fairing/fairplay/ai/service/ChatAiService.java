@@ -20,6 +20,10 @@ public class ChatAiService {
             throw new IllegalArgumentException("messages가 비어 있습니다.");
         }
         LlmClient client = llmRouter.pick(req.getProviderOverride());
-        return client.chat(messages, req.getTemperature(), req.getMaxOutputTokens());
+        
+        // maxOutputTokens 기본값 설정 (MAX_TOKENS 에러 방지)
+        Integer maxTokens = req.getMaxOutputTokens() != null ? req.getMaxOutputTokens() : 4096;
+        
+        return client.chat(messages, req.getTemperature(), maxTokens);
     }
 }
