@@ -1,5 +1,5 @@
 @reviewId=
-@eventId=
+@eventId=1
 
 ### 리뷰 저장
 POST http://localhost:8080/api/reviews
@@ -17,7 +17,7 @@ GET http://localhost:8080/api/reviews
 Content-Type: application/json
 
 ### 행사별 리뷰 조회
-GET http://localhost:8080/api/reviews/{{eventId}}
+GET http://localhost:8080/api/reviews/{{eventId}}?page=0&size=10&sort=createdAt,desc
 Content-Type: application/json
 
 ### 리뷰 수정

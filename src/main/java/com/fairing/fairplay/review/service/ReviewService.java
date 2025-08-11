@@ -86,9 +86,9 @@ public class ReviewService {
 
   // 행사 상세 페이지 - 특정 행사 리뷰 조회. CustomUserDetails 추가 예정
   public Page<ReviewResponseDto> getReviewForEvent(Long eventId, Pageable pageable) {
-    Long loginUserId = 1L;
+    Long loginUserId = 3L;
     Users user = null;
-    if(loginUserId != null) {
+    if (loginUserId != null) {
       user = findUserOrThrow(loginUserId);
     }
 
@@ -98,7 +98,8 @@ public class ReviewService {
         .map(Review::getId)
         .toList();
 
-    Map<Long, Long> reactionCountMap = reviewReactionService.findReactionCountsByReviewIds(reviewIds);
+    Map<Long, Long> reactionCountMap = reviewReactionService.findReactionCountsByReviewIds(
+        reviewIds);
 
     return reviewPage.map(review -> {
       long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
@@ -157,14 +158,14 @@ public class ReviewService {
 
     // 6.  리뷰 수정 (createdAt, reaction 수정 불가)
     review.setStar(dto.getStar());
-    review.setVisible(dto.isVisible());
+    review.setVisible(dto.getVisible());
     review.setComment(dto.getComment());
     review.setUpdatedAt(LocalDateTime.now());
 
     return ReviewUpdateResponseDto.builder()
         .reviewId(reviewId)
         .comment(dto.getComment())
-        .visible(dto.isVisible())
+        .visible(dto.getVisible())
         .star(dto.getStar())
         .build();
   }
@@ -219,21 +220,8 @@ public class ReviewService {
   }
 
   private EventDto buildEvent(Reservation reservation) {
-    Event event = reservation.getEvent();
-    return EventDto.builder()
-        .title(event.getTitleKr())
-        .buildingName(event.getEventDetail().getLocation().getBuildingName())
-        .address(event.getEventDetail().getLocation().getAddress())
-        .viewingScheduleInfo(EventDto.ViewingScheduleInfo.builder()
-            .date(getDate(reservation.getSchedule().getDate()))
-            .dayOfWeek(getDayOfWeek(reservation.getSchedule().getWeekday()))
-            .startTime(getTime(reservation.getSchedule().getStartTime()))
-            .build())
-        .eventScheduleInfo(EventDto.EventScheduleInfo.builder()
-            .startDate(getDate(event.getEventDetail().getStartDate()))
-            .endDate(getDate(event.getEventDetail().getEndDate()))
-            .build())
-        .build();
+    return reviewRepository.findEventDtoByReservationId(reservation.getReservationId())
+        .orElse(null);
   }
 
   private ReviewDto buildReview(Review review, Long reactionCount) {
@@ -278,18 +266,5 @@ public class ReviewService {
     if (endDate.plusDays(30).isBefore(now)) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "리뷰 삭제 가능 기간이 만료되었습니다.");
     }
-  }
-
-  private String getDate(LocalDate date) {
-    return date.format(DateTimeFormatter.ofPattern("yyyy. MM. dd"));
-  }
-
-  private String getDayOfWeek(int weekday) {
-    int dayOfWeekValue = (weekday == 0) ? 7 : weekday; // 0(일)은 7로 매핑
-    return DayOfWeek.of(dayOfWeekValue).getDisplayName(TextStyle.FULL, Locale.KOREAN);
-  }
-
-  private String getTime(LocalTime time) {
-    return time.format(DateTimeFormatter.ofPattern("HH:mm"));
   }
 }

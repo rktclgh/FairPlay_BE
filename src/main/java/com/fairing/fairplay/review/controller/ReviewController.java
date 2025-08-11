@@ -40,7 +40,7 @@ public class ReviewController {
   // GET /events/{eventId}/reviews?page=0&size=10&sort=createdDate,desc
   @GetMapping("/{eventId}")
   public ResponseEntity<Page<ReviewResponseDto>> getReviewForEvent(@PathVariable Long eventId,
-      @PageableDefault(size = 10, sort = "createdDate", direction = Sort.Direction.DESC) Pageable pageable) {
+      @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
     return ResponseEntity.status(HttpStatus.OK)
         .body(reviewService.getReviewForEvent(eventId, pageable));
   }
@@ -48,7 +48,7 @@ public class ReviewController {
   // 마이페이지 리뷰 조회
   @GetMapping
   public ResponseEntity<Page<ReviewResponseDto>> getReviewForUser(
-      @PageableDefault(size = 10, sort = "createdDate", direction = Sort.Direction.DESC) Pageable pageable) {
+      @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
     return ResponseEntity.status(HttpStatus.OK)
         .body(reviewService.getReviewForUser(1L, pageable));
   }

@@ -14,5 +14,5 @@ public class ReviewUpdateRequestDto {
 
   private Integer star;
   private String comment;
-  private boolean visible;
+  private Boolean visible;
 }
