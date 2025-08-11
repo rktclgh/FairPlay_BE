@@ -60,9 +60,9 @@ public class Review {
   @Builder.Default
   private Integer star = 0;
 
-  @Column(name = "is_public")
+  @Column(name = "visible")
   @Builder.Default
-  private Boolean isPublic = true;
+  private boolean visible = true;
 
   @OneToMany(mappedBy = "review", cascade = CascadeType.REMOVE, orphanRemoval = true)
   private List<ReviewReaction> reactions = new ArrayList<>();
