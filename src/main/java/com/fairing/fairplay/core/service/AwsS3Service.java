@@ -47,6 +47,9 @@ public class AwsS3Service {
                 PutObjectRequest.builder().bucket(bucketName).key(key).build(),
                 RequestBody.fromInputStream(file.getInputStream(), file.getSize())
         );
+        
+        log.info("Temporary file uploaded successfully - Key: {}, Original: {}, Size: {}", 
+            key, file.getOriginalFilename(), file.getSize());
 
         // 미리보기용 URL
         String downloadUrl = "/api/uploads/download?key=" + URLEncoder.encode(key, StandardCharsets.UTF_8);
@@ -63,21 +66,37 @@ public class AwsS3Service {
         String uuid = UUID.randomUUID().toString();
         String destKey = "uploads/" + destPrefix + "/" + uuid + ext;
 
-        // 복사
-        s3Client.copyObject(CopyObjectRequest.builder()
-                .sourceBucket(bucketName)
-                .sourceKey(key)
-                .destinationBucket(bucketName)
-                .destinationKey(destKey)
-                .build());
-
-        // 원본 삭제
-        s3Client.deleteObject(DeleteObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .build());
-
-        return destKey; // DB에 저장할 URL
+        try {
+            // 먼저 원본 파일이 존재하는지 확인
+            s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
+            
+            // 복사
+            s3Client.copyObject(CopyObjectRequest.builder()
+                    .sourceBucket(bucketName)
+                    .sourceKey(key)
+                    .destinationBucket(bucketName)
+                    .destinationKey(destKey)
+                    .build());
+            
+            // 복사 완료 후에만 원본 삭제
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
+            
+            log.info("Successfully moved file from {} to {}", key, destKey);
+            return destKey;
+            
+        } catch (NoSuchKeyException e) {
+            log.error("Source file not found: {}", key);
+            throw e;
+        } catch (Exception e) {
+            log.error("Error moving file from {} to {}: {}", key, destKey, e.getMessage());
+            throw e;
+        }
     }
 
     // 파일 다운로드
@@ -183,5 +202,23 @@ public class AwsS3Service {
                 .bucket(bucketName)
                 .key(key)
                 .build());
+    }
+
+    /**
+     * S3에서 파일 존재 여부 확인
+     */
+    public boolean fileExists(String key) {
+        try {
+            s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
+            return true;
+        } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
+            return false;
+        } catch (Exception e) {
+            log.error("파일 존재 여부 확인 중 오류 발생 - Key: {}, 오류: {}", key, e.getMessage());
+            throw e;
+        }
     }
 }

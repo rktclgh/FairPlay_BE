@@ -15,6 +15,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -42,7 +43,9 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/logout",
                                 "/api/auth/refresh",
-                                "/api/events/**",
+                                "/api/events",                     // GET 행사 목록 조회
+                                "/api/events/list",                // GET 행사 목록 (테스트용)
+                                "/api/events/*/details",           // GET 행사 상세 조회 (*/details 패턴)
                                 "/api/users/forgot-password",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
@@ -59,7 +62,10 @@ public class SecurityConfig {
                                 "/api/chat/rooms/**", // 채팅방 목록 조회만 허용
                                 "/api/chat/presence/status/**", // 사용자 온라인 상태 조회 허용
                                 "/api/uploads/**",
-                                "/api/payments/complete"  // PG사에서 호출하는 결제 완료 웹훅
+                                "/api/payments/complete",  // PG사에서 호출하는 결제 완료 웹훅
+                                "/api/events/apply", // 행사 등록 신청
+                                "/api/events/apply/check",
+                                "/api/events/user/role"
                         ).permitAll()
                         .requestMatchers("/api/chat/presence/connect", "/api/chat/presence/disconnect").authenticated() // JWT 인증 필요
                         .anyRequest().authenticated()
