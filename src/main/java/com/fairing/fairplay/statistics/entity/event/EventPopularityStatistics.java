@@ -32,4 +32,11 @@ public class EventPopularityStatistics {
     private Long wishlistCount;
 
     private LocalDateTime calculatedAt;
+
+    @PrePersist
+    private void initCounts() {
+        if (viewCount == null)       viewCount = 0L;
+        if (reservationCount == null) reservationCount = 0L;
+        if (wishlistCount == null)    wishlistCount = 0L;
+    }
 }
