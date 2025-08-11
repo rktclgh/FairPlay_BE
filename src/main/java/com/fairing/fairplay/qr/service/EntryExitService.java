@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class EntryExitService {
+
   private final QrTicketEntryService qrTicketEntryService;
   private final QrTicketExitService qrTicketExitService;
 
@@ -59,9 +60,31 @@ public class EntryExitService {
    * 3. 비회원 + QR
    * 4. 비회원 + 수동
    * */
+
+  // 체크아웃 1
   @Transactional
-  public CheckOutResponseDto checkOutWithQrByMember(MemberQrCheckInRequestDto dto){
-    return null;
+  public CheckOutResponseDto checkOutWithQrByMember(MemberQrCheckInRequestDto dto,
+      CustomUserDetails userDetails) {
+    return qrTicketExitService.checkOut(dto, userDetails);
+  }
+
+  // 체크아웃 2
+  @Transactional
+  public CheckOutResponseDto checkOutWithManualByMember(MemberManualCheckInRequestDto dto,
+      CustomUserDetails userDetails) {
+    return qrTicketExitService.checkOut(dto, userDetails);
+  }
+
+  // 체크아웃 3
+  @Transactional
+  public CheckOutResponseDto checkOutWithQrByGuest(GuestQrCheckInRequestDto dto) {
+    return qrTicketExitService.checkOut(dto);
+  }
+
+  // 체크아웃 4
+  @Transactional
+  public CheckOutResponseDto checkOutWithManualByGuest(GuestManualCheckInRequestDto dto) {
+    return qrTicketExitService.checkOut(dto);
   }
 
 }

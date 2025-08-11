@@ -2,6 +2,7 @@ package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.scan.CheckInResponseDto;
+import com.fairing.fairplay.qr.dto.scan.CheckOutResponseDto;
 import com.fairing.fairplay.qr.dto.scan.GuestManualCheckInRequestDto;
 import com.fairing.fairplay.qr.dto.scan.GuestQrCheckInRequestDto;
 import com.fairing.fairplay.qr.dto.scan.MemberManualCheckInRequestDto;
@@ -108,5 +109,41 @@ public class QrTicketController {
   public ResponseEntity<CheckInResponseDto> checkInWithManualByGuest(@RequestBody
   GuestManualCheckInRequestDto dto) {
     return ResponseEntity.ok(entryExitService.checkInWithManualByGuest(dto));
+  }
+
+  /*
+   * 체크아웃
+   * 1. 회원 + QR
+   * 2. 회원 + 수동
+   * 3. 비회원 + QR
+   * 4. 비회원 + 수동
+   * */
+
+  // 체크아웃 1
+  @PostMapping("/check-out/member/qr")
+  public ResponseEntity<CheckOutResponseDto> checkOutWithQrByMember(@RequestBody
+  MemberQrCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.ok(entryExitService.checkOutWithQrByMember(dto, userDetails));
+  }
+
+  // 체크아웃 2
+  @PostMapping("/check-out/member/manual")
+  public ResponseEntity<CheckOutResponseDto> checkOutWithManualByMember(@RequestBody
+  MemberManualCheckInRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.ok(entryExitService.checkOutWithManualByMember(dto, userDetails));
+  }
+
+  // 체크아웃 3
+  @PostMapping("/check-out/guest/qr")
+  public ResponseEntity<CheckOutResponseDto> checkOutWithQrByGuest(@RequestBody
+  GuestQrCheckInRequestDto dto) {
+    return ResponseEntity.ok(entryExitService.checkOutWithQrByGuest(dto));
+  }
+
+  // 체크아웃 4
+  @PostMapping("/check-out/guest/manual")
+  public ResponseEntity<CheckOutResponseDto> checkOutWithManualByGuest(@RequestBody
+  GuestManualCheckInRequestDto dto) {
+    return ResponseEntity.ok(entryExitService.checkOutWithManualByGuest(dto));
   }
 }
