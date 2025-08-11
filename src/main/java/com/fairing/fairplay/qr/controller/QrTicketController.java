@@ -78,7 +78,6 @@ public class QrTicketController {
    * 2. 회원+수동
    * 3. 비회원+QR
    * 4. 비회원+수동
-   *
    */
 
   // 체크인 1

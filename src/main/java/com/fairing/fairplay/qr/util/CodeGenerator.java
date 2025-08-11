@@ -87,10 +87,6 @@ public class CodeGenerator {
     }
 
   }
-  // 토큰 문자열 -> long[]으로 변환
-  private long[] decodeToken(String token) {
-    return hashids.decode(token);
-  }
 
   // DTO 값이 null일 때 오류 방지용
   private long safeLong(Long val) {
