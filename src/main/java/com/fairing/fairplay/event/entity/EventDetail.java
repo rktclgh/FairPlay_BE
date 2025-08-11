@@ -60,6 +60,9 @@ public class EventDetail {
     @Column(name = "thumbnail_url", length = 255)
     private String thumbnailUrl;
 
+    @Column(name = "banner_url", length = 255)
+    private String bannerUrl;
+
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 

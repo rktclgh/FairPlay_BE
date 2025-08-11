@@ -85,6 +85,8 @@ cloud:
     credentials:
       access-key: ${AWS_ACCESS_KEY}
       secret-key: ${AWS_SECRET_KEY}
+    cloudfront:
+      domain: ${AWS_CLOUDFRONT_DOMAIN}
 
 
 # 아임포트 설정

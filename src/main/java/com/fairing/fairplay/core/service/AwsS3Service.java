@@ -29,6 +29,9 @@ public class AwsS3Service {
 
     @Value("${cloud.aws.s3.bucket-name}")
     private String bucketName;
+    
+    @Value("${cloud.aws.cloudfront.domain:}")
+    private String cloudfrontDomain;
 
     // 파일 임시 저장
     public FileUploadResponseDto uploadTemp(MultipartFile file) throws IOException {    // 백엔드 저장 전 임시 업로드
@@ -94,13 +97,53 @@ public class AwsS3Service {
     public String getPublicUrl(String key) {
         return s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toExternalForm();
     }
+    
+    /**
+     * CloudFront를 통한 CDN URL 생성
+     * CloudFront 도메인이 설정되어 있으면 CloudFront URL, 없으면 직접 S3 URL 반환
+     */
+    public String getCdnUrl(String key) {
+        if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
+            // CloudFront 도메인이 설정된 경우
+            String cleanDomain = cloudfrontDomain.trim();
+            if (!cleanDomain.startsWith("http://") && !cleanDomain.startsWith("https://")) {
+                cleanDomain = "https://" + cleanDomain;
+            }
+            if (cleanDomain.endsWith("/")) {
+                cleanDomain = cleanDomain.substring(0, cleanDomain.length() - 1);
+            }
+            String cleanKey = key.startsWith("/") ? key : "/" + key;
+            return cleanDomain + cleanKey;
+        } else {
+            // CloudFront가 설정되지 않은 경우 직접 S3 URL 사용
+            return getPublicUrl(key);
+        }
+    }
 
     public String getS3KeyFromPublicUrl(String publicUrl) {
+        // CloudFront URL에서 S3 키 추출
+        if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
+            String cleanDomain = cloudfrontDomain.trim();
+            if (!cleanDomain.startsWith("http://") && !cleanDomain.startsWith("https://")) {
+                cleanDomain = "https://" + cleanDomain;
+            }
+            if (cleanDomain.endsWith("/")) {
+                cleanDomain = cleanDomain.substring(0, cleanDomain.length() - 1);
+            }
+            
+            if (publicUrl.startsWith(cleanDomain)) {
+                String key = publicUrl.substring(cleanDomain.length());
+                return key.startsWith("/") ? key.substring(1) : key;
+            }
+        }
+        
+        // 직접 S3 URL에서 키 추출 (기존 로직)
         String bucketUrl = "https://" + bucketName + ".s3.";
         if (publicUrl.startsWith(bucketUrl)) {
             String urlWithoutSchema = publicUrl.substring(8);
             return urlWithoutSchema.substring(urlWithoutSchema.indexOf("/") + 1);
         }
+        
         return null;
     }
 
