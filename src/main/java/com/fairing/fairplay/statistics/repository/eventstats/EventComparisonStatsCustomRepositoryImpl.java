@@ -34,19 +34,27 @@ public class EventComparisonStatsCustomRepositoryImpl implements EventComparison
         LocalDateTime end = targetDate.plusDays(1).atStartOfDay();
 
         // 이벤트별 기본 통계 조회
-        List<Tuple> results = queryFactory
+        // Projection expressions (use same instances for Tuple access)
+        var totalUsersExpr = r.countDistinct().coalesce(0L);
+        var totalReservationsExpr = r.count().coalesce(0L);
+        var paidSalesSumExpr = dailySales.paidSales.sum().coalesce(0L);
+        var paidCountSumExpr = dailySales.paidCount.sum().coalesce(0);
+        var totalCountSumExpr = dailySales.totalCount.sum().coalesce(0);
+        var cancelledCountSumExpr = dailySales.cancelledCount.sum().coalesce(0);
+
+                List<Tuple> results = queryFactory
                 .select(
-                        e.eventId,
-                        e.titleKr, // 이벤트명
-                        r.countDistinct().coalesce(0L), // 총 예약자 수 (중복 제거)
-                        r.count().coalesce(0L), // 총 예약 건수
-                        dailySales.paidSales.sum().coalesce(0L), // 총 매출 (일별 매출 합계)
-                        dailySales.paidCount.sum().coalesce(0), // 총 결제 건수
-                        dailySales.totalCount.sum().coalesce(0),
-                        dailySales.cancelledCount.sum().coalesce(0),
-                        d.startDate,
-                        d.endDate
-                )
+                e.eventId,
+                e.titleKr,
+                totalUsersExpr,
+                totalReservationsExpr,
+                paidSalesSumExpr,
+                paidCountSumExpr,
+                totalCountSumExpr,
+                cancelledCountSumExpr,
+                d.startDate,
+                d.endDate
+                        )
                 .from(e)
                 .leftJoin(r).on(r.event.eq(e))
                 .leftJoin(dailySales).on(
@@ -64,12 +72,17 @@ public class EventComparisonStatsCustomRepositoryImpl implements EventComparison
                 .map(t -> {
                     Long eventId = t.get(e.eventId);
                     String eventTitle = t.get(e.titleKr);
-                    Long totalUsers = t.get(r.countDistinct());
-                    Long totalReservations = t.get(r.count());
-                    Long totalSales = t.get(dailySales.paidSales.sum());
-                    Integer paidCount = t.get(dailySales.paidCount.sum());
-                    BigDecimal cancellationRate = t.get(dailySales.totalCount) > 0
-                            ? BigDecimal.valueOf(t.get(dailySales.cancelledCount) * 100.0 / t.get(dailySales.totalCount)).setScale(2, RoundingMode.HALF_UP)
+                    Long totalUsers = t.get(totalUsersExpr);
+                    Long totalReservations = t.get(totalReservationsExpr);
+                    Long totalSales = t.get(paidSalesSumExpr);
+                    Integer paidCount = t.get(paidCountSumExpr);
+                    Integer totalCount = t.get(totalCountSumExpr);
+                    Integer cancelledCount = t.get(cancelledCountSumExpr);
+                    BigDecimal cancellationRate =
+                            (totalCount != null && totalCount > 0)
+                                    ? BigDecimal.valueOf(cancelledCount == null ? 0 : cancelledCount)
+                                    .multiply(BigDecimal.valueOf(100))
+                            .divide(BigDecimal.valueOf(totalCount), 2, RoundingMode.HALF_UP)
                             : BigDecimal.ZERO;
 
                     // 평균 티켓 가격 계산
