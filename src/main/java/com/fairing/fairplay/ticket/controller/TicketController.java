@@ -25,16 +25,17 @@ public class TicketController {
             @RequestBody TicketRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        Long userId = 1L;
-        if (userDetails != null && userDetails.getUserId() != null) userId = userDetails.getUserId();
-
-        return ResponseEntity.ok(ticketService.createTicket(eventId, dto, userId));
+        return ResponseEntity.ok(ticketService.createTicket(eventId, dto, userDetails.getUserId()));
     }
     
     // 티켓 목록 조회
     @GetMapping
-    public ResponseEntity<List<TicketResponseDto>> getTickets(@PathVariable Long eventId) {
-        return ResponseEntity.ok(ticketService.getTickets(eventId));
+    public ResponseEntity<List<TicketResponseDto>> getTickets(
+            @PathVariable Long eventId,
+            @RequestParam(required = false) String audienceType,
+            @RequestParam(required = false) String seatType,
+            @RequestParam(required = false) String searchTicketName) {
+        return ResponseEntity.ok(ticketService.getTickets(eventId, audienceType, seatType, searchTicketName));
     }
     
     // 티켓 정보 수정
@@ -44,10 +45,8 @@ public class TicketController {
             @PathVariable Long ticketId,
             @RequestBody TicketRequestDto dto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        Long userId = 1L;
-        if (userDetails != null && userDetails.getUserId() != null) userId = userDetails.getUserId();
 
-        return ResponseEntity.ok(ticketService.updateTicket(eventId, ticketId, dto, userId));
+        return ResponseEntity.ok(ticketService.updateTicket(eventId, ticketId, dto, userDetails.getUserId()));
     }
 
     // 티켓 삭제

@@ -5,29 +5,31 @@ import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.ticket.dto.TicketRequestDto;
 import com.fairing.fairplay.ticket.dto.TicketResponseDto;
 import com.fairing.fairplay.ticket.dto.TicketSnapshotDto;
-import com.fairing.fairplay.ticket.entity.EventTicket;
-import com.fairing.fairplay.ticket.entity.Ticket;
-import com.fairing.fairplay.ticket.entity.TicketVersion;
-import com.fairing.fairplay.ticket.entity.TypesEnum;
+import com.fairing.fairplay.ticket.entity.*;
 import com.fairing.fairplay.event.repository.EventTicketRepository;
-import com.fairing.fairplay.ticket.repository.TicketRepository;
-import com.fairing.fairplay.ticket.repository.TicketVersionRepository;
+import com.fairing.fairplay.ticket.repository.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TicketService {
     
     private final TicketRepository ticketRepository;
     private final EventRepository eventRepository;
     private final EventTicketRepository eventTicketRepository;
     private final TicketVersionRepository ticketVersionRepository;
+    private final TicketStatusCodeRepository ticketStatusCodeRepository;
+    private final TicketAudienceTypeRepository ticketAudienceTypeRepository;
+    private final TicketSeatTypeRepository ticketSeatTypeRepository;
 
     /**
      * 특정 행사의 티켓 정보 저장
@@ -42,6 +44,16 @@ public class TicketService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 행사 아이디: " + eventId));
 
+
+        TicketAudienceType ticketAudienceType = ticketAudienceTypeRepository.findByCode(dto.getAudienceType())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 유형 : " + dto.getAudienceType()));
+
+        TicketSeatType ticketSeatType = ticketSeatTypeRepository.findByCode(dto.getSeatType())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 좌석 유형 : " + dto.getSeatType()));
+
+        TicketStatusCode ticketStatusCode = ticketStatusCodeRepository.findByCode(dto.getTicketStatusCode())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상태 유형 : " + dto.getTicketStatusCode()));
+
         // Ticket 저장
         Ticket ticket = new Ticket();
         ticket.setName(dto.getName());
@@ -50,6 +62,9 @@ public class TicketService {
         ticket.setPrice(dto.getPrice());
         ticket.setMaxPurchase(dto.getMaxPurchase());
         ticket.setTypes(TypesEnum.EVENT);
+        ticket.setTicketAudienceType(ticketAudienceType);
+        ticket.setTicketSeatType(ticketSeatType);
+        ticket.setTicketStatusCode(ticketStatusCode);
         ticket.setCreatedAt(LocalDateTime.now());
         ticket.setDeleted(false);
         Ticket savedTicket = ticketRepository.save(ticket);
@@ -69,21 +84,24 @@ public class TicketService {
         EventTicket eventTicket = new EventTicket(savedTicket, event);
         eventTicketRepository.save(eventTicket);
 
-        return TicketResponseDto.builder().ticketId(savedTicket.getTicketId()).build();
+        return new TicketResponseDto(savedTicket);
     }
 
     /**
      * 특정 행사의 티켓 목록 조회
      *
      * @param eventId 조회할 이벤트의 ID
+     * @param audienceType 티켓 유형 (성인, 청소년, 어린이 등)
+     * @param seatType 좌석 유형 (VIP석, R석 등)
+     * @param searchTicketName 티켓명 검색어
      * @return 티켓 정보 목록 (삭제되지 않은 티켓만 반환)
      */
     @Transactional(readOnly = true)
-    public List<TicketResponseDto> getTickets(Long eventId) {
-        return ticketRepository.findTicketsByEventId(eventId)
+    public List<TicketResponseDto> getTickets(Long eventId, String audienceType, String seatType, String searchTicketName) {
+        return ticketRepository.findTicketsByEventIdWithFilters(eventId, audienceType, seatType, searchTicketName)
                 .stream()
                 .filter(ticket -> !ticket.getDeleted())
-                .map(TicketResponseDto::new)
+                .map(ticket -> new TicketResponseDto(ticket))
                 .toList();
     }
 
@@ -98,15 +116,27 @@ public class TicketService {
      */
     @Transactional
     public TicketResponseDto updateTicket(Long eventId, Long ticketId, TicketRequestDto dto, Long userId) {
+
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 아이디: " + ticketId));
 
+        TicketAudienceType ticketAudienceType = ticketAudienceTypeRepository.findByCode(dto.getAudienceType())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 유형 : " + dto.getAudienceType()));
+
+        TicketSeatType ticketSeatType = ticketSeatTypeRepository.findByCode(dto.getSeatType())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 좌석 유형 : " + dto.getSeatType()));
+
+        TicketStatusCode ticketStatusCode = ticketStatusCodeRepository.findByCode(dto.getTicketStatusCode())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 상태 유형 : " + dto.getTicketStatusCode()));
+
+
         // 1. 티켓 엔티티 수정
         ticket.setName(dto.getName());
-        ticket.setDescription(dto.getDescription());
-        ticket.setStock(dto.getStock());
         ticket.setPrice(dto.getPrice());
         ticket.setMaxPurchase(dto.getMaxPurchase());
+        ticket.setTicketAudienceType(ticketAudienceType);
+        ticket.setTicketSeatType(ticketSeatType);
+        ticket.setTicketStatusCode(ticketStatusCode);
 
         // 2. 버전 번호 계산 (MAX + 1)
         Integer latestVersion = ticketVersionRepository.findMaxVersionByTicket(ticket.getTicketId());
@@ -131,7 +161,13 @@ public class TicketService {
                 .price(ticket.getPrice())
                 .stock(ticket.getStock())
                 .maxPurchase(ticket.getMaxPurchase())
-                .ticketStatusCode(ticket.getTicketStatusCode())
+                .audienceTypeCode(ticketAudienceType.getCode())
+                .audienceTypeName(ticketAudienceType.getName())
+                .seatTypeCode(ticketSeatType.getCode())
+                .seatTypeName(ticketSeatType.getName())
+                .ticketStatusCode(ticketStatusCode.getCode())
+                .ticketStatusName(ticketStatusCode.getName())
+                .createdAt(ticket.getCreatedAt())
                 .build();
     }
 
