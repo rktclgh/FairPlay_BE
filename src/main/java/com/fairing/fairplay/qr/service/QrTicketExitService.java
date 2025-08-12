@@ -7,10 +7,12 @@ import com.fairing.fairplay.qr.dto.scan.CheckOutRequestDto;
 import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
 import com.fairing.fairplay.qr.dto.scan.ManualCheckRequestDto;
 import com.fairing.fairplay.qr.dto.scan.QrCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.QrCodeDecodeDto;
 import com.fairing.fairplay.qr.entity.QrActionCode;
 import com.fairing.fairplay.qr.entity.QrCheckStatusCode;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
+import com.fairing.fairplay.qr.util.CodeValidator;
 import com.fairing.fairplay.user.entity.Users;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -26,22 +28,40 @@ public class QrTicketExitService {
   private final QrLogService qrLogService;
   private final QrTicketAttendeeService qrTicketAttendeeService;
   private final QrEntryValidateService qrEntryValidateService;
+  private final CodeValidator codeValidator;
+
   private static final String QR = "QR";
   private static final String MANUAL = "MANUAL";
 
   // 회원 QR 코드 체크아웃
   public CheckResponseDto checkOutWithQr(QrCheckRequestDto dto) {
-    QrTicket qrTicket = qrTicketRepository.findByQrCode(dto.getQrCode()).orElseThrow(
+    // 코드 디코딩
+    QrCodeDecodeDto qrCodeDecodeDto = codeValidator.decodeToQrTicket(dto.getQrCode());
+
+    // QR 코드 토큰 이용한 티켓 조회
+    QrTicket qrTicket = qrTicketRepository.findById(qrCodeDecodeDto.getQrTicketId()).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 QR 코드입니다.")
     );
 
     // QR 티켓 참석자 조회
     Attendee attendee = qrTicket.getAttendee();
     AttendeeTypeCode primaryTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
+    AttendeeTypeCode guestTypeCode = qrTicketAttendeeService.findGuestTypeCode();
     // 회원인지 검증
     if (attendee.getAttendeeTypeCode().equals(primaryTypeCode)) {
+      // 회원인지 검증
       Users user = qrTicket.getAttendee().getReservation().getUser();
       qrTicketVerificationService.validateUser(user);
+    } else if (attendee.getAttendeeTypeCode().equals(guestTypeCode)) {
+      // 비회원일 경우 qr 티켓의 참석자와 qrcode에 저장된 참석자 정보가 일치하는지 판단
+      if (qrCodeDecodeDto.getAttendeeId() == null) {
+        throw new CustomException(HttpStatus.BAD_REQUEST, "QR 코드에 참석자 정보가 없습니다.");
+      }
+      if (!attendee.getId().equals(qrCodeDecodeDto.getAttendeeId())) {
+        throw new CustomException(HttpStatus.NOT_FOUND, "참석자와 일치하는 QR 티켓이 없습니다.");
+      }
+    } else {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "지원하지 않는 참석자 유형입니다.");
     }
 
     CheckOutRequestDto checkOutRequestDto = CheckOutRequestDto.builder()
@@ -67,6 +87,7 @@ public class QrTicketExitService {
       Users user = qrTicket.getAttendee().getReservation().getUser();
       qrTicketVerificationService.validateUser(user);
     }
+
     CheckOutRequestDto checkOutRequestDto = CheckOutRequestDto.builder()
         .attendee(attendee)
         .codeType(MANUAL)
