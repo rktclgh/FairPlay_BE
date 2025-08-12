@@ -41,4 +41,8 @@ public interface QrTicketRepository extends JpaRepository<QrTicket, Long> {
   Optional<QrTicket> findByQrCode(String qrCode);
 
   Optional<QrTicket> findByManualCode(String manualCode);
+
+  boolean existsByQrCode(String qrCode);
+
+  boolean existsByManualCode(String manualCode);
 }

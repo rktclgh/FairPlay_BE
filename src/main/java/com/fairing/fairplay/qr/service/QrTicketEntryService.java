@@ -9,10 +9,12 @@ import com.fairing.fairplay.qr.dto.scan.CheckInRequestDto;
 import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
 import com.fairing.fairplay.qr.dto.scan.ManualCheckRequestDto;
 import com.fairing.fairplay.qr.dto.scan.QrCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.QrCodeDecodeDto;
 import com.fairing.fairplay.qr.entity.QrActionCode;
 import com.fairing.fairplay.qr.entity.QrCheckStatusCode;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
+import com.fairing.fairplay.qr.util.CodeValidator;
 import com.fairing.fairplay.user.entity.Users;
 import java.time.LocalDateTime;
 
@@ -42,21 +44,37 @@ public class QrTicketEntryService {
 
   private static final String QR = "QR";
   private static final String MANUAL = "MANUAL";
+  private final CodeValidator codeValidator;
 
   // QR 체크인
   public CheckResponseDto checkInWithQr(QrCheckRequestDto dto) {
-    // QR 코드 이용해 티켓 조회
-    QrTicket qrTicket = qrTicketRepository.findByQrCode(dto.getQrCode()).orElseThrow(
+    // 코드 디코딩
+    QrCodeDecodeDto qrCodeDecodeDto = codeValidator.decodeToQrTicket(dto.getQrCode());
+
+    // QR 코드 토큰 이용한 티켓 조회
+    QrTicket qrTicket = qrTicketRepository.findById(qrCodeDecodeDto.getQrTicketId()).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 QR 코드입니다.")
     );
 
-    // QR 티켓에 저장된 참석자 조회
+    // qrTicket 이 Null 이거나 qrTicket에 저장된 qrCode와 전송된 qrcode가 일치하지 않는 경우
+    if(qrTicket.getQrCode() == null || qrTicket.getQrCode().trim().isEmpty() || !qrTicket.getQrCode().equals(dto.getQrCode())) {
+      throw new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 QR 코드입니다.");
+    }
+
+    // QR 티켓 참석자 조회
     Attendee attendee = qrTicket.getAttendee();
     AttendeeTypeCode primaryTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
+    AttendeeTypeCode guestTypeCode = qrTicketAttendeeService.findGuestTypeCode();
     // 회원인지 검증
     if (attendee.getAttendeeTypeCode().equals(primaryTypeCode)) {
+      // 회원인지 검증
       Users user = qrTicket.getAttendee().getReservation().getUser();
       qrTicketVerificationService.validateUser(user);
+    }else if(attendee.getAttendeeTypeCode().equals(guestTypeCode)) {
+      // 비회원일 경우 qr 티켓의 참석자와 qrcode에 저장된 참석자 정보가 일치하는지 판단
+      if(!attendee.getId().equals(qrCodeDecodeDto.getAttendeeId())){
+        throw new CustomException(HttpStatus.NOT_FOUND,"참석자와 일치하는 QR 티켓이 없습니다.");
+      }
     }
 
     CheckInRequestDto checkInRequestDto = CheckInRequestDto.builder()

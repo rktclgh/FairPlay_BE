@@ -180,8 +180,19 @@ public class QrTicketIssueService{
   // 저장된 qr 티켓 조회 후 qrcode, manualcode 발급받아 저장
   private QrTicket generateAndSaveQrTicket(QrTicketRequestDto dto, Integer type) {
     QrTicket qrTicket = findQrTicket(dto, type);
-    qrTicket.setQrCode(codeGenerator.generateRandomToken());
-    qrTicket.setManualCode(codeGenerator.generateManualCode());
+    String qrCode;
+    String manualCode;
+
+    do{
+      qrCode = codeGenerator.generateQrCode(qrTicket);
+    }while(qrTicketRepository.existsByQrCode(qrCode));
+
+    do{
+      manualCode = codeGenerator.generateManualCode();
+    }while(qrTicketRepository.existsByManualCode(manualCode));
+
+    qrTicket.setQrCode(qrCode);
+    qrTicket.setManualCode(manualCode);
     return qrTicketRepository.save(qrTicket);
   }
 
