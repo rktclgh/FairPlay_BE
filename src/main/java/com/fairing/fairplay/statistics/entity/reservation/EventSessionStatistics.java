@@ -5,11 +5,12 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Entity
 @Table(
         name = "event_session_statistics",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "session_id", "stat_date"})
+        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "sechedule_id", "stat_date"})
 )
 @Getter
 @Setter
@@ -26,11 +27,17 @@ public class EventSessionStatistics {
     @Column(name = "event_id", nullable = false)
     private Long eventId;
 
-    @Column(name = "session_id", nullable = false)
+    @Column(name = "schedule_id", nullable = false)
     private Long sessionId;
 
     @Column(name = "stat_date", nullable = false)
     private LocalDate statDate;
+
+    @Column(name = "start_time", nullable = false)
+    private LocalTime startTime;
+
+    @Column(name = "end_time", nullable = false)
+    private LocalTime endTime;
 
     @Column(name = "ticket_type", nullable = false)
     private String ticketType;
@@ -50,6 +57,7 @@ public class EventSessionStatistics {
     @Builder.Default
     private Integer noShows = 0;
 
+    private Integer stock;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
