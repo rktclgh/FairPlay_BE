@@ -81,7 +81,7 @@ public class AuthService {
                 jwtTokenProvider.getRefreshTokenExpiry()
         );
 
-        return new LoginResponse(accessToken, refreshToken, user.getUserId(), user.getEmail(), user.getName(), user.getPhone());
+        return new LoginResponse(accessToken, refreshToken);
     }
 
     // 리프레시 토큰 재발급
@@ -121,7 +121,7 @@ public class AuthService {
                 jwtTokenProvider.getRefreshTokenExpiry()
         );
 
-        return new LoginResponse(newAccessToken, newRefreshToken, user.getUserId(), user.getEmail(), user.getName(), user.getPhone());
+        return new LoginResponse(newAccessToken, newRefreshToken);
     }
 
     public LoginResponse kakaoLogin(String code) {
@@ -232,7 +232,7 @@ public class AuthService {
                 jwtTokenProvider.getRefreshTokenExpiry()
         );
 
-        return new LoginResponse(ourAccessToken, ourRefreshToken, user.getUserId(), user.getEmail(), user.getName(), user.getPhone());
+        return new LoginResponse(ourAccessToken, ourRefreshToken);
     }
 
 }
