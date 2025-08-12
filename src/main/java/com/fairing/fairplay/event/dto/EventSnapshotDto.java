@@ -42,6 +42,7 @@ public class EventSnapshotDto {
     private Integer subCategoryId;
     private Integer regionCodeId;
     private Boolean reentryAllowed;
+    private Boolean checkInAllowed;
     private Boolean checkOutAllowed;
     private List<EventSnapshotDto.ExternalLinkSnapshot> externalLinks;
 

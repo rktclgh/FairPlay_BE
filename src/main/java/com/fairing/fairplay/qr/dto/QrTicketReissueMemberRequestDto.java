@@ -1,18 +1,15 @@
-package com.fairing.fairplay.qr.dto.scan;
+package com.fairing.fairplay.qr.dto;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
-@Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class MemberQrCheckRequestDto {
-
+public class QrTicketReissueMemberRequestDto {
   private Long reservationId;
-  private String qrCode;
+  private Long qrTicketId;
 }

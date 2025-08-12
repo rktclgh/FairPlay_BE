@@ -23,5 +23,8 @@ public class TicketRequestDto { // 티켓 정보 등록 요청
     private Integer price;
     private Integer maxPurchase;
     private TypesEnum types;    // BOOTH, EVENT
+    private String seatType;
+    private String audienceType;
+    private String ticketStatusCode;
 
 }
