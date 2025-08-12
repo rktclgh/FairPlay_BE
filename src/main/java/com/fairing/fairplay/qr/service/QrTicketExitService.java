@@ -43,12 +43,6 @@ public class QrTicketExitService {
         () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 QR 코드입니다.")
     );
 
-    // qrTicket 이 Null 이거나 qrTicket에 저장된 qrCode와 전송된 qrcode가 일치하지 않는 경우
-    if (qrTicket.getQrCode() == null || qrTicket.getQrCode().trim().isEmpty()
-        || !qrTicket.getQrCode().equals(dto.getQrCode())) {
-      throw new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 QR 코드입니다.");
-    }
-
     // QR 티켓 참석자 조회
     Attendee attendee = qrTicket.getAttendee();
     AttendeeTypeCode primaryTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
