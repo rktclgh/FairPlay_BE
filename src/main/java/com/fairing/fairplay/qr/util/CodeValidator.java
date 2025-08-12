@@ -83,7 +83,7 @@ public class CodeValidator {
     if (manualCode == null) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "수동 코드를 입력해 주세요.");
     }
-    String pattern = "^[A-Z]{4}-[A-Z]{4}$"; // 예시: 대문자 4글자-대문자 4글자
+    String pattern = "^[A-Z0-9]{4}-[A-Z0-9]{4}$";// 예시: 대문자 4글자-대문자 4글자
     if (!manualCode.matches(pattern)) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "수동 코드 형식이 올바르지 않습니다.");
     }

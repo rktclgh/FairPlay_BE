@@ -45,7 +45,7 @@ public class QrEntryValidateService {
   public void verifyAllowedReEntry(EntryPolicyDto entryPolicy, boolean hasEntry, boolean hasExit) {
     if (entryPolicy.isCheckInAllowed() && entryPolicy.isCheckOutAllowed()) {
       // 입/퇴장 모두 스캔
-      if (!hasEntry || !hasExit) {
+      if ((hasEntry && !hasExit) || (!hasEntry && hasExit)) {
         throw new CustomException(HttpStatus.UNAUTHORIZED, "입장 및 퇴장 기록이 모두 있어야 재입장 가능합니다.");
       }
     } else if (entryPolicy.isCheckInAllowed()) {
