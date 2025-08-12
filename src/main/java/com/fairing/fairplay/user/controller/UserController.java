@@ -1,6 +1,7 @@
 package com.fairing.fairplay.user.controller;
 
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.user.dto.*;
@@ -99,6 +100,7 @@ public class UserController {
 
     // 행사 관리자 정보 확인
     @GetMapping("/event-admin/{eventId}/public")
+    @FunctionAuth("getEventAdmin")
     public ResponseEntity<EventAdminResponseDto> getEventAdmin(@PathVariable Long eventId) {
 
         EventAdminResponseDto responseDto = userService.getEventAdminInfo(eventId);

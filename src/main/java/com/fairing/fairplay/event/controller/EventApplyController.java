@@ -1,5 +1,6 @@
 package com.fairing.fairplay.event.controller;
 
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.dto.EventApplyProcessDto;
 import com.fairing.fairplay.event.dto.EventApplyRequestDto;
@@ -53,11 +54,12 @@ public class EventApplyController {
     // 행사 신청 목록 조회 (관리자용)
     @GetMapping("/applications")
     @PreAuthorize("hasAuthority('ADMIN')")
+    @FunctionAuth("getPendingApplications")
     public ResponseEntity<Page<EventApplyResponseDto>> getPendingApplications(
             @RequestParam(required = false) String status,
             Pageable pageable) {
 
-        Page<EventApply> pendingApplications = eventApplyService.getApplications(status,pageable);
+        Page<EventApply> pendingApplications = eventApplyService.getApplications(status, pageable);
         Page<EventApplyResponseDto> responsePage = pendingApplications.map(EventApplyResponseDto::from);
 
         return ResponseEntity.ok(responsePage);
@@ -66,6 +68,7 @@ public class EventApplyController {
     // 행사 신청 승인/반려
     @PutMapping("/applications/{applicationId}")
     @PreAuthorize("hasAuthority('ADMIN')")
+    @FunctionAuth("processEventApplication")
     public ResponseEntity<String> processEventApplication(
             @PathVariable Long applicationId,
             @RequestBody EventApplyProcessDto processDto,

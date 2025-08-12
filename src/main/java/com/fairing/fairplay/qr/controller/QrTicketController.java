@@ -1,5 +1,6 @@
 package com.fairing.fairplay.qr.controller;
 
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
@@ -35,8 +36,7 @@ public class QrTicketController {
   // 마이페이지에서 QR 티켓 조회
   @PostMapping
   public ResponseEntity<QrTicketResponseDto> issueMember(@RequestBody QrTicketRequestDto dto,
-      @AuthenticationPrincipal
-      CustomUserDetails userDetails) {
+      @AuthenticationPrincipal CustomUserDetails userDetails) {
     return ResponseEntity.ok(qrTicketService.issueMember(dto, userDetails));
   }
 
@@ -51,7 +51,7 @@ public class QrTicketController {
    * 1. 사용자가 새로고침 버튼 클릭해 QR 코드 재생성
    * 2. 회원이 마이페이지에서 QR 링크 조회 안될 때 관리자 강제 QR 티켓 리셋
    * 3. 마이페이지 접근 안되는 회원/비회원에게 강제 QR 티켓 링크 재발급해 메일 전송
-   * */
+   */
   // QR 티켓 재발급 1-1 : QR 티켓 링크에서 재발급
   @PostMapping("/reissue/guest")
   public ResponseEntity<QrTicketUpdateResponseDto> reissueQrTicketByGuest(
@@ -63,9 +63,8 @@ public class QrTicketController {
   @PostMapping("/reissue/member")
   public ResponseEntity<QrTicketUpdateResponseDto> reissueQrTicketByMember(
       @RequestBody QrTicketReissueMemberRequestDto dto, @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ResponseEntity.ok(qrTicketService.reissueQrTicketByMember(dto,userDetails));
+    return ResponseEntity.ok(qrTicketService.reissueQrTicketByMember(dto, userDetails));
   }
-
 
   // QR 티켓 재발급 2
   @PostMapping("/admin/reissue")
@@ -73,7 +72,6 @@ public class QrTicketController {
       @RequestBody QrTicketReissueRequestDto dto) {
     return ResponseEntity.ok(qrTicketService.reissueAdminQrTicketByUser(dto));
   }
-
 
   // QR 티켓 재발급 3
   @PostMapping("/admin/reissue/send-email")
@@ -112,6 +110,7 @@ public class QrTicketController {
 
   // 관리자 강제 입퇴장
   @PostMapping("/admin/check")
+  @FunctionAuth("adminForceCheck")
   public ResponseEntity<CheckResponseDto> adminForceCheck(
       @RequestBody AdminForceCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.adminForceCheck(dto));
