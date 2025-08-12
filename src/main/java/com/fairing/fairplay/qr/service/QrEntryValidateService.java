@@ -13,10 +13,12 @@ import com.fairing.fairplay.qr.repository.QrCheckStatusCodeRepository;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class QrEntryValidateService {
@@ -34,9 +36,16 @@ public class QrEntryValidateService {
     boolean hasEntry = qrLogService.hasCheckRecord(qrTicket, QrCheckStatusCode.ENTRY) != null;
     boolean hasExit = qrLogService.hasCheckRecord(qrTicket, QrCheckStatusCode.EXIT) != null;
 
+    log.info("hasEntry={} hasExit={}",hasEntry, hasExit);
+
+
+
+
     if (entryPolicy.isReentryAllowed()) {
+      log.info("재입장={}",entryPolicy.isReentryAllowed());
       verifyAllowedReEntry(entryPolicy, hasEntry, hasExit);
     } else {
+      log.info("재입장={}",entryPolicy.isReentryAllowed());
       verifyDisallowedReEntry(hasEntry, hasExit);
     }
   }
@@ -46,6 +55,7 @@ public class QrEntryValidateService {
     if (entryPolicy.isCheckInAllowed() && entryPolicy.isCheckOutAllowed()) {
       // 입/퇴장 모두 스캔
       if ((hasEntry && !hasExit) || (!hasEntry && hasExit)) {
+        log.info("verifyAllowedReEntry 입퇴장모두스캔");
         throw new CustomException(HttpStatus.UNAUTHORIZED, "입장 및 퇴장 기록이 모두 있어야 재입장 가능합니다.");
       }
     } else if (entryPolicy.isCheckInAllowed()) {
@@ -74,20 +84,24 @@ public class QrEntryValidateService {
     QrActionCode qrActionCode = validateQrActionCode(QrActionCode.INVALID);
     QrCheckStatusCode qrCheckStatusCode = validateQrCheckStatusCode(
         QrCheckStatusCode.INVALID);
+    log.info("preventInvalidScan qrActionCode={} qrCheckStatusCode={}",qrActionCode, qrCheckStatusCode);
 
     Optional<QrCheckLog> lastLogOpt = qrCheckLogRepository.findTop1ByQrTicketOrderByCreatedAtDesc(
         qrTicket);
 
     // 이전 로그가 없는 경우(초기 상태)
     if (lastLogOpt.isEmpty()) {
+      log.info("마지막 QrCheckLog 상태: 없음");
       // EXIT은 불가.단. 퇴장 스캔만하고 입장 스캔을 하지 않는 행사일 경우가 아니어야함.
       if (QrCheckStatusCode.EXIT.equals(checkStatus) && !(!entryPolicy.isCheckInAllowed()
           && entryPolicy.isCheckOutAllowed())) {
+        log.info("입장처리완료된티켓아님 현재 checkstatus:{}",checkStatus);
         qrLogService.invalidQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
         throw new CustomException(HttpStatus.BAD_REQUEST, "입장 처리가 완료된 티켓이 아닙니다.");
       }
       // 재입장 허용되지 않는 행사인데 재입장 스캔할 경우 예외 발생
       if (QrCheckStatusCode.REENTRY.equals(checkStatus) && !entryPolicy.isReentryAllowed()) {
+        log.info("재입장이 허용되지 않는 행사 현재 checkstatus:{}",checkStatus);
         qrLogService.invalidQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
         throw new CustomException(HttpStatus.UNAUTHORIZED, "재입장이 허용되지 않는 행사입니다.");
       }
@@ -98,6 +112,8 @@ public class QrEntryValidateService {
     QrCheckLog qrCheckLog = lastLogOpt.get();
     if (!isQrCheckStatusCodeValid(checkStatus, qrCheckLog, entryPolicy)) {
       qrLogService.invalidQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
+      log.info( "잘못된 입퇴장 동작입니다. 마지막 상태: {}",
+          lastLogOpt.get().getCheckStatusCode().getName());
       throw new CustomException(HttpStatus.BAD_REQUEST,
           "잘못된 입퇴장 동작입니다. 마지막 상태: "
               + lastLogOpt.get().getCheckStatusCode().getName());
