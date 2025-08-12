@@ -43,9 +43,10 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
                 .join(statusCode).on(r.reservationStatusCode.id.eq(statusCode.reservationStatusCode.id))
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .join(s).on(r.schedule.scheduleId.eq(s.scheduleId))
-                .join(st).on(r.schedule.scheduleId.eq(st.eventSchedule.scheduleId))
+                .join(st).on(r.schedule.scheduleId.eq(st.eventSchedule.scheduleId)
+                        .and(r.ticket.ticketId.eq(st.ticket.ticketId)))
                 .where(r.createdAt.between(start, end))
-                .groupBy(r.event.eventId, r.schedule.scheduleId, t.name, statusCode.code,s.date,s.startTime, s.endTime)
+                .groupBy(r.event.eventId, r.schedule.scheduleId, t.name, statusCode.code,s.date,s.startTime, s.endTime,st.remainingStock)
                 .fetch();
 
         // 2. 체크인 집계
@@ -55,10 +56,11 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
                 .join(r).on(a.reservation.eq(r))
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .join(s).on(r.schedule.scheduleId.eq(s.scheduleId))
-                .join(st).on(r.schedule.scheduleId.eq(st.eventSchedule.scheduleId))
+                .join(st).on(r.schedule.scheduleId.eq(st.eventSchedule.scheduleId)
+                        .and(r.ticket.ticketId.eq(st.ticket.ticketId)))
                 .where(a.checkedIn.isTrue()
                         .and(r.createdAt.between(start, end)))
-                .groupBy(r.event.eventId, r.schedule.scheduleId, t.name,s.date,s.startTime, s.endTime)
+                .groupBy(r.event.eventId, r.schedule.scheduleId, t.name,s.date,s.startTime, s.endTime,st.remainingStock)
                 .fetch();
 
         // Map<eventId, Map<sessionId, Map<ticketName, EventSessionStatistics>>>
