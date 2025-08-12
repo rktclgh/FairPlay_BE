@@ -37,10 +37,17 @@ public class QrTicketExitService {
 
     // QR 티켓 참석자 조회
     Attendee attendee = qrTicket.getAttendee();
+    AttendeeTypeCode primaryTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
+    // 회원인지 검증
+    if (attendee.getAttendeeTypeCode().equals(primaryTypeCode)) {
+      Users user = qrTicket.getAttendee().getReservation().getUser();
+      qrTicketVerificationService.validateUser(user);
+    }
+
     CheckOutRequestDto checkOutRequestDto = CheckOutRequestDto.builder()
         .attendee(attendee)
         .codeType(QR)
-        .codeValue(dto.getQrCode())
+        .codeValue(qrTicket.getQrCode())
         .build();
 
     return processCheckOutCommon(qrTicket, checkOutRequestDto);
@@ -52,11 +59,16 @@ public class QrTicketExitService {
         () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 수동 코드입니다.")
     );
 
-    // QR 티켓 참석자 조회
+    // QR 티켓에 저장된 참석자 조회
     Attendee attendee = qrTicket.getAttendee();
+    AttendeeTypeCode primaryTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
+    // 회원인지 검증
+    if (attendee.getAttendeeTypeCode().equals(primaryTypeCode)) {
+      Users user = qrTicket.getAttendee().getReservation().getUser();
+      qrTicketVerificationService.validateUser(user);
+    }
     CheckOutRequestDto checkOutRequestDto = CheckOutRequestDto.builder()
         .attendee(attendee)
-        .requireUserMatch(true)
         .codeType(MANUAL)
         .codeValue(dto.getManualCode())
         .build();
@@ -68,18 +80,6 @@ public class QrTicketExitService {
    * 체크아웃 공통 로직
    */
   private CheckResponseDto processCheckOutCommon(QrTicket qrTicket, CheckOutRequestDto dto) {
-    Attendee attendee = dto.getAttendee();
-    AttendeeTypeCode primaryTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
-    // 회원이 대표자일 경우 회원 검증 진행
-    if (attendee.getAttendeeTypeCode().equals(primaryTypeCode)) {
-      dto.setRequireUserMatch(Boolean.TRUE);
-    }
-    // 회원인지 검증
-    if (dto.isRequireUserMatch()) {
-      Users user = qrTicket.getAttendee().getReservation().getUser();
-      qrTicketVerificationService.validateUser(user);
-
-    }
     // QrActionCode 검토
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.SCANNED);
     QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(

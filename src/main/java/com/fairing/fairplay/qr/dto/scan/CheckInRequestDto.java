@@ -17,6 +17,5 @@ public class CheckInRequestDto {
   private Attendee attendee;//회원
   private String codeValue;// qr 또는 manual 실제 값
   private String codeType;// QR or MANUAL
-  private boolean requireUserMatch;// 회원 체크인일때 참석자=로그인정보 일치하는지 여부 조회
   private String qrActionCode; // CHECKED_IN, MANUAL_CHECKED_IN
 }
