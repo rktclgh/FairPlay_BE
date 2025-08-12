@@ -30,6 +30,10 @@ public class WebSocketPresenceListener {
             Long userId = null;
             if (headers.getSessionAttributes() != null) {
                 userId = (Long) headers.getSessionAttributes().get("userId");
+                log.debug("WebSocket 연결 이벤트 - SessionAttributes에서 userId 조회: {}", userId);
+                log.debug("WebSocket 연결 이벤트 - 모든 SessionAttributes: {}", headers.getSessionAttributes());
+            } else {
+                log.debug("WebSocket 연결 이벤트 - SessionAttributes가 null");
             }
         
             if (userId != null) {
@@ -38,6 +42,7 @@ public class WebSocketPresenceListener {
             } else {
                 // Principal에서 시도 (fallback)
                 Principal principal = headers.getUser();
+                log.debug("WebSocket 연결 이벤트 - Principal: {}", principal != null ? principal.getName() : "NULL");
                 if (principal != null) {
                     try {
                         String username = principal.getName();
@@ -53,7 +58,7 @@ public class WebSocketPresenceListener {
             }
             
             if (userId == null) {
-                log.warn("WebSocket 연결: 사용자 ID를 찾을 수 없음");
+                log.warn("WebSocket 연결: 사용자 ID를 찾을 수 없음 - SessionId: {}", headers.getSessionId());
             }
             
         } catch (Exception e) {
@@ -70,6 +75,9 @@ public class WebSocketPresenceListener {
             Long userId = null;
             if (headers.getSessionAttributes() != null) {
                 userId = (Long) headers.getSessionAttributes().get("userId");
+                log.debug("WebSocket 해제 이벤트 - SessionAttributes에서 userId 조회: {}", userId);
+            } else {
+                log.debug("WebSocket 해제 이벤트 - SessionAttributes가 null");
             }
             
             if (userId != null) {
@@ -78,6 +86,7 @@ public class WebSocketPresenceListener {
             } else {
                 // Principal에서 시도 (fallback)
                 Principal principal = headers.getUser();
+                log.debug("WebSocket 해제 이벤트 - Principal: {}", principal != null ? principal.getName() : "NULL");
                 if (principal != null) {
                     try {
                         String username = principal.getName();
@@ -93,7 +102,7 @@ public class WebSocketPresenceListener {
             }
             
             if (userId == null) {
-                log.warn("WebSocket 해제: 사용자 ID를 찾을 수 없음");
+                log.warn("WebSocket 해제: 사용자 ID를 찾을 수 없음 - SessionId: {}", headers.getSessionId());
             }
             
         } catch (Exception e) {
