@@ -106,6 +106,11 @@ public class AdminReservationService {
     }
 
     public Page<AdminReservationStatsListDto> getEventsByCategory(LocalDate startDate, LocalDate endDate, String mainCategory, String subCategory, Pageable pageable) {
+
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("시작일이 종료일보다 늦을 수 없습니다.");
+            }
+
         if (mainCategory != null && "all".equalsIgnoreCase(mainCategory)) {
             mainCategory = "";
         }
@@ -119,6 +124,11 @@ public class AdminReservationService {
      * 검색 기능
      */
     public Page<AdminReservationStatsListDto> searchEvents(LocalDate startDate, LocalDate endDate, String keyword, String mainCategory, String subCategory, Pageable pageable ) {
+
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("시작일이 종료일보다 늦을 수 없습니다.");
+        }
+
         if (mainCategory != null && "all".equalsIgnoreCase(mainCategory)) {
             mainCategory = "";
         }
