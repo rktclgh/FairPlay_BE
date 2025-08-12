@@ -363,6 +363,7 @@ CREATE TABLE event_detail (
                               sub_category INT NOT NULL,
                               region_code_id INT NOT NULL,
                               reentry_allowed BOOLEAN NOT NULL DEFAULT TRUE,
+                              check_in_allowed BOOLEAN NOT NULL DEFAULT FALSE,
                               check_out_allowed BOOLEAN NOT NULL DEFAULT FALSE,
                               FOREIGN KEY (event_detail_id) REFERENCES event(event_id),
                               FOREIGN KEY (location_id) REFERENCES location(location_id),

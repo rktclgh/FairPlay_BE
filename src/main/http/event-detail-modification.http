@@ -1,0 +1,58 @@
+@access_token=
+
+### 행사 상세 수정 요청 생성
+POST http://localhost:8080/api/events/1/modification-request
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "locationId": 68,
+  "locationDetail": "수정된 상세 위치",
+  "hostName": "수정된 주최자명",
+  "contactInfo": "수정된 연락처 정보",
+  "bio": "수정된 간단 소개",
+  "content": "수정된 행사 내용입니다.",
+  "policy": "수정된 행사 정책입니다.",
+  "officialUrl": "https://modified-official-url.com",
+  "eventTime": 120,
+  "startDate": "2024-12-01",
+  "endDate": "2024-12-03",
+  "reentryAllowed": true,
+  "checkOutAllowed": false
+}
+
+### 필터링된 수정 요청 조회 - PENDING 상태만
+GET http://localhost:8080/api/events/modification-requests?status=PENDING&page=0&size=10
+Authorization: Bearer {{access_token}}
+
+### 필터링된 수정 요청 조회 - 특정 행사 ID
+GET http://localhost:8080/api/events/modification-requests?eventId=1&page=0&size=10
+Authorization: Bearer {{access_token}}
+
+### 필터링된 수정 요청 조회 - 특정 요청자
+GET http://localhost:8080/api/events/modification-requests?requestedBy=35&page=0&size=10
+Authorization: Bearer {{access_token}}
+
+### 필터링된 수정 요청 조회 - 복합 조건 (특정 행사의 승인된 요청들)
+GET http://localhost:8080/api/events/modification-requests?status=APPROVED&eventId=1&page=0&size=10
+Authorization: Bearer {{access_token}}
+
+### 수정 요청 승인 (관리자용)
+PUT http://localhost:8080/api/events/modification-requests/2
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "action": "approve",
+  "adminComment": "수정 내용을 검토한 결과 승인합니다."
+}
+
+### 수정 요청 반려 (관리자용)
+PUT http://localhost:8080/api/events/modification-requests/1
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "action": "reject",
+  "adminComment": "제출된 내용이 행사 가이드라인에 부합하지 않습니다."
+}

@@ -1,0 +1,139 @@
+@access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzNSIsImVtYWlsIjoiYWRtaW40QGZhaXJwbGF5LmNvbSIsInJvbGUiOiLsoITssrQg6rSA66as7J6QIiwicm9sZUlkIjoxLCJpYXQiOjE3NTQ5MjcyMDksImV4cCI6MTc1NDkyNzUwOX0.jc9n5PEz4OYABXSNiBqBJu5kRiOJsa95e3qTVtns5vE
+
+### 1단계: 파일 임시 업로드
+# 먼저 이 요청을 실행하여 파일을 임시 업로드하고, 응답으로 받은 JSON에서
+# "key", "name", "type" 값을 복사하여 2단계 요청에 사용하세요.
+# 파일 크기(fileSize)는 파일 탐색기에서 직접 확인해야 합니다.
+# 업로드된 파일은 CloudFront CDN을 통해 제공됩니다.
+
+### 개요 파일
+POST http://localhost:8080/api/uploads/temp
+Content-Type: multipart/form-data; boundary=boundary
+Origin: http://localhost:5173
+
+--boundary
+# 아래 "file.png"를 실제 업로드할 파일의 경로로 변경하세요. (예: C:/Users/test/image.png)
+Content-Disposition: form-data; name="file"; filename="testfile.pdf"
+Content-Type: application/pdf
+
+< D:\myWork\FairPlay\FairPlay_BE\src\main\files\testfile.pdf
+--boundary--
+
+### 썸네일
+POST http://localhost:8080/api/uploads/temp
+Content-Type: multipart/form-data; boundary=boundary
+Origin: http://localhost:5173
+
+--boundary
+# 아래 "file.png"를 실제 업로드할 파일의 경로로 변경하세요. (예: C:/Users/test/image.png)
+Content-Disposition: form-data; name="file"; filename="small_gd.png"
+Content-Type: image/png
+
+< D:\myWork\FairPlay\FairPlay_BE\src\main\files\small_gd.png
+--boundary--
+
+### 배너
+POST http://localhost:8080/api/uploads/temp
+Content-Type: multipart/form-data; boundary=boundary
+Origin: http://localhost:5173
+
+--boundary
+# 아래 "file.png"를 실제 업로드할 파일의 경로로 변경하세요. (예: C:/Users/test/image.png)
+Content-Disposition: form-data; name="file"; filename="small_hor.png"
+Content-Type: image/png
+
+< D:\myWork\FairPlay\FairPlay_BE\src\main\files\small_hor.png
+--boundary--
+
+### 행사 등록 신청 (파일 업로드 방식) - CloudFront 연동
+# 먼저 파일을 임시 업로드한 후, 해당 정보를 사용하여 신청
+POST http://localhost:8080/api/events/apply
+Content-Type: application/json
+
+{
+  "eventEmail": "testApply@fair-play.ink",
+  "businessNumber": "1234567890",
+  "businessDate": "2025-08-11",
+  "businessName": "김길동",
+  "verified": false,
+  "managerName": "홍길동",
+  "email": "lye0713@gmail.com",
+  "contactNumber": "010-1234-5678",
+  "titleKr": "테스트 행사 (파일 업로드)",
+  "titleEng": "Test Event (File Upload)",
+  "locationId": 11,
+  "locationDetail": "3층 대회의실",
+  "startDate": "2024-12-15",
+  "endDate": "2024-12-17",
+  "mainCategoryId": 1,
+  "subCategoryId": 101,
+  "tempFiles": [
+    {
+      "s3Key": "uploads/tmp2025-08-12/beaefd78-7679-418e-b6d1-087f3609654a.pdf",
+      "originalFileName": "testfile.pdf",
+      "fileType": "application/pdf",
+      "fileSize": 512000,
+      "usage": "application_file"
+    },
+    {
+      "s3Key": "uploads/tmp2025-08-12/2df0aa3f-b29e-454b-af27-68c9c9424e06.png",
+      "originalFileName": "small_gd.png",
+      "fileType": "image/jpeg",
+      "fileSize": 256000,
+      "usage": "thumbnail"
+    },
+    {
+      "s3Key": "uploads/tmp2025-08-12/11cb258f-61d3-41ce-a483-48954a7427fe.png",
+      "originalFileName": "small_hor.png",
+      "fileType": "image/jpeg",
+      "fileSize": 128000,
+      "usage": "banner"
+    }
+  ]
+}
+
+### 신청 상태 확인 (이메일로 조회)
+# 응답 예시: 파일 URL들이 CloudFront CDN URL로 반환됩니다.
+# {
+#   "eventApplyId": 1,
+#   "statusCode": "PENDING",
+#   "eventEmail": "testApply@fair-play.ink",
+#   "managerName": "홍길동",
+#   "titleKr": "테스트 행사",
+#   "fileUrl": "https://your-cloudfront-domain.cloudfront.net/uploads/event-apply/1/application-file-uuid.pdf",
+#   "bannerUrl": "https://your-cloudfront-domain.cloudfront.net/uploads/event-apply/1/banner-uuid.jpg",
+#   "thumbnailUrl": "https://your-cloudfront-domain.cloudfront.net/uploads/event-apply/1/thumbnail-uuid.jpg",
+#   "applyAt": "2025-01-15T10:30:00"
+# }
+GET http://localhost:8080/api/events/apply/check?eventEmail=testApply@fair-play.ink
+
+### 행사 신청 목록 조회 (관리자용)
+GET http://localhost:8080/api/events/applications?page=0&size=10&sort=applyAt,desc
+Authorization: Bearer {{access_token}}
+
+### 대기중인 행사 신청 목록 조회 (관리자용)
+GET http://localhost:8080/api/events/applications?status=PENDING&page=0&size=10&sort=applyAt,desc
+Authorization: Bearer {{access_token}}
+
+### 행사 신청 승인 (관리자용)
+PUT http://localhost:8080/api/events/applications/4
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "action": "approve",
+  "adminComment": "신청 내용을 검토한 결과 승인합니다. 계정 생성이 완료되었으며, 담당자 이메일로 로그인 정보를 전송했습니다."
+}
+
+### 행사 신청 반려 (관리자용)
+PUT http://localhost:8080/api/events/applications/3
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "action": "reject",
+  "adminComment": "사업자등록증이 명확하지 않습니다. 올바른 사업자등록증을 첨부하여 다시 신청해주세요."
+}
+
+### 환경 변수 설정 예시
+# @access_token = 관리자의_JWT_토큰

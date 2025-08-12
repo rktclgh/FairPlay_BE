@@ -9,10 +9,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import com.fairing.fairplay.event.service.CalendarEventService;
 import java.util.List;
-import org.springframework.ui.Model;
-import com.fairing.fairplay.event.entity.Event;
-import com.fairing.fairplay.event.service.EventService;
-
 
 @RestController
 @RequiredArgsConstructor
@@ -20,7 +16,6 @@ import com.fairing.fairplay.event.service.EventService;
 public class CalendarEventController {
 
     private final CalendarEventService calendarEventService;
-    private final EventService eventService;
 
     // 리스트형 (월별 이벤트 목록)
     @GetMapping("/events")

@@ -106,6 +106,7 @@ public class EventVersionService {
                     .startDate(detail.getStartDate())
                     .endDate(detail.getEndDate())
                     .reentryAllowed(detail.getReentryAllowed())
+                    .checkInAllowed(detail.getCheckInAllowed())
                     .checkOutAllowed(detail.getCheckOutAllowed())
                     .mainCategoryId(Optional.ofNullable(detail.getMainCategory()).map(mc -> mc.getGroupId()).orElse(null))
                     .subCategoryId(Optional.ofNullable(detail.getSubCategory()).map(sc -> sc.getCategoryId()).orElse(null))
@@ -155,9 +156,9 @@ public class EventVersionService {
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 버전을 찾을 수 없습니다."));
     }
 
-    // 특정 버전으로 복구
+    // 특정 버전으로 복구 (내부적으로만 사용 - 수정 요청 승인 시)
     @Transactional
-    public void restoreToVersion(Long eventId, Integer targetVersionNumber, Long restoredBy) {
+    public void restoreToVersionInternal(Long eventId, Integer targetVersionNumber, Long restoredBy) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "행사를 찾을 수 없습니다."));
 
@@ -197,13 +198,15 @@ public class EventVersionService {
         EventSnapshotDto snapshot1 = eventVersion1.getSnapshotAsDto();
         EventSnapshotDto snapshot2 = eventVersion2.getSnapshotAsDto();
 
+        Object jsonDifferences = calculateJsonDifferences(snapshot1, snapshot2);
+
         return EventVersionComparisonDto.builder()
                 .eventId(eventId)
                 .version1(version1)
                 .version2(version2)
                 .snapshot1(snapshot1)
                 .snapshot2(snapshot2)
-                .differences(calculateDifferences(snapshot1, snapshot2))
+                .fieldDifferences(jsonDifferences)
                 .build();
     }
 
@@ -238,6 +241,7 @@ public class EventVersionService {
             eventDetail.setStartDate(snapshot.getStartDate());
             eventDetail.setEndDate(snapshot.getEndDate());
             eventDetail.setReentryAllowed(snapshot.getReentryAllowed());
+            eventDetail.setCheckInAllowed(snapshot.getCheckInAllowed());
             eventDetail.setCheckOutAllowed(snapshot.getCheckOutAllowed());
 
             // Location 설정
@@ -270,31 +274,40 @@ public class EventVersionService {
         eventRepository.save(event);
     }
 
-    private List<String> calculateDifferences(EventSnapshotDto snapshot1, EventSnapshotDto snapshot2) {
-        List<String> differences = new java.util.ArrayList<>();
 
-        // 기본 정보 비교
-        if (!java.util.Objects.equals(snapshot1.getTitleKr(), snapshot2.getTitleKr())) {
-            differences.add("제목(한국어): " + snapshot1.getTitleKr() + " → " + snapshot2.getTitleKr());
-        }
-        if (!java.util.Objects.equals(snapshot1.getTitleEng(), snapshot2.getTitleEng())) {
-            differences.add("제목(영어): " + snapshot1.getTitleEng() + " → " + snapshot2.getTitleEng());
-        }
-        if (!java.util.Objects.equals(snapshot1.isHidden(), snapshot2.isHidden())) {
-            differences.add("숨김 상태: " + snapshot1.isHidden() + " → " + snapshot2.isHidden());
-        }
-        if (!java.util.Objects.equals(snapshot1.getHostName(), snapshot2.getHostName())) {
-            differences.add("주최자명: " + snapshot1.getHostName() + " → " + snapshot2.getHostName());
-        }
-        if (!java.util.Objects.equals(snapshot1.getStartDate(), snapshot2.getStartDate())) {
-            differences.add("시작일: " + snapshot1.getStartDate() + " → " + snapshot2.getStartDate());
-        }
-        if (!java.util.Objects.equals(snapshot1.getEndDate(), snapshot2.getEndDate())) {
-            differences.add("종료일: " + snapshot1.getEndDate() + " → " + snapshot2.getEndDate());
-        }
+    private Object calculateJsonDifferences(EventSnapshotDto snapshot1, EventSnapshotDto snapshot2) {
+        java.util.Map<String, Object> jsonDiff = new java.util.HashMap<>();
+        
+        // 변경된 필드만 포함
+        addFieldIfChanged(jsonDiff, "titleKr", "제목(한국어)", snapshot1.getTitleKr(), snapshot2.getTitleKr());
+        addFieldIfChanged(jsonDiff, "titleEng", "제목(영어)", snapshot1.getTitleEng(), snapshot2.getTitleEng());
+        addFieldIfChanged(jsonDiff, "hidden", "숨김 상태", snapshot1.isHidden(), snapshot2.isHidden());
+        addFieldIfChanged(jsonDiff, "hostName", "주최자명", snapshot1.getHostName(), snapshot2.getHostName());
+        addFieldIfChanged(jsonDiff, "contactInfo", "연락처", snapshot1.getContactInfo(), snapshot2.getContactInfo());
+        addFieldIfChanged(jsonDiff, "bio", "행사 소개", snapshot1.getBio(), snapshot2.getBio());
+        addFieldIfChanged(jsonDiff, "content", "행사 내용", snapshot1.getContent(), snapshot2.getContent());
+        addFieldIfChanged(jsonDiff, "policy", "주의사항", snapshot1.getPolicy(), snapshot2.getPolicy());
+        addFieldIfChanged(jsonDiff, "officialUrl", "공식 URL", snapshot1.getOfficialUrl(), snapshot2.getOfficialUrl());
+        addFieldIfChanged(jsonDiff, "eventTime", "행사 시간", snapshot1.getEventTime(), snapshot2.getEventTime());
+        addFieldIfChanged(jsonDiff, "startDate", "시작일", snapshot1.getStartDate(), snapshot2.getStartDate());
+        addFieldIfChanged(jsonDiff, "endDate", "종료일", snapshot1.getEndDate(), snapshot2.getEndDate());
+        addFieldIfChanged(jsonDiff, "thumbnailUrl", "썸네일", snapshot1.getThumbnailUrl(), snapshot2.getThumbnailUrl());
+        addFieldIfChanged(jsonDiff, "bannerUrl", "배너", snapshot1.getBannerUrl(), snapshot2.getBannerUrl());
+        addFieldIfChanged(jsonDiff, "locationDetail", "상세 주소", snapshot1.getLocationDetail(), snapshot2.getLocationDetail());
+        addFieldIfChanged(jsonDiff, "reentryAllowed", "재입장 허용", snapshot1.getReentryAllowed(), snapshot2.getReentryAllowed());
+        addFieldIfChanged(jsonDiff, "checkOutAllowed", "중간 퇴장 허용", snapshot1.getCheckOutAllowed(), snapshot2.getCheckOutAllowed());
+        
+        return jsonDiff;
+    }
 
-        // 필요에 따라 더 많은 필드 비교 추가 가능
-
-        return differences;
+    private void addFieldIfChanged(java.util.Map<String, Object> jsonDiff, String fieldName, String displayName, Object oldValue, Object newValue) {
+        if (!java.util.Objects.equals(oldValue, newValue)) {
+            java.util.Map<String, Object> fieldChange = new java.util.HashMap<>();
+            fieldChange.put("displayName", displayName);
+            fieldChange.put("oldValue", oldValue);
+            fieldChange.put("newValue", newValue);
+            fieldChange.put("changeType", oldValue == null ? "added" : newValue == null ? "removed" : "modified");
+            jsonDiff.put(fieldName, fieldChange);
+        }
     }
 }

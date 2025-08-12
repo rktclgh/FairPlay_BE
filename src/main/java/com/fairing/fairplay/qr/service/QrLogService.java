@@ -53,15 +53,17 @@ public class QrLogService {
 
   // 퇴장 (QR 코드 스캔 or 수동 코드)
   @Transactional
-  public void exitQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
-      QrCheckStatusCode qrCheckStatusCode) {
-//    // checkStatusCode = EXIT
-//    QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(
-//        QrCheckStatusCode.EXIT);
-//    // 잘못된 입퇴장 스캔
-//    qrEntryValidateService.preventInvalidScan(qrTicket, QrCheckStatusCode.EXIT);
+  public LocalDateTime exitQrLog(QrTicket qrTicket, QrCheckStatusCode qrCheckStatusCode) {
     // qrCheckLog: EXIT 저장
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    return null;
+  }
+
+  @Transactional
+  public LocalDateTime forceCheckQrLog(QrTicket qrTicket, QrActionCode qrActionCode, QrCheckStatusCode qrCheckStatusCode) {
+    saveQrLog(qrTicket, qrActionCode);
+    saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    return null;
   }
 
   // 비정상 중복 스캔 -> 스캔할 때 검토

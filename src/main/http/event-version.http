@@ -1,4 +1,8 @@
-@access_token=
+@access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzNSIsImVtYWlsIjoiYWRtaW40QGZhaXJwbGF5LmNvbSIsInJvbGUiOiLsoITssrQg6rSA66as7J6QIiwicm9sZUlkIjoxLCJpYXQiOjE3NTQ5MDM5MDEsImV4cCI6MTc1NDkwNDIwMX0.t-dDftJZTdDq8z1GQWxWzG2p7MgdpTeALyPcn_O5xzc
+
+### 현재 사용자 권한 확인 (디버깅용)
+GET http://localhost:8080/api/events/user/role
+Authorization: Bearer {{access_token}}
 
 ### Event 버전 목록 조회
 GET http://localhost:8080/api/events/1/versions?page=0&size=10&sort=versionNumber,desc
@@ -8,9 +12,23 @@ Authorization: Bearer {{access_token}}
 GET http://localhost:8080/api/events/1/versions/13
 Authorization: Bearer {{access_token}}
 
-### Event 버전 복구 (관리자 전용)
-POST http://localhost:8080/api/events/1/versions/13/restore
+### Event 버전 복구 요청 (행사 관리자/어드민)
+POST http://localhost:8080/api/events/1/versions/15/restore-request
 Authorization: Bearer {{access_token}}
+
+### Event 버전 복구 요청 목록 조회 (어드민 전용 - 행사 수정 요청과 동일)
+GET http://localhost:8080/api/events/modification-requests?page=0&size=10
+Authorization: Bearer {{access_token}}
+
+### Event 버전 복구 요청 승인/반려 (어드민 전용 - 행사 수정 요청과 동일)
+PUT http://localhost:8080/api/events/modification-requests/3
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "action": "approve",
+  "adminComment": "버전 복구 승인"
+}
 
 ### Event 버전 비교
 GET http://localhost:8080/api/events/1/versions/compare?version1=12&version2=13

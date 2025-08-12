@@ -3,6 +3,7 @@ package com.fairing.fairplay.event.dto;
 import com.querydsl.core.annotations.QueryProjection;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Getter
@@ -17,6 +18,8 @@ public class EventSummaryDto {  // 메인페이지, 검색 등에서 표시될 �
     private Integer minPrice;                   // 최소 가격
     private String mainCategory;          // 메인 카테고리
     private String location;                    // 장소명
+    private BigDecimal latitude;                // 위도
+    private BigDecimal longitude;               // 경도
     private LocalDate startDate;                // 행사 시작일
     private LocalDate endDate;                  // 행사 종료일
     private String thumbnailUrl;                // 썸네일 URL
@@ -25,6 +28,7 @@ public class EventSummaryDto {  // 메인페이지, 검색 등에서 표시될 �
     @QueryProjection
     public EventSummaryDto(Long id, String eventCode, Boolean hidden, String title,
                            Integer minPrice, String mainCategory, String location,
+                           BigDecimal latitude, BigDecimal longitude,
                            LocalDate startDate, LocalDate endDate, String thumbnailUrl, String region) {
         this.id = id;
         this.eventCode = eventCode;
@@ -33,6 +37,8 @@ public class EventSummaryDto {  // 메인페이지, 검색 등에서 표시될 �
         this.minPrice = minPrice;
         this.mainCategory = mainCategory;
         this.location = location;
+        this.latitude = latitude;
+        this.longitude = longitude;
         this.startDate = startDate;
         this.endDate = endDate;
         this.thumbnailUrl = thumbnailUrl;
