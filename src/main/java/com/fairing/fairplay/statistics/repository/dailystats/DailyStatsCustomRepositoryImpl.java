@@ -145,7 +145,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
                 .from(eds)
                 .leftJoin(d).on(d.event.eventId.eq(eds.eventId))
                 .where(builder)
-                .groupBy(eds.eventId,  d.mainCategory)
+                .groupBy(d.mainCategory)
                 .fetch();
     }
 
@@ -188,7 +188,9 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
                 ))
                 .from(eps)
                 .leftJoin(d).on(d.event.eventId.eq(eps.eventId))
-                .leftJoin(edss).on(edss.eventId.eq(eps.eventId))
+                .leftJoin(edss).on(edss.eventId.eq(eps.eventId)
+                        .and(edss.statDate.goe(startDate))
+                        .and(edss.statDate.lt(endDate.plusDays(1))))
                 .where(builder)
                 .groupBy(
                         eps.eventId,
@@ -253,12 +255,14 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
                         d.mainCategory,
                         d.subCategory,
                         Expressions.numberTemplate(Integer.class,
-                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.viewCount.sum().coalesce(0L)),
+                                "ROW_NUMBER() OVER (ORDER BY {0} DESC)", eps.reservationCount.sum().coalesce(0L)),
                         eps.calculatedAt.max()
                 ))
                 .from(eps)
                 .leftJoin(d).on(d.event.eventId.eq(eps.eventId))
-                .leftJoin(edss).on(edss.eventId.eq(eps.eventId))
+                .leftJoin(edss).on(edss.eventId.eq(eps.eventId)
+                        .and(edss.statDate.goe(startDate))
+                        .and(edss.statDate.lt(endDate.plusDays(1))))
                 .where(builder)
                 .groupBy(eps.eventId, eps.eventTitle,d.mainCategory, d.subCategory)
                 .orderBy(eps.reservationCount.sum().desc())
