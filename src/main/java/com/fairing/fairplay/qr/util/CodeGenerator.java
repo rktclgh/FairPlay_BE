@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hashids.Hashids;
@@ -33,10 +34,13 @@ public class CodeGenerator {
     ZonedDateTime zdt = qrTicket.getExpiredAt().atZone(ZoneId.of("Asia/Seoul"));
     long epochSeconds = zdt.toEpochSecond();
 
+    long randomSalt = ThreadLocalRandom.current().nextLong(1_000_000, 9_999_999);
+
     long[] numbers = new long[]{
         safeLong(qrTicket.getId()),
         safeLong(qrTicket.getAttendee().getId()),
-        epochSeconds
+        epochSeconds,
+        randomSalt
     };
 
     return hashids.encode(numbers);
