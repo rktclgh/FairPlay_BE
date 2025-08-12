@@ -219,20 +219,12 @@ public class QrTicketIssueService {
     QrTicket qrTicket = findQrTicket(dto, type);
     String qrCode;
     String manualCode;
-    int maxRetries = 100;
-    int retryCount = 0;
 
     do {
-      if (++retryCount > maxRetries) {
-        throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "QR 코드 생성 실패: 최대 재시도 횟수 초과");
-      }
       qrCode = codeGenerator.generateQrCode(qrTicket);
     } while (qrTicketRepository.existsByQrCode(qrCode));
-    retryCount = 0;
+
     do {
-      if (++retryCount > maxRetries) {
-        throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "수동 코드 생성 실패: 최대 재시도 횟수 초과");
-      }
       manualCode = codeGenerator.generateManualCode();
     } while (qrTicketRepository.existsByManualCode(manualCode));
 
