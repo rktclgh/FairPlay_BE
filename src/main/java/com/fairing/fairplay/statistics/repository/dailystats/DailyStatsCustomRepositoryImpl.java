@@ -153,7 +153,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
      * 검색
      * */
     @Override
-    public List<AdminReservationStatsListDto> searchEventReservationWithRank(LocalDate startDate, LocalDate endDate, String keyword, String mainCategory, String subCategory) {
+    public Page<AdminReservationStatsListDto> searchEventReservationWithRank(LocalDate startDate, LocalDate endDate, String keyword, String mainCategory, String subCategory, Pageable pageable) {
         QEventPopularityStatistics eps = QEventPopularityStatistics.eventPopularityStatistics;
         QEventDetail d = QEventDetail.eventDetail;
         QEventDailySalesStatistics edss = QEventDailySalesStatistics.eventDailySalesStatistics;
@@ -174,7 +174,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
             builder.and(d.subCategory.categoryName.stringValue().eq(subCategory));
         }
 
-        return queryFactory
+        List<AdminReservationStatsListDto> content = queryFactory
                 .select(Projections.constructor(AdminReservationStatsListDto.class,
                         eps.eventId,
                         eps.eventTitle,
@@ -197,7 +197,20 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
                         d.subCategory
                 )
                 .orderBy(eps.reservationCount.sum().desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
                 .fetch();
+
+        Long total = queryFactory
+                .select(eps.eventId.countDistinct())
+                .from(eps)
+                .leftJoin(d).on(d.event.eventId.eq(eps.eventId))
+                .leftJoin(edss).on(edss.eventId.eq(eps.eventId))
+                .where(builder)
+                .fetchOne();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0);
+
     }
 
     /***

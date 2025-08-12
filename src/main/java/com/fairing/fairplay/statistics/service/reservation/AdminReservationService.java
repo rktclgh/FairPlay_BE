@@ -118,7 +118,7 @@ public class AdminReservationService {
     /**
      * 검색 기능
      */
-    public List<AdminReservationStatsListDto> searchEvents(LocalDate startDate, LocalDate endDate, String keyword, String mainCategory, String subCategory) {
+    public Page<AdminReservationStatsListDto> searchEvents(LocalDate startDate, LocalDate endDate, String keyword, String mainCategory, String subCategory, Pageable pageable ) {
         if (mainCategory != null && "all".equalsIgnoreCase(mainCategory)) {
             mainCategory = "";
         }
@@ -128,6 +128,6 @@ public class AdminReservationService {
         if (keyword == null || keyword.isBlank()) {
             throw new IllegalArgumentException("검색어(keyword)는 null 또는 빈 문자열일 수 없습니다.");
         }
-        return dailyStatsCustomRepository.searchEventReservationWithRank(startDate,  endDate,  keyword, mainCategory,  subCategory);
+        return dailyStatsCustomRepository.searchEventReservationWithRank(startDate,  endDate,  keyword, mainCategory,  subCategory, pageable);
     }
 }

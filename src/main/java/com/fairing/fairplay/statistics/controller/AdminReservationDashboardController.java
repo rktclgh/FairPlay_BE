@@ -9,6 +9,8 @@ import com.fairing.fairplay.statistics.service.reservation.AdminReservationServi
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,7 +43,7 @@ public class AdminReservationDashboardController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String mainCategory,
             @RequestParam(required = false) String subCategory,
-            Pageable pageable
+            @PageableDefault(size = 10, sort = "rank", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         return adminReservationService.getEventsByCategory(startDate, endDate, mainCategory, subCategory, pageable);
     }
@@ -66,14 +68,15 @@ public class AdminReservationDashboardController {
 
 
     @GetMapping("/search")
-    public List<AdminReservationStatsListDto> getSearchReservation(
+    public Page<AdminReservationStatsListDto> getSearchReservation(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String mainCategory,
             @RequestParam(required = false) String subCategory,
-            @RequestParam(required = true) String keyword
+            @RequestParam(required = true) String keyword,
+            @PageableDefault(size = 10, sort = "rank", direction = Sort.Direction.ASC) Pageable pageable // 기본 페이징 조건
     ) {
-        return  adminReservationService.searchEvents(startDate,  endDate, keyword,  mainCategory, subCategory);
+        return  adminReservationService.searchEvents(startDate,  endDate, keyword,  mainCategory, subCategory,pageable);
     }
 
     @GetMapping("/summary")
