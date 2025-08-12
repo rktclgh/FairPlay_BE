@@ -76,9 +76,6 @@ public class SuperAdminController {
     @GetMapping("/get-users")
     public ResponseEntity<List<Users>> getUsers(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // JWT 토큰에서 사용자 정보를 가져와 권한 체크
-        checkAuth(userDetails, ADMIN);
-        
         List<Users> users = userRepository.findAdmin();
         // checkFunctionAuth(1L);
 
