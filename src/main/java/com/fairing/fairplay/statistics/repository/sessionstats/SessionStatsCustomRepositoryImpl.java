@@ -38,7 +38,7 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
         // 1. 예약/취소 집계
         List<Tuple> reservationResults = queryFactory
                 .select(r.event.eventId, r.schedule.scheduleId, t.name, statusCode.code, r.count(),s.date,s.startTime,
-                        s.endTime, st.remainingStock)
+                        s.endTime, st.remainingStock.max())
                 .from(r)
                 .join(statusCode).on(r.reservationStatusCode.id.eq(statusCode.reservationStatusCode.id))
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
@@ -51,7 +51,7 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
 
         // 2. 체크인 집계
         List<Tuple> checkinResults = queryFactory
-                .select(r.event.eventId, r.schedule.scheduleId, t.name, a.count(),s.date,s.startTime, s.endTime,st.remainingStock)
+                .select(r.event.eventId, r.schedule.scheduleId, t.name, a.count(),s.date,s.startTime, s.endTime,st.remainingStock.max())
                 .from(a)
                 .join(r).on(a.reservation.eq(r))
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
