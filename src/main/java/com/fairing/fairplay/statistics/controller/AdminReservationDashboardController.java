@@ -1,6 +1,6 @@
 package com.fairing.fairplay.statistics.controller;
 
-
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.statistics.dto.reservation.AdminReservationStatsListDto;
 import com.fairing.fairplay.statistics.dto.reservation.AdminReservationSummaryDto;
 import com.fairing.fairplay.statistics.dto.reservation.ReservationDailyTrendDto;
@@ -38,36 +38,38 @@ public class AdminReservationDashboardController {
      * @return 페이징된 이벤트 인기 통계 DTO 페이지
      */
     @GetMapping("/list")
+    @FunctionAuth("getAggregatedPopularity")
     public Page<AdminReservationStatsListDto> getAggregatedPopularity(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String mainCategory,
             @RequestParam(required = false) String subCategory,
-            @PageableDefault(size = 10, sort = "rank", direction = Sort.Direction.ASC) Pageable pageable
-    ) {
+            @PageableDefault(size = 10, sort = "rank", direction = Sort.Direction.ASC) Pageable pageable) {
         return adminReservationService.getEventsByCategory(startDate, endDate, mainCategory, subCategory, pageable);
     }
 
     @GetMapping("/trend-month")
+    @FunctionAuth("getMonthlyTrend")
     public List<ReservationMonthlyTrendDto> getMonthTrend(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
 
     ) {
-        return  adminReservationService.monthlyTrend(startDate,  endDate);
+        return adminReservationService.monthlyTrend(startDate, endDate);
     }
 
     @GetMapping("/trend-daily")
+    @FunctionAuth("getDailyTrend")
     public List<ReservationDailyTrendDto> getDailyTrend(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
 
     ) {
-        return  adminReservationService.dailyTrend(startDate,  endDate);
+        return adminReservationService.dailyTrend(startDate, endDate);
     }
 
-
     @GetMapping("/search")
+    @FunctionAuth("searchEvents")
     public Page<AdminReservationStatsListDto> getSearchReservation(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
@@ -76,17 +78,15 @@ public class AdminReservationDashboardController {
             @RequestParam(required = true) String keyword,
             @PageableDefault(size = 10, sort = "rank", direction = Sort.Direction.ASC) Pageable pageable // 기본 페이징 조건
     ) {
-        return  adminReservationService.searchEvents(startDate,  endDate, keyword,  mainCategory, subCategory,pageable);
+        return adminReservationService.searchEvents(startDate, endDate, keyword, mainCategory, subCategory, pageable);
     }
 
     @GetMapping("/summary")
+    @FunctionAuth("getReportPopularity")
     public AdminReservationSummaryDto getReportPopularity(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate){
-        return adminReservationService.getReservationSummary(startDate, endDate );
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return adminReservationService.getReservationSummary(startDate, endDate);
     }
-
-
-
 
 }

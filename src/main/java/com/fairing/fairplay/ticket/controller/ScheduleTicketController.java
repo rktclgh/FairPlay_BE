@@ -1,5 +1,6 @@
 package com.fairing.fairplay.ticket.controller;
 
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.ticket.dto.ScheduleTicketRequestDto;
 import com.fairing.fairplay.ticket.dto.ScheduleTicketResponseDto;
 import com.fairing.fairplay.ticket.service.ScheduleTicketService;
@@ -18,6 +19,7 @@ public class ScheduleTicketController {
 
     // 회차별 티켓 설정 등록
     @PostMapping
+    @FunctionAuth("registerScheduleTicket")
     public ResponseEntity<Void> registerScheduleTicket(
             @PathVariable Long eventId,
             @PathVariable Long scheduleId,
@@ -30,6 +32,7 @@ public class ScheduleTicketController {
 
     // 회차별 티켓 설정 조회
     @GetMapping
+    @FunctionAuth("getScheduleTickets")
     public ResponseEntity<List<ScheduleTicketResponseDto>> getScheduleTickets(
             @PathVariable Long eventId,
             @PathVariable Long scheduleId) {
