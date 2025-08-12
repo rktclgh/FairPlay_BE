@@ -1,5 +1,8 @@
 package com.fairing.fairplay.admin.entity;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -16,6 +19,6 @@ public class FunctionLevel {
     private Long functionId;
 
     private String functionName;
-    private Long level;
+    private BigDecimal level;
 
 }

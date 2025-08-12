@@ -1,5 +1,8 @@
 package com.fairing.fairplay.admin.entity;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
 import com.fairing.fairplay.user.entity.Users;
 
 import jakarta.persistence.Column;
@@ -24,6 +27,6 @@ public class AccountLevel {
     @JoinColumn(name = "user_id")
     private Users user;
 
-    private Long level;
+    private BigDecimal level;
 
 }
