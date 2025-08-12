@@ -1,6 +1,7 @@
 package com.fairing.fairplay.admin.controller;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fairing.fairplay.admin.entity.FunctionLevel;
+import com.fairing.fairplay.admin.repository.FunctionLevelRepository;
 import com.fairing.fairplay.admin.service.LevelService;
 import com.fairing.fairplay.admin.service.SuperAdminService;
 import com.fairing.fairplay.common.exception.CustomException;
@@ -43,6 +46,9 @@ public class SuperAdminController {
     @Autowired
     private LevelService levelService;
 
+    @Autowired
+    private FunctionLevelRepository functionLevelRepository;
+
     @PostMapping("/send-mail/{userId}")
     public ResponseEntity<String> sendAccountMail(
             @PathVariable Long userId) {
@@ -72,12 +78,6 @@ public class SuperAdminController {
         return ResponseEntity.ok(loginHistories);
     }
 
-    private void checkAuth(CustomUserDetails userDetails, Integer requiredRole) {
-        if (userDetails.getRoleId() > requiredRole) {
-            throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
-        }
-    }
-
     @PostMapping("/disable-user/{userId}")
     public ResponseEntity disableUser(
             @PathVariable Long userId,
@@ -90,20 +90,48 @@ public class SuperAdminController {
     @GetMapping("/get-users")
     public ResponseEntity<List<Users>> getUsers() {
         List<Users> users = userRepository.findAdmin();
+        checkFunctionAuth(1L);
         return ResponseEntity.ok(users);
     }
 
     @GetMapping("test")
     public Boolean test() {
-        Long functionLevel = levelService.getFunctionLevel(getMethodName());
+        BigInteger tmp = BigInteger.ONE.shiftLeft(63).subtract(BigInteger.ONE);
+        FunctionLevel fl = new FunctionLevel();
+        fl.setLevel(new BigDecimal(tmp));
+        fl.setFunctionName("testFunction");
+        functionLevelRepository.save(fl);
+        FunctionLevel fl2 = new FunctionLevel();
+        BigInteger tmp2 = BigInteger.ONE.shiftLeft(70).subtract(BigInteger.ONE);
+        fl2.setLevel(new BigDecimal(tmp2));
+        fl2.setFunctionName("testFunction2");
+        functionLevelRepository.save(fl2);
 
-        Long accountLevel = levelService.getAccountLevel(1L);
-        return (accountLevel & functionLevel) == functionLevel;
+        BigInteger get = functionLevelRepository.findByFunctionName("testFunction")
+                .map(level -> level.getLevel().toBigInteger()).orElse(null);
+        System.out.println(get);
+
+        return true;
+
+        // BigInteger functionLevel = levelService.getFunctionLevel(getMethodName());
+
+        // BigInteger accountLevel = levelService.getAccountLevel(1L);
+        // return (accountLevel.and(functionLevel)).equals(functionLevel);
     }
 
     public String getMethodName() {
         StackWalker walker = StackWalker.getInstance();
-        return walker.walk(frames -> frames.skip(1).findFirst().get().getMethodName());
+        return walker.walk(frames -> frames.skip(2).findFirst().get().getMethodName()); // a() > b() > getMethodName()
+                                                                                        // 인경우, a를 출력. skip 2
+    }
+
+    public void checkFunctionAuth(Long userId) {
+        String methodName = getMethodName();
+        BigInteger functionLevel = levelService.getFunctionLevel(methodName);
+        BigInteger accountLevel = levelService.getAccountLevel(userId);
+        if (!(accountLevel.and(functionLevel)).equals(functionLevel)) {
+            throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
+        }
     }
 
 }
