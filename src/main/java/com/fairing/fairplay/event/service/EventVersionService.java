@@ -106,6 +106,7 @@ public class EventVersionService {
                     .startDate(detail.getStartDate())
                     .endDate(detail.getEndDate())
                     .reentryAllowed(detail.getReentryAllowed())
+                    .checkInAllowed(detail.getCheckInAllowed())
                     .checkOutAllowed(detail.getCheckOutAllowed())
                     .mainCategoryId(Optional.ofNullable(detail.getMainCategory()).map(mc -> mc.getGroupId()).orElse(null))
                     .subCategoryId(Optional.ofNullable(detail.getSubCategory()).map(sc -> sc.getCategoryId()).orElse(null))
@@ -238,6 +239,7 @@ public class EventVersionService {
             eventDetail.setStartDate(snapshot.getStartDate());
             eventDetail.setEndDate(snapshot.getEndDate());
             eventDetail.setReentryAllowed(snapshot.getReentryAllowed());
+            eventDetail.setCheckInAllowed(snapshot.getCheckInAllowed());
             eventDetail.setCheckOutAllowed(snapshot.getCheckOutAllowed());
 
             // Location 설정
