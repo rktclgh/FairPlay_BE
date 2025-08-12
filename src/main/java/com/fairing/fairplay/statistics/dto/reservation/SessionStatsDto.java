@@ -1,6 +1,5 @@
 package com.fairing.fairplay.statistics.dto.reservation;
 
-import jakarta.persistence.Column;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
