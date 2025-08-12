@@ -1,6 +1,7 @@
 package com.fairing.fairplay.banner.controller;
 
 import com.fairing.fairplay.banner.dto.*;
+import com.fairing.fairplay.banner.service.BannerApplicationService;
 import com.fairing.fairplay.banner.service.BannerService;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import jakarta.validation.Valid;
@@ -18,6 +19,7 @@ import java.util.List;
 public class AdminBannerController {
 
     private final BannerService bannerService;
+    private final BannerApplicationService appService;
 
     // 공통 관리자 권한 체크
     private void checkAdmin(CustomUserDetails user) {
@@ -81,5 +83,15 @@ public class AdminBannerController {
         checkAdmin(user);
         List<BannerResponseDto> banners = bannerService.getAllBanners();
         return ResponseEntity.ok(banners);
+    }
+
+    // 결제 성공 처리(승인 → SOLD + 배너 생성)
+    @PostMapping("/applications/{id}/mark-paid")
+    public ResponseEntity<Void> markPaid(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long id) {
+        checkAdmin(user);
+        appService.markPaid(id, user.getUserId()); // X-Admin-Id 대신 로그인 사용자 사용
+        return ResponseEntity.ok().build();
     }
 }
