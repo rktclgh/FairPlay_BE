@@ -37,4 +37,8 @@ public interface QrTicketRepository extends JpaRepository<QrTicket, Long> {
       @Param("attendeeIds") Set<Long> attendeeIds,
       @Param("reservationIds") Set<Long> reservationIds
   );
+
+  Optional<QrTicket> findByQrCode(String qrCode);
+
+  Optional<QrTicket> findByManualCode(String manualCode);
 }
