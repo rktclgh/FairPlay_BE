@@ -56,7 +56,7 @@ public class ReservationRateAnalysisService {
                 .orElse(0.0) * 100;
 
         ReservationRateSummaryDto summary = ReservationRateSummaryDto.builder()
-                .totalticket(totalStock)
+                .totalTicket(totalStock)
                 .totalReservation(totalReservations)
                 .averageReservationRate(averageReservationRate)
                 .build();

@@ -10,7 +10,7 @@ import lombok.Setter;
 @Setter
 public class ReservationRateSummaryDto {
 
-    private Integer totalticket;
+    private Integer totalTicket;
     private Integer totalReservation;
     private double averageReservationRate;
 }
