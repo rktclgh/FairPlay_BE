@@ -34,7 +34,7 @@ public class CodeGenerator {
     ZonedDateTime zdt = qrTicket.getExpiredAt().atZone(ZoneId.of("Asia/Seoul"));
     long epochSeconds = zdt.toEpochSecond();
 
-    long randomSalt = ThreadLocalRandom.current().nextLong(1_000_000, 9_999_999);
+    long randomSalt = random.nextLong(1_000_000, 9_999_999);
 
     long[] numbers = new long[]{
         safeLong(qrTicket.getId()),
