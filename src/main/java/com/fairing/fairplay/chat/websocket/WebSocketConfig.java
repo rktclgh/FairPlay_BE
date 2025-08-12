@@ -39,7 +39,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setSessionCookieNeeded(false)
                 .setHeartbeatTime(25000)  // 25초마다 heartbeat
                 .setDisconnectDelay(30000) // 30초 disconnect delay
-                .setTransportHandlers(transports); // JSONP transport 비활성화
+                .setTransportHandlers(transports.toArray(new TransportHandler[0])); // JSONP transport 비활성화
 
         // 알림 전용 WebSocket 엔드포인트 추가  
         registry.addEndpoint("/ws/notifications")
@@ -49,7 +49,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setSessionCookieNeeded(false)
                 .setHeartbeatTime(25000)
                 .setDisconnectDelay(30000)
-                .setTransportHandlers(transports); // JSONP transport 비활성화
+                .setTransportHandlers(transports.toArray(new TransportHandler[0])); // JSONP transport 비활성화
                 
         // 순수 WebSocket 엔드포인트도 추가 (SockJS 없이)
         registry.addEndpoint("/ws/chat-native")
