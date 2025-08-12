@@ -36,6 +36,7 @@ public class EventDetailRequestDto { // 행사 상세 등록
     private Integer subCategoryId;
     private List<ExternalLinkRequestDto> externalLinks;
     private Boolean reentryAllowed;
+    private Boolean checkInAllowed;
     private Boolean checkOutAllowed;
 
     private List<FileUploadDto> tempFiles; // 임시 업로드 파일 정보
