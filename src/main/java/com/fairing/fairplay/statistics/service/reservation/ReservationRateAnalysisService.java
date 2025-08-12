@@ -24,13 +24,14 @@ public class ReservationRateAnalysisService {
         List<ReservationRateBySessionDto> sessionStats =
                 eventSessionStatisticsRepository.findByEventIdAndStatDateBetween(eventId, start, end).stream()
                         .map(s -> {
-                            int reservationCount = s.getReservations() - s.getCancellation();
-                            int stock = s.getStock();
-                            double rate = (stock > 0)
-                                    ? ((double) reservationCount / stock) * 100
-                                    : 0.0;
+            Integer res = s.getReservations();
+            Integer canc = s.getCancellation();
+            Integer stockVal = s.getStock();
+            int reservationCount = Math.max(0, (res == null ? 0 : res) - (canc == null ? 0 : canc));
+            int stock = stockVal == null ? 0 : stockVal;
+            double rate = (stock > 0) ? (reservationCount * 100.0) / stock : 0.0;
 
-                            return ReservationRateBySessionDto.builder()
+            return ReservationRateBySessionDto.builder()
                                     .scheduleId(s.getSessionId())
                                     .date(s.getStatDate())
                                     .startTime(s.getStartTime())
@@ -63,19 +64,22 @@ public class ReservationRateAnalysisService {
 
 
 
-        List<ReservationRateByTicketTypeDto> ticketTypeStats = eventTicketStatisticsRepository.findByEventIdAndStatDateBetween(eventId, start, end).stream()
-                .map(t -> {
-                    int reservation = t.getReservations();
-                    int stock = t.getStock();
-                    double rate = (stock > 0) ? (double) reservation / stock * 100 : 0.0; // 퍼센트
+        List<ReservationRateByTicketTypeDto> ticketTypeStats =
+                eventTicketStatisticsRepository.findByEventIdAndStatDateBetween(eventId, start, end).stream()
+                        .map(t -> {
+            Integer res = t.getReservations();
+            Integer stockVal = t.getStock();
+            int reservation = Math.max(0, res == null ? 0 : res);
+            int stock = stockVal == null ? 0 : stockVal;
+            double rate = (stock > 0) ? (reservation * 100.0) / stock : 0.0; // 퍼센트
 
-                    return ReservationRateByTicketTypeDto.builder()
-                            .ticketType(t.getTicketType())
-                            .reservation(reservation)
-                            .stock(stock)
-                            .reservationRate(rate)
-                            .build();
-                })
+            return ReservationRateByTicketTypeDto.builder()
+                    .ticketType(t.getTicketType())
+                    .reservation(reservation)
+                    .stock(stock)
+                    .reservationRate(rate)
+                    .build();
+        })
                 .toList();
 
         return ReservationRateAnalysisDto.builder()
