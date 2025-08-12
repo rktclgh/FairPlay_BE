@@ -25,10 +25,29 @@ public class EventScheduleService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 행사입니다. eventId: " + eventId));
 
+        // 동일한 날짜에 시간 겹침 확인
+        boolean hasTimeConflict = eventScheduleRepository.existsTimeConflict(
+                eventId, 
+                requestDto.getDate(), 
+                requestDto.getStartTime(), 
+                requestDto.getEndTime()
+        );
+        
+        if (hasTimeConflict) {
+            throw new IllegalArgumentException("해당 날짜에 이미 등록된 시간과 겹칩니다.");
+        }
+
         EventSchedule schedule = EventSchedule.from(requestDto);
         schedule.setEvent(event);
         EventSchedule savedSchedule = eventScheduleRepository.save(schedule);
-        return EventScheduleResponseDto.from(savedSchedule);
+        return EventScheduleResponseDto.builder()
+                .scheduleId(savedSchedule.getScheduleId())
+                .date(savedSchedule.getDate())
+                .startTime(savedSchedule.getStartTime())
+                .endTime(savedSchedule.getEndTime())
+                .weekday(savedSchedule.getWeekday())
+                .createdAt(savedSchedule.getCreatedAt())
+                .build();
     }
     
     // 회차 목록 조회
@@ -51,6 +70,20 @@ public class EventScheduleService {
     // 회차 수정
     @Transactional
     public EventScheduleResponseDto updateSchedule(Long eventId, Long scheduleId, EventScheduleRequestDto requestDto) {
+
+        // 동일한 날짜에 시간 겹침 확인 (자기 자신 제외)
+        boolean hasTimeConflict = eventScheduleRepository.existsTimeConflictForUpdate(
+                eventId,
+                scheduleId,
+                requestDto.getDate(),
+                requestDto.getStartTime(),
+                requestDto.getEndTime()
+        );
+
+        if (hasTimeConflict) {
+            throw new IllegalArgumentException("해당 날짜에 이미 등록된 시간과 겹칩니다.");
+        }
+
         EventSchedule schedule = eventScheduleRepository.findByEvent_EventIdAndScheduleId(eventId, scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회차입니다. scheduleId: " + scheduleId));
 

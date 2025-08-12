@@ -25,7 +25,6 @@ public class EventScheduleResponseDto { // 회차 목록
     private LocalTime startTime;        // 회차 시작 시각
     private LocalTime endTime;          // 회차 종료 시각
     private Integer weekday;            // 0 (일) ~ 6 (토)
-    private TypesEnum types;            // EVENT, BOOTH    
     private LocalDateTime createdAt;    // 생성일시
     
     public static EventScheduleResponseDto from(EventSchedule eventSchedule){
@@ -35,7 +34,6 @@ public class EventScheduleResponseDto { // 회차 목록
                 .startTime(eventSchedule.getStartTime())
                 .endTime(eventSchedule.getEndTime())
                 .weekday(eventSchedule.getWeekday())
-                .types(eventSchedule.getTypes())
                 .createdAt(eventSchedule.getCreatedAt())
                 .build();
     }
