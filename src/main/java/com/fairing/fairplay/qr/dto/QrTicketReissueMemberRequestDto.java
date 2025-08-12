@@ -9,6 +9,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class QrTicketUpdateRequestDto {
-  private String qrUrlToken;
+public class QrTicketReissueMemberRequestDto {
+  private Long reservationId;
+  private Long qrTicketId;
 }

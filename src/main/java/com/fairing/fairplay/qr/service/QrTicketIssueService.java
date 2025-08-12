@@ -2,15 +2,17 @@ package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
+import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
+import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto.ViewingScheduleInfo;
-import com.fairing.fairplay.qr.dto.QrTicketUpdateRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
@@ -19,6 +21,8 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 
@@ -39,7 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class QrTicketIssueService{
+public class QrTicketIssueService {
 
   private final QrTicketRepository qrTicketRepository;
   private final ReservationRepository reservationRepository;
@@ -50,6 +54,8 @@ public class QrTicketIssueService{
 
   private static final String ROLE_COMMON = "COMMON";
   private final EventScheduleRepository eventScheduleRepository;
+  private final UserRepository userRepository;
+  private final AttendeeRepository attendeeRepository;
 
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
@@ -90,7 +96,7 @@ public class QrTicketIssueService{
 
   // QR 티켓 재발급 - 새로고침 버튼
   @Transactional
-  public QrTicketUpdateResponseDto reissueQrTicket(QrTicketUpdateRequestDto dto) {
+  public QrTicketUpdateResponseDto reissueQrTicketByGuest(QrTicketReissueGuestRequestDto dto) {
     // QR URL 디코딩
     QrTicketRequestDto qrTicketRequestDto = qrLinkService.decodeToDto(dto.getQrUrlToken());
 
@@ -102,6 +108,36 @@ public class QrTicketIssueService{
     return QrTicketUpdateResponseDto.builder().qrCode(savedTicket.getQrCode())
         .manualCode(savedTicket.getManualCode()).build();
   }
+
+  // QR 티켓 재발급 - 새로고침 버튼. 회원
+  @Transactional
+  public QrTicketUpdateResponseDto reissueQrTicketByMember(QrTicketReissueMemberRequestDto dto,
+      CustomUserDetails userDetails) {
+    Long userId = userDetails.getUserId();
+
+    // 예약 여부 조회
+    Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
+    AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
+    Attendee attendee = attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Code(
+        reservation.getReservationId(), attendeeTypeCode.getCode()).orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND,"예약자가 일치하지 않습니다. 관리자에게 문의 바랍니다."));
+
+    if (!reservation.getUser().getUserId().equals(userId)) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "예약자와 QR 티켓에 등록된 참석자가 일치하지 않습니다.");
+    }
+
+    QrTicketRequestDto qrTicketRequestDto = QrTicketRequestDto.builder()
+        .attendeeId(attendee.getId())
+        .reservationId(reservation.getReservationId())
+        .ticketId(reservation.getTicket().getTicketId())
+        .eventId(reservation.getEvent().getEventId())
+        .build();
+
+    // QR 티켓 재발급
+    QrTicket savedTicket = generateAndSaveQrTicket(qrTicketRequestDto, null);
+    return QrTicketUpdateResponseDto.builder().qrCode(savedTicket.getQrCode())
+        .manualCode(savedTicket.getManualCode()).build();
+  }
+
 
   // 관리자 강제 QR 티켓 재발급 - 마이페이지 접속 가능한 회원
   @Transactional
@@ -183,13 +219,13 @@ public class QrTicketIssueService{
     String qrCode;
     String manualCode;
 
-    do{
+    do {
       qrCode = codeGenerator.generateQrCode(qrTicket);
-    }while(qrTicketRepository.existsByQrCode(qrCode));
+    } while (qrTicketRepository.existsByQrCode(qrCode));
 
-    do{
+    do {
       manualCode = codeGenerator.generateManualCode();
-    }while(qrTicketRepository.existsByManualCode(manualCode));
+    } while (qrTicketRepository.existsByManualCode(manualCode));
 
     qrTicket.setQrCode(qrCode);
     qrTicket.setManualCode(manualCode);
@@ -228,7 +264,8 @@ public class QrTicketIssueService{
       dto.setReservationDate(formattedDate);
     }
 
-    ViewingScheduleInfo viewingScheduleInfo = getViewingScheduleInfo(reservation.getEvent().getEventId(),
+    ViewingScheduleInfo viewingScheduleInfo = getViewingScheduleInfo(
+        reservation.getEvent().getEventId(),
         reservation.getSchedule().getScheduleId());
     dto.setViewingScheduleInfo(viewingScheduleInfo);
     return dto;
@@ -237,7 +274,9 @@ public class QrTicketIssueService{
   private ViewingScheduleInfo getViewingScheduleInfo(Long eventId, Long scheduleId) {
 
     EventSchedule eventSchedule = eventScheduleRepository.findByEvent_EventIdAndScheduleId(eventId,
-        scheduleId).orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "일정 정보를 찾을 수 없습니다."));;
+            scheduleId)
+        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "일정 정보를 찾을 수 없습니다."));
+    ;
 
     String date = getDate(eventSchedule.getDate());
     String dayOfWeek = getDayOfWeek(eventSchedule.getWeekday());
