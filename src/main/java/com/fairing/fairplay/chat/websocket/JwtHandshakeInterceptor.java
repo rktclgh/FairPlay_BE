@@ -1,8 +1,10 @@
 package com.fairing.fairplay.chat.websocket;
 
 import com.fairing.fairplay.chat.service.ChatPresenceService;
+import com.fairing.fairplay.chat.service.UserPresenceService;
 import com.fairing.fairplay.core.util.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.stereotype.Component;
@@ -19,12 +21,14 @@ class StompPrincipal implements Principal {
     @Override public String getName() { return name; }
 }
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final ChatPresenceService chatPresenceService;
+    private final UserPresenceService userPresenceService;
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
@@ -48,15 +52,20 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             attributes.put("user", new StompPrincipal(userId.toString()));
             attributes.put("userId", userId);
             
-            // 사용자를 온라인 상태로 설정
-            chatPresenceService.setOnline(false, userId);
-            System.out.println("사용자 " + userId + " 온라인 상태로 설정");
+            // 사용자를 온라인 상태로 설정 (Redis)
+            userPresenceService.setUserOnline(userId);
+            log.debug("WebSocket 연결 성공: 사용자 {}", userId);
             return true;
         }
         
-        // 테스트용으로 토큰이 없어도 연결 허용 (임시)
-        attributes.put("user", new StompPrincipal("1")); // 기본 사용자 ID
-        return true;
+        // 토큰이 없는 경우는 로그를 남기지 않음 (인증되지 않은 사용자)
+        if (token == null) {
+            return false;
+        }
+        
+        // 토큰은 있지만 유효하지 않은 경우만 DEBUG 레벨로 로그 출력
+        log.debug("WebSocket 연결 실패: 토큰 만료 또는 유효하지 않음");
+        return false;
     }
 
     @Override

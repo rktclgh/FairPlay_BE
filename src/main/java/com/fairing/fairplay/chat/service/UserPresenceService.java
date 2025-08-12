@@ -41,9 +41,8 @@ public class UserPresenceService {
             // 개별 사용자 온라인 상태 (TTL 5분)
             redisTemplate.opsForValue().set(userKey, now, ONLINE_DURATION);
             
-            // 온라인 사용자 집합에 추가 (TTL 5분)
+            // 온라인 사용자 집합에 추가 (집합 전체에 TTL을 설정하지 않음)
             redisTemplate.opsForSet().add(ONLINE_USERS_SET, userId.toString());
-            redisTemplate.expire(ONLINE_USERS_SET, ONLINE_DURATION);
             
             // 마지막 접속 시간 업데이트 (TTL 24시간)
             redisTemplate.opsForValue().set(lastSeenKey, now, Duration.ofHours(24));
