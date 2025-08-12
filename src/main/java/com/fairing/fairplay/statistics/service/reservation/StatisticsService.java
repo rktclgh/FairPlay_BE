@@ -78,7 +78,7 @@ public class StatisticsService {
         List<SessionStatsDto> sessionStats = sessionRepo.findByEventIdAndStatDateBetween(eventId, start, end).stream()
                 .map(s -> SessionStatsDto.builder()
                         .sessionId(s.getSessionId())
-                        .stat_date(s.getStatDate())
+                        .statDate(s.getStatDate())
                         .startTime(s.getStartTime())
                         .sessionName(s.getTicketType()) // 필요시 이름 매핑
                         .reservations(s.getReservations())

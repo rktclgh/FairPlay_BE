@@ -13,7 +13,7 @@ import java.time.LocalTime;
 @Builder
 public class SessionStatsDto {
     private Long sessionId;
-    private LocalDate stat_date;
+    private LocalDate statDate;
     private LocalTime startTime;
     private String sessionName;
     private Integer reservations;
