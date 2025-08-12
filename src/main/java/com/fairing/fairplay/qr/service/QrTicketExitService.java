@@ -47,7 +47,7 @@ public class QrTicketExitService {
     CheckOutRequestDto checkOutRequestDto = CheckOutRequestDto.builder()
         .attendee(attendee)
         .codeType(QR)
-        .codeValue(qrTicket.getQrCode())
+        .codeValue(dto.getQrCode())
         .build();
 
     return processCheckOutCommon(qrTicket, checkOutRequestDto);

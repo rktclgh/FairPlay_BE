@@ -86,7 +86,7 @@ public class QrTicketEntryService {
     CheckInRequestDto checkInRequestDto = CheckInRequestDto.builder()
         .attendee(attendee)
         .codeType(MANUAL)
-        .codeValue(qrTicket.getQrCode())
+        .codeValue(qrTicket.getManualCode())
         .qrActionCode(QrActionCode.MANUAL_CHECKED_IN)
         .build();
     return processCheckInCommon(qrTicket, checkInRequestDto);
