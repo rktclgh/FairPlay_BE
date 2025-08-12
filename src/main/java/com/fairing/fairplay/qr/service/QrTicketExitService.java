@@ -44,7 +44,8 @@ public class QrTicketExitService {
     );
 
     // qrTicket 이 Null 이거나 qrTicket에 저장된 qrCode와 전송된 qrcode가 일치하지 않는 경우
-    if(qrTicket.getQrCode() == null || qrTicket.getQrCode().trim().isEmpty() || !qrTicket.getQrCode().equals(dto.getQrCode())) {
+    if (qrTicket.getQrCode() == null || qrTicket.getQrCode().trim().isEmpty()
+        || !qrTicket.getQrCode().equals(dto.getQrCode())) {
       throw new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 QR 코드입니다.");
     }
 
@@ -57,11 +58,16 @@ public class QrTicketExitService {
       // 회원인지 검증
       Users user = qrTicket.getAttendee().getReservation().getUser();
       qrTicketVerificationService.validateUser(user);
-    }else if(attendee.getAttendeeTypeCode().equals(guestTypeCode)) {
+    } else if (attendee.getAttendeeTypeCode().equals(guestTypeCode)) {
       // 비회원일 경우 qr 티켓의 참석자와 qrcode에 저장된 참석자 정보가 일치하는지 판단
-      if(!attendee.getId().equals(qrCodeDecodeDto.getAttendeeId())){
-        throw new CustomException(HttpStatus.NOT_FOUND,"참석자와 일치하는 QR 티켓이 없습니다.");
+      if (qrCodeDecodeDto.getAttendeeId() == null) {
+        throw new CustomException(HttpStatus.BAD_REQUEST, "QR 코드에 참석자 정보가 없습니다.");
       }
+      if (!attendee.getId().equals(qrCodeDecodeDto.getAttendeeId())) {
+        throw new CustomException(HttpStatus.NOT_FOUND, "참석자와 일치하는 QR 티켓이 없습니다.");
+      }
+    } else {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "지원하지 않는 참석자 유형입니다.");
     }
 
     CheckOutRequestDto checkOutRequestDto = CheckOutRequestDto.builder()

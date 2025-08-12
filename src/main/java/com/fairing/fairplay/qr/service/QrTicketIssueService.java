@@ -119,7 +119,8 @@ public class QrTicketIssueService {
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
     AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
     Attendee attendee = attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Code(
-        reservation.getReservationId(), attendeeTypeCode.getCode()).orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND,"예약자가 일치하지 않습니다. 관리자에게 문의 바랍니다."));
+        reservation.getReservationId(), attendeeTypeCode.getCode()).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND, "예약자가 일치하지 않습니다. 관리자에게 문의 바랍니다."));
 
     if (!reservation.getUser().getUserId().equals(userId)) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "예약자와 QR 티켓에 등록된 참석자가 일치하지 않습니다.");
@@ -218,12 +219,20 @@ public class QrTicketIssueService {
     QrTicket qrTicket = findQrTicket(dto, type);
     String qrCode;
     String manualCode;
+    int maxRetries = 100;
+    int retryCount = 0;
 
     do {
+      if (++retryCount > maxRetries) {
+        throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "QR 코드 생성 실패: 최대 재시도 횟수 초과");
+      }
       qrCode = codeGenerator.generateQrCode(qrTicket);
     } while (qrTicketRepository.existsByQrCode(qrCode));
-
+    retryCount = 0;
     do {
+      if (++retryCount > maxRetries) {
+        throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "수동 코드 생성 실패: 최대 재시도 횟수 초과");
+      }
       manualCode = codeGenerator.generateManualCode();
     } while (qrTicketRepository.existsByManualCode(manualCode));
 

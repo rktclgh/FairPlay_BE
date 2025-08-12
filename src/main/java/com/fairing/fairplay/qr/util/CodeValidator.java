@@ -25,7 +25,7 @@ public class CodeValidator {
     try {
       long[] numbers = decodeToken(qrCode);
       // 디코딩 결과 배열 길이 체크
-      if (numbers.length < 4) {
+      if (numbers.length < 3) {
         throw new CustomException(HttpStatus.BAD_REQUEST,"유효하지 않은 QR 토큰 형식입니다.");
       }
 
@@ -43,7 +43,7 @@ public class CodeValidator {
       return QrCodeDecodeDto.builder()
           .qrTicketId(numbers[0] == 0 ? null : numbers[0])
           .attendeeId(numbers[1] == 0 ? null : numbers[1])
-          .expiredaAt(expiredAt)
+          .expiredAt(expiredAt)
           .build();
     } catch (Exception e) {
       throw new CustomException(HttpStatus.BAD_REQUEST,"토큰 디코딩 중 오류가 발생했습니다: " + e.getMessage(), e);

@@ -72,9 +72,14 @@ public class QrTicketEntryService {
       qrTicketVerificationService.validateUser(user);
     }else if(attendee.getAttendeeTypeCode().equals(guestTypeCode)) {
       // 비회원일 경우 qr 티켓의 참석자와 qrcode에 저장된 참석자 정보가 일치하는지 판단
+      if (qrCodeDecodeDto.getAttendeeId() == null) {
+        throw new CustomException(HttpStatus.BAD_REQUEST, "QR 코드에 참석자 정보가 없습니다.");
+      }
       if(!attendee.getId().equals(qrCodeDecodeDto.getAttendeeId())){
         throw new CustomException(HttpStatus.NOT_FOUND,"참석자와 일치하는 QR 티켓이 없습니다.");
       }
+    }else {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "지원하지 않는 참석자 유형입니다.");
     }
 
     CheckInRequestDto checkInRequestDto = CheckInRequestDto.builder()

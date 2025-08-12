@@ -16,7 +16,7 @@ import lombok.Setter;
 public class QrCodeDecodeDto {
   private Long qrTicketId;
   private Long attendeeId;
-  private LocalDateTime expiredaAt;
+  private LocalDateTime expiredAt;
 
 
 

@@ -53,7 +53,7 @@ public class QrTicketController {
    * 3. 마이페이지 접근 안되는 회원/비회원에게 강제 QR 티켓 링크 재발급해 메일 전송
    * */
   // QR 티켓 재발급 1-1 : QR 티켓 링크에서 재발급
-  @PostMapping("/reissue/quest")
+  @PostMapping("/reissue/guest")
   public ResponseEntity<QrTicketUpdateResponseDto> reissueQrTicketByGuest(
       @RequestBody QrTicketReissueGuestRequestDto dto) {
     return ResponseEntity.ok(qrTicketService.reissueQrTicketByGuest(dto));
