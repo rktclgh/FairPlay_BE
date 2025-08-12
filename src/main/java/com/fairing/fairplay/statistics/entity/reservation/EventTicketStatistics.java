@@ -38,6 +38,8 @@ public class EventTicketStatistics {
     @Column(name = "checkins")
     private Integer checkins;
 
+    private Integer stock;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

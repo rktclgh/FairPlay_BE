@@ -27,7 +27,7 @@ public class TicketStatsCustomRepositoryImpl implements TicketStatsCustomReposit
         LocalDateTime end = targetDate.plusDays(1).atStartOfDay();
 
         List<Tuple> results = queryFactory
-                .select(r.event.eventId, t.name, r.count())
+                .select(r.event.eventId, t.name, r.count(), t.stock )
                 .from(r)
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .where(r.createdAt.between(start, end))
@@ -38,6 +38,7 @@ public class TicketStatsCustomRepositoryImpl implements TicketStatsCustomReposit
                 .map(tuple -> EventTicketStatistics.builder()
                         .eventId(tuple.get(r.event.eventId))
                         .statDate(targetDate)
+                        .stock(tuple.get(t.stock))
                         .ticketType(tuple.get(t.name))
                         .reservations(tuple.get(r.count()).intValue())
                         .createdAt(LocalDateTime.now())

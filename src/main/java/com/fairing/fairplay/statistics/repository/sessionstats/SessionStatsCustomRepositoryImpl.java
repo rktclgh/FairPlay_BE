@@ -4,6 +4,7 @@ import com.fairing.fairplay.statistics.entity.reservation.EventSessionStatistics
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.reservation.entity.QReservationStatusCode;
 import com.fairing.fairplay.attendee.entity.QAttendee;
+import com.fairing.fairplay.ticket.entity.QScheduleTicket;
 import com.fairing.fairplay.ticket.entity.QTicket;
 import com.fairing.fairplay.ticket.entity.QEventSchedule;
 import com.querydsl.core.Tuple;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 
 @Repository
@@ -28,31 +30,37 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
         QAttendee a = QAttendee.attendee;
         QTicket t = QTicket.ticket;
         QEventSchedule s = QEventSchedule.eventSchedule;
+        QScheduleTicket st = QScheduleTicket.scheduleTicket;
 
         LocalDateTime start = targetDate.atStartOfDay();
         LocalDateTime end = targetDate.plusDays(1).atStartOfDay();
 
         // 1. 예약/취소 집계
         List<Tuple> reservationResults = queryFactory
-                .select(r.event.eventId, r.schedule.scheduleId, t.name, statusCode.code, r.count())
+                .select(r.event.eventId, r.schedule.scheduleId, t.name, statusCode.code, r.count(),s.date,s.startTime,
+                        s.endTime, st.remainingStock.max())
                 .from(r)
                 .join(statusCode).on(r.reservationStatusCode.id.eq(statusCode.reservationStatusCode.id))
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .join(s).on(r.schedule.scheduleId.eq(s.scheduleId))
+                .join(st).on(r.schedule.scheduleId.eq(st.eventSchedule.scheduleId)
+                        .and(r.ticket.ticketId.eq(st.ticket.ticketId)))
                 .where(r.createdAt.between(start, end))
-                .groupBy(r.event.eventId, r.schedule.scheduleId, t.name, statusCode.code)
+                .groupBy(r.event.eventId, r.schedule.scheduleId, t.name, statusCode.code,s.date,s.startTime, s.endTime,st.remainingStock)
                 .fetch();
 
         // 2. 체크인 집계
         List<Tuple> checkinResults = queryFactory
-                .select(r.event.eventId, r.schedule.scheduleId, t.name, a.count())
+                .select(r.event.eventId, r.schedule.scheduleId, t.name, a.count(),s.date,s.startTime, s.endTime,st.remainingStock.max())
                 .from(a)
                 .join(r).on(a.reservation.eq(r))
                 .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .join(s).on(r.schedule.scheduleId.eq(s.scheduleId))
+                .join(st).on(r.schedule.scheduleId.eq(st.eventSchedule.scheduleId)
+                        .and(r.ticket.ticketId.eq(st.ticket.ticketId)))
                 .where(a.checkedIn.isTrue()
                         .and(r.createdAt.between(start, end)))
-                .groupBy(r.event.eventId, r.schedule.scheduleId, t.name)
+                .groupBy(r.event.eventId, r.schedule.scheduleId, t.name,s.date,s.startTime, s.endTime,st.remainingStock)
                 .fetch();
 
         // Map<eventId, Map<sessionId, Map<ticketName, EventSessionStatistics>>>
@@ -65,6 +73,11 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
             String ticketName = row.get(t.name);
             String status = row.get(statusCode.code);
             Long count = row.get(r.count());
+            LocalDate date = row.get(s.date);
+            LocalTime startTime = row.get(s.startTime);
+            LocalTime endTime = row.get(s.endTime);
+            Integer stock = row.get(st.remainingStock);
+
 
             EventSessionStatistics stat = statsMap
                     .computeIfAbsent(eventId, e -> new HashMap<>())
@@ -74,7 +87,10 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
                                     .eventId(eventId)
                                     .sessionId(sessionId)
                                     .ticketType(ticketName)
-                                    .statDate(targetDate)
+                                    .statDate(date)
+                                    .startTime(startTime)
+                                    .endTime(endTime)
+                                    .stock(stock)
                                     .reservations(0)
                                     .checkins(0)
                                     .cancellation(0)
@@ -95,6 +111,10 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
             Long sessionId = row.get(r.schedule.scheduleId);
             String ticketName = row.get(t.name);
             Long checkinCount = row.get(a.count());
+            LocalDate date = row.get(s.date);
+            LocalTime startTime = row.get(s.startTime);
+            LocalTime endTime = row.get(s.endTime);
+            Integer stock = row.get(st.remainingStock);
 
             EventSessionStatistics stat = statsMap
                     .computeIfAbsent(eventId, e -> new HashMap<>())
@@ -104,7 +124,10 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
                                     .eventId(eventId)
                                     .sessionId(sessionId)
                                     .ticketType(ticketName)
-                                    .statDate(targetDate)
+                                    .statDate(date)
+                                    .startTime(startTime)
+                                    .endTime(endTime)
+                                    .stock(stock)
                                     .reservations(0)
                                     .checkins(0)
                                     .cancellation(0)
