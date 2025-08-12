@@ -2,6 +2,7 @@ package com.fairing.fairplay.statistics.service.reservation;
 
 import com.fairing.fairplay.statistics.dto.reservation.*;
 import com.fairing.fairplay.statistics.entity.reservation.EventDailyStatistics;
+import com.fairing.fairplay.statistics.repository.dailystats.DailyStatsCustomRepository;
 import com.fairing.fairplay.statistics.repository.dailystats.EventDailyStatisticsRepository;
 import com.fairing.fairplay.statistics.repository.hourlystats.EventHourlyStatisticsRepository;
 import com.fairing.fairplay.statistics.repository.sessionstats.EventSessionStatisticsRepository;
@@ -22,12 +23,12 @@ public class StatisticsService {
     private final EventHourlyStatisticsRepository hourlyRepo;
     private final EventTicketStatisticsRepository ticketRepo;
     private final EventSessionStatisticsRepository sessionRepo;
-
+    private final DailyStatsCustomRepository dailyStatsCustomRepository;
     // 데이터 집계
     @Transactional
     public void runBatch(LocalDate date) {
         try {
-            dailyRepo.saveAll(dailyRepo.calculate(date));
+            dailyRepo.saveAll(dailyStatsCustomRepository.calculate(date));
             hourlyRepo.saveAll(hourlyRepo.calculate(date));
             ticketRepo.saveAll(ticketRepo.calculate(date));
             sessionRepo.saveAll(sessionRepo.calculate(date));
