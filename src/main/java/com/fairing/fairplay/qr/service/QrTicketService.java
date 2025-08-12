@@ -1,11 +1,12 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
+import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
-import com.fairing.fairplay.qr.dto.QrTicketUpdateRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,10 +39,16 @@ public class QrTicketService {
    * 2. 회원이 마이페이지에서 QR 링크 조회 안될 때 관리자 강제 QR 티켓 리셋
    * 3. 마이페이지 접근 안되는 회원/비회원에게 강제 QR 티켓 링크 재발급해 메일 전송
    * */
-  // QR 티켓 재발급 1
+  // QR 티켓 재발급 1-1
   @Transactional
-  public QrTicketUpdateResponseDto reissueQrTicket(QrTicketUpdateRequestDto dto) {
-    return qrTicketIssueService.reissueQrTicket(dto);
+  public QrTicketUpdateResponseDto reissueQrTicketByGuest(QrTicketReissueGuestRequestDto dto) {
+    return qrTicketIssueService.reissueQrTicketByGuest(dto);
+  }
+
+  // QR 티켓 재발급 1-2
+  @Transactional
+  public QrTicketUpdateResponseDto reissueQrTicketByMember(QrTicketReissueMemberRequestDto dto, CustomUserDetails userDetails) {
+    return qrTicketIssueService.reissueQrTicketByMember(dto,userDetails);
   }
 
   // QR 티켓 재발급 2

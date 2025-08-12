@@ -20,5 +20,5 @@ public class EventVersionComparisonDto {
     private Integer version2;
     private EventSnapshotDto snapshot1;
     private EventSnapshotDto snapshot2;
-    private List<String> differences;
+    private Object fieldDifferences;               // JSON 형태의 필드별 차이점
 }

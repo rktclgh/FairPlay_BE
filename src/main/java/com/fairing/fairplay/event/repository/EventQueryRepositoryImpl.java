@@ -39,6 +39,8 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         ticket.price.min(),  // null 허용 (티켓 없을 경우)
                         detail.mainCategory.groupName,
                         detail.location.placeName,
+                        detail.location.latitude,
+                        detail.location.longitude,
                         detail.startDate,
                         detail.endDate,
                         detail.thumbnailUrl,
@@ -128,6 +130,8 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         ticket.price.min(), // 최소 가격 (null 허용)
                         detail.mainCategory.groupName,
                         detail.location.placeName,
+                        detail.location.latitude,
+                        detail.location.longitude,
                         detail.startDate,
                         detail.endDate,
                         detail.thumbnailUrl,

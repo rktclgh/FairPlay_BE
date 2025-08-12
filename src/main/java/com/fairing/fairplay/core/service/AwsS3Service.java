@@ -47,6 +47,9 @@ public class AwsS3Service {
                 PutObjectRequest.builder().bucket(bucketName).key(key).build(),
                 RequestBody.fromInputStream(file.getInputStream(), file.getSize())
         );
+        
+        log.info("Temporary file uploaded successfully - Key: {}, Original: {}, Size: {}", 
+            key, file.getOriginalFilename(), file.getSize());
 
         // 미리보기용 URL
         String downloadUrl = "/api/uploads/download?key=" + URLEncoder.encode(key, StandardCharsets.UTF_8);
@@ -63,21 +66,37 @@ public class AwsS3Service {
         String uuid = UUID.randomUUID().toString();
         String destKey = "uploads/" + destPrefix + "/" + uuid + ext;
 
-        // 복사
-        s3Client.copyObject(CopyObjectRequest.builder()
-                .sourceBucket(bucketName)
-                .sourceKey(key)
-                .destinationBucket(bucketName)
-                .destinationKey(destKey)
-                .build());
-
-        // 원본 삭제
-        s3Client.deleteObject(DeleteObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .build());
-
-        return destKey; // DB에 저장할 URL
+        try {
+            // 먼저 원본 파일이 존재하는지 확인
+            s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
+            
+            // 복사
+            s3Client.copyObject(CopyObjectRequest.builder()
+                    .sourceBucket(bucketName)
+                    .sourceKey(key)
+                    .destinationBucket(bucketName)
+                    .destinationKey(destKey)
+                    .build());
+            
+            // 복사 완료 후에만 원본 삭제
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
+            
+            log.info("Successfully moved file from {} to {}", key, destKey);
+            return destKey;
+            
+        } catch (NoSuchKeyException e) {
+            log.error("Source file not found: {}", key);
+            throw e;
+        } catch (Exception e) {
+            log.error("Error moving file from {} to {}: {}", key, destKey, e.getMessage());
+            throw e;
+        }
     }
 
     // 파일 다운로드
@@ -121,30 +140,60 @@ public class AwsS3Service {
     }
 
     public String getS3KeyFromPublicUrl(String publicUrl) {
-        // CloudFront URL에서 S3 키 추출
-        if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
-            String cleanDomain = cloudfrontDomain.trim();
-            if (!cleanDomain.startsWith("http://") && !cleanDomain.startsWith("https://")) {
-                cleanDomain = "https://" + cleanDomain;
-            }
-            if (cleanDomain.endsWith("/")) {
-                cleanDomain = cleanDomain.substring(0, cleanDomain.length() - 1);
-            }
-            
-            if (publicUrl.startsWith(cleanDomain)) {
-                String key = publicUrl.substring(cleanDomain.length());
-                return key.startsWith("/") ? key.substring(1) : key;
-            }
+        if (publicUrl == null || publicUrl.isBlank()) {
+            return null;
         }
-        
-        // 직접 S3 URL에서 키 추출 (기존 로직)
-        String bucketUrl = "https://" + bucketName + ".s3.";
-        if (publicUrl.startsWith(bucketUrl)) {
-            String urlWithoutSchema = publicUrl.substring(8);
-            return urlWithoutSchema.substring(urlWithoutSchema.indexOf("/") + 1);
+        try {
+            java.net.URI uri = java.net.URI.create(publicUrl.trim());
+            String host = uri.getHost();
+            String path = uri.getPath(); // 쿼리/프래그먼트 제외
+            if (host == null || path == null) {
+                return null;
+            }
+
+            // 1) CloudFront: 설정된 도메인/경로 하위인지 확인
+            if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
+                String cfg = cloudfrontDomain.trim();
+                if (!cfg.startsWith("http://") && !cfg.startsWith("https://")) {
+                    cfg = "https://" + cfg;
+                }
+                java.net.URI cfgUri = java.net.URI.create(cfg);
+                String cfgHost = cfgUri.getHost();
+                String cfgPath = Optional.ofNullable(cfgUri.getPath()).orElse("");
+                if (cfgHost != null
+                        && host.equalsIgnoreCase(cfgHost)
+                        && (cfgPath.isEmpty() || path.startsWith(cfgPath))) {
+                    String rel = path.substring(cfgPath.length());
+                    String key = rel.startsWith("/") ? rel.substring(1) : rel;
+                    return java.net.URLDecoder.decode(key, java.nio.charset.StandardCharsets.UTF_8);
+                }
+            }
+
+            // 2) S3 virtual-hosted-style: {bucket}.s3[.-]*.amazonaws.com/{key}
+            String vhPrefix1 = bucketName + ".s3.";
+            String vhPrefix2 = bucketName + ".s3-"; // s3-accelerate 등
+            if (host.equalsIgnoreCase(bucketName + ".s3.amazonaws.com")
+                    || host.startsWith(vhPrefix1)
+                    || host.startsWith(vhPrefix2)) {
+                String key = path.startsWith("/") ? path.substring(1) : path;
+                return java.net.URLDecoder.decode(key, java.nio.charset.StandardCharsets.UTF_8);
+            }
+
+            // 3) S3 path-style: s3[.-]*.amazonaws.com/{bucket}/{key}
+            if (host.equalsIgnoreCase("s3.amazonaws.com")
+                    || host.startsWith("s3.")
+                    || host.startsWith("s3-")) {
+                String prefix = "/" + bucketName + "/";
+                if (path.startsWith(prefix)) {
+                    String key = path.substring(prefix.length());
+                    return java.net.URLDecoder.decode(key, java.nio.charset.StandardCharsets.UTF_8);
+                }
+            }
+
+            return null;
+        } catch (IllegalArgumentException e) {
+            return null;
         }
-        
-        return null;
     }
 
     // 파일 삭제
@@ -153,5 +202,23 @@ public class AwsS3Service {
                 .bucket(bucketName)
                 .key(key)
                 .build());
+    }
+
+    /**
+     * S3에서 파일 존재 여부 확인
+     */
+    public boolean fileExists(String key) {
+        try {
+            s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
+            return true;
+        } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
+            return false;
+        } catch (Exception e) {
+            log.error("파일 존재 여부 확인 중 오류 발생 - Key: {}, 오류: {}", key, e.getMessage());
+            throw e;
+        }
     }
 }

@@ -1,9 +1,13 @@
 package com.fairing.fairplay.event.controller;
 
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.event.dto.EventDetailModificationResponseDto;
 import com.fairing.fairplay.event.dto.EventVersionComparisonDto;
 import com.fairing.fairplay.event.dto.EventVersionResponseDto;
+import com.fairing.fairplay.event.entity.EventDetailModificationRequest;
 import com.fairing.fairplay.event.entity.EventVersion;
+import com.fairing.fairplay.event.service.EventDetailModificationRequestService;
 import com.fairing.fairplay.event.service.EventVersionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,9 +25,11 @@ import org.springframework.web.bind.annotation.*;
 public class EventVersionController {
 
     private final EventVersionService eventVersionService;
+    private final EventDetailModificationRequestService modificationRequestService;
 
     @GetMapping
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
+    @FunctionAuth("getEventVersions")
     public ResponseEntity<Page<EventVersionResponseDto>> getEventVersions(
             @PathVariable Long eventId,
             Pageable pageable) {
@@ -35,7 +41,8 @@ public class EventVersionController {
     }
 
     @GetMapping("/{versionNumber}")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
+    @FunctionAuth("getEventVersion")
     public ResponseEntity<EventVersionResponseDto> getEventVersion(
             @PathVariable Long eventId,
             @PathVariable Integer versionNumber) {
@@ -46,20 +53,25 @@ public class EventVersionController {
         return ResponseEntity.ok(responseDto);
     }
 
-    @PostMapping("/{versionNumber}/restore")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> restoreToVersion(
+    @PostMapping("/{versionNumber}/restore-request")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
+    @FunctionAuth("createVersionRestoreRequest")
+    public ResponseEntity<EventDetailModificationResponseDto> createVersionRestoreRequest(
             @PathVariable Long eventId,
             @PathVariable Integer versionNumber,
             @AuthenticationPrincipal CustomUserDetails auth) {
 
-        eventVersionService.restoreToVersion(eventId, versionNumber, auth.getUserId());
-        
-        return ResponseEntity.ok("버전 " + versionNumber + "로 복구가 완료되었습니다.");
+        EventDetailModificationRequest request = modificationRequestService.createVersionRestoreRequest(
+                eventId, versionNumber, auth.getUserId());
+
+        EventDetailModificationResponseDto responseDto = EventDetailModificationResponseDto.from(request);
+
+        return ResponseEntity.ok(responseDto);
     }
 
     @GetMapping("/compare")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
+    @FunctionAuth("compareVersions")
     public ResponseEntity<EventVersionComparisonDto> compareVersions(
             @PathVariable Long eventId,
             @RequestParam Integer version1,

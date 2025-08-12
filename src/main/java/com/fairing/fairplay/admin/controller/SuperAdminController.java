@@ -1,6 +1,7 @@
 package com.fairing.fairplay.admin.controller;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,9 +14,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fairing.fairplay.admin.entity.FunctionLevel;
+import com.fairing.fairplay.admin.repository.FunctionLevelRepository;
 import com.fairing.fairplay.admin.service.LevelService;
 import com.fairing.fairplay.admin.service.SuperAdminService;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.aspect.FunctionAuthAspect;
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.service.LoginHistoryService;
@@ -43,25 +48,10 @@ public class SuperAdminController {
     @Autowired
     private LevelService levelService;
 
-    @PostMapping("/send-mail/{userId}")
-    public ResponseEntity<String> sendAccountMail(
-            @PathVariable Long userId) {
+    @Autowired
+    private FunctionLevelRepository functionLevelRepository;
 
-        // checkAuth(userDetails, ADMIN);
-
-        /*
-         * 행사관리자 신청시 이메일,이름 등의 정보를 입력받을 예정이므로 해당 데이터 사용할 예정
-         * 
-         */
-        Users user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
-        String to = user.getEmail();
-        String subject = "FairPlay 관리자 메일";
-        superAdminService.sendMail(to, subject);
-        return ResponseEntity.ok("메일 발송 완료.");
-
-    }
-
+    @FunctionAuth("getLogs")
     @GetMapping("/get-logs")
     public ResponseEntity<List<LoginHistoryDto>> getLogs(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -72,12 +62,7 @@ public class SuperAdminController {
         return ResponseEntity.ok(loginHistories);
     }
 
-    private void checkAuth(CustomUserDetails userDetails, Integer requiredRole) {
-        if (userDetails.getRoleId() > requiredRole) {
-            throw new CustomException(HttpStatus.FORBIDDEN, "권한이 없습니다.");
-        }
-    }
-
+    @FunctionAuth("disableUser")
     @PostMapping("/disable-user/{userId}")
     public ResponseEntity disableUser(
             @PathVariable Long userId,
@@ -87,6 +72,7 @@ public class SuperAdminController {
         return ResponseEntity.ok("사용자 비활성화 완료.");
     }
 
+    @FunctionAuth("getUsers")
     @GetMapping("/get-users")
     public ResponseEntity<List<Users>> getUsers(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -94,20 +80,9 @@ public class SuperAdminController {
         checkAuth(userDetails, ADMIN);
         
         List<Users> users = userRepository.findAdmin();
+        // checkFunctionAuth(1L);
+
         return ResponseEntity.ok(users);
-    }
-
-    @GetMapping("test")
-    public Boolean test() {
-        Long functionLevel = levelService.getFunctionLevel(getMethodName());
-
-        Long accountLevel = levelService.getAccountLevel(1L);
-        return (accountLevel & functionLevel) == functionLevel;
-    }
-
-    public String getMethodName() {
-        StackWalker walker = StackWalker.getInstance();
-        return walker.walk(frames -> frames.skip(1).findFirst().get().getMethodName());
     }
 
 }

@@ -125,7 +125,7 @@ public class UserService {
                 .send(user.getEmail(), tempPassword);
     }
 
-    private String generateRandomPassword(int length) {
+    public String generateRandomPassword(int length) {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         StringBuilder sb = new StringBuilder();
         java.security.SecureRandom random = new java.security.SecureRandom();

@@ -31,6 +31,14 @@ public class Ticket {
     @JoinColumn(name = "ticket_status_code_id")
     private TicketStatusCode ticketStatusCode;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "audience_type_id")
+    private TicketAudienceType ticketAudienceType ;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seat_type_id")
+    private TicketSeatType ticketSeatType;
+
     private Integer stock;
 
     @Column(nullable = false)

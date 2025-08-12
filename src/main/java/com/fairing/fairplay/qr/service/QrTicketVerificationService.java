@@ -2,10 +2,11 @@ package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.CodeValidator;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,14 +14,17 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class QrTicketVerificationService {
+
   private final QrTicketRepository qrTicketRepository;
   private final CodeValidator codeValidator;
+  private final UserRepository userRepository;
+
   /**
-   * 로그인 사용자와 참석자 일치 여부 확인
+   * 참석자가 회원이 맞는지 검증
    */
-  public void validateUserMatch(Attendee attendee, CustomUserDetails userDetails) {
-    if (!attendee.getReservation().getUser().getUserId().equals(userDetails.getUserId())) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "참석자와 로그인한 사용자가 일치하지 않습니다.");
+  public void validateUser(Users user) {
+    if (!userRepository.existsById(user.getUserId())) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "티켓 예약자가 회원이 아닙니다. 관리자에게 문의하세요.");
     }
   }
 
