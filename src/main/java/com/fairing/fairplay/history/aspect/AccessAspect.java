@@ -69,7 +69,7 @@ public class AccessAspect {
         Users executor = userRepository.findById(userId).orElseThrow();
         Users target = userRepository.findById(targetId).orElseThrow();
         ChangeHistory changeHistory = ChangeHistory.builder()
-                .userId(executor.getUserId())
+                .user(executor)
                 .targetId(target.getUserId())
                 .targetType("계정 정보 수정")
                 .content(changeString)
@@ -91,7 +91,7 @@ public class AccessAspect {
         Users executor = userRepository.findById(userId).orElseThrow();
         Users target = userRepository.findById(targetId).orElseThrow();
         ChangeHistory changeHistory = ChangeHistory.builder()
-                .userId(executor.getUserId())
+                .user(executor)
                 .targetId(target.getUserId())
                 .targetType("행사 정보 수정")
                 .content(changeString)
@@ -113,7 +113,7 @@ public class AccessAspect {
         Users executor = userRepository.findById(userId).orElseThrow();
         Users target = userRepository.findById(targetId).orElseThrow();
         ChangeHistory changeHistory = ChangeHistory.builder()
-                .userId(executor.getUserId())
+                .user(executor)
                 .targetId(target.getUserId())
                 .targetType("행사 정보 수정")
                 .content(changeString)

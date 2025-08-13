@@ -50,6 +50,7 @@ public class LoginHistoryService {
                                 .map(history -> new LoginHistoryDto(
                                                 history.getId(),
                                                 history.getUser().getUserId(),
+                                                history.getUser().getName(),
                                                 history.getRoleCode().getId(),
                                                 history.getIp(),
                                                 history.getUserAgent(),

@@ -1,9 +1,10 @@
 package com.fairing.fairplay.admin.controller;
 
-import java.math.BigInteger;
-import java.util.ArrayList;
+import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,49 +12,56 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fairing.fairplay.admin.dto.AdminAuthDto;
 import com.fairing.fairplay.admin.dto.FunctionNameDto;
-import com.fairing.fairplay.admin.entity.FunctionLevel;
-import com.fairing.fairplay.admin.repository.FunctionLevelRepository;
-import com.fairing.fairplay.admin.service.LevelService;
 import com.fairing.fairplay.admin.service.SuperAdminService;
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.history.dto.ChangeHistoryDto;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.etc.ChangeAccount;
-import com.fairing.fairplay.history.service.LoginHistoryService;
-import com.fairing.fairplay.user.entity.Users;
-import com.fairing.fairplay.user.repository.UserRepository;
 
 @RestController
 @RequestMapping("/api/super-admin")
 public class SuperAdminController {
 
     private final SuperAdminService superAdminService;
-    private final UserRepository userRepository;
-    private final LoginHistoryService loginHistoryService;
-    private final LevelService levelService;
-    private final FunctionLevelRepository functionLevelRepository;
 
-    public SuperAdminController(SuperAdminService superAdminService, UserRepository userRepository,
-            LoginHistoryService loginHistoryService, LevelService levelService,
-            FunctionLevelRepository functionLevelRepository) {
+    public SuperAdminController(SuperAdminService superAdminService) {
         this.superAdminService = superAdminService;
-        this.userRepository = userRepository;
-        this.loginHistoryService = loginHistoryService;
-        this.levelService = levelService;
-        this.functionLevelRepository = functionLevelRepository;
+
     }
 
     @FunctionAuth("getLogs")
-    @GetMapping("/get-logs")
+    @GetMapping("/get-login-logs")
     // 권한 관련 기능 추가예정
-    public ResponseEntity<List<LoginHistoryDto>> getLogs(
+    public ResponseEntity<Page<LoginHistoryDto>> getLoginLogs(@RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size, @RequestParam(required = false) String email,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        List<LoginHistoryDto> loginHistories = loginHistoryService.getAllLoginHistory();
+
+        Page<LoginHistoryDto> loginHistories = superAdminService.getLoginLogs(page, size, email, from, to);
+
         return ResponseEntity.ok(loginHistories);
+
+    }
+
+    @GetMapping("/get-change-logs")
+    public ResponseEntity<Page<ChangeHistoryDto>> getChangeLogs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size, @RequestParam(required = false) String email,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        Page<ChangeHistoryDto> changeHistories = superAdminService.getChangeLogs(page, size, email, type, from, to);
+
+        return ResponseEntity.ok(changeHistories);
     }
 
     @ChangeAccount("관리자 비활성화")
@@ -62,36 +70,17 @@ public class SuperAdminController {
     // 권한 관련 기능 추가 예정
     public ResponseEntity<String> disableUser(
             @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long userId) {
-        superAdminService.disableUser(userDetails.getUserId(), userId);
+
+        superAdminService.disableUser(userId);
+
         return ResponseEntity.ok("사용자 비활성화 완료.");
     }
 
     // 관리자 목록(전체관리자/행사관리자/부스관리자) 리턴
     @GetMapping("/get-admins")
     public ResponseEntity<List<AdminAuthDto>> getAdmins(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        List<Users> users = userRepository.findAdmin();
 
-        List<FunctionLevel> functionLevels = functionLevelRepository.findAll();
-        List<AdminAuthDto> adminAuthDtos = new ArrayList<>();
-
-        for (Users user : users) {
-            List<String> auths = new ArrayList<>();
-            BigInteger accountLevel = levelService.getAccountLevel(user.getUserId());
-
-            for (FunctionLevel functionLevel : functionLevels) {
-                if (accountLevel.and(functionLevel.getLevel().toBigInteger())
-                        .equals(functionLevel.getLevel().toBigInteger())) {
-                    auths.add(functionLevel.getFunctionName());
-                }
-            }
-            AdminAuthDto dto = new AdminAuthDto();
-            dto.setUserId(user.getUserId());
-            dto.setRole(user.getRoleCode().getName());
-            dto.setNickname(user.getNickname());
-            dto.setEmail(user.getEmail());
-            dto.setAuthList(auths);
-            adminAuthDtos.add(dto);
-        }
+        List<AdminAuthDto> adminAuthDtos = superAdminService.getAdmins();
 
         return ResponseEntity.ok(adminAuthDtos);
     }
@@ -102,15 +91,9 @@ public class SuperAdminController {
     @GetMapping("/get-auth-list")
     public ResponseEntity<List<FunctionNameDto>> getAuthList(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        List<FunctionLevel> functionLevels = functionLevelRepository.findAll();
-        List<FunctionNameDto> functionNameDtos = functionLevels.stream()
-                .map(functionLevel -> {
-                    FunctionNameDto dto = new FunctionNameDto();
-                    dto.setFunctionName(functionLevel.getFunctionName());
-                    dto.setFunctionNameKr(functionLevel.getFunctionNameKr());
-                    return dto;
-                })
-                .toList();
+
+        List<FunctionNameDto> functionNameDtos = superAdminService.getAuthList();
+
         return ResponseEntity.ok(functionNameDtos);
     }
 
@@ -120,7 +103,9 @@ public class SuperAdminController {
     public ResponseEntity<String> modifyAuth(@AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long userId,
             @RequestBody List<String> authList) {
+
         superAdminService.modifyAuth(userId, authList);
+
         return ResponseEntity.ok("권한 수정 완료.");
     }
 
