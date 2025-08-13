@@ -134,20 +134,13 @@ public class BannerApplicationService {
         long appId = Objects.requireNonNull(kh.getKey()).longValue();
 
         // 4) 신청-슬롯 매핑 + 가격 스냅샷
-        String values = slotIds.stream().map(id -> "(?, ?, ?)").collect(joining(","));
-        jdbc.update(con -> {
-            var ps = con.prepareStatement("""
-                INSERT INTO banner_application_slot (banner_application_id, slot_id, item_price)
-                VALUES %s
-            """.formatted(values));
-            int idx = 1;
-            for (int i=0;i<slotIds.size();i++) {
-                ps.setLong(idx++, appId);
-                ps.setLong(idx++, slotIds.get(i));
-                ps.setInt(idx++, prices.get(i));
-            }
-            return ps;
-        });
+        String sql = "INSERT INTO banner_application_slot (banner_application_id, slot_id, item_price) VALUES (?, ?, ?)";
+        List<Object[]> batchArgs = new ArrayList<>();
+        for (int i = 0; i < slotIds.size(); i++) {
+            batchArgs.add(new Object[]{ appId, slotIds.get(i), prices.get(i) });
+        }
+        jdbc.batchUpdate(sql, batchArgs);
+
 
         return appId;
     }
