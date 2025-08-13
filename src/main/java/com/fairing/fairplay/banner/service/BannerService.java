@@ -3,11 +3,12 @@ package com.fairing.fairplay.banner.service;
 import com.fairing.fairplay.banner.dto.*;
 import com.fairing.fairplay.banner.entity.*;
 import com.fairing.fairplay.banner.repository.*;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
 import com.fairing.fairplay.file.dto.S3UploadResponseDto;
 import com.fairing.fairplay.file.service.FileService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import com.fairing.fairplay.user.entity.Users;
 
@@ -16,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.fairing.fairplay.event.repository.EventRepository;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -27,42 +30,56 @@ public class BannerService {
     private final BannerLogRepository bannerLogRepository;
     private final FileService fileService;
     private final BannerTypeRepository bannerTypeRepository;
-    private final AwsS3Service awsS3Service;
+    private final EventRepository eventRepository;
 
     // 배너 등록
     @Transactional
     public BannerResponseDto createBanner(BannerRequestDto dto, Long adminId) {
+
+        // 이벤트 존재 여부 검증
+        if (dto.getEventId() == null || !eventRepository.existsById(dto.getEventId())) {
+            throw new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null);
+        }
+
+        // 2) 파일 입력 검증: s3Key 또는 imageUrl 둘 중 하나는 있어야 함
+        if (!StringUtils.hasText(dto.getS3Key()) && !StringUtils.hasText(dto.getImageUrl())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "이미지 정보가 없습니다. s3Key 또는 imageUrl이 필요합니다.", null);
+        }
+
+        // 3) 업로드/URL 처리
+        String finalImageUrl;
+        if (StringUtils.hasText(dto.getS3Key())) {
+            S3UploadResponseDto uploadResult = fileService.uploadFile(
+                    S3UploadRequestDto.builder()
+                            .s3Key(dto.getS3Key())
+                            .originalFileName(dto.getOriginalFileName())
+                            .fileType(dto.getFileType())
+                            .fileSize(dto.getFileSize())
+                            .directoryPrefix("banner")
+                            .build()
+            );
+            finalImageUrl = uploadResult.getFileUrl();
+        } else {
+            finalImageUrl = dto.getImageUrl();
+        }
+
         BannerStatusCode statusCode = getStatusCode(dto.getStatusCode());
         BannerType bannerType = getBannerType(dto.getBannerTypeId());
 
-        // S3 업로드 처리
-        String directoryPrefix = "banner"; // 영구 저장 디렉토리
-        S3UploadResponseDto uploadResult = fileService.uploadFile(
-                S3UploadRequestDto.builder()
-                        .s3Key(dto.getS3Key()) // 프론트에서 받은 임시 s3Key
-                        .originalFileName(dto.getOriginalFileName())
-                        .fileType(dto.getFileType())
-                        .fileSize(dto.getFileSize())
-                        .directoryPrefix(directoryPrefix)
-                        .build()
-        );
-
         Banner banner = new Banner(
                 dto.getTitle(),
-                uploadResult.getFileUrl(),
+                finalImageUrl,
                 dto.getLinkUrl(),
                 dto.getPriority(),
                 dto.getStartDate(),
                 dto.getEndDate(),
                 statusCode,
-                bannerType,
-                dto.isHot(),
-                dto.isMdPick()
+                bannerType
         );
-
+        banner.setEventId(dto.getEventId());
+        banner.setCreatedBy(adminId);
         Banner saved = bannerRepository.save(banner);
         logBannerAction(saved, adminId, "CREATE");
-
         return toDto(saved);
     }
 
@@ -73,6 +90,23 @@ public class BannerService {
         BannerStatusCode statusCode = getStatusCode(dto.getStatusCode());
         BannerType bannerType = getBannerType(dto.getBannerTypeId());
 
+        if (dto.getEventId() != null && !eventRepository.existsById(dto.getEventId())) {
+            throw new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null);
+        }
+        // 기간 검증(둘 다 들어왔을 때만)
+        if (dto.getStartDate() != null && dto.getEndDate() != null
+                && dto.getStartDate().isAfter(dto.getEndDate())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
+        }
+
+        if (dto.getEventId() != null) {
+            banner.setEventId(dto.getEventId());
+        }
+
+
+        // 이미지 최종 결정: 기본은 기존 값 유지
+        String finalImageUrl = banner.getImageUrl();
+/*
         // 새 이미지가 있을 경우 S3 재업로드
         if (dto.getS3Key() != null) {
             String directoryPrefix = "banner";
@@ -85,13 +119,40 @@ public class BannerService {
                             .directoryPrefix(directoryPrefix)
                             .build()
             );
-
-            banner.updateInfo(dto.getTitle(), uploadResult.getFileUrl(), dto.getLinkUrl(),
+            banner.updateInfo(dto.getTitle(), finalImageUrl, dto.getLinkUrl(),
                     dto.getStartDate(), dto.getEndDate(), dto.getPriority(), bannerType, dto.isHot(), dto.isMdPick());
         } else {
             banner.updateInfo(dto.getTitle(), dto.getImageUrl(), dto.getLinkUrl(),
                     dto.getStartDate(), dto.getEndDate(), dto.getPriority(),bannerType, dto.isHot(), dto.isMdPick());
+        }*/
+        if (StringUtils.hasText(dto.getS3Key())) {
+            // 새 이미지 S3 업로드 → 업로드 URL 사용
+            S3UploadResponseDto uploadResult = fileService.uploadFile(
+                    S3UploadRequestDto.builder()
+                            .s3Key(dto.getS3Key())
+                            .originalFileName(dto.getOriginalFileName())
+                            .fileType(dto.getFileType())
+                            .fileSize(dto.getFileSize())
+                            .directoryPrefix("banner")
+                            .build()
+            );
+            finalImageUrl = uploadResult.getFileUrl();
+        } else if (StringUtils.hasText(dto.getImageUrl())) {
+            // 외부 URL로 교체 의도일 때만 반영
+            finalImageUrl = dto.getImageUrl();
         }
+        // -------------------------------
+
+        // 한 번에 업데이트
+        banner.updateInfo(
+                dto.getTitle(),
+                finalImageUrl,
+                dto.getLinkUrl(),
+                dto.getStartDate(),
+                dto.getEndDate(),
+                dto.getPriority(),
+                bannerType
+        );
 
         banner.updateStatus(statusCode);
         logBannerAction(banner, adminId, "UPDATE");
@@ -123,11 +184,14 @@ public class BannerService {
     public List<BannerResponseDto> getAllActiveBanners() {
         LocalDateTime now = LocalDateTime.now();
         return bannerRepository
-                .findAllByBannerStatusCode_CodeAndStartDateBeforeAndEndDateAfterOrderByPriorityDescStartDateDesc("ACTIVE", now, now)
+                .findAllByBannerStatusCode_CodeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByPriorityAsc(
+                        "ACTIVE", now, now
+                )
                 .stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .toList();
     }
+
 
     // 배너 목록 조회(조건 x, 모든)
     @Transactional(readOnly = true)
@@ -179,8 +243,6 @@ public class BannerService {
                 .endDate(banner.getEndDate())
                 .statusCode(banner.getBannerStatusCode().getCode())
                 .bannerTypeCode(banner.getBannerType().getCode())
-                .hot(banner.isHot())
-                .mdPick(banner.isMdPick())
                 .build();
     }
 
