@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 public class ReviewDto {
 
   private Long reviewId; // 리뷰 ID
+  private String nickname; // 작성자 이름
   private Integer star; // 리뷰 별점
   private Long reactions; // 리뷰 좋아요
   private String comment; // 리뷰 내용
