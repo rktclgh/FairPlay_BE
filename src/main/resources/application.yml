@@ -103,12 +103,6 @@ llm:
 
 banner:
   lock:
-<<<<<<< HEAD
     default-minutes: 2880 # ←신청 슬롯 기본 락 유지시간 (분)  // BannerApplicationService @Value
     cleanup:
       delay: 300000 #  만료락 해제 주기(밀리초)
-=======
-    default-minutes: 2880   # ←신청 슬롯 기본 락 유지시간 (분)  // BannerApplicationService @Value
-    cleanup:
-      delay: 300000         #  만료락 해제 주기(밀리초)
->>>>>>> 69dbf494d61b65ba4b7ae29e1819ab5ad4f4534c
