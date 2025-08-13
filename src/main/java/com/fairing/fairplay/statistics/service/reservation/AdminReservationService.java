@@ -117,7 +117,7 @@ public class AdminReservationService {
         if (subCategory != null && "all".equalsIgnoreCase(subCategory)) {
             subCategory = "";
         }
-        return dailyStatsCustomRepository.aggregatedPopularity(startDate, endDate, mainCategory, subCategory, pageable);
+        return dailyStatsCustomRepository.aggregatedEvents(startDate, endDate, mainCategory, subCategory, pageable);
     }
 
     /**
