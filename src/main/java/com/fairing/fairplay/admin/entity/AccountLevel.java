@@ -1,7 +1,6 @@
 package com.fairing.fairplay.admin.entity;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 
 import com.fairing.fairplay.user.entity.Users;
 

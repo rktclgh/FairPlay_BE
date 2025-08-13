@@ -1,18 +1,27 @@
 package com.fairing.fairplay.history.aspect;
 
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.fairing.fairplay.core.dto.LoginRequest;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
+import com.fairing.fairplay.history.entity.ChangeHistory;
+import com.fairing.fairplay.history.etc.ChangeAccount;
+import com.fairing.fairplay.history.etc.ChangeBanner;
+import com.fairing.fairplay.history.etc.ChangeEvent;
+import com.fairing.fairplay.history.repository.ChangeHistoryRepository;
 import com.fairing.fairplay.history.service.LoginHistoryService;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
@@ -23,11 +32,18 @@ import jakarta.servlet.http.HttpServletRequest;
 @Component
 public class AccessAspect {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
 
-    @Autowired
-    private LoginHistoryService loginHistoryService;
+    private final LoginHistoryService loginHistoryService;
+
+    private final ChangeHistoryRepository changeHistoryRepository;
+
+    public AccessAspect(UserRepository userRepository, LoginHistoryService loginHistoryService,
+            ChangeHistoryRepository changeHistoryRepository) {
+        this.userRepository = userRepository;
+        this.loginHistoryService = loginHistoryService;
+        this.changeHistoryRepository = changeHistoryRepository;
+    }
 
     @Pointcut("execution(* com.fairing.fairplay.core.service.AuthService.login(..))")
     public void login() {
@@ -35,6 +51,74 @@ public class AccessAspect {
 
     @Pointcut("execution(* com.fairing.fairplay.admin.service.SuperAdminService.disableUser(..))")
     public void disableUser() {
+    }
+
+    @Around("@annotation(com.fairing.fairplay.history.etc.ChangeAccount)")
+    public Object aroundChangeAccount(ProceedingJoinPoint joinPoint) throws Throwable {
+        MethodSignature sig = (MethodSignature) joinPoint.getSignature();
+        Method method = sig.getMethod();
+        ChangeAccount changeAccount = method.getAnnotation(ChangeAccount.class);
+        String changeString = changeAccount.value();
+        Long userId = 1L; // 테스트용 하드코딩, getCurrentId 사용 예정
+        Object[] args = joinPoint.getArgs();
+        Long targetId = (Long) args[1];
+        Users executor = userRepository.findById(userId).orElseThrow();
+        Users target = userRepository.findById(targetId).orElseThrow();
+        ChangeHistory changeHistory = ChangeHistory.builder()
+                .userId(executor.getUserId())
+                .targetId(target.getUserId())
+                .targetType("계정 정보 수정")
+                .content(changeString)
+                .modifyTime(LocalDateTime.now())
+                .build();
+        changeHistoryRepository.save(changeHistory);
+        return joinPoint.proceed();
+    }
+
+    @Around("@annotation(com.fairing.fairplay.history.etc.ChangeBanner)")
+    public Object aroundChangeBanner(ProceedingJoinPoint joinPoint) throws Throwable {
+        MethodSignature sig = (MethodSignature) joinPoint.getSignature();
+        Method method = sig.getMethod();
+        ChangeBanner changeBanner = method.getAnnotation(ChangeBanner.class);
+        String changeString = changeBanner.value();
+
+        Long userId = 1L; // 테스트용 하드코딩, getCurrentId 사용 예정
+        Object[] args = joinPoint.getArgs();
+        Long targetId = (Long) args[1];
+        Users executor = userRepository.findById(userId).orElseThrow();
+        Users target = userRepository.findById(targetId).orElseThrow();
+        ChangeHistory changeHistory = ChangeHistory.builder()
+                .userId(executor.getUserId())
+                .targetId(target.getUserId())
+                .targetType("행사 정보 수정")
+                .content(changeString)
+                .modifyTime(LocalDateTime.now())
+                .build();
+        changeHistoryRepository.save(changeHistory);
+        return joinPoint.proceed();
+    }
+
+    @Around("@annotation(com.fairing.fairplay.history.etc.ChangeEvent)")
+    public Object aroundChangeEvent(ProceedingJoinPoint joinPoint) throws Throwable {
+        MethodSignature sig = (MethodSignature) joinPoint.getSignature();
+        Method method = sig.getMethod();
+        ChangeEvent changeEvent = method.getAnnotation(ChangeEvent.class);
+        String changeString = changeEvent.value();
+
+        Long userId = 1L; // 테스트용 하드코딩, getCurrentId 사용 예정
+        Object[] args = joinPoint.getArgs();
+        Long targetId = (Long) args[1];
+        Users executor = userRepository.findById(userId).orElseThrow();
+        Users target = userRepository.findById(targetId).orElseThrow();
+        ChangeHistory changeHistory = ChangeHistory.builder()
+                .userId(executor.getUserId())
+                .targetId(target.getUserId())
+                .targetType("이벤트 수정")
+                .content(changeString)
+                .modifyTime(LocalDateTime.now())
+                .build();
+        changeHistoryRepository.save(changeHistory);
+        return joinPoint.proceed();
     }
 
     @Around("disableUser()")
@@ -81,6 +165,16 @@ public class AccessAspect {
         } finally {
             loginHistoryService.saveLoginHistory(loginHistory);
         }
+    }
+
+    private Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof CustomUserDetails) {
+            return ((CustomUserDetails) principal).getUserId();
+        }
+
+        return null; // 인증되지 않은 경우 null 반환
     }
 
 }

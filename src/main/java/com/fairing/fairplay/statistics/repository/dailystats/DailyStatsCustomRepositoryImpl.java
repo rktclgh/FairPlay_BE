@@ -220,7 +220,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
      *
      */
     @Override
-    public Page<AdminReservationStatsListDto> aggregatedPopularity(
+    public Page<AdminReservationStatsListDto> aggregatedEvents(
             LocalDate startDate,
             LocalDate endDate,
             String mainCategory,

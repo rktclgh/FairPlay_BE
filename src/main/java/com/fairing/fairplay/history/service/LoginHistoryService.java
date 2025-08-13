@@ -15,14 +15,19 @@ import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
 @Service
 public class LoginHistoryService {
 
-        @Autowired
-        private LoginHistoryRepository loginHistoryRepository;
+        private final LoginHistoryRepository loginHistoryRepository;
 
-        @Autowired
-        private UserRepository userRepository;
+        private final UserRepository userRepository;
 
-        @Autowired
-        private UserRoleCodeRepository userRoleCodeRepository;
+        private final UserRoleCodeRepository userRoleCodeRepository;
+
+        public LoginHistoryService(LoginHistoryRepository loginHistoryRepository,
+                        UserRepository userRepository,
+                        UserRoleCodeRepository userRoleCodeRepository) {
+                this.loginHistoryRepository = loginHistoryRepository;
+                this.userRepository = userRepository;
+                this.userRoleCodeRepository = userRoleCodeRepository;
+        }
 
         public void saveLoginHistory(LoginHistoryDto loginHistory) {
                 Users user = userRepository.findById(loginHistory.getUserId())

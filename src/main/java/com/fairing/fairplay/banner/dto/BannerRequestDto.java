@@ -23,6 +23,9 @@ public class BannerRequestDto {
     private String fileType;
     private Long fileSize;
 
+    @NotNull(message = "eventId는 필수입니다.")
+    private Long eventId;
+
     @NotNull
     private Long bannerTypeId;
     private boolean hot;

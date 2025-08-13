@@ -65,5 +65,6 @@ public class Review {
   private boolean visible = true;
 
   @OneToMany(mappedBy = "review", cascade = CascadeType.REMOVE, orphanRemoval = true)
+  @Builder.Default
   private List<ReviewReaction> reactions = new ArrayList<>();
 }
