@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,8 +56,29 @@ public class EventScheduleService {
     @Transactional(readOnly = true)
     public List<EventScheduleResponseDto> getSchedules(Long eventId) {
         List<EventSchedule> schedules = eventScheduleRepository.findAllByEvent_EventId(eventId);
+        
+        // 회차별 티켓 설정 상태 조회
+        List<Map<String, Object>> ticketStatusList = eventScheduleRepository.findScheduleTicketStatus(eventId);
+        Map<Long, Boolean> ticketStatusMap = ticketStatusList.stream()
+                .collect(Collectors.toMap(
+                    row -> (Long) row.get("scheduleId"),
+                    row -> (Boolean) row.get("hasActiveTickets")
+                ));
+        
+        // 회차별 판매된 티켓 개수 조회
+        List<Map<String, Object>> soldTicketCountList = eventScheduleRepository.findSoldTicketCounts(eventId);
+        Map<Long, Long> soldTicketCountMap = soldTicketCountList.stream()
+                .collect(Collectors.toMap(
+                    row -> (Long) row.get("scheduleId"),
+                    row -> (Long) row.get("soldTicketCount")
+                ));
+        
         return schedules.stream()
-                .map(EventScheduleResponseDto::from)
+                .map(schedule -> EventScheduleResponseDto.from(
+                    schedule, 
+                    ticketStatusMap.getOrDefault(schedule.getScheduleId(), false),
+                    soldTicketCountMap.getOrDefault(schedule.getScheduleId(), 0L)
+                ))
                 .toList();
     }
     

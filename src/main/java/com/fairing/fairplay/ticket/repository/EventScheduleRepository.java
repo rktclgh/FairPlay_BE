@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface EventScheduleRepository extends JpaRepository<EventSchedule, Long> {
@@ -39,5 +40,29 @@ public interface EventScheduleRepository extends JpaRepository<EventSchedule, Lo
                                        @Param("date") LocalDate date,
                                        @Param("startTime") LocalTime startTime, 
                                        @Param("endTime") LocalTime endTime);
+
+    // 회차별 티켓 설정 상태 확인 (visible = true인 티켓이 있는지)
+    @Query("""
+        SELECT es.scheduleId as scheduleId,
+               CASE 
+                   WHEN EXISTS(SELECT 1 FROM ScheduleTicket st WHERE st.eventSchedule.scheduleId = es.scheduleId AND st.visible = true)
+                   THEN true
+                   ELSE false
+               END as hasActiveTickets
+        FROM EventSchedule es
+        WHERE es.event.eventId = :eventId
+        """)
+    List<Map<String, Object>> findScheduleTicketStatus(@Param("eventId") Long eventId);
+
+    // 회차별 판매된 티켓 개수 조회 (QR 티켓 발급 개수)
+    @Query("""
+        SELECT es.scheduleId as scheduleId,
+               COUNT(qr.id) as soldTicketCount
+        FROM EventSchedule es
+        LEFT JOIN QrTicket qr ON qr.eventSchedule.scheduleId = es.scheduleId AND qr.active = true
+        WHERE es.event.eventId = :eventId
+        GROUP BY es.scheduleId
+        """)
+    List<Map<String, Object>> findSoldTicketCounts(@Param("eventId") Long eventId);
 
 }
