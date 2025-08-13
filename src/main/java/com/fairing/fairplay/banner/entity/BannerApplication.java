@@ -75,6 +75,18 @@ public class BannerApplication {
     @Builder.Default
     private List<BannerApplicationSlot> slots = new ArrayList<>();
 
+    public void addSlot(BannerApplicationSlot slot) {
+           if (slot == null) return;
+           slot.setBannerApplication(this);
+           this.slots.add(slot);
+        }
+
+        public void removeSlot(BannerApplicationSlot slot) {
+            if (slot == null) return;
+            this.slots.remove(slot);
+            slot.setBannerApplication(null);
+        }
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();

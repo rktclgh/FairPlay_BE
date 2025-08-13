@@ -25,7 +25,7 @@ public class BannerSlot {
     private BannerType bannerType;        // HERO / SEARCH_TOP 등
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "slot_type", nullable = false, columnDefinition = "ENUM('HERO','SEARCH_TOP')")
+    @Column(name = "slot_type", nullable = false, length = 20)
     private BannerSlotType slotType;
 
     @Column(name = "slot_date", nullable = false)
@@ -41,7 +41,7 @@ public class BannerSlot {
     private Integer price;                // 생성 시점 가격 스냅샷
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, columnDefinition = "ENUM('AVAILABLE','LOCKED','SOLD')")
+    @Column(name = "status", nullable = false, length = 20)
     private BannerSlotStatus status;
 
     @Column(name = "locked_by")

@@ -1,5 +1,6 @@
 package com.fairing.fairplay.banner.dto;
 
+import com.fairing.fairplay.banner.entity.BannerSlotType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import org.hibernate.validator.constraints.URL;
@@ -11,9 +12,8 @@ public record CreateApplicationRequestDto(
         @NotNull(message = "이벤트 ID는 필수입니다")
         Long eventId,
 
-        @NotBlank(message = "배너 타입 코드는 필수입니다")
-        @Pattern(regexp = "^(HERO|SEARCH_TOP)$", message = "배너 타입 코드는 HERO 또는 SEARCH_TOP이어야 합니다")
-        String bannerTypeCode,        // "HERO" | "SEARCH_TOP"
+        @NotNull(message = "배너 타입은 필수입니다")
+        BannerSlotType bannerType,       // "HERO" | "SEARCH_TOP"
 
         @NotBlank(message = "제목은 필수입니다")
         @Size(max = 100, message = "제목은 100자를 초과할 수 없습니다")

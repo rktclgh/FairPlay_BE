@@ -12,13 +12,13 @@ public class SlotLockCleaner {
 
     private final JdbcTemplate jdbc;
 
-    @Scheduled(fixedDelay = 10 * 60 * 1000) // 10분마다
+    @Scheduled(initialDelay = 60_000, fixedDelay = 10 * 60 * 1000) // 10분마다
     @Transactional
     public void releaseExpiredLocks() {
         jdbc.update("""
-            UPDATE banner_slot
-            SET status='AVAILABLE', locked_by=NULL, locked_until=NULL
-            WHERE status='LOCKED' AND locked_until < NOW()
-        """);
+           UPDATE banner_slot
+           SET status='AVAILABLE', locked_by=NULL, locked_until=NULL
+           WHERE status='LOCKED' AND locked_until < CURRENT_TIMESTAMP
+       """);
     }
 }

@@ -74,11 +74,10 @@ public class BannerService {
                 dto.getStartDate(),
                 dto.getEndDate(),
                 statusCode,
-                bannerType,
-                dto.isHot(),
-                dto.isMdPick()
+                bannerType
         );
-
+        banner.setEventId(dto.getEventId());
+        banner.setCreatedBy(adminId);
         Banner saved = bannerRepository.save(banner);
         logBannerAction(saved, adminId, "CREATE");
         return toDto(saved);
@@ -100,9 +99,14 @@ public class BannerService {
             throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
         }
 
+        if (dto.getEventId() != null) {
+            banner.setEventId(dto.getEventId());
+        }
+
+
         // 이미지 최종 결정: 기본은 기존 값 유지
         String finalImageUrl = banner.getImageUrl();
-
+/*
         // 새 이미지가 있을 경우 S3 재업로드
         if (dto.getS3Key() != null) {
             String directoryPrefix = "banner";
@@ -115,13 +119,40 @@ public class BannerService {
                             .directoryPrefix(directoryPrefix)
                             .build()
             );
-
             banner.updateInfo(dto.getTitle(), finalImageUrl, dto.getLinkUrl(),
                     dto.getStartDate(), dto.getEndDate(), dto.getPriority(), bannerType, dto.isHot(), dto.isMdPick());
         } else {
             banner.updateInfo(dto.getTitle(), dto.getImageUrl(), dto.getLinkUrl(),
                     dto.getStartDate(), dto.getEndDate(), dto.getPriority(),bannerType, dto.isHot(), dto.isMdPick());
+        }*/
+        if (StringUtils.hasText(dto.getS3Key())) {
+            // 새 이미지 S3 업로드 → 업로드 URL 사용
+            S3UploadResponseDto uploadResult = fileService.uploadFile(
+                    S3UploadRequestDto.builder()
+                            .s3Key(dto.getS3Key())
+                            .originalFileName(dto.getOriginalFileName())
+                            .fileType(dto.getFileType())
+                            .fileSize(dto.getFileSize())
+                            .directoryPrefix("banner")
+                            .build()
+            );
+            finalImageUrl = uploadResult.getFileUrl();
+        } else if (StringUtils.hasText(dto.getImageUrl())) {
+            // 외부 URL로 교체 의도일 때만 반영
+            finalImageUrl = dto.getImageUrl();
         }
+        // -------------------------------
+
+        // 한 번에 업데이트
+        banner.updateInfo(
+                dto.getTitle(),
+                finalImageUrl,
+                dto.getLinkUrl(),
+                dto.getStartDate(),
+                dto.getEndDate(),
+                dto.getPriority(),
+                bannerType
+        );
 
         banner.updateStatus(statusCode);
         logBannerAction(banner, adminId, "UPDATE");
@@ -212,8 +243,6 @@ public class BannerService {
                 .endDate(banner.getEndDate())
                 .statusCode(banner.getBannerStatusCode().getCode())
                 .bannerTypeCode(banner.getBannerType().getCode())
-                .hot(banner.isHot())
-                .mdPick(banner.isMdPick())
                 .build();
     }
 

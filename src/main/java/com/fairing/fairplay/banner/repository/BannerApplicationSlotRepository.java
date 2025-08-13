@@ -17,9 +17,12 @@ public interface BannerApplicationSlotRepository extends JpaRepository<BannerApp
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
     select s
-    from BannerApplicationSlot bas
-    join bas.slot s
-    where bas.bannerApplication.id = :appId
+    from BannerSlot s
+    where s.id in (
+        select bas.slot.id
+        from BannerApplicationSlot bas
+        where bas.bannerApplication.id = :appId
+    )
 """)
     List<BannerSlot> lockSlotsByApplication(@Param("appId") Long applicationId);
 

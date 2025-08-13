@@ -2,6 +2,7 @@ package com.fairing.fairplay.banner.service;
 
 import com.fairing.fairplay.banner.dto.CreateApplicationRequestDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -28,39 +29,47 @@ public class BannerApplicationService {
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
     private Long typeId(String code) {
-        Long id = jdbc.queryForObject(
-                           "SELECT banner_type_id FROM banner_type WHERE code = ?",
-                           Long.class, code);
-           if (id == null) {
-                   throw new IllegalArgumentException("존재하지 않는 배너 타입: " + code);
-           }
-           return id;
+        try {
+                       return jdbc.queryForObject(
+                                       "SELECT banner_type_id FROM banner_type WHERE code = ?",
+                                       Long.class, code);
+                   } catch (EmptyResultDataAccessException e) {
+                       throw new IllegalArgumentException("존재하지 않는 배너 타입: " + code);
+                   }
     }
 
     private Integer statusId(String code) {
-        return jdbc.queryForObject(
-                "SELECT apply_status_code_id FROM apply_status_code WHERE code = ?",
-                Integer.class, code);
+        try {
+                       return jdbc.queryForObject(
+                                       "SELECT apply_status_code_id FROM apply_status_code WHERE code = ?",
+                                       Integer.class, code);
+                   } catch (EmptyResultDataAccessException e) {
+                       throw new IllegalArgumentException("존재하지 않는 신청 상태 코드: " + code);
+                   }
     }
 
     private Integer bannerStatusId(String code) {
-        return jdbc.queryForObject(
-                "SELECT banner_status_code_id FROM banner_status_code WHERE code = ?",
-                Integer.class, code);
+        try {
+                       return jdbc.queryForObject(
+                                       "SELECT banner_status_code_id FROM banner_status_code WHERE code = ?",
+                                       Integer.class, code);
+                   } catch (EmptyResultDataAccessException e) {
+                       throw new IllegalArgumentException("존재하지 않는 배너 상태 코드: " + code);
+                   }
     }
 
     /** 신청 + 슬롯 LOCK (원자적) */
     @Transactional
     public Long createApplicationAndLock(CreateApplicationRequestDto req, Long userId) {
-        Long typeId = typeId(req.bannerTypeCode());
+        long typeId = typeId(req.bannerType().name());
         int lockMinutes = Optional.ofNullable(req.lockMinutes()).orElse(2880); // 48h
 
         // 1) 대상 슬롯들 잠그기 위해 slot_id, price 조회 (FOR UPDATE)
         List<Long> slotIds = new ArrayList<>();
         List<Integer> prices = new ArrayList<>();
         for (CreateApplicationRequestDto.Item it : req.items()) {
-            Long slotId = jdbc.query("""
-                SELECT slot_id
+            Map<String, Object> result = jdbc.queryForMap("""
+                SELECT slot_id, price
                 FROM banner_slot
                 WHERE banner_type_id = ?
                   AND slot_date = ?
@@ -68,14 +77,13 @@ public class BannerApplicationService {
                   AND status = 'AVAILABLE'
                   ORDER BY slot_id
                 FOR UPDATE
-            """, rs -> rs.next() ? rs.getLong(1) : null,
-                    typeId, it.date(), it.priority());
+            """, typeId, it.date(), it.priority());
+            if (result == null || result.isEmpty()) {
+                throw new IllegalStateException("매진/선점된 슬롯 있음: " + it);
+            }
 
-            if (slotId == null) throw new IllegalStateException("매진/선점된 슬롯 있음: " + it);
-
-            Integer price = jdbc.queryForObject("""
-                SELECT price FROM banner_slot WHERE slot_id = ?
-            """, Integer.class, slotId);
+            Long slotId = (Long) result.get("slot_id");
+            Integer price = (Integer) result.get("price");
 
             slotIds.add(slotId);
             prices.add(price);
@@ -153,12 +161,18 @@ public class BannerApplicationService {
     @Transactional
     public void cancelApplication(Long appId, Long userId) {
         // 1) 본인 신청인지 검증
-        Long owner = jdbc.queryForObject("""
-            SELECT applicant_id FROM banner_application WHERE banner_application_id=?
-        """, Long.class, appId);
-        if (!Objects.equals(owner, userId)) {
-                        throw new AccessDeniedException("해당 신청을 취소할 권한이 없습니다");
-                    }
+        Long owner;
+                try {
+                 owner = jdbc.queryForObject("""
+                    SELECT applicant_id FROM banner_application WHERE banner_application_id=?
+                 """, Long.class, appId);
+              } catch (EmptyResultDataAccessException e) {
+                  throw new IllegalArgumentException("존재하지 않는 신청입니다: " + appId);
+              }
+              if (!Objects.equals(owner, userId)) {
+                  throw new AccessDeniedException("해당 신청을 취소할 권한이 없습니다");
+              }
+
         // 2) 매핑된 슬롯 조회
         List<Long> slotIds = jdbc.queryForList("""
           SELECT slot_id FROM banner_application_slot WHERE banner_application_id=?
@@ -214,10 +228,15 @@ public class BannerApplicationService {
             throw new IllegalStateException("LOCKED 아님");
 
         // 신청서 정보
-        var app = jdbc.queryForMap("""
-            SELECT event_id, title, image_url, link_url, banner_type_id
-            FROM banner_application WHERE banner_application_id=?
-        """, appId);
+        Map<String, Object> app;
+               try {
+                       app = jdbc.queryForMap("""
+               SELECT event_id, title, image_url, link_url, banner_type_id
+               FROM banner_application WHERE banner_application_id=?
+           """, appId);
+                   } catch (EmptyResultDataAccessException e) {
+                       throw new IllegalArgumentException("존재하지 않는 신청입니다: " + appId);
+                   }
 
         // 1) SOLD 전환 (LOCKED인 것만 허용) + 건수 검증
         var slotIdList = slots.stream()
