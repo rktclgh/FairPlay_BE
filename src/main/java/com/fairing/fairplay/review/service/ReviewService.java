@@ -101,7 +101,7 @@ public class ReviewService {
     List<Long> reviewIds = reviewPage.stream()
         .map(Review::getId)
         .toList();
-    log.info("reviewIds:{}", reviewIds.getFirst());
+    log.info("reviewIds size: {}", reviewIds.size());
 
     // 이벤트의 리뷰들에 대한 카운트
     Map<Long, Long> reactionCountMap =
