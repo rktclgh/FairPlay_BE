@@ -2,7 +2,6 @@ package com.fairing.fairplay.review.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.review.dto.EventDto;
 import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
@@ -16,19 +15,14 @@ import com.fairing.fairplay.review.dto.ReviewUpdateResponseDto;
 import com.fairing.fairplay.review.dto.ReviewWithOwnerDto;
 import com.fairing.fairplay.review.entity.Review;
 import com.fairing.fairplay.review.repository.ReviewRepository;
-
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.TextStyle;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -37,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReviewService {
 
   private final ReviewRepository reviewRepository;
@@ -87,14 +82,9 @@ public class ReviewService {
     return buildReviewSaveResponse(saveReview);
   }
 
-  /*
-  *   private Long eventId;
-  private List<ReviewWithOwnerDto> reviews;
-  *
-  *
-  * */
   // 행사 상세 페이지 - 특정 행사 리뷰 조회. CustomUserDetails 추가 예정
   public ReviewForEventResponseDto getReviewForEvent(CustomUserDetails userDetails, Long eventId, Pageable pageable) {
+    log.info("getReviewForEvent:{}",eventId);
     Long loginUserId;
     if (userDetails != null) {
       loginUserId = userDetails.getUserId();
@@ -109,6 +99,7 @@ public class ReviewService {
     List<Long> reviewIds = reviewPage.stream()
         .map(Review::getId)
         .toList();
+    log.info("reviewIds:{}",reviewIds.getFirst());
 
     // 이벤트의 리뷰들에 대한 카운트
     Map<Long, Long> reactionCountMap = reviewReactionService.findReactionCountsByReviewIds(
@@ -116,7 +107,9 @@ public class ReviewService {
 
     Page<ReviewWithOwnerDto> reviewWithOwnerDtos =  reviewPage.map(review -> {
       long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
+      log.info("reactionCount:{}",reactionCount);
       boolean isMine = (loginUserId != null) && loginUserId.equals(review.getUser().getUserId());
+      log.info("isMine:{}",isMine);
       ReviewDto reviewDto = buildReview(review, reactionCount);
       return ReviewWithOwnerDto.builder()
           .review(reviewDto)
