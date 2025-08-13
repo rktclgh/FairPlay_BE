@@ -18,4 +18,11 @@ public class PossibleReviewResponseDto {
   private EventDto event;
   private String ticketContent;
   private boolean hasReview;
+
+  public PossibleReviewResponseDto(Long reservationId, EventDto event, String ticketContent) {
+    this.reservationId = reservationId;
+    this.event = event;
+    this.ticketContent = ticketContent;
+    this.hasReview = false;
+  }
 }

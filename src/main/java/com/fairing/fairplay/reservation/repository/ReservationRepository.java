@@ -21,26 +21,36 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
   Optional<Reservation> findByReservationIdAndUser(Long reservationId, Users user);
 
   // 본인 예약 중 관람 일자가 지난 행사 목록 (행사 제목, 건물, 주소, 관람날짜, 요일, 시작시간, 행사시작날짜, 행사종료날짜)
-  @Query("""
-          SELECT new com.fairing.fairplay.review.dto.PossibleReviewResponseDto(
-              r.reservationId,
-              new com.fairing.fairplay.review.dto.EventDto(
-                e.titleKr,
-                e.eventDetail.location.buildingName,
-                e.eventDetail.location.address,
-                r.schedule.date,
-                r.schedule.weekday,
-                r.schedule.startTime,
-                e.eventDetail.startDate,
-                e.eventDetail.endDate
-              ),
-              r.ticket.name
-          )
-          FROM Reservation r
-          JOIN r.event e
-          WHERE r.user.userId = :userId
-            AND r.schedule.date < CURRENT_DATE
-          ORDER BY r.createdAt DESC
+  @Query(
+      value = """
+              SELECT new com.fairing.fairplay.review.dto.PossibleReviewResponseDto(
+                  r.reservationId,
+                  new com.fairing.fairplay.review.dto.EventDto(
+                    e.titleKr,
+                    e.eventDetail.location.buildingName,
+                    e.eventDetail.location.address,
+                    r.schedule.date,
+                    r.schedule.weekday,
+                    r.schedule.startTime,
+                    e.eventDetail.startDate,
+                    e.eventDetail.endDate
+                  ),
+                  t.name
+              )
+              FROM Reservation r
+              JOIN r.event e
+              LEFT JOIN r.ticket t
+              WHERE r.user.userId = :userId
+                AND r.schedule.date < CURRENT_DATE
+              ORDER BY r.createdAt DESC
+          """,
+  countQuery = """
+      SELECT COUNT(r)
+      FROM Reservation r
+      JOIN r.event e
+      WHERE r.user.userId = :userId
+      AND r.schedule.date < CURRENT_DATE
       """)
-  Page<PossibleReviewResponseDto> findPossibleReviewReservationsDto(@Param("userId") Long userId, Pageable pageable);
+  Page<PossibleReviewResponseDto> findPossibleReviewReservationsDto(@Param("userId") Long userId,
+      Pageable pageable);
 }

@@ -19,6 +19,7 @@ import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -83,8 +84,9 @@ public class ReviewService {
   }
 
   // 행사 상세 페이지 - 특정 행사 리뷰 조회. CustomUserDetails 추가 예정
-  public ReviewForEventResponseDto getReviewForEvent(CustomUserDetails userDetails, Long eventId, Pageable pageable) {
-    log.info("getReviewForEvent:{}",eventId);
+  public ReviewForEventResponseDto getReviewForEvent(CustomUserDetails userDetails, Long eventId,
+      Pageable pageable) {
+    log.info("getReviewForEvent:{}", eventId);
     Long loginUserId;
     if (userDetails != null) {
       loginUserId = userDetails.getUserId();
@@ -99,17 +101,18 @@ public class ReviewService {
     List<Long> reviewIds = reviewPage.stream()
         .map(Review::getId)
         .toList();
-    log.info("reviewIds:{}",reviewIds.getFirst());
+    log.info("reviewIds:{}", reviewIds.getFirst());
 
     // 이벤트의 리뷰들에 대한 카운트
-    Map<Long, Long> reactionCountMap = reviewReactionService.findReactionCountsByReviewIds(
-        reviewIds);
+    Map<Long, Long> reactionCountMap =
+        reviewIds.isEmpty() ? Collections.emptyMap()
+            : reviewReactionService.findReactionCountsByReviewIds(reviewIds);
 
-    Page<ReviewWithOwnerDto> reviewWithOwnerDtos =  reviewPage.map(review -> {
+    Page<ReviewWithOwnerDto> reviewWithOwnerDtos = reviewPage.map(review -> {
       long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
-      log.info("reactionCount:{}",reactionCount);
+      log.info("reactionCount:{}", reactionCount);
       boolean isMine = (loginUserId != null) && loginUserId.equals(review.getUser().getUserId());
-      log.info("isMine:{}",isMine);
+      log.info("isMine:{}", isMine);
       ReviewDto reviewDto = buildReview(review, reactionCount);
       return ReviewWithOwnerDto.builder()
           .review(reviewDto)

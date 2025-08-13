@@ -7,8 +7,10 @@ import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.review.dto.PossibleReviewResponseDto;
 import com.fairing.fairplay.review.repository.ReviewRepository;
 import com.fairing.fairplay.user.entity.Users;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -37,21 +39,33 @@ public class ReviewReservationService {
   }
 
   // 마이페이지 리뷰 작성 가능한 행사 조회
-  public Page<PossibleReviewResponseDto> getPossibleSaveReview(CustomUserDetails userDetails, int page) {
+  public Page<PossibleReviewResponseDto> getPossibleSaveReview(CustomUserDetails userDetails,
+      int page) {
     Pageable pageable = PageRequest.of(page, 5, Sort.by(Sort.Direction.DESC, "createdAt"));
+    if (userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+    }
+
+    if (page < 0) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "page는 0 이상의 정수여야 합니다.");
+    }
+
+    // 1. 로그인한 사용자가 리뷰를 작성할 수 있는 모든 행사 목록 페이징
     Page<PossibleReviewResponseDto> reservations = reservationRepository.findPossibleReviewReservationsDto(
         userDetails.getUserId(), pageable);
 
+    // 2. 페이지로 조회한 예약 DTO 목록에서 예약 ID만 뽑아 리스트 생성
     List<Long> reservationIds = reservations.getContent().stream()
         .map(PossibleReviewResponseDto::getReservationId)
         .collect(Collectors.toList());
 
-    Map<Long, Boolean> reviewMap = reviewRepository.findAllByReservation_ReservationIdIn(reservationIds)
-        .stream()
-        .collect(Collectors.toMap(r -> r.getReservation().getReservationId(), r -> true));
+    // 3. 1번에서 조회된 행사들의 reservationId 목록 이용해 작성자가 이미 작성한 리뷰가 있는 reservationId만 Set 형태로 가져옴
+    Set<Long> reviewedIds = reservationIds.isEmpty() ? Collections.emptySet()
+        : reviewRepository.findReviewedReservationIds(reservationIds);
 
-
-    reservations.getContent().forEach(dto -> dto.setHasReview(reviewMap.getOrDefault(dto.getReservationId(), false)));
+    // 4. 각 행사 DTO에 대해 reservationId가 reviewedIds Set에 있으면 hasReview = true 아니면 hasReview = false
+    reservations.getContent()
+        .forEach(dto -> dto.setHasReview(reviewedIds.contains(dto.getReservationId())));
 
     return reservations;
 
