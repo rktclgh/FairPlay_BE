@@ -18,7 +18,15 @@ public class BannerSlotLockCleanup {
     // 5분마다 만료 락 해제
     @Scheduled(fixedDelayString = "${banner.lock.cleanup.delay:300000}")
     public void releaseExpiredLocks() {
-        int n = bannerSlotRepository.releaseExpiredLocks();
-        if (n > 0) log.info("Released {} expired banner slot locks", n);
+        try {
+            int n = bannerSlotRepository.releaseExpiredLocks();
+            if (n > 0) {
+                log.info("Released {} expired banner slot locks", n);
+            } else {
+                log.debug("No expired banner slot locks to release");
+            }
+        } catch (Exception e) {
+            log.warn("Failed to release expired banner slot locks", e);
+        }
     }
 }

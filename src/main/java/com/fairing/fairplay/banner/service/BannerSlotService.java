@@ -43,17 +43,18 @@ public class BannerSlotService {
             throw new CustomException(HttpStatus.BAD_REQUEST, "slotIds가 비어 있습니다.", null);
         }
 
+        var distinctIds = slotIds.stream().distinct().toList();
         int updated = bannerSlotRepository.updateStatusIfCurrentIn(
-                slotIds,
+                distinctIds,
                 BannerSlotStatus.SOLD,
                 List.of(BannerSlotStatus.LOCKED)
         );
 
 
-        if (updated != slotIds.size()) {
+        if (updated != distinctIds.size()) {
             throw new CustomException(
                     HttpStatus.CONFLICT,
-                    "SOLD 전환 실패: LOCKED 상태가 아닌 슬롯 포함 (요청 " + slotIds.size() + "건, 성공 " + updated + "건)",
+                    "SOLD 전환 실패: LOCKED 상태가 아닌 슬롯 포함 (요청 " + distinctIds.size() + "건, 성공 " + updated + "건)",
                     null
             );
         }

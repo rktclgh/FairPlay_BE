@@ -64,8 +64,7 @@ public class BannerSlot {
             try {
                 this.slotType = BannerSlotType.valueOf(this.bannerType.getCode());
             } catch (IllegalArgumentException e) {
-                // 혹시 code가 Enum과 불일치하면 그대로 두되, 운영 중 원인 파악이 쉽도록 로그/예외 중 택1
-                // throw new IllegalStateException("배너 타입 코드가 BannerSlotType과 불일치: " + bannerType.getCode());
+                throw new IllegalStateException("배너 타입 코드가 BannerSlotType과 불일치: " + bannerType.getCode(), e);
             }
         }
     }
