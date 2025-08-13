@@ -1,8 +1,10 @@
 package com.fairing.fairplay.admin.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
-@Data
+@Getter
+@Setter
 public class FunctionNameDto {
     private String functionName;
     private String functionNameKr;

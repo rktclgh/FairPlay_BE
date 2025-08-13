@@ -23,6 +23,7 @@ public class FunctionLevel {
 
     @Column(name = "function_name_kr")
     private String functionNameKr;
+    @Column(name = "level", precision = 65, scale = 0)
     private BigDecimal level;
 
 }

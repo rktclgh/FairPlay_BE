@@ -41,13 +41,14 @@ public class FunctionAuthAspect {
 
     // }
 
-    private Long getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof CustomUserDetails) {
-            return ((CustomUserDetails) principal).getUserId();
-        }
+    // private Long getCurrentUserId() {
+    // Authentication authentication =
+    // SecurityContextHolder.getContext().getAuthentication();
+    // Object principal = authentication.getPrincipal();
+    // if (principal instanceof CustomUserDetails) {
+    // return ((CustomUserDetails) principal).getUserId();
+    // }
 
-        return null; // 인증되지 않은 경우 null 반환
-    }
+    // return null; // 인증되지 않은 경우 null 반환
+    // }
 }

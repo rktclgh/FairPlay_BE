@@ -7,7 +7,7 @@ import java.util.List;
 
 import com.fairing.fairplay.admin.entity.FunctionLevel;
 
-public class Initialize_level {
+public class InitializeLevel {
 
     public List<FunctionLevel> getFunctionLevels() {
 
