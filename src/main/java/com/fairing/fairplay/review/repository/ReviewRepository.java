@@ -4,6 +4,9 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.review.dto.EventDto;
 import com.fairing.fairplay.review.entity.Review;
 import com.fairing.fairplay.user.entity.Users;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,5 +44,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
   Page<Review> findByUser(Users user, Pageable pageable);
 
   boolean existsByReservationAndUser(Reservation reservation, Users user);
+
   boolean existsByIdAndUser(Long id, Users user);
+
+  List<Review> findAllByReservation_ReservationIdIn(Collection<Long> reservationIds);
 }
