@@ -32,6 +32,8 @@ public class EventDetailModificationDto {
     private Integer regionCodeId;
     private Boolean reentryAllowed;
     private Boolean checkOutAllowed;
+    private String hostCompany;
+    private Boolean age;
 
-    private List<EventDetailRequestDto.FileUploadDto> tempFiles; // 추가
+    private List<EventDetailRequestDto.FileUploadDto> tempFiles;
 }

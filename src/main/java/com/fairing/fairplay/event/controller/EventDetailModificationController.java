@@ -28,7 +28,7 @@ public class EventDetailModificationController {
     @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
     public ResponseEntity<EventDetailModificationResponseDto> createModificationRequest(
             @PathVariable Long eventId,
-            @RequestBody EventDetailModificationRequestDto requestDto,
+            @RequestBody EventDetailModificationDto requestDto,
             @AuthenticationPrincipal CustomUserDetails auth) {
 
         EventDetailModificationDto modificationDto = new EventDetailModificationDto();
@@ -52,6 +52,8 @@ public class EventDetailModificationController {
         if (requestDto.getRegionCodeId() != null) modificationDto.setRegionCodeId(requestDto.getRegionCodeId());
         if (requestDto.getReentryAllowed() != null) modificationDto.setReentryAllowed(requestDto.getReentryAllowed());
         if (requestDto.getCheckOutAllowed() != null) modificationDto.setCheckOutAllowed(requestDto.getCheckOutAllowed());
+        if (requestDto.getHostCompany() != null) modificationDto.setHostCompany(requestDto.getHostCompany());
+        if (requestDto.getAge() != null) modificationDto.setAge(requestDto.getAge());
 
         EventDetailModificationRequest request = modificationRequestService.createModificationRequest(
                 eventId, modificationDto, auth.getUserId());

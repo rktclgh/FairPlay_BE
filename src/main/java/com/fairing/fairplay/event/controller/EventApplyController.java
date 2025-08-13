@@ -63,6 +63,13 @@ public class EventApplyController {
         return ResponseEntity.ok(responsePage);
     }
 
+    @GetMapping("/applications/{applicationId}")
+    public ResponseEntity<EventApplyResponseDto> getEventApplicationDetail(
+            @PathVariable Long applicationId) {
+        EventApplyResponseDto detail = eventApplyService.getEventApplicationDetail(applicationId);
+        return ResponseEntity.ok(detail);
+    }
+
     // 행사 신청 승인/반려
     @PutMapping("/applications/{applicationId}")
     @PreAuthorize("hasAuthority('ADMIN')")

@@ -217,6 +217,8 @@ public class EventDetailModificationRequestService {
         if (modifiedData.getEndDate() != null) eventDetail.setEndDate(modifiedData.getEndDate());
         if (modifiedData.getReentryAllowed() != null) eventDetail.setReentryAllowed(modifiedData.getReentryAllowed());
         if (modifiedData.getCheckOutAllowed() != null) eventDetail.setCheckOutAllowed(modifiedData.getCheckOutAllowed());
+        if (modifiedData.getHostCompany() != null) eventDetail.setHostCompany(modifiedData.getHostCompany());
+        if (modifiedData.getAge() != null) eventDetail.setAge(modifiedData.getAge());
 
         eventDetailRepository.save(eventDetail);
     }
@@ -241,6 +243,8 @@ public class EventDetailModificationRequestService {
         dto.setRegionCodeId(eventDetail.getRegionCode() != null ? eventDetail.getRegionCode().getRegionCodeId() : null);
         dto.setReentryAllowed(eventDetail.getReentryAllowed());
         dto.setCheckOutAllowed(eventDetail.getCheckOutAllowed());
+        dto.setHostCompany(eventDetail.getHostCompany());
+        dto.setAge(eventDetail.getAge());
         return dto;
     }
 
@@ -305,6 +309,8 @@ public class EventDetailModificationRequestService {
         dto.setRegionCodeId(snapshot.getRegionCodeId());
         dto.setReentryAllowed(snapshot.getReentryAllowed());
         dto.setCheckOutAllowed(snapshot.getCheckOutAllowed());
+        dto.setHostCompany(snapshot.getHostCompany());
+        dto.setAge(snapshot.getAge());
 
         return dto;
     }

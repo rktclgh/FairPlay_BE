@@ -132,17 +132,22 @@ public class EventController {
         return ResponseEntity.ok(response);
     }
 
-    // 행사 목록 조회 (테스트용)
-    @GetMapping("/list")
-    public ResponseEntity<List<EventResponseDto>> getEventList() {
-        List<EventResponseDto> events = eventService.getEventList();
-        return ResponseEntity.ok(events);
+    // 사용자 담당 이벤트 조회 (한 계정당 하나)
+    @GetMapping("/my-event")
+    public ResponseEntity<EventResponseDto> getMyEvent(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        EventResponseDto event = eventService.getUserEvent(userDetails);
+        return ResponseEntity.ok(event);
     }
 
     // 행사 상세 조회
     @GetMapping("/{eventId}/details")
-    public ResponseEntity<EventDetailResponseDto> getEventDetail(@PathVariable Long eventId) {
-        EventDetailResponseDto eventDetail = eventService.getEventDetail(eventId);
+    public ResponseEntity<EventDetailResponseDto> getEventDetail(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        EventDetailResponseDto eventDetail = eventService.getEventDetail(eventId, userDetails);
         return ResponseEntity.ok(eventDetail);
     }
 

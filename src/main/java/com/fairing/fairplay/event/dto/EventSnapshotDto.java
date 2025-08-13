@@ -43,6 +43,8 @@ public class EventSnapshotDto {
     private Integer regionCodeId;
     private Boolean reentryAllowed;
     private Boolean checkOutAllowed;
+    private String hostCompany;
+    private Boolean age;
     private List<EventSnapshotDto.ExternalLinkSnapshot> externalLinks;
 
     @Data

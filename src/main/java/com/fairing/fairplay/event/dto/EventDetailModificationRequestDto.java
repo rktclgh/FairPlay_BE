@@ -31,4 +31,6 @@ public class EventDetailModificationRequestDto {
     private Integer regionCodeId;
     private Boolean reentryAllowed;
     private Boolean checkOutAllowed;
+    private String hostCompany;
+    private Boolean age;
 }
