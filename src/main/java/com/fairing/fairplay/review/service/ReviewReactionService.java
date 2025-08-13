@@ -6,6 +6,7 @@ import com.fairing.fairplay.review.dto.ReactionRequestDto;
 import com.fairing.fairplay.review.dto.ReactionResponseDto;
 import com.fairing.fairplay.review.entity.Review;
 import com.fairing.fairplay.review.entity.ReviewReaction;
+import com.fairing.fairplay.review.entity.ReviewReactionId;
 import com.fairing.fairplay.review.repository.ReviewReactionRepository;
 import com.fairing.fairplay.review.repository.ReviewRepository;
 import com.fairing.fairplay.user.entity.Users;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,9 @@ public class ReviewReactionService {
   @Transactional
   public ReactionResponseDto toggleReaction(CustomUserDetails customUserDetails,
       ReactionRequestDto dto) {
+    if (dto == null || dto.getReviewId() == null) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "리뷰ID는 필수입니다.");
+    }
     Long userId = customUserDetails.getUserId();
     // 사용자 조회
     Users user = userRepository.findById(userId)
@@ -42,7 +47,7 @@ public class ReviewReactionService {
     );
 
     // 본인이 작성한 리뷰에 좋아요 반응을 추가하려하는 경우
-    if (review.getUser().equals(user)) {
+    if (review.getUser().getUserId().equals(user.getUserId())) {
       throw new CustomException(HttpStatus.FORBIDDEN, "본인이 작성한 리뷰에는 좋아요 반응을 할 수 없습니다.");
     }
 
@@ -50,8 +55,15 @@ public class ReviewReactionService {
     Optional<ReviewReaction> existingReaction = reviewReactionRepository.findByReviewAndUser(review,
         user);
 
-    return existingReaction.isPresent() ? deleteReaction(existingReaction.get(), review)
-        : saveReaction(review, user);
+    if (existingReaction.isPresent()) {
+      return deleteReaction(existingReaction.get(), review);
+    }
+    try {
+      return saveReaction(review, user);
+    } catch (DataIntegrityViolationException e) {
+      long count = reviewReactionRepository.countByReview(review);
+      return buildReactionResponse(review, count);
+    }
   }
 
   // 여러 리뷰 ID에 대한 "좋아요(리액션) 개수 한번에 조회
@@ -106,7 +118,9 @@ public class ReviewReactionService {
   }
 
   private ReviewReaction buildReviewReaction(Review review, Users user) {
+    ReviewReactionId id = new ReviewReactionId(review.getId(), user.getUserId());
     return ReviewReaction.builder()
+        .id(id)
         .review(review)
         .user(user)
         .build();

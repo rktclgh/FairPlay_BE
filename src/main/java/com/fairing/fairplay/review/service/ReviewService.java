@@ -108,7 +108,7 @@ public class ReviewService {
 
     return reviewPage.map(review -> {
       long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
-      boolean isMine = (review.getUser().getUserId().equals(loginUserId));
+      boolean isMine = (loginUserId != null) && loginUserId.equals(review.getUser().getUserId());
       return buildReviewResponse(review, reactionCount, isMine);
     });
   }
