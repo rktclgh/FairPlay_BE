@@ -1,19 +1,32 @@
 package com.fairing.fairplay.banner.controller;
 
-import com.fairing.fairplay.banner.dto.*;
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.fairing.fairplay.banner.dto.BannerPriorityUpdateDto;
+import com.fairing.fairplay.banner.dto.BannerRequestDto;
+import com.fairing.fairplay.banner.dto.BannerResponseDto;
+import com.fairing.fairplay.banner.dto.BannerStatusUpdateDto;
 import com.fairing.fairplay.banner.service.BannerApplicationService;
 import com.fairing.fairplay.banner.service.BannerService;
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.history.etc.ChangeBanner;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/banners")
@@ -33,7 +46,6 @@ public class AdminBannerController {
         }
     }
 
-
     // 배너 등록
     @FunctionAuth("createBanner")
     @PostMapping
@@ -49,6 +61,7 @@ public class AdminBannerController {
     // 배너 수정
     @FunctionAuth("updateBanner")
     @PutMapping("/{id}")
+    @ChangeBanner("배너 수정")
     public ResponseEntity<BannerResponseDto> updateBanner(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
@@ -62,6 +75,7 @@ public class AdminBannerController {
     // 배너 상태 ON/OFF 전환
     @FunctionAuth("updateBannerStatus")
     @PatchMapping("/{id}/status")
+    @ChangeBanner("배너 상태 변경")
     public ResponseEntity<Void> updateStatus(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
@@ -75,6 +89,7 @@ public class AdminBannerController {
     // 배너 우선순위 변경
     @PatchMapping("/{id}/priority")
     @FunctionAuth("updatePriority")
+    @ChangeBanner("배너 우선순위 변경")
     public ResponseEntity<Void> updatePriority(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
