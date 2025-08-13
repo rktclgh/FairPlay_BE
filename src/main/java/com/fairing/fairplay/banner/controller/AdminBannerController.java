@@ -23,7 +23,7 @@ public class AdminBannerController {
 
     // 공통 관리자 권한 체크
     private void checkAdmin(CustomUserDetails user) {
-        if (!"ADMIN".equals(user.getRoleCode())) {
+        if (user == null || !"ADMIN".equals(user.getRoleCode())) {
             throw new AccessDeniedException("관리자만 접근할 수 있습니다.");
         }
     }

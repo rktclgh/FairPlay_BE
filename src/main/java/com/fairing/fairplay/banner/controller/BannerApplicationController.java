@@ -1,9 +1,17 @@
 package com.fairing.fairplay.banner.controller;
+import com.fairing.fairplay.banner.service.BannerApplicationService;
+import org.springframework.security.access.AccessDeniedException;
 
 import com.fairing.fairplay.banner.dto.CreateApplicationRequestDto;
-import com.fairing.fairplay.banner.service.BannerApplicationService;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+
+import java.net.URI;
 
 @RestController
 @RequiredArgsConstructor
@@ -12,15 +20,36 @@ public class BannerApplicationController {
 
     private final BannerApplicationService appService;
 
+    private void requireLogin(CustomUserDetails user) {
+        if (user == null) {
+            throw new AccessDeniedException("로그인이 필요합니다.");
+        }
+    }
     @PostMapping("/applications")
-    public Long create(@RequestBody CreateApplicationRequestDto req,
-                       @RequestHeader(value="X-User-Id") Long userId) {
-        return appService.createApplicationAndLock(req, userId);
+    public ResponseEntity<Long> create(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestBody @Valid CreateApplicationRequestDto req) {
+
+        requireLogin(user);
+        Long id = appService.createApplicationAndLock(req, user.getUserId());
+
+        URI location = ServletUriComponentsBuilder
+                .fromCurrentRequest().path("/{id}")
+                .buildAndExpand(id).toUri();
+
+        // 생성 시 201 + Location
+        return ResponseEntity.created(location).body(id);
     }
 
     @PostMapping("/applications/{id}/cancel")
-    public void cancel(@PathVariable Long id,
-                       @RequestHeader(value="X-User-Id") Long userId) {
-        appService.cancelApplication(id, userId);
+    public ResponseEntity<Void> cancel(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long id) {
+
+        requireLogin(user);
+        appService.cancelApplication(id, user.getUserId());
+        // 본문 없음 → 204
+        return ResponseEntity.noContent().build();
     }
+
 }
