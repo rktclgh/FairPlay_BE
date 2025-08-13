@@ -80,13 +80,14 @@ public class AdminKpiService {
             throw new IllegalArgumentException("시작일이 종료일보다 늦을 수 없습니다.");
         }
 
-        List<AdminKpiStatistics>  dailyKpiList = adminKpiStatisticsRepository.findByStatDateBetweenOrderByStatDate(start,end);
-
-        if(ChronoUnit.DAYS.between(start, end) <= 6){
-         dailyKpiList = adminKpiStatisticsRepository.findTop7ByStatDateBetweenOrderByStatDateDesc(start,end);}
+        boolean shortRange = ChronoUnit.DAYS.between(start, end) <= 6;
+        List<AdminKpiStatistics> dailyKpiList = shortRange
+                ? adminKpiStatisticsRepository.findTop7ByStatDateBetweenOrderByStatDateDesc(start, end)
+                : adminKpiStatisticsRepository.findByStatDateBetweenOrderByStatDate(start, end);
 
 
         return dailyKpiList.stream()
+                .sorted(Comparator.comparing(AdminKpiStatistics::getStatDate)) // 항상 오름차순으로 응답
                 .map(s -> KpiTrendDto.builder()
                         .statDate(s.getStatDate())
                         .reservations(s.getTotalReservations())
@@ -117,7 +118,9 @@ public class AdminKpiService {
                                 Collectors.toList(),
                                 list -> {
                                     long reservations = list.stream()
-                                            .mapToLong(AdminKpiStatistics::getTotalReservations)
+                                            .mapToLong(stat -> stat.getTotalReservations() != null
+                                            ? stat.getTotalReservations()
+                                            : 0L)
                                             .sum();
 
                                     BigDecimal totalSales = list.stream()

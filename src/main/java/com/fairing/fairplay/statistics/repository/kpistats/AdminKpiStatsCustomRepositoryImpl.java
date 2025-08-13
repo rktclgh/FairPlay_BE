@@ -35,28 +35,34 @@ public class AdminKpiStatsCustomRepositoryImpl implements AdminKpiStatsCustomRep
 
         Long totalReservation = queryFactory
                 .select(
-                        rstats.reservationCount.sum().castToNum(Long.class)
-                                .subtract(rstats.cancellationCount.sum().castToNum(Long.class))
+                        rstats.reservationCount.sum()
                                 .coalesce(Expressions.constant(0L))
+                                .castToNum(Long.class)
+                                .subtract(
+                                        rstats.cancellationCount.sum()
+                                                .coalesce(Expressions.constant(0L))
+                                                .castToNum(Long.class)
+                                )
                 )
                 .from(rstats)
-                .where(rstats.statDate.between(start, end))
+                .where(rstats.statDate.eq(targetDate))
                 .fetchOne();
 
 
 
         BigDecimal totalSales = queryFactory
                 .select(
-                        sstats.totalSales.sum()
+                // totalSales 및 cancelledSales 각각에 coalesce 적용 후 차감
+                        sstats.totalSales.sum().coalesce(0L)
                                 .castToNum(BigDecimal.class)
-                                .subtract(
-                                        sstats.cancelledCount.sum()
-                                                .castToNum(BigDecimal.class)
-                                )
-                                .coalesce(Expressions.constant(BigDecimal.ZERO))
+                .subtract(
+                sstats.cancelledSales.sum().coalesce(0L)
+                        .castToNum(BigDecimal.class)
                 )
-                .from(sstats)
-                .where(sstats.statDate.between(start, end))
+        .coalesce(Expressions.constant(BigDecimal.ZERO))
+                )
+        .from(sstats)
+                .where(sstats.statDate.eq(targetDate))
                 .fetchOne();
 
 
@@ -74,7 +80,10 @@ public class AdminKpiStatsCustomRepositoryImpl implements AdminKpiStatsCustomRep
         Long totalUsers  = queryFactory
                 .select(u.userId.count())
                 .from(u)
-                .where(u.createdAt.between(start.atStartOfDay(), end.atStartOfDay()))
+                .where(
+                        u.createdAt.goe(start.atStartOfDay())
+                                .and(u.createdAt.lt(end.atStartOfDay()))
+                )
                 .fetchOne();
 
 

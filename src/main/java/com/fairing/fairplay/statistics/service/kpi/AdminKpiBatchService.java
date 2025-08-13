@@ -22,12 +22,13 @@ public class AdminKpiBatchService {
     @Transactional
     public void runBatch(LocalDate date) {
         try {
+            AdminKpiStatistics computed = adminKpiStatsCustomRepository.calculate(date);
             adminKpiStatisticsRepository.findByStatDate(date)
                     .ifPresent(existing -> {
                 log.warn("기존 KPI 데이터 발견, 재계산합니다: {}", date);
                 adminKpiStatisticsRepository.delete((AdminKpiStatistics) existing);
                 });
-            adminKpiStatisticsRepository.save(adminKpiStatsCustomRepository.calculate(date));
+            adminKpiStatisticsRepository.save(computed);
             log.info("관리자 KPI 통계 배치 처리 완료: {}", date);
         } catch (Exception e) {
             log.error("관리자 KPI 통계 배치 처리 실패: {}", date, e);
