@@ -46,20 +46,21 @@ public class SecurityConfig {
                                 "/api/events",                     // GET 행사 목록 조회
                                 "/api/events/list",                // GET 행사 목록 (테스트용)
                                 "/api/events/*/details",           // GET 행사 상세 조회 (*/details 패턴)
-                                "/api/users/forgot-password",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
-                                "/api/users/check-email",
-                                "/api/users/check-nickname",
-                                "/api/email/verify-code",
-                                "/api/email/send-verification",
-                                "/api/auth/kakao",
-                                "/auth/kakao/callback",
-                                "/api/users/event-admin/*/public",
-                                "/api/qr-tickets/*",
-                                "/api/qr-tickets/reissue",
-                                "/ws/**", // ★ 반드시 필요
-                                "/api/chat/rooms/**", // 채팅방 목록 조회만 허용
+                                                                "/api/users/forgot-password",
+                                                                "/swagger-ui/**",
+                                                                "/v3/api-docs/**",
+                                                                "/api/users/check-email",
+                                                                "/api/users/check-nickname",
+                                                                "/api/email/verify-code",
+                                                                "/api/email/send-verification",
+                                                                "/api/auth/kakao",
+                                                                "/auth/kakao/callback",
+                                                                "/api/users/event-admin/*/public",
+                                                                "/api/qr-tickets/*",
+                                                                "/api/qr-tickets/reissue",
+                                                                "/ws/**", // ★ 반드시 필요
+                                                "/ws/*/info", // SockJS info 엔드포인트
+                                                                "/api/chat/rooms/**", // 채팅방 목록 조회만 허용
                                 "/api/chat/presence/status/**", // 사용자 온라인 상태 조회 허용
                                 "/api/uploads/**",
                                 "/api/payments/complete",  // PG사에서 호출하는 결제 완료 웹훅

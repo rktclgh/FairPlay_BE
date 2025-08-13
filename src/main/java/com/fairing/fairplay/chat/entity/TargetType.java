@@ -4,5 +4,6 @@ public enum TargetType {
     ADMIN,
     SUPER_ADMIN,
     EVENT_MANAGER,
-    BOOTH_MANAGER
+    BOOTH_MANAGER,
+    AI
 }

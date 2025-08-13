@@ -1,5 +1,6 @@
 package com.fairing.fairplay.statistics.controller;
 
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.statistics.dto.reservation.EventDashboardStatsDto;
 import com.fairing.fairplay.statistics.service.reservation.StatisticsService;
 import lombok.RequiredArgsConstructor;
@@ -16,11 +17,11 @@ public class EventDashboardStatsController {
     private final StatisticsService statisticsService;
 
     @GetMapping("/reservations/{eventId}")
+    @FunctionAuth("getEventDashboard")
     public EventDashboardStatsDto getEventDashboard(
             @PathVariable Long eventId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end
-    ) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
         return statisticsService.getDashboardStats(eventId, start, end);
     }
 }

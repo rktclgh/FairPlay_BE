@@ -1,5 +1,6 @@
 package com.fairing.fairplay.event.controller;
 
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.dto.EventDetailModificationResponseDto;
 import com.fairing.fairplay.event.dto.EventVersionComparisonDto;
@@ -28,6 +29,7 @@ public class EventVersionController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
+    @FunctionAuth("getEventVersions")
     public ResponseEntity<Page<EventVersionResponseDto>> getEventVersions(
             @PathVariable Long eventId,
             Pageable pageable) {
@@ -40,6 +42,7 @@ public class EventVersionController {
 
     @GetMapping("/{versionNumber}")
     @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
+    @FunctionAuth("getEventVersion")
     public ResponseEntity<EventVersionResponseDto> getEventVersion(
             @PathVariable Long eventId,
             @PathVariable Integer versionNumber) {
@@ -52,6 +55,7 @@ public class EventVersionController {
 
     @PostMapping("/{versionNumber}/restore-request")
     @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
+    @FunctionAuth("createVersionRestoreRequest")
     public ResponseEntity<EventDetailModificationResponseDto> createVersionRestoreRequest(
             @PathVariable Long eventId,
             @PathVariable Integer versionNumber,
@@ -59,14 +63,15 @@ public class EventVersionController {
 
         EventDetailModificationRequest request = modificationRequestService.createVersionRestoreRequest(
                 eventId, versionNumber, auth.getUserId());
-        
+
         EventDetailModificationResponseDto responseDto = EventDetailModificationResponseDto.from(request);
-        
+
         return ResponseEntity.ok(responseDto);
     }
 
     @GetMapping("/compare")
     @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
+    @FunctionAuth("compareVersions")
     public ResponseEntity<EventVersionComparisonDto> compareVersions(
             @PathVariable Long eventId,
             @RequestParam Integer version1,

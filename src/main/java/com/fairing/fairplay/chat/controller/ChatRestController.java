@@ -12,6 +12,7 @@ import com.fairing.fairplay.chat.service.ChatRoomService;
 import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,6 +32,9 @@ public class ChatRestController {
     private final ChatEventHelperService chatEventHelperService;
     private final ChatRoomRepository chatRoomRepository;
     private final UserRepository userRepository;
+
+    @Value("${llm.bot-user-id:999}")
+    private Long botUserId;
 
     // [유저/관리자] 내 채팅방 리스트 (역할에 따라 자동으로 관리자 채팅방도 포함)
     @GetMapping("/rooms")
@@ -314,4 +318,32 @@ public class ChatRestController {
                 .eventTitle("전체 관리자 문의")
                 .build();
     }
+
+    @PostMapping("/ai-inquiry")
+    public ChatRoomResponseDto aiInquiry(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long userId = userDetails.getUserId();
+
+        // 봇 계정 ID 사용
+
+        ChatRoom room = chatRoomService.getOrCreateRoom(
+                userId,
+                TargetType.AI, // 👈 AI 방 타입
+                botUserId,
+                null // eventId 없음
+        );
+
+        return ChatRoomResponseDto.builder()
+                .chatRoomId(room.getChatRoomId())
+                .eventId(room.getEventId())
+                .userId(room.getUserId())
+                .targetType(room.getTargetType().name())
+                .targetId(room.getTargetId())
+                .createdAt(room.getCreatedAt())
+                .closedAt(room.getClosedAt())
+                .eventTitle("AI 도우미") // 표시용
+                .build();
+    }
+
+
+
 }

@@ -1,5 +1,6 @@
 package com.fairing.fairplay.ticket.controller;
 
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.ticket.dto.EventScheduleRequestDto;
 import com.fairing.fairplay.ticket.dto.EventScheduleResponseDto;
 import com.fairing.fairplay.ticket.service.EventScheduleService;
@@ -19,6 +20,7 @@ public class EventScheduleController {
 
     // 회차 등록
     @PostMapping
+    @FunctionAuth("createSchedule")
     public ResponseEntity<EventScheduleResponseDto> createSchedule(
             @PathVariable Long eventId,
             @RequestBody EventScheduleRequestDto requestDto) {
@@ -28,12 +30,14 @@ public class EventScheduleController {
 
     // 회차 목록 조회
     @GetMapping
+    @FunctionAuth("getSchedules")
     public ResponseEntity<List<EventScheduleResponseDto>> getSchedules(@PathVariable Long eventId) {
         return ResponseEntity.ok(eventScheduleService.getSchedules(eventId));
     }
 
     // 회차 상세 조회
     @GetMapping("/{scheduleId}")
+    @FunctionAuth("getSchedule")
     public ResponseEntity<EventScheduleResponseDto> getSchedule(
             @PathVariable Long eventId,
             @PathVariable Long scheduleId) {
@@ -42,6 +46,7 @@ public class EventScheduleController {
 
     // 회차 수정
     @PatchMapping("/{scheduleId}")
+    @FunctionAuth("updateSchedule")
     public ResponseEntity<EventScheduleResponseDto> updateSchedule(
             @PathVariable Long eventId,
             @PathVariable Long scheduleId,
@@ -51,6 +56,7 @@ public class EventScheduleController {
 
     // 회차 삭제
     @DeleteMapping("/{scheduleId}")
+    @FunctionAuth("deleteSchedule")
     public ResponseEntity<Void> deleteSchedule(
             @PathVariable Long eventId,
             @PathVariable Long scheduleId) {
