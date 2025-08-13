@@ -25,7 +25,9 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -126,9 +128,19 @@ public class ReviewService {
   }
 
   // 마이페이지 - 본인의 모든 리뷰 조회
-  public Page<ReviewResponseDto> getReviewForUser(Long userId, Pageable pageable) {
+  public Page<ReviewResponseDto> getReviewForUser(CustomUserDetails userDetails, int page) {
     // 1.  사용자 존재 여부 확인
-    Users user = findUserOrThrow(userId);
+    Pageable pageable = PageRequest.of(page, 5, Sort.by(Sort.Direction.DESC, "createdAt"));
+    if (userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+    }
+
+    if (page < 0) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "page는 0 이상의 정수여야 합니다.");
+    }
+
+    Users user = userRepository.findById(userDetails.getUserId()).orElseThrow(() ->
+        new CustomException(HttpStatus.NOT_FOUND, "사용자가 조회되지 않습니다."));
 
     // 2. 리뷰 페이징 조회
     Page<Review> reviewPage = reviewRepository.findByUser(user, pageable);
@@ -148,6 +160,7 @@ public class ReviewService {
       return buildReviewResponse(review, reactionCount, true);
     });
   }
+
 
   // 리뷰 수정 (리액션 제외)
   @Transactional
@@ -233,7 +246,8 @@ public class ReviewService {
   private ReviewResponseDto buildReviewResponse(Review review, Long reactionCount, boolean owner) {
     EventDto eventDto = buildEvent(review.getReservation());
     ReviewDto reviewDto = buildReview(review, reactionCount);
-    return new ReviewResponseDto(eventDto, reviewDto, owner);
+    return new ReviewResponseDto(review.getReservation().getReservationId(), eventDto, reviewDto,
+        owner);
   }
 
   private EventDto buildEvent(Reservation reservation) {

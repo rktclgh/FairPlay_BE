@@ -65,10 +65,9 @@ public class ReviewController {
 
   // 마이페이지 리뷰 조회
   @GetMapping
-  public ResponseEntity<Page<ReviewResponseDto>> getReviewForUser(
-      @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+  public ResponseEntity<Page<ReviewResponseDto>> getReviewForUser(@AuthenticationPrincipal CustomUserDetails userDetails, int page) {
     return ResponseEntity.status(HttpStatus.OK)
-        .body(reviewService.getReviewForUser(1L, pageable));
+        .body(reviewService.getReviewForUser(userDetails, page));
   }
 
   // 리뷰 수정 요청 ( 비공개여부, 리뷰 내용 등)
