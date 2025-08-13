@@ -2,6 +2,7 @@ package com.fairing.fairplay.banner.controller;
 
 import com.fairing.fairplay.banner.dto.*;
 import com.fairing.fairplay.banner.service.BannerService;
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class AdminBannerController {
     }
 
     // 배너 등록
+    @FunctionAuth("createBanner")
     @PostMapping
     public ResponseEntity<BannerResponseDto> createBanner(
             @AuthenticationPrincipal CustomUserDetails user,
@@ -38,6 +40,7 @@ public class AdminBannerController {
     }
 
     // 배너 수정
+    @FunctionAuth("updateBanner")
     @PutMapping("/{id}")
     public ResponseEntity<BannerResponseDto> updateBanner(
             @AuthenticationPrincipal CustomUserDetails user,
@@ -50,6 +53,7 @@ public class AdminBannerController {
     }
 
     // 배너 상태 ON/OFF 전환
+    @FunctionAuth("updateBannerStatus")
     @PatchMapping("/{id}/status")
     public ResponseEntity<Void> updateStatus(
             @AuthenticationPrincipal CustomUserDetails user,
@@ -63,6 +67,7 @@ public class AdminBannerController {
 
     // 배너 우선순위 변경
     @PatchMapping("/{id}/priority")
+    @FunctionAuth("updatePriority")
     public ResponseEntity<Void> updatePriority(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
@@ -75,6 +80,7 @@ public class AdminBannerController {
 
     // 전체 배너 목록
     @GetMapping
+    @FunctionAuth("listAll")
     public ResponseEntity<List<BannerResponseDto>> listAll(
             @AuthenticationPrincipal CustomUserDetails user) {
 

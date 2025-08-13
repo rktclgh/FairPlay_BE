@@ -50,6 +50,7 @@ Authorization: Bearer {{access_token}}
     }
   ],
   "reentryAllowed": false,
+  "checkInAllowed": false,
   "checkOutAllowed": false
 }
 

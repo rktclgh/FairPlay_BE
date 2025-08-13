@@ -734,6 +734,8 @@ public class EventService {
             eventDetail.setThumbnailUrl(eventDetailRequestDto.getThumbnailUrl());
         if (eventDetailRequestDto.getReentryAllowed() != null)
             eventDetail.setReentryAllowed(eventDetailRequestDto.getReentryAllowed());
+        if (eventDetailRequestDto.getCheckInAllowed() != null)
+            eventDetail.setCheckInAllowed(eventDetailRequestDto.getCheckInAllowed());
         if (eventDetailRequestDto.getCheckOutAllowed() != null)
             eventDetail.setCheckOutAllowed(eventDetailRequestDto.getCheckOutAllowed());
     }
@@ -779,6 +781,7 @@ public class EventService {
                 .eventTime(detail.getEventTime())
                 .externalLinks(links)
                 .reentryAllowed(detail.getReentryAllowed())
+                .checkInAllowed(detail.getCheckInAllowed())
                 .checkOutAllowed(detail.getCheckOutAllowed())
                 .hostCompany(detail.getHostCompany())
                 .age(detail.getAge())

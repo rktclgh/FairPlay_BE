@@ -1,16 +1,18 @@
 package com.fairing.fairplay.statistics.controller;
 
-import com.fairing.fairplay.statistics.service.event.EventComparisonService;
+import java.util.List;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.statistics.dto.event.EventComparisonPageResponseDto;
 import com.fairing.fairplay.statistics.dto.event.EventComparisonResponseDto;
-import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.http.ResponseEntity;
+import com.fairing.fairplay.statistics.service.event.EventComparisonService;
 
-import java.time.LocalDate;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/event-comparison")
@@ -23,6 +25,7 @@ public class EventComparisonController {
      * 행사별 비교 페이지 전체 데이터 조회
      */
     @GetMapping("/page-data")
+    @FunctionAuth("getPageData")
     public EventComparisonPageResponseDto getPageData() {
         return eventComparisonService.getComparisonPageData();
     }
@@ -32,13 +35,8 @@ public class EventComparisonController {
      */
     @GetMapping("/filter/status")
     public List<EventComparisonResponseDto> getEventsByStatus(
-            @RequestParam
-            @jakarta.validation.constraints.Pattern(regexp = "ONGOING|UPCOMING|ENDED", message = "status must be one of [ONGOING, UPCOMING, ENDED]")
-            String status
-            )
-    {
+            @RequestParam @jakarta.validation.constraints.Pattern(regexp = "ONGOING|UPCOMING|ENDED", message = "status must be one of [ONGOING, UPCOMING, ENDED]") String status) {
         return eventComparisonService.getEventsByStatus(status);
     }
-
 
 }

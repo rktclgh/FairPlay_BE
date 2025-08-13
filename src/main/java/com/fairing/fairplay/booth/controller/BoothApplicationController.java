@@ -2,6 +2,7 @@ package com.fairing.fairplay.booth.controller;
 
 import com.fairing.fairplay.booth.dto.*;
 import com.fairing.fairplay.booth.service.BoothApplicationService;
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +43,7 @@ public class BoothApplicationController {
     }
 
     // 2. 관리자 - 신청 목록 조회
+    @FunctionAuth("getList")
     @GetMapping
     public ResponseEntity<List<BoothApplicationListDto>> getList(
             @AuthenticationPrincipal CustomUserDetails user,
@@ -54,6 +56,7 @@ public class BoothApplicationController {
 
     // 3. 관리자 - 신청 상세 조회
     @GetMapping("/{id}")
+    @FunctionAuth("getDetail")
     public ResponseEntity<BoothApplicationResponseDto> getDetail(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id) {
@@ -63,9 +66,9 @@ public class BoothApplicationController {
         return ResponseEntity.ok(dto);
     }
 
-
     // 4. 관리자 - 승인/반려 처리
     @PutMapping("/{id}/status")
+    @FunctionAuth("updateStatus")
     public ResponseEntity<Void> updateStatus(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
@@ -78,6 +81,7 @@ public class BoothApplicationController {
 
     // 5. 행사 관리자 - 결제 상태 변경 처리
     @PutMapping("/{id}/payment-status")
+    @FunctionAuth("updatePaymentStatus")
     public ResponseEntity<Void> updatePaymentStatus(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
@@ -88,9 +92,9 @@ public class BoothApplicationController {
         return ResponseEntity.ok().build();
     }
 
-
     // 6. 부스 관리자 - 취소 요청 (태스트 x)
     @PutMapping("/{id}/cancel")
+    @FunctionAuth("cancelApplication")
     public ResponseEntity<Void> cancelApplication(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id) {
@@ -100,7 +104,4 @@ public class BoothApplicationController {
         return ResponseEntity.ok().build();
     }
 
-
-
 }
-

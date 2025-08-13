@@ -92,6 +92,9 @@ public class EventDetail {
     @Column(name = "reentry_allowed", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT TRUE")
     private Boolean reentryAllowed = true;
 
+    @Column(name = "check_in_allowed", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    private Boolean checkInAllowed = false;
+
     @Column(name = "check_out_allowed", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
     private Boolean checkOutAllowed = false;
 

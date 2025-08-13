@@ -2,6 +2,7 @@ package com.fairing.fairplay.statistics.service.reservation;
 
 import com.fairing.fairplay.statistics.dto.reservation.*;
 import com.fairing.fairplay.statistics.entity.reservation.EventDailyStatistics;
+import com.fairing.fairplay.statistics.repository.dailystats.DailyStatsCustomRepository;
 import com.fairing.fairplay.statistics.repository.dailystats.EventDailyStatisticsRepository;
 import com.fairing.fairplay.statistics.repository.hourlystats.EventHourlyStatisticsRepository;
 import com.fairing.fairplay.statistics.repository.sessionstats.EventSessionStatisticsRepository;
@@ -22,12 +23,12 @@ public class StatisticsService {
     private final EventHourlyStatisticsRepository hourlyRepo;
     private final EventTicketStatisticsRepository ticketRepo;
     private final EventSessionStatisticsRepository sessionRepo;
-
+    private final DailyStatsCustomRepository dailyStatsCustomRepository;
     // 데이터 집계
     @Transactional
     public void runBatch(LocalDate date) {
         try {
-            dailyRepo.saveAll(dailyRepo.calculate(date));
+            dailyRepo.saveAll(dailyStatsCustomRepository.calculate(date));
             hourlyRepo.saveAll(hourlyRepo.calculate(date));
             ticketRepo.saveAll(ticketRepo.calculate(date));
             sessionRepo.saveAll(sessionRepo.calculate(date));
@@ -77,8 +78,13 @@ public class StatisticsService {
         List<SessionStatsDto> sessionStats = sessionRepo.findByEventIdAndStatDateBetween(eventId, start, end).stream()
                 .map(s -> SessionStatsDto.builder()
                         .sessionId(s.getSessionId())
-                        .sessionName("Session " + s.getSessionId()) // 필요시 이름 매핑
+                        .statDate(s.getStatDate())
+                        .startTime(s.getStartTime())
+                        .sessionName(s.getTicketType()) // 필요시 이름 매핑
                         .reservations(s.getReservations())
+                        .checkins(s.getCheckins())
+                        .cancellation(s.getCancellation())
+                        .noShows(s.getNoShows())
                         .build())
                 .toList();
 

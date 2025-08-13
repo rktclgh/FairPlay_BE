@@ -1,5 +1,7 @@
 package com.fairing.fairplay.qr.dto.scan;
 
+
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -11,8 +13,11 @@ import lombok.Setter;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class GuestQrCheckRequestDto {
+public class QrCodeDecodeDto {
+  private Long qrTicketId;
+  private Long attendeeId;
+  private LocalDateTime expiredAt;
 
-  private String qrLinkToken;
-  private String qrCode;
+
+
 }
