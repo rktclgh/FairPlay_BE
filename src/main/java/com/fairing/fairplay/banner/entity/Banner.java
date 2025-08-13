@@ -14,12 +14,14 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "banner")
 @Getter
+@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Banner {
 
@@ -36,6 +38,15 @@ public class Banner {
 
     @Column(length = 255)
     private String linkUrl;
+
+    @Column(name = "event_id")          // NULL 허용
+    private Long eventId;
+
+    @Column(name = "created_by")        // NULL 허용
+    private Long createdBy;
+
+    @Column(name = "created_at", updatable = false, insertable = false)
+    private LocalDateTime createdAt;    // DB DEFAULT CURRENT_TIMESTAMP 사용
 
     @Column(nullable = false)
     private Integer priority = 0;
@@ -54,11 +65,7 @@ public class Banner {
     @JoinColumn(name = "banner_type_id", nullable = false)
     private BannerType bannerType;
 
-    @Column(nullable = false)
-    private boolean hot = false;
 
-    @Column(name="md_pick", nullable = false)
-    private boolean mdPick = false;
 
     public void updateStatus(BannerStatusCode newStatus) {
         this.bannerStatusCode = newStatus;
@@ -68,7 +75,7 @@ public class Banner {
         this.priority = newPriority;
     }
 
-    public void updateInfo(String title, String imageUrl, String linkUrl, LocalDateTime startDate, LocalDateTime endDate, Integer priority,BannerType bannerType, boolean hot, boolean mdPick) {
+    public void updateInfo(String title, String imageUrl, String linkUrl, LocalDateTime startDate, LocalDateTime endDate, Integer priority,BannerType bannerType) {
         this.title = title;
         this.imageUrl = imageUrl;
         this.linkUrl = linkUrl;
@@ -76,13 +83,12 @@ public class Banner {
         this.endDate = endDate;
         this.priority = priority;
         this.bannerType = bannerType;
-        this.hot = hot;
-        this.mdPick = mdPick;
+
     }
 
     public Banner(String title, String imageUrl, String linkUrl,
                   Integer priority, LocalDateTime startDate, LocalDateTime endDate,
-                  BannerStatusCode statusCode, BannerType bannerType, boolean hot, boolean mdPick) {
+                  BannerStatusCode statusCode, BannerType bannerType) {
         this.title = title;
         this.imageUrl = imageUrl;
         this.linkUrl = linkUrl;
@@ -91,8 +97,7 @@ public class Banner {
         this.endDate = endDate;
         this.bannerStatusCode = statusCode;
         this.bannerType = bannerType;
-        this.hot = hot;
-        this.mdPick = mdPick;
+
     }
 
 }
