@@ -1,4 +1,3 @@
-// BannerSlotRepository.java
 package com.fairing.fairplay.banner.repository;
 
 import com.fairing.fairplay.banner.entity.BannerSlot;
@@ -7,7 +6,6 @@ import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,7 +36,8 @@ public interface BannerSlotRepository extends JpaRepository<BannerSlot, Long> {
         where s.id in :slotIds
           and s.status in :allowedFrom
        """)
-    int markSold(@Param("slotIds") List<Long> slotIds,
+    int updateStatusIfCurrentIn(
+                 @Param("slotIds") List<Long> slotIds,
                  @Param("to") com.fairing.fairplay.banner.entity.BannerSlotStatus to,
                  @Param("allowedFrom") java.util.List<com.fairing.fairplay.banner.entity.BannerSlotStatus> allowedFrom);
 
@@ -54,11 +53,6 @@ public interface BannerSlotRepository extends JpaRepository<BannerSlot, Long> {
               and s.lockedUntil < CURRENT_TIMESTAMP
            """)
     int releaseExpiredLocks();
-
-    // SOLD 전환
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("update BannerSlot s set s.status = 'SOLD' where s.id in :slotIds")
-    int markSold(@Param("slotIds") List<Long> slotIds);
 
     // 결제 후 생성된 배너 id 연결 (native가 깔끔)
     @Modifying(clearAutomatically = true, flushAutomatically = true)

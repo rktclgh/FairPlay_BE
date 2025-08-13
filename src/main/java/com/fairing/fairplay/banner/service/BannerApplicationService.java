@@ -2,128 +2,149 @@ package com.fairing.fairplay.banner.service;
 
 import com.fairing.fairplay.banner.dto.CreateApplicationRequestDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.access.AccessDeniedException;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
-
-import static java.util.stream.Collectors.joining;
-
 
 @Service
 @RequiredArgsConstructor
 public class BannerApplicationService {
 
+    // 상태 코드 문자열 상수
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_APPROVED = "APPROVED";
+    private static final String SLOT_STATUS_AVAILABLE = "AVAILABLE";
+    private static final String SLOT_STATUS_LOCKED = "LOCKED";
+    private static final String SLOT_STATUS_SOLD = "SOLD";
+    private static final String BANNER_STATUS_ACTIVE = "ACTIVE";
+
+    // 기본 락 시간(분) — 48시간
+    private static final int DEFAULT_LOCK_MINUTES = 48 * 60;
+
+    // 하루 종료 시간 상수
+    private static final LocalTime END_OF_DAY = LocalTime.of(23, 59, 59);
+
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
+
+    @Value("${banner.lock.default-minutes:" + DEFAULT_LOCK_MINUTES + "}")
+    private int configuredLockMinutes;
+
     private Long typeId(String code) {
         try {
-                       return jdbc.queryForObject(
-                                       "SELECT banner_type_id FROM banner_type WHERE code = ?",
-                                       Long.class, code);
-                   } catch (EmptyResultDataAccessException e) {
-                       throw new IllegalArgumentException("존재하지 않는 배너 타입: " + code);
-                   }
+            return jdbc.queryForObject(
+                    "SELECT banner_type_id FROM banner_type WHERE code = ?",
+                    Long.class, code
+            );
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("존재하지 않는 배너 타입: " + code);
+        }
     }
 
     private Integer statusId(String code) {
         try {
-                       return jdbc.queryForObject(
-                                       "SELECT apply_status_code_id FROM apply_status_code WHERE code = ?",
-                                       Integer.class, code);
-                   } catch (EmptyResultDataAccessException e) {
-                       throw new IllegalArgumentException("존재하지 않는 신청 상태 코드: " + code);
-                   }
+            return jdbc.queryForObject(
+                    "SELECT apply_status_code_id FROM apply_status_code WHERE code = ?",
+                    Integer.class, code
+            );
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("존재하지 않는 신청 상태 코드: " + code);
+        }
     }
 
     private Integer bannerStatusId(String code) {
         try {
-                       return jdbc.queryForObject(
-                                       "SELECT banner_status_code_id FROM banner_status_code WHERE code = ?",
-                                       Integer.class, code);
-                   } catch (EmptyResultDataAccessException e) {
-                       throw new IllegalArgumentException("존재하지 않는 배너 상태 코드: " + code);
-                   }
+            return jdbc.queryForObject(
+                    "SELECT banner_status_code_id FROM banner_status_code WHERE code = ?",
+                    Integer.class, code
+            );
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("존재하지 않는 배너 상태 코드: " + code);
+        }
     }
 
     /** 신청 + 슬롯 LOCK (원자적) */
     @Transactional
     public Long createApplicationAndLock(CreateApplicationRequestDto req, Long userId) {
         long typeId = typeId(req.bannerType().name());
-        int lockMinutes = Optional.ofNullable(req.lockMinutes()).orElse(2880); // 48h
+        int lockMinutes = Optional.ofNullable(req.lockMinutes()).orElse(configuredLockMinutes);
 
-        // 1) 대상 슬롯들 잠그기 위해 slot_id, price 조회 (FOR UPDATE)
+        // 1) 대상 슬롯 잠그기 위해 slot_id, price 조회 (FOR UPDATE)
         List<Long> slotIds = new ArrayList<>();
         List<Integer> prices = new ArrayList<>();
         for (CreateApplicationRequestDto.Item it : req.items()) {
-            Map<String, Object> result = jdbc.queryForMap("""
-                SELECT slot_id, price
-                FROM banner_slot
-                WHERE banner_type_id = ?
-                  AND slot_date = ?
-                  AND priority = ?
-                  AND status = 'AVAILABLE'
-                  ORDER BY slot_id
-                FOR UPDATE
-            """, typeId, it.date(), it.priority());
-            if (result == null || result.isEmpty()) {
+            Map<String, Object> result;
+            try {
+                result = jdbc.queryForMap("""
+                        SELECT slot_id, price
+                        FROM banner_slot
+                        WHERE banner_type_id = ?
+                          AND slot_date = ?
+                          AND priority = ?
+                          AND status = ?
+                        ORDER BY slot_id
+                        FOR UPDATE
+                        """, typeId, it.date(), it.priority(), SLOT_STATUS_AVAILABLE);
+            } catch (EmptyResultDataAccessException e) {
                 throw new IllegalStateException("매진/선점된 슬롯 있음: " + it);
             }
-
-            Long slotId = (Long) result.get("slot_id");
-            Integer price = (Integer) result.get("price");
-
-            slotIds.add(slotId);
-            prices.add(price);
+            slotIds.add((Long) result.get("slot_id"));
+            prices.add((Integer) result.get("price"));
         }
 
         // 2) LOCK 전환
-        Map<String, Object> params = new HashMap<>();
-                params.put("userId", userId);
-                params.put("lockMinutes", lockMinutes);
-                params.put("slotIds", slotIds);
+        Map<String, Object> params = Map.of(
+                "userId", userId,
+                "lockMinutes", lockMinutes,
+                "slotIds", slotIds
+        );
 
         int locked = namedJdbc.update("""
-    UPDATE banner_slot
-       SET status='LOCKED',
-           locked_by=:userId,
-           locked_until = DATE_ADD(NOW(), INTERVAL :lockMinutes MINUTE)
-     WHERE slot_id IN (:slotIds)
-       AND status='AVAILABLE'
-""", params);
+                UPDATE banner_slot
+                   SET status=:locked,
+                       locked_by=:userId,
+                       locked_until = DATE_ADD(NOW(), INTERVAL :lockMinutes MINUTE)
+                 WHERE slot_id IN (:slotIds)
+                   AND status=:available
+                """, new MapSqlParameterSource(params)
+                .addValue("locked", SLOT_STATUS_LOCKED)
+                .addValue("available", SLOT_STATUS_AVAILABLE));
 
         if (locked != slotIds.size()) {
-            throw new IllegalStateException("LOCK 실패: 이미 점유된 슬롯 포함 (요청 %d, 성공 %d)"
-                    .formatted(slotIds.size(), locked));
+            throw new IllegalStateException(
+                    String.format("LOCK 실패: 이미 점유된 슬롯 포함 (요청 %d, 성공 %d)", slotIds.size(), locked)
+            );
         }
 
         // 3) 신청서 저장
         int total = prices.stream().mapToInt(Integer::intValue).sum();
-        Integer pendingId = statusId("PENDING");
+        Integer pendingId = statusId(STATUS_PENDING);
 
         KeyHolder kh = new GeneratedKeyHolder();
         jdbc.update(con -> {
             var ps = con.prepareStatement("""
-                INSERT INTO banner_application (
-                  event_id, applicant_id, banner_type_id,
-                  title, image_url, link_url,
-                  requested_priority, start_date, end_date,
-                  status_code_id, total_amount, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, PreparedStatement.RETURN_GENERATED_KEYS);
-            // requested_priority/start_date/end_date는 일단 첫 아이템 기준(운영 편의용 표시 필드)
+                    INSERT INTO banner_application (
+                      event_id, applicant_id, banner_type_id,
+                      title, image_url, link_url,
+                      requested_priority, start_date, end_date,
+                      status_code_id, total_amount, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, PreparedStatement.RETURN_GENERATED_KEYS);
             var first = req.items().get(0);
             ps.setLong(1, req.eventId());
             ps.setLong(2, userId);
@@ -133,7 +154,7 @@ public class BannerApplicationService {
             ps.setString(6, req.linkUrl());
             ps.setInt(7, first.priority());
             ps.setTimestamp(8, Timestamp.valueOf(first.date().atStartOfDay()));
-            ps.setTimestamp(9, Timestamp.valueOf(lastDate(req.items()).atTime(23,59,59)));
+            ps.setTimestamp(9, Timestamp.valueOf(lastDate(req.items()).atTime(END_OF_DAY)));
             ps.setInt(10, pendingId);
             ps.setInt(11, total);
             ps.setTimestamp(12, Timestamp.valueOf(LocalDateTime.now()));
@@ -145,16 +166,18 @@ public class BannerApplicationService {
         String sql = "INSERT INTO banner_application_slot (banner_application_id, slot_id, item_price) VALUES (?, ?, ?)";
         List<Object[]> batchArgs = new ArrayList<>();
         for (int i = 0; i < slotIds.size(); i++) {
-            batchArgs.add(new Object[]{ appId, slotIds.get(i), prices.get(i) });
+            batchArgs.add(new Object[]{appId, slotIds.get(i), prices.get(i)});
         }
         jdbc.batchUpdate(sql, batchArgs);
-
 
         return appId;
     }
 
     private LocalDate lastDate(List<CreateApplicationRequestDto.Item> items) {
-        return items.stream().map(CreateApplicationRequestDto.Item::date).max(LocalDate::compareTo).orElseThrow();
+        return items.stream()
+                .map(CreateApplicationRequestDto.Item::date)
+                .max(LocalDate::compareTo)
+                .orElseThrow();
     }
 
     /** 신청 취소(본인 락 해제) */
@@ -162,35 +185,37 @@ public class BannerApplicationService {
     public void cancelApplication(Long appId, Long userId) {
         // 1) 본인 신청인지 검증
         Long owner;
-                try {
-                 owner = jdbc.queryForObject("""
+        try {
+            owner = jdbc.queryForObject("""
                     SELECT applicant_id FROM banner_application WHERE banner_application_id=?
-                 """, Long.class, appId);
-              } catch (EmptyResultDataAccessException e) {
-                  throw new IllegalArgumentException("존재하지 않는 신청입니다: " + appId);
-              }
-              if (!Objects.equals(owner, userId)) {
-                  throw new AccessDeniedException("해당 신청을 취소할 권한이 없습니다");
-              }
+                    """, Long.class, appId);
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("존재하지 않는 신청입니다: " + appId);
+        }
+        if (!Objects.equals(owner, userId)) {
+            throw new AccessDeniedException("해당 신청을 취소할 권한이 없습니다");
+        }
 
         // 2) 매핑된 슬롯 조회
         List<Long> slotIds = jdbc.queryForList("""
-          SELECT slot_id FROM banner_application_slot WHERE banner_application_id=?
-        """, Long.class, appId);
+                SELECT slot_id FROM banner_application_slot WHERE banner_application_id=?
+                """, Long.class, appId);
 
-        // 3) 취소 시 락이 풀렸는지 검증
+        // 3) 락 해제
         if (!slotIds.isEmpty()) {
-            var params = new HashMap<String, Object>();
-            params.put("slotIds", slotIds);
-            params.put("userId", userId);
+            var params = new MapSqlParameterSource()
+                    .addValue("slotIds", slotIds)
+                    .addValue("userId", userId)
+                    .addValue("locked", SLOT_STATUS_LOCKED)
+                    .addValue("available", SLOT_STATUS_AVAILABLE);
 
             int unlocked = namedJdbc.update("""
-            UPDATE banner_slot
-               SET status='AVAILABLE', locked_by=NULL, locked_until=NULL
-             WHERE slot_id IN (:slotIds)
-               AND locked_by = :userId
-               AND status = 'LOCKED'
-        """, params);
+                    UPDATE banner_slot
+                       SET status=:available, locked_by=NULL, locked_until=NULL
+                     WHERE slot_id IN (:slotIds)
+                       AND locked_by = :userId
+                       AND status = :locked
+                    """, params);
 
             if (unlocked != slotIds.size()) {
                 throw new IllegalStateException(
@@ -198,7 +223,6 @@ public class BannerApplicationService {
                 );
             }
         }
-
 
         // 4) 매핑/신청 데이터 삭제
         jdbc.update("DELETE FROM banner_application_slot WHERE banner_application_id=?", appId);
@@ -208,14 +232,14 @@ public class BannerApplicationService {
     /** 결제 성공 처리 → SOLD + 배너 생성 */
     @Transactional
     public void markPaid(Long appId, Long adminId) {
-        // 잠그기
+        // 슬롯 잠그기
         var slots = jdbc.query("""
-            SELECT s.slot_id, s.banner_type_id, s.slot_date, s.priority, s.status
-            FROM banner_application_slot asx
-            JOIN banner_slot s ON s.slot_id = asx.slot_id
-            WHERE asx.banner_application_id = ?
-            FOR UPDATE
-        """, (rs, i) -> Map.of(
+                SELECT s.slot_id, s.banner_type_id, s.slot_date, s.priority, s.status
+                FROM banner_application_slot asx
+                JOIN banner_slot s ON s.slot_id = asx.slot_id
+                WHERE asx.banner_application_id = ?
+                FOR UPDATE
+                """, (rs, i) -> Map.of(
                 "slotId", rs.getLong("slot_id"),
                 "typeId", rs.getLong("banner_type_id"),
                 "slotDate", rs.getDate("slot_date").toLocalDate(),
@@ -224,33 +248,35 @@ public class BannerApplicationService {
         ), appId);
 
         if (slots.isEmpty()) throw new IllegalStateException("신청 슬롯 없음");
-        if (slots.stream().anyMatch(m -> !"LOCKED".equals(m.get("status"))))
+        if (slots.stream().anyMatch(m -> !SLOT_STATUS_LOCKED.equals(m.get("status"))))
             throw new IllegalStateException("LOCKED 아님");
 
         // 신청서 정보
         Map<String, Object> app;
-               try {
-                       app = jdbc.queryForMap("""
-               SELECT event_id, title, image_url, link_url, banner_type_id
-               FROM banner_application WHERE banner_application_id=?
-           """, appId);
-                   } catch (EmptyResultDataAccessException e) {
-                       throw new IllegalArgumentException("존재하지 않는 신청입니다: " + appId);
-                   }
+        try {
+            app = jdbc.queryForMap("""
+                    SELECT event_id, title, image_url, link_url, banner_type_id
+                    FROM banner_application WHERE banner_application_id=?
+                    """, appId);
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("존재하지 않는 신청입니다: " + appId);
+        }
 
-        // 1) SOLD 전환 (LOCKED인 것만 허용) + 건수 검증
+        // 1) SOLD 전환
         var slotIdList = slots.stream()
                 .map(m -> (Long) m.get("slotId"))
-                .collect(java.util.stream.Collectors.toList());
+                .toList();
 
-        var soldParams = new MapSqlParameterSource().addValue("slotIds", slotIdList);
+        var soldParams = new MapSqlParameterSource()
+                .addValue("slotIds", slotIdList)
+                .addValue("locked", SLOT_STATUS_LOCKED);
 
         int sold = namedJdbc.update("""
-        UPDATE banner_slot
-           SET status='SOLD'
-         WHERE slot_id IN (:slotIds)
-           AND status='LOCKED'
-    """, soldParams);
+                UPDATE banner_slot
+                   SET status=:sold
+                 WHERE slot_id IN (:slotIds)
+                   AND status=:locked
+                """, soldParams.addValue("sold", SLOT_STATUS_SOLD));
 
         if (sold != slots.size()) {
             throw new IllegalStateException(
@@ -258,8 +284,8 @@ public class BannerApplicationService {
             );
         }
 
-        // 2) 배너 생성(하루 1건씩) → 슬롯 매핑 + 락 정리는 루프 안에서
-        Integer activeId = bannerStatusId("ACTIVE");
+        // 2) 배너 생성
+        Integer activeId = bannerStatusId(BANNER_STATUS_ACTIVE);
         Long typeId = ((Number) app.get("banner_type_id")).longValue();
 
         for (var m : slots) {
@@ -268,50 +294,50 @@ public class BannerApplicationService {
             KeyHolder kh = new GeneratedKeyHolder();
             jdbc.update(con -> {
                 PreparedStatement ps = con.prepareStatement("""
-                INSERT INTO banner (
-                  title, image_url, link_url,
-                  event_id, created_by, priority,
-                  start_date, end_date,
-                  banner_status_code_id, banner_type_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, Statement.RETURN_GENERATED_KEYS);
+                        INSERT INTO banner (
+                          title, image_url, link_url,
+                          event_id, created_by, priority,
+                          start_date, end_date,
+                          banner_status_code_id, banner_type_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, Statement.RETURN_GENERATED_KEYS);
 
-                ps.setString(1,  (String)  app.get("title"));
-                ps.setString(2,  (String)  app.get("image_url"));
-                ps.setString(3,  (String)  app.get("link_url"));
-                ps.setLong(4,   ((Number) app.get("event_id")).longValue());
-                ps.setLong(5,   adminId);
-                ps.setInt(6,    (Integer) m.get("priority"));
+                ps.setString(1, (String) app.get("title"));
+                ps.setString(2, (String) app.get("image_url"));
+                ps.setString(3, (String) app.get("link_url"));
+                ps.setLong(4, ((Number) app.get("event_id")).longValue());
+                ps.setLong(5, adminId);
+                ps.setInt(6, (Integer) m.get("priority"));
                 ps.setTimestamp(7, Timestamp.valueOf(d.atStartOfDay()));
-                ps.setTimestamp(8, Timestamp.valueOf(d.atTime(23, 59, 59)));
-                ps.setInt(9,    activeId);
-                ps.setLong(10,  typeId);
+                ps.setTimestamp(8, Timestamp.valueOf(d.atTime(END_OF_DAY)));
+                ps.setInt(9, activeId);
+                ps.setLong(10, typeId);
                 return ps;
             }, kh);
 
-            Long bannerId = java.util.Objects.requireNonNull(kh.getKey()).longValue();
+            Long bannerId = Objects.requireNonNull(kh.getKey()).longValue();
 
-            // 배너 생성 직후, 해당 슬롯에 배너ID 매핑 + 락 필드 정리
+            // 슬롯에 배너 매핑
             var mapParams = new MapSqlParameterSource()
                     .addValue("bannerId", bannerId)
                     .addValue("slotId", (Long) m.get("slotId"));
 
             namedJdbc.update("""
-            UPDATE banner_slot
-               SET sold_banner_id = :bannerId,
-                   locked_by = NULL,
-                   locked_until = NULL
-             WHERE slot_id = :slotId
-               AND status = 'SOLD'
-        """, mapParams);
+                    UPDATE banner_slot
+                       SET sold_banner_id = :bannerId,
+                           locked_by = NULL,
+                           locked_until = NULL
+                     WHERE slot_id = :slotId
+                       AND status = :sold
+                    """, mapParams.addValue("sold", SLOT_STATUS_SOLD));
         }
 
-        // 신청 상태 업데이트(승인)
+        // 3) 신청 상태 승인 처리
         jdbc.update("""
-            UPDATE banner_application
-            SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='APPROVED'),
-                approved_by=?, approved_at=NOW()
-            WHERE banner_application_id=?
-        """, adminId, appId);
+                UPDATE banner_application
+                SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code=?),
+                    approved_by=?, approved_at=NOW()
+                WHERE banner_application_id=?
+                """, STATUS_APPROVED, adminId, appId);
     }
 }

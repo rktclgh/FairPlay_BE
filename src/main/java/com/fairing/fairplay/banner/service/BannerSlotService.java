@@ -7,10 +7,8 @@ import com.fairing.fairplay.banner.repository.BannerSlotRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class BannerSlotService {
 
-    private final JdbcTemplate jdbc;
     private final BannerSlotRepository bannerSlotRepository;
 
     @Transactional(readOnly = true) //  읽기 전용
@@ -46,16 +43,18 @@ public class BannerSlotService {
             throw new CustomException(HttpStatus.BAD_REQUEST, "slotIds가 비어 있습니다.", null);
         }
 
-        int updated = bannerSlotRepository.markSold(
-                slotIds,
+        var distinctIds = slotIds.stream().distinct().toList();
+        int updated = bannerSlotRepository.updateStatusIfCurrentIn(
+                distinctIds,
                 BannerSlotStatus.SOLD,
-                List.of(BannerSlotStatus.LOCKED) // 필요시 상태 더 추가
+                List.of(BannerSlotStatus.LOCKED)
         );
 
-        if (updated != slotIds.size()) {
+
+        if (updated != distinctIds.size()) {
             throw new CustomException(
                     HttpStatus.CONFLICT,
-                    "SOLD 전환 실패: LOCKED 상태가 아닌 슬롯 포함 (요청 " + slotIds.size() + "건, 성공 " + updated + "건)",
+                    "SOLD 전환 실패: LOCKED 상태가 아닌 슬롯 포함 (요청 " + distinctIds.size() + "건, 성공 " + updated + "건)",
                     null
             );
         }
