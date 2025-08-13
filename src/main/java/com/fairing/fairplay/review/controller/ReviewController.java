@@ -1,14 +1,17 @@
 package com.fairing.fairplay.review.controller;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.review.dto.PossibleReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
+import com.fairing.fairplay.review.dto.ReviewForEventResponseDto;
 import com.fairing.fairplay.review.dto.ReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewSaveRequestDto;
 import com.fairing.fairplay.review.dto.ReviewSaveResponseDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateRequestDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateResponseDto;
+import com.fairing.fairplay.review.service.ReviewReservationService;
 import com.fairing.fairplay.review.service.ReviewService;
-import com.fairing.fairplay.user.entity.Users;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -32,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReviewController {
 
   private final ReviewService reviewService;
+  private final ReviewReservationService reviewReservationService;
 
   // 리뷰 저장
   @PostMapping
@@ -39,13 +44,23 @@ public class ReviewController {
     return ResponseEntity.status(HttpStatus.CREATED).body(reviewService.save(dto));
   }
 
+  // 마이페이지 리뷰 작성한 행사 목록 조회
+  @GetMapping("/mypage")
+  public ResponseEntity<Page<PossibleReviewResponseDto>> getPossibleSaveReview(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @RequestParam(defaultValue = "0") int page) {
+    return ResponseEntity.status(HttpStatus.OK)
+        .body(reviewReservationService.getPossibleSaveReview(userDetails, page));
+  }
+
   // 행사 상세 페이지 리뷰 조회
   // GET /events/{eventId}/reviews?page=0&size=10&sort=createdDate,desc
   @GetMapping("/{eventId}")
-  public ResponseEntity<Page<ReviewResponseDto>> getReviewForEvent(@PathVariable Long eventId, @AuthenticationPrincipal CustomUserDetails userDetails,
+  public ResponseEntity<ReviewForEventResponseDto> getReviewForEvent(@PathVariable Long eventId,
+      @AuthenticationPrincipal CustomUserDetails userDetails,
       @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
     return ResponseEntity.status(HttpStatus.OK)
-        .body(reviewService.getReviewForEvent(userDetails,eventId, pageable));
+        .body(reviewService.getReviewForEvent(userDetails, eventId, pageable));
   }
 
   // 마이페이지 리뷰 조회
