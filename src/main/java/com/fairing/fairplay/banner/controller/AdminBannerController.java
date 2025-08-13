@@ -19,6 +19,7 @@ import java.util.List;
 @RequestMapping("/api/admin/banners")
 @RequiredArgsConstructor
 public class AdminBannerController {
+    private static final String ROLE_ADMIN = "ADMIN";
 
     private final BannerService bannerService;
     private final BannerApplicationService appService;
@@ -28,7 +29,7 @@ public class AdminBannerController {
         if (user == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
         }
-        if (!"ADMIN".equals(user.getRoleCode())) {
+        if (!ROLE_ADMIN.equals(user.getRoleCode())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "관리자만 접근할 수 있습니다.");
         }
     }
@@ -92,8 +93,7 @@ public class AdminBannerController {
             @AuthenticationPrincipal CustomUserDetails user) {
 
         requireAdmin(user);
-        List<BannerResponseDto> banners = bannerService.getAllBanners();
-        return ResponseEntity.ok(banners);
+        return ResponseEntity.ok(bannerService.getAllBanners());
     }
 
     // 결제 성공 처리(승인 → SOLD + 배너 생성)
@@ -102,7 +102,7 @@ public class AdminBannerController {
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id) {
         requireAdmin(user);
-        appService.markPaid(id, user.getUserId()); // X-Admin-Id 대신 로그인 사용자 사용
+        appService.markPaid(id, user.getUserId());
         return ResponseEntity.ok().build();
     }
 }

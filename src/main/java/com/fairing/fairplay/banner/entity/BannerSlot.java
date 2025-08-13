@@ -57,10 +57,43 @@ public class BannerSlot {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+
+    private void syncSlotTypeFromBannerType() {
+        if (this.bannerType != null && this.bannerType.getCode() != null) {
+            // code: "HERO", "SEARCH_TOP" 등과 enum 상수명이 반드시 일치해야 함
+            try {
+                this.slotType = BannerSlotType.valueOf(this.bannerType.getCode());
+            } catch (IllegalArgumentException e) {
+                // 혹시 code가 Enum과 불일치하면 그대로 두되, 운영 중 원인 파악이 쉽도록 로그/예외 중 택1
+                // throw new IllegalStateException("배너 타입 코드가 BannerSlotType과 불일치: " + bannerType.getCode());
+            }
+        }
+    }
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
         if (status == null) status = BannerSlotStatus.AVAILABLE;
         if (quota == null) quota = 1;
+
+        // INSERT 직전에 동기화 보장
+        if (slotType == null) {
+            syncSlotTypeFromBannerType();
+        }
+    }
+
+
+    /** bannerType 변경 시 slot_type도 자동 동기화 */
+    public void setBannerType(BannerType bannerType) {
+        this.bannerType = bannerType;
+        syncSlotTypeFromBannerType();
+    }
+
+
+    @PreUpdate
+    void onUpdate() {
+        // UPDATE 직전에 동기화 보장 (FK가 바뀌었다면 slot_type도 재설정)
+        syncSlotTypeFromBannerType();
     }
 }
+
