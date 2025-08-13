@@ -17,5 +17,5 @@ public class Chunk {
     private String docId;
     private String text;
     private float[] embedding;
-    private long createdAt;
+    private String createdAt;
 }

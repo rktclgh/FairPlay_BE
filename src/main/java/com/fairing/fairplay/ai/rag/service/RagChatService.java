@@ -23,7 +23,7 @@ public class RagChatService {
     private final VectorSearchService vectorSearchService;
     private final LlmRouter llmRouter;
     
-    private static final double CONTEXT_REQUIRED_THRESHOLD = 0.3;
+    private static final double CONTEXT_REQUIRED_THRESHOLD = 0.1;
     
     /**
      * RAG 기반 질의 응답
@@ -66,8 +66,11 @@ public class RagChatService {
             // LLM 호출
             String response = llmRouter.pick(null).chat(prompt, 0.7, 1024);
             
+            log.info("LLM 응답 길이: {} (null: {})", response != null ? response.length() : 0, response == null);
+            
             if (response == null || response.trim().isEmpty()) {
-                response = "죄송해요, 지금은 답변을 생성하지 못했어요. 한 번만 더 질문해주실래요?";
+                log.warn("LLM에서 빈 응답 수신. fallback으로 전환");
+                return fallbackToZeroShot(userQuestion, conversationHistory);
             }
             
             // 인용 정보 구성

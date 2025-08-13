@@ -2,6 +2,7 @@ package com.fairing.fairplay.ai.rag.controller;
 
 import com.fairing.fairplay.ai.rag.service.DocumentIngestService;
 import com.fairing.fairplay.ai.rag.service.VectorSearchService;
+import com.fairing.fairplay.ai.rag.service.EventRagDataLoader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,7 @@ public class RagController {
 
     private final DocumentIngestService documentIngestService;
     private final VectorSearchService vectorSearchService;
+    private final EventRagDataLoader eventRagDataLoader;
 
     /**
      * 텍스트 문서 인제스트
@@ -138,6 +140,50 @@ public class RagController {
     }
     
     /**
+     * 이벤트 데이터 RAG 로드
+     */
+    @PostMapping("/load/events")
+    public ResponseEntity<?> loadEvents() {
+        try {
+            EventRagDataLoader.LoadResult result = eventRagDataLoader.loadAllEvents();
+            
+            return ResponseEntity.ok(Map.of(
+                "success", result.isAllSuccess(),
+                "totalCount", result.getTotalCount(),
+                "successCount", result.getSuccessCount(),
+                "failCount", result.getFailCount(),
+                "message", "이벤트 데이터 로드가 완료되었습니다."
+            ));
+        } catch (Exception e) {
+            log.error("이벤트 데이터 로드 오류", e);
+            return ResponseEntity.internalServerError().body(
+                Map.of("error", "이벤트 데이터 로드 중 오류가 발생했습니다: " + e.getMessage())
+            );
+        }
+    }
+    
+    /**
+     * 특정 이벤트 RAG 로드
+     */
+    @PostMapping("/load/event/{eventId}")
+    public ResponseEntity<?> loadSingleEvent(@PathVariable Long eventId) {
+        try {
+            boolean success = eventRagDataLoader.loadSingleEvent(eventId);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", success,
+                "eventId", eventId,
+                "message", success ? "이벤트 로드 성공" : "이벤트 로드 실패"
+            ));
+        } catch (Exception e) {
+            log.error("이벤트 로드 오류: {}", eventId, e);
+            return ResponseEntity.internalServerError().body(
+                Map.of("error", "이벤트 로드 중 오류가 발생했습니다: " + e.getMessage())
+            );
+        }
+    }
+
+    /**
      * 검색 테스트 (개발용)
      */
     @GetMapping("/search/test")
@@ -169,6 +215,7 @@ public class RagController {
             );
         }
     }
+    
     
     /**
      * 인제스트 요청 DTO

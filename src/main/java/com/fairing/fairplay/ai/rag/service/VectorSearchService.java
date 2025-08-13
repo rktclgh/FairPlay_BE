@@ -29,7 +29,7 @@ public class VectorSearchService {
     
     // 검색 설정
     private static final int DEFAULT_TOP_K = 5;
-    private static final double SIMILARITY_THRESHOLD = 0.25;
+    private static final double SIMILARITY_THRESHOLD = 0.05;
     private static final int MAX_CONTEXT_LENGTH = 2000;
     
     /**

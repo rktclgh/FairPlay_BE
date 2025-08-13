@@ -2,12 +2,13 @@ package com.fairing.fairplay.ai.rag.repository;
 
 import com.fairing.fairplay.ai.rag.domain.Chunk;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
+import java.util.HashMap;
 
 /**
  * RAG Redis 저장소
@@ -20,7 +21,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class RagRedisRepository {
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
     
     private static final String CHUNKS_SET_KEY = "rag:chunks";
     private static final String CHUNK_HASH_PREFIX = "rag:chunk:";
@@ -30,60 +31,72 @@ public class RagRedisRepository {
         String chunkKey = CHUNK_HASH_PREFIX + chunk.getChunkId();
         String docChunksKey = DOC_CHUNKS_SET_PREFIX + chunk.getDocId() + ":chunks";
         
-        Map<String, Object> chunkData = Map.of(
-            "docId", chunk.getDocId(),
-            "text", chunk.getText(),
-            "vector", encodeVector(chunk.getEmbedding()),
-            "createdAt", chunk.getCreatedAt()
-        );
-        
-        // 청크 저장
-        redisTemplate.opsForHash().putAll(chunkKey, chunkData);
-        
-        // 청크 목록에 추가
-        redisTemplate.opsForSet().add(CHUNKS_SET_KEY, chunk.getChunkId());
-        
-        // 문서-청크 역참조 추가
-        redisTemplate.opsForSet().add(docChunksKey, chunk.getChunkId());
+        try {
+            // 개별적으로 필드 저장하여 타입 이슈 방지
+            redisTemplate.opsForHash().put(chunkKey, "docId", chunk.getDocId());
+            redisTemplate.opsForHash().put(chunkKey, "text", chunk.getText());
+            redisTemplate.opsForHash().put(chunkKey, "vector", encodeVector(chunk.getEmbedding()));
+            redisTemplate.opsForHash().put(chunkKey, "createdAt", chunk.getCreatedAt());
+            
+            // 청크 목록에 추가
+            redisTemplate.opsForSet().add(CHUNKS_SET_KEY, chunk.getChunkId());
+            
+            // 문서-청크 역참조 추가
+            redisTemplate.opsForSet().add(docChunksKey, chunk.getChunkId());
+        } catch (Exception e) {
+            throw new RuntimeException("청크 저장 실패: " + chunk.getChunkId() + " - " + e.getMessage(), e);
+        }
     }
     
     public Optional<Chunk> findChunk(String chunkId) {
         String chunkKey = CHUNK_HASH_PREFIX + chunkId;
-        Map<Object, Object> data = redisTemplate.opsForHash().entries(chunkKey);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(chunkKey);
         
-        if (data.isEmpty()) {
+        if (rawData.isEmpty()) {
             return Optional.empty();
+        }
+        
+        // Object에서 String으로 안전하게 변환
+        Map<String, String> data = new HashMap<>();
+        for (Map.Entry<Object, Object> entry : rawData.entrySet()) {
+            data.put(entry.getKey().toString(), entry.getValue().toString());
+        }
+        
+        // createdAt 값은 String으로 그대로 사용
+        String createdAt = data.get("createdAt");
+        if (createdAt == null) {
+            createdAt = String.valueOf(System.currentTimeMillis());
         }
         
         return Optional.of(Chunk.builder()
             .chunkId(chunkId)
-            .docId((String) data.get("docId"))
-            .text((String) data.get("text"))
-            .embedding(decodeVector((String) data.get("vector")))
-            .createdAt(Long.parseLong(data.get("createdAt").toString()))
+            .docId(data.get("docId"))
+            .text(data.get("text"))
+            .embedding(decodeVector(data.get("vector")))
+            .createdAt(createdAt)
             .build());
     }
     
     public List<Chunk> findAllChunks() {
-        Set<Object> chunkIds = redisTemplate.opsForSet().members(CHUNKS_SET_KEY);
+        Set<String> chunkIds = redisTemplate.opsForSet().members(CHUNKS_SET_KEY);
         if (chunkIds == null || chunkIds.isEmpty()) {
             return Collections.emptyList();
         }
         
         List<Chunk> chunks = new ArrayList<>();
-        for (Object chunkId : chunkIds) {
-            findChunk(chunkId.toString()).ifPresent(chunks::add);
+        for (String chunkId : chunkIds) {
+            findChunk(chunkId).ifPresent(chunks::add);
         }
         return chunks;
     }
     
     public void deleteDocument(String docId) {
         String docChunksKey = DOC_CHUNKS_SET_PREFIX + docId + ":chunks";
-        Set<Object> chunkIds = redisTemplate.opsForSet().members(docChunksKey);
+        Set<String> chunkIds = redisTemplate.opsForSet().members(docChunksKey);
         
         if (chunkIds != null && !chunkIds.isEmpty()) {
-            for (Object chunkId : chunkIds) {
-                String chunkKey = CHUNK_HASH_PREFIX + chunkId.toString();
+            for (String chunkId : chunkIds) {
+                String chunkKey = CHUNK_HASH_PREFIX + chunkId;
                 redisTemplate.delete(chunkKey);
                 redisTemplate.opsForSet().remove(CHUNKS_SET_KEY, chunkId);
             }
@@ -91,6 +104,35 @@ public class RagRedisRepository {
         
         // 문서-청크 역참조 삭제
         redisTemplate.delete(docChunksKey);
+    }
+    
+    /**
+     * 모든 RAG 데이터 삭제 (타입 오류 해결용)
+     */
+    public void clearAllData() {
+        try {
+            // 모든 rag:* 키 삭제
+            Set<String> keys = redisTemplate.keys("rag:*");
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+            }
+        } catch (Exception e) {
+            // 에러 발생시 개별 키 삭제 시도
+            try {
+                redisTemplate.delete(CHUNKS_SET_KEY);
+                Set<String> chunkKeys = redisTemplate.keys(CHUNK_HASH_PREFIX + "*");
+                if (chunkKeys != null && !chunkKeys.isEmpty()) {
+                    redisTemplate.delete(chunkKeys);
+                }
+                Set<String> docKeys = redisTemplate.keys(DOC_CHUNKS_SET_PREFIX + "*");
+                if (docKeys != null && !docKeys.isEmpty()) {
+                    redisTemplate.delete(docKeys);
+                }
+            } catch (Exception ex) {
+                // 최후의 수단 - 로그만 남김
+                System.err.println("RAG 데이터 삭제 실패: " + ex.getMessage());
+            }
+        }
     }
     
     public long getTotalChunkCount() {
