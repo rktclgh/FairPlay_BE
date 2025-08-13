@@ -14,9 +14,9 @@ import java.util.regex.Pattern;
 @Service
 public class ChunkingService {
 
-    private static final int MIN_CHUNK_SIZE = 300;
-    private static final int MAX_CHUNK_SIZE = 800;
-    private static final int PREFERRED_CHUNK_SIZE = 600;
+    private static final int MIN_CHUNK_SIZE = 50;   // 50자로 대폭 축소
+    private static final int MAX_CHUNK_SIZE = 400;  // 400자로 축소
+    private static final int PREFERRED_CHUNK_SIZE = 300; // 300자로 축소
     
     // 문장 경계 정규식 (한국어 고려)
     private static final Pattern SENTENCE_PATTERN = Pattern.compile(
@@ -36,7 +36,7 @@ public class ChunkingService {
         String cleanContent = preprocessText(content);
         List<String> chunkTexts = performChunking(cleanContent);
         
-        long now = System.currentTimeMillis();
+        String now = String.valueOf(System.currentTimeMillis());
         
         for (String chunkText : chunkTexts) {
             if (chunkText.trim().length() < MIN_CHUNK_SIZE) {

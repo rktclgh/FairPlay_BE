@@ -49,9 +49,13 @@ public class DocumentIngestService {
             // 각 청크에 대해 임베딩 생성 및 저장
             for (Chunk chunk : chunks) {
                 try {
+                    log.debug("청크 처리 시작: {}, docId: {}, text length: {}, createdAt: {}", 
+                        chunk.getChunkId(), chunk.getDocId(), chunk.getText().length(), chunk.getCreatedAt());
+                    
                     // 임베딩 생성
                     float[] embedding = embeddingService.embedText(chunk.getText());
                     chunk.setEmbedding(embedding);
+                    log.debug("임베딩 생성 완료: {} ({} 차원)", chunk.getChunkId(), embedding.length);
                     
                     // Redis에 저장
                     repository.saveChunk(chunk);
@@ -61,7 +65,7 @@ public class DocumentIngestService {
                         chunk.getChunkId(), embedding.length);
                         
                 } catch (Exception e) {
-                    log.error("청크 처리 실패: {} - {}", chunk.getChunkId(), e.getMessage());
+                    log.error("청크 처리 실패: {} - {}", chunk.getChunkId(), e.getMessage(), e);
                     failedChunks++;
                 }
             }
@@ -133,8 +137,10 @@ public class DocumentIngestService {
     public void clearAllDocuments() {
         log.warn("전체 문서 삭제 시작");
         
-        // Redis의 모든 RAG 데이터 삭제하는 로직은 별도 구현 필요
-        // 현재는 캐시만 무효화
+        // Redis의 모든 RAG 데이터 삭제
+        repository.clearAllData();
+        
+        // 캐시 무효화
         vectorSearchService.invalidateCache();
         
         log.warn("전체 문서 삭제 완료");
