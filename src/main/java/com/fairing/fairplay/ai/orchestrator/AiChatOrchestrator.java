@@ -3,6 +3,7 @@ package com.fairing.fairplay.ai.orchestrator;
 
 import com.fairing.fairplay.ai.service.LlmRouter;
 import com.fairing.fairplay.ai.dto.ChatMessageDto;
+import com.fairing.fairplay.ai.rag.service.RagChatService;
 import com.fairing.fairplay.chat.dto.ChatMessageResponseDto;
 import com.fairing.fairplay.chat.entity.ChatMessage;
 import com.fairing.fairplay.chat.entity.ChatRoom;
@@ -30,6 +31,7 @@ public class AiChatOrchestrator {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageService chatMessageService;
     private final LlmRouter llmRouter;
+    private final RagChatService ragChatService;
     private final SimpMessagingTemplate messagingTemplate;
 
     // ✅ 봇 계정은 “로그인” 필요 없음. 서버가 DB에 저장할 때 senderId=botUserId로 넣어줌
@@ -71,42 +73,61 @@ public class AiChatOrchestrator {
         
         System.out.println("AI 응답 처리 시작...");
 
-        // 최근 대화 20개 컨텍스트 구성
+        // 최근 대화 기록 구성
         List<ChatMessage> history = chatMessageRepository.findByChatRoomOrderBySentAtAsc(room);
         if (history.isEmpty()) return;
         history.sort(Comparator.comparing(ChatMessage::getSentAt));
 
-        List<ChatMessageDto> prompt = new ArrayList<>();
-        // 선택: 시스템 프롬프트 (도메인 톤/금칙어/역할 등)
-        prompt.add(ChatMessageDto.system("""
-            너는 FairPlay 플랫폼의 AI 도우미야. 
-            사용자의 모든 질문에 친절하고 도움이 되는 답변을 해줘.
-            - 답변은 한국어로 자연스럽고 친근하게.
-            - 일반적인 질문도 답변할 수 있어.
-            - FairPlay 관련 질문이면 더 자세히 도와줘.
-            - 모르는 것은 솔직히 말하고 다른 방법을 제안해.
-            """));
-
-        for (ChatMessage m : history.subList(Math.max(0, history.size() - 20), history.size())) {
+        // 대화 기록을 ChatMessageDto로 변환
+        List<ChatMessageDto> conversationHistory = new ArrayList<>();
+        for (ChatMessage m : history.subList(Math.max(0, history.size() - 10), history.size())) {
             if (m.getSenderId().equals(botUserId)) {
-                prompt.add(ChatMessageDto.assistant(m.getContent()));
+                conversationHistory.add(ChatMessageDto.assistant(m.getContent()));
             } else {
-                prompt.add(ChatMessageDto.user(m.getContent()));
+                conversationHistory.add(ChatMessageDto.user(m.getContent()));
             }
         }
 
-        // LLM 호출 (LlmRouter를 통해 Gemini 클라이언트 사용)
+        // 마지막 사용자 메시지 추출
+        String userQuestion = history.get(history.size() - 1).getContent();
+
+        // RAG 기반 응답 생성
         String reply;
         try {
-            System.out.println("LLM 호출 시작...");
-            System.out.println("프롬프트 메시지 수: " + prompt.size());
-            reply = llmRouter.pick(null).chat(prompt, 0.6, 1024);
-            System.out.println("LLM 응답: " + reply);
-            if (reply == null || reply.isBlank()) reply = "죄송해요, 방금은 답변을 생성하지 못했어요. 한 번만 더 질문해줄래요?";
+            System.out.println("RAG 채팅 호출 시작...");
+            RagChatService.RagResponse ragResponse = ragChatService.chat(userQuestion, conversationHistory);
+            
+            reply = ragResponse.getAnswer();
+            
+            System.out.println("RAG 응답: " + reply);
+            System.out.println("컨텍스트 사용: " + ragResponse.isHasContext());
+            System.out.println("인용 청크: " + ragResponse.getCitedChunks().size());
+            
         } catch (Exception e) {
-            System.out.println("LLM 호출 실패: " + e.getMessage());
+            System.out.println("RAG 채팅 실패, 기본 LLM으로 fallback: " + e.getMessage());
             e.printStackTrace();
-            reply = "지금은 답변 생성에 문제가 있어요. 잠시 후 다시 시도해주세요.";
+            
+            // Fallback to original 0-shot approach
+            List<ChatMessageDto> prompt = new ArrayList<>();
+            prompt.add(ChatMessageDto.system("""
+                너는 FairPlay 플랫폼의 AI 도우미야. 
+                사용자의 모든 질문에 친절하고 도움이 되는 답변을 해줘.
+                - 답변은 한국어로 자연스럽고 친근하게.
+                - 일반적인 질문도 답변할 수 있어.
+                - FairPlay 관련 질문이면 더 자세히 도와줘.
+                - 모르는 것은 솔직히 말하고 다른 방법을 제안해.
+                """));
+            
+            prompt.addAll(conversationHistory.subList(Math.max(0, conversationHistory.size() - 6), conversationHistory.size()));
+            
+            try {
+                reply = llmRouter.pick(null).chat(prompt, 0.6, 1024);
+                if (reply == null || reply.isBlank()) {
+                    reply = "죄송해요, 방금은 답변을 생성하지 못했어요. 한 번만 더 질문해줄래요?";
+                }
+            } catch (Exception e2) {
+                reply = "지금은 답변 생성에 문제가 있어요. 잠시 후 다시 시도해주세요.";
+            }
         }
 
         System.out.println("최종 AI 응답: " + reply);
