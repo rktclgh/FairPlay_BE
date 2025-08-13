@@ -19,20 +19,18 @@ public class AdminKpiBatchService {
     private final AdminKpiStatsCustomRepository adminKpiStatsCustomRepository;
     private final AdminKpiStatisticsRepository adminKpiStatisticsRepository;
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void runBatch(LocalDate date) {
-        try {
-            AdminKpiStatistics computed = adminKpiStatsCustomRepository.calculate(date);
-            adminKpiStatisticsRepository.findByStatDate(date)
-                    .ifPresent(existing -> {
-                log.warn("기존 KPI 데이터 발견, 재계산합니다: {}", date);
-                adminKpiStatisticsRepository.delete((AdminKpiStatistics) existing);
-                });
-            adminKpiStatisticsRepository.save(computed);
-            log.info("관리자 KPI 통계 배치 처리 완료: {}", date);
-        } catch (Exception e) {
-            log.error("관리자 KPI 통계 배치 처리 실패: {}", date, e);
-            throw e;
-        }
-    }
+                // 입력값 검증
+        org.springframework.util.Assert.notNull(date, "date must not be null");
+
+                AdminKpiStatistics computed = adminKpiStatsCustomRepository.calculate(date);
+                adminKpiStatisticsRepository.findByStatDate(date)
+                        .ifPresent(existing -> {
+                            log.warn("기존 KPI 데이터 발견, 재계산합니다: {}", date);
+                            adminKpiStatisticsRepository.delete((AdminKpiStatistics) existing);
+                            });
+                adminKpiStatisticsRepository.save(computed);
+                log.info("관리자 KPI 통계 배치 처리 완료: {}", date);
+            }
 }
