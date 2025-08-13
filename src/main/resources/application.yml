@@ -102,3 +102,9 @@ llm:
   openai:
 #    api-key: ${OPENAI_API_KEY:}       # 나중에 전환용
 #    model: gpt-4o-mini
+
+banner:
+  lock:
+    default-minutes: 2880   # ←신청 슬롯 기본 락 유지시간 (분)  // BannerApplicationService @Value
+    cleanup:
+      delay: 300000         #  만료락 해제 주기(밀리초)
