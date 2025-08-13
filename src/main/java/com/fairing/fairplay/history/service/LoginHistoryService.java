@@ -2,7 +2,6 @@ package com.fairing.fairplay.history.service;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.fairing.fairplay.history.dto.LoginHistoryDto;

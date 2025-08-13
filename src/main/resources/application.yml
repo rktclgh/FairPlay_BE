@@ -50,10 +50,10 @@ spring:
 # 웹소켓 설정 (배포환경 최적화)
 websocket:
   heartbeat:
-    client: 25000    # 클라이언트 heartbeat (25초)
-    server: 25000    # 서버 heartbeat (25초)
-  disconnect-delay: 30000  # 연결 끊김 지연 시간
-  message-size-limit: 65536  # 메시지 크기 제한 (64KB)
+    client: 25000 # 클라이언트 heartbeat (25초)
+    server: 25000 # 서버 heartbeat (25초)
+  disconnect-delay: 30000 # 연결 끊김 지연 시간
+  message-size-limit: 65536 # 메시지 크기 제한 (64KB)
 
 # 서버 설정
 server:
@@ -63,10 +63,9 @@ server:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-token-validity-ms: 300000      # 5분(300,000 ms)
-  refresh-token-validity-ms: 600000  # 10분
+  access-token-validity-ms: 300000 # 5분(300,000 ms)
+  refresh-token-validity-ms: 600000 # 10분
   refresh-token-prefix: "refresh_token:"
-
 
 kakao:
   client-id: ${KAKAO_CLIENT_ID}
@@ -88,17 +87,22 @@ cloud:
     cloudfront:
       domain: ${AWS_CLOUDFRONT_DOMAIN}
 
-
 # 아임포트 설정
 iamport:
   api-key: ${IAMPORT_API_KEY}
   secret-key: ${IAMPORT_SECRET_KEY}
   base-url: ${IAMPORT_BASE_URL:https://api.iamport.kr}
 llm:
-  provider: GEMINI   # 이후 OPENAI 로 바꾸면 OpenAI로 전환됨
+  provider: GEMINI # 이후 OPENAI 로 바꾸면 OpenAI로 전환됨
   gemini:
-    api-key: ${GEMINI_API_KEY:}       # 환경변수 권장
-    model: gemini-2.5-flash           # 기본값(경량/저지연)
+    api-key: ${GEMINI_API_KEY:} # 환경변수 권장
+    model: gemini-2.5-flash # 기본값(경량/저지연)
   openai:
 #    api-key: ${OPENAI_API_KEY:}       # 나중에 전환용
 #    model: gpt-4o-mini
+
+banner:
+  lock:
+    default-minutes: 2880 # ←신청 슬롯 기본 락 유지시간 (분)  // BannerApplicationService @Value
+    cleanup:
+      delay: 300000 #  만료락 해제 주기(밀리초)

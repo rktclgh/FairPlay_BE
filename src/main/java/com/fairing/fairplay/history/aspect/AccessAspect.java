@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 
 import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
@@ -14,8 +15,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import com.fairing.fairplay.core.dto.LoginRequest;
+import com.fairing.fairplay.core.dto.LoginResponse;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.core.util.JwtTokenProvider;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.entity.ChangeHistory;
 import com.fairing.fairplay.history.etc.ChangeAccount;
@@ -32,6 +34,8 @@ import jakarta.servlet.http.HttpServletRequest;
 @Component
 public class AccessAspect {
 
+    private final JwtTokenProvider jwtTokenProvider;
+
     private final UserRepository userRepository;
 
     private final LoginHistoryService loginHistoryService;
@@ -39,13 +43,14 @@ public class AccessAspect {
     private final ChangeHistoryRepository changeHistoryRepository;
 
     public AccessAspect(UserRepository userRepository, LoginHistoryService loginHistoryService,
-            ChangeHistoryRepository changeHistoryRepository) {
+            ChangeHistoryRepository changeHistoryRepository, JwtTokenProvider jwtTokenProvider) {
         this.userRepository = userRepository;
         this.loginHistoryService = loginHistoryService;
         this.changeHistoryRepository = changeHistoryRepository;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
-    @Pointcut("execution(* com.fairing.fairplay.core.service.AuthService.login(..))")
+    @Pointcut("execution(* com.fairing.fairplay.core.service.AuthService.login(..)) || execution(* com.fairing.fairplay.core.service.AuthService.kakaoLogin(..))")
     public void login() {
     }
 
@@ -59,9 +64,8 @@ public class AccessAspect {
         Method method = sig.getMethod();
         ChangeAccount changeAccount = method.getAnnotation(ChangeAccount.class);
         String changeString = changeAccount.value();
-        Long userId = 1L; // 테스트용 하드코딩, getCurrentId 사용 예정
-        Object[] args = joinPoint.getArgs();
-        Long targetId = (Long) args[1];
+        Long userId = getCurrentUserId(); // 테스트용 하드코딩, getCurrentId 사용 예정
+        Long targetId = (Long) joinPoint.getArgs()[1];
         Users executor = userRepository.findById(userId).orElseThrow();
         Users target = userRepository.findById(targetId).orElseThrow();
         ChangeHistory changeHistory = ChangeHistory.builder()
@@ -82,9 +86,8 @@ public class AccessAspect {
         ChangeBanner changeBanner = method.getAnnotation(ChangeBanner.class);
         String changeString = changeBanner.value();
 
-        Long userId = 1L; // 테스트용 하드코딩, getCurrentId 사용 예정
-        Object[] args = joinPoint.getArgs();
-        Long targetId = (Long) args[1];
+        Long userId = getCurrentUserId(); // 테스트용 하드코딩, getCurrentId 사용 예정
+        Long targetId = (Long) joinPoint.getArgs()[1];
         Users executor = userRepository.findById(userId).orElseThrow();
         Users target = userRepository.findById(targetId).orElseThrow();
         ChangeHistory changeHistory = ChangeHistory.builder()
@@ -105,15 +108,14 @@ public class AccessAspect {
         ChangeEvent changeEvent = method.getAnnotation(ChangeEvent.class);
         String changeString = changeEvent.value();
 
-        Long userId = 1L; // 테스트용 하드코딩, getCurrentId 사용 예정
-        Object[] args = joinPoint.getArgs();
-        Long targetId = (Long) args[1];
+        Long userId = getCurrentUserId(); // 테스트용 하드코딩, getCurrentId 사용 예정
+        Long targetId = (Long) joinPoint.getArgs()[1];
         Users executor = userRepository.findById(userId).orElseThrow();
         Users target = userRepository.findById(targetId).orElseThrow();
         ChangeHistory changeHistory = ChangeHistory.builder()
                 .userId(executor.getUserId())
                 .targetId(target.getUserId())
-                .targetType("이벤트 수정")
+                .targetType("행사 정보 수정")
                 .content(changeString)
                 .modifyTime(LocalDateTime.now())
                 .build();
@@ -124,7 +126,6 @@ public class AccessAspect {
     @Around("disableUser()")
     public Object aroundDisableUser(ProceedingJoinPoint joinPoint) throws Throwable {
         Object[] args = joinPoint.getArgs();
-        Long userId = (Long) args[0];
         Long targetId = (Long) args[1];
         Users user = userRepository.findById(targetId).orElseThrow();
         user.setDeletedAt(LocalDateTime.now());
@@ -132,15 +133,13 @@ public class AccessAspect {
         return joinPoint.proceed();
     }
 
-    @Around("login()")
-    public Object aroundLogin(ProceedingJoinPoint joinPoint) throws Throwable {
+    @AfterReturning(pointcut = "login()", returning = "response")
+    public void aroundLogin(LoginResponse response) {
 
-        Object[] args = joinPoint.getArgs();
-        LoginRequest request = (LoginRequest) args[0];
-        String email = request.getEmail();
+        Long userId = jwtTokenProvider.getUserId(response.getAccessToken());
         LocalDateTime loginTime = LocalDateTime.now();
         LoginHistoryDto loginHistory = new LoginHistoryDto();
-        Users user = userRepository.findByEmail(email).orElseThrow();
+        Users user = userRepository.findById(userId).orElseThrow();
 
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attributes == null) {
@@ -150,28 +149,21 @@ public class AccessAspect {
         String ip = httpRequest.getRemoteAddr();
 
         String userAgent = httpRequest.getHeader("User-Agent");
-        loginHistory.setUserId(user.getUserId());
+        loginHistory.setUserId(userId);
         loginHistory.setIp(ip);
         loginHistory.setUser_role_code_id(user.getRoleCode().getId());
         loginHistory.setLoginTime(loginTime);
         loginHistory.setUserAgent(userAgent);
 
-        Object res = null;
-        try {
-            res = joinPoint.proceed();
-            return res;
-        } catch (Exception e) {
-            throw e;
-        } finally {
-            loginHistoryService.saveLoginHistory(loginHistory);
-        }
+        loginHistoryService.saveLoginHistory(loginHistory);
+
     }
 
     private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         Object principal = authentication.getPrincipal();
-        if (principal instanceof CustomUserDetails) {
-            return ((CustomUserDetails) principal).getUserId();
+        if (principal instanceof CustomUserDetails customUserDetails) {
+            return customUserDetails.getUserId();
         }
 
         return null; // 인증되지 않은 경우 null 반환

@@ -1,6 +1,5 @@
 package com.fairing.fairplay.admin.controller;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,18 +15,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fairing.fairplay.admin.dto.AdminAuthDto;
 import com.fairing.fairplay.admin.dto.FunctionNameDto;
-import com.fairing.fairplay.admin.entity.AccountLevel;
 import com.fairing.fairplay.admin.entity.FunctionLevel;
-import com.fairing.fairplay.admin.repository.AccountLevelRepository;
 import com.fairing.fairplay.admin.repository.FunctionLevelRepository;
 import com.fairing.fairplay.admin.service.LevelService;
 import com.fairing.fairplay.admin.service.SuperAdminService;
 import com.fairing.fairplay.core.etc.FunctionAuth;
-import com.fairing.fairplay.core.etc.FunctionLevelEnum;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.etc.ChangeAccount;
-import com.fairing.fairplay.history.etc.ChangeEvent;
 import com.fairing.fairplay.history.service.LoginHistoryService;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
@@ -36,36 +31,27 @@ import com.fairing.fairplay.user.repository.UserRepository;
 @RequestMapping("/api/super-admin")
 public class SuperAdminController {
 
-    private static final Integer ADMIN = 1; // 전체 관리자
-    private static final Integer EVENT = 2; // 행사 관리자
-    private static final Integer BOOTH = 3; // 부스 관리자
-    private static final Integer COMMON = 4; // 일반 사용자
-
     private final SuperAdminService superAdminService;
     private final UserRepository userRepository;
     private final LoginHistoryService loginHistoryService;
     private final LevelService levelService;
     private final FunctionLevelRepository functionLevelRepository;
-    private final AccountLevelRepository accountLevelRepository;
 
     public SuperAdminController(SuperAdminService superAdminService, UserRepository userRepository,
             LoginHistoryService loginHistoryService, LevelService levelService,
-            FunctionLevelRepository functionLevelRepository, AccountLevelRepository accountLevelRepository) {
+            FunctionLevelRepository functionLevelRepository) {
         this.superAdminService = superAdminService;
         this.userRepository = userRepository;
         this.loginHistoryService = loginHistoryService;
         this.levelService = levelService;
         this.functionLevelRepository = functionLevelRepository;
-        this.accountLevelRepository = accountLevelRepository;
     }
 
     @FunctionAuth("getLogs")
     @GetMapping("/get-logs")
+    // 권한 관련 기능 추가예정
     public ResponseEntity<List<LoginHistoryDto>> getLogs(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-
-        // checkAuth(userDetails, ADMIN);
-
         List<LoginHistoryDto> loginHistories = loginHistoryService.getAllLoginHistory();
         return ResponseEntity.ok(loginHistories);
     }
@@ -73,9 +59,9 @@ public class SuperAdminController {
     @ChangeAccount("관리자 비활성화")
     @FunctionAuth("disableUser")
     @PostMapping("/disable-user/{userId}")
-    public ResponseEntity disableUser(
+    // 권한 관련 기능 추가 예정
+    public ResponseEntity<String> disableUser(
             @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long userId) {
-        // checkAuth(userDetails, ADMIN);
         superAdminService.disableUser(userDetails.getUserId(), userId);
         return ResponseEntity.ok("사용자 비활성화 완료.");
     }
@@ -112,10 +98,10 @@ public class SuperAdminController {
 
     // 권한(영어,한글) 목록 리턴
     // 기존 85+a에서, 10개로 추린 리스트
+    // 권한 관련 기능 추가예정
     @GetMapping("/get-auth-list")
     public ResponseEntity<List<FunctionNameDto>> getAuthList(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // checkAuth(userDetails, ADMIN);
         List<FunctionLevel> functionLevels = functionLevelRepository.findAll();
         List<FunctionNameDto> functionNameDtos = functionLevels.stream()
                 .map(functionLevel -> {
@@ -130,21 +116,11 @@ public class SuperAdminController {
 
     @ChangeAccount("권한 설정")
     @PostMapping("/modify-auth/{userId}")
-    public ResponseEntity modifyAuth(@AuthenticationPrincipal CustomUserDetails userDetails,
+    // 권한매핑 추가예정
+    public ResponseEntity<String> modifyAuth(@AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long userId,
             @RequestBody List<String> authList) {
-        // checkAuth(userDetails, ADMIN);
-        BigInteger accountLevel = levelService.getAccountLevel(userId);
-        for (String auth : authList) {
-            BigInteger functionLevel = FunctionLevelEnum.fromFunctionName(auth).getBit();
-            accountLevel = accountLevel.or(functionLevel);
-        }
-        AccountLevel accountLevelEntity = new AccountLevel();
-        accountLevelEntity.setUserId(userId);
-        BigDecimal decimal = new BigDecimal(accountLevel);
-        accountLevelEntity.setLevel(decimal);
-        accountLevelRepository.save(accountLevelEntity);
-
+        superAdminService.modifyAuth(userId, authList);
         return ResponseEntity.ok("권한 수정 완료.");
     }
 
