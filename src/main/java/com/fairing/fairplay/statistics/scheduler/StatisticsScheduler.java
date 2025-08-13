@@ -53,7 +53,7 @@ public class StatisticsScheduler {
             eventbatchService.runBatch(yesterday);
             log.info("Completed daily events  statistics batch for date: {}", yesterday);
         } catch (Exception e) {
-            log.error("Failed to run daily  sales statistics batch", e);
+            log.error("Failed to run daily events statistics batch", e);
         }
     }
 

@@ -12,7 +12,7 @@ import java.time.LocalDate;
 @Getter
 @Setter
 public class KpiTrendDto {
-    LocalDate statDate;
-    Long reservation;
-    BigDecimal sales;
+    private LocalDate statDate;
+    private Long reservations;
+    private BigDecimal sales;
 }

@@ -12,9 +12,11 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,17 +27,40 @@ public class AdminKpiService {
 
     public KpiSummaryDto summaryKpi(LocalDate startDate, LocalDate endDate){
 
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("시작일/종료일은 null일 수 없습니다.");
+            }
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("시작일이 종료일보다 늦을 수 없습니다.");
+            }
         List<AdminKpiStatistics> dailyKpiList = adminKpiStatisticsRepository.findByStatDateBetweenOrderByStatDate(startDate,endDate);
+        if (dailyKpiList.isEmpty()) {
+            return KpiSummaryDto.builder()
+                    .totalEvents(0L)
+                    .totalReservations(0L)
+                    .totalUsers(0L)
+                    .totalSales(BigDecimal.ZERO)
+                    .build();
+        }
 
-        Long totalRervation = dailyKpiList.stream().mapToLong(AdminKpiStatistics::getTotalReservations).sum();
-        BigDecimal totalSales = dailyKpiList.stream().map((AdminKpiStatistics::getTotalSales))// Long → BigDecimal 변환
+        Long totalReservation = dailyKpiList.stream().mapToLong(stat -> stat.getTotalReservations() != null
+                ? stat.getTotalReservations()
+                : 0L).sum();
+
+        BigDecimal totalSales = dailyKpiList.stream()
+                .map(AdminKpiStatistics::getTotalSales)
+                .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        Long totalUsers = dailyKpiList.stream().mapToLong(AdminKpiStatistics::getTotalUsers).sum();
+
+        Long totalUsers = dailyKpiList.stream().mapToLong(stat -> stat.getTotalUsers() != null
+                ? stat.getTotalUsers()
+                : 0L).sum();
+
         Long totalEvents = dailyKpiList.stream().mapToLong(AdminKpiStatistics::getTotalEvents).sum();
 
         return KpiSummaryDto.builder()
                 .totalEvents(totalEvents)
-                .totalReservations(totalRervation)
+                .totalReservations(totalReservation)
                 .totalUsers(totalUsers)
                 .totalSales(totalSales)
                 .build();
@@ -47,22 +72,35 @@ public class AdminKpiService {
 
     public List<KpiTrendDto> dailyTrend(LocalDate start, LocalDate end){
 
+        if (start == null || end == null) {
+            throw new IllegalArgumentException("시작일/종료일은 null일 수 없습니다.");
+            }
+
         if (start.isAfter(end)) {
             throw new IllegalArgumentException("시작일이 종료일보다 늦을 수 없습니다.");
         }
 
-        List<AdminKpiStatistics> dailyKpiList = adminKpiStatisticsRepository.findTop7ByStatDateBetweenOrderByStatDateDesc(start,end);
+        List<AdminKpiStatistics>  dailyKpiList = adminKpiStatisticsRepository.findByStatDateBetweenOrderByStatDate(start,end);
+
+        if(ChronoUnit.DAYS.between(start, end) <= 6){
+         dailyKpiList = adminKpiStatisticsRepository.findTop7ByStatDateBetweenOrderByStatDateDesc(start,end);}
+
 
         return dailyKpiList.stream()
                 .map(s -> KpiTrendDto.builder()
                         .statDate(s.getStatDate())
-                        .reservation(s.getTotalReservations())
+                        .reservations(s.getTotalReservations())
                         .sales(s.getTotalSales())
                         .build())
                 .toList();
     }
 
     public List<KpiTrendMonthlyDto> monthlyTrend(LocalDate start, LocalDate end) {
+
+        if (start == null || end == null) {
+            throw new IllegalArgumentException("시작일/종료일은 null일 수 없습니다.");
+        }
+
         if (start.isAfter(end)) {
             throw new IllegalArgumentException("시작일이 종료일보다 늦을 수 없습니다.");
         }
@@ -70,8 +108,9 @@ public class AdminKpiService {
         List<AdminKpiStatistics> dailyKpiList =
                 adminKpiStatisticsRepository.findByStatDateBetweenOrderByStatDate(start, end);
 
-        // 월별 그룹화
-        Map<YearMonth, KpiTrendMonthlyDto> monthlyTrendList = dailyKpiList.stream()
+
+        // 월별 그룹화 및 DTO 변환
+         return dailyKpiList.stream()
                 .collect(Collectors.groupingBy(
                         s -> YearMonth.from(s.getStatDate()), // 월별 키
                         Collectors.collectingAndThen(
@@ -83,6 +122,7 @@ public class AdminKpiService {
 
                                     BigDecimal totalSales = list.stream()
                                             .map(AdminKpiStatistics::getTotalSales) // BigDecimal
+                                            .filter(Objects::nonNull)
                                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                                     return KpiTrendMonthlyDto.builder()
@@ -92,15 +132,8 @@ public class AdminKpiService {
                                             .build();
                                 }
                         )
-                ));
-
-        // DTO 변환
-        return monthlyTrendList.entrySet().stream()
-                .map(e -> KpiTrendMonthlyDto.builder()
-                        .yearMonth(e.getKey())
-                        .reservations(e.getValue().getReservations())
-                        .sales(e.getValue().getSales())
-                        .build())
+                        ))
+                 .values().stream()
                 .sorted(Comparator.comparing(KpiTrendMonthlyDto::getYearMonth))
                 .toList();
     }

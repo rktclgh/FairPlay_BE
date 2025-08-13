@@ -6,6 +6,7 @@ import com.fairing.fairplay.statistics.entity.reservation.QEventDailyStatistics;
 import com.fairing.fairplay.statistics.entity.sales.QEventDailySalesStatistics;
 import com.fairing.fairplay.user.entity.QUsers;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -28,26 +29,37 @@ public class AdminKpiStatsCustomRepositoryImpl implements AdminKpiStatsCustomRep
         QEventDailySalesStatistics sstats = QEventDailySalesStatistics.eventDailySalesStatistics;
         QEventComparisonStatistics cstats =QEventComparisonStatistics.eventComparisonStatistics;
         QUsers u = QUsers.users;
-        LocalDate start = targetDate.atStartOfDay().toLocalDate();
-        LocalDate end = targetDate.plusDays(1).atStartOfDay().toLocalDate();
+        LocalDate start = targetDate;
+        LocalDate end = targetDate.plusDays(1);
 
 
-        Long totalReservation = Long.valueOf(queryFactory
+        Long totalReservation = queryFactory
                 .select(
-                        rstats.reservationCount.sum()
-                                .subtract(rstats.cancellationCount.sum())
+                        rstats.reservationCount.sum().castToNum(Long.class)
+                                .subtract(rstats.cancellationCount.sum().castToNum(Long.class))
+                                .coalesce(Expressions.constant(0L))
                 )
                 .from(rstats)
                 .where(rstats.statDate.between(start, end))
-                .fetchOne());
+                .fetchOne();
 
 
-        BigDecimal totalSales = BigDecimal.valueOf(queryFactory
-                .select(sstats.totalSales.sum()
-                        .subtract(sstats.cancelledCount.sum()))
+
+        BigDecimal totalSales = queryFactory
+                .select(
+                        sstats.totalSales.sum()
+                                .castToNum(BigDecimal.class)
+                                .subtract(
+                                        sstats.cancelledCount.sum()
+                                                .castToNum(BigDecimal.class)
+                                )
+                                .coalesce(Expressions.constant(BigDecimal.ZERO))
+                )
                 .from(sstats)
-                .where(sstats.statDate.between(start,end))
-                .fetchOne());
+                .where(sstats.statDate.between(start, end))
+                .fetchOne();
+
+
 
 
         Long totalEvents = queryFactory
@@ -55,20 +67,23 @@ public class AdminKpiStatsCustomRepositoryImpl implements AdminKpiStatsCustomRep
                 .from(cstats)
                 .where(cstats.startDate.goe(start)
                         .and(cstats.endDate.lt(end)))
-                .groupBy(cstats.eventId)
                 .fetchOne();
 
+
+
         Long totalUsers  = queryFactory
-                .select(u.userId)
+                .select(u.userId.count())
                 .from(u)
                 .where(u.createdAt.between(start.atStartOfDay(), end.atStartOfDay()))
                 .fetchOne();
 
+
+
         return AdminKpiStatistics.builder()
-                .totalUsers(totalUsers)
-                .totalEvents(totalEvents)
-                .totalReservations(totalReservation)
-                .totalSales(totalSales)
+                .totalUsers(totalUsers != null ? totalUsers : 0L)
+                .totalEvents(totalEvents != null ? totalEvents : 0L)
+                .totalReservations(totalReservation != null ? totalReservation : 0L)
+                .totalSales(totalSales != null ? totalSales : BigDecimal.ZERO)
                 .statDate(targetDate)
                 .build();
 

@@ -5,10 +5,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface AdminKpiStatisticsRepository extends JpaRepository<AdminKpiStatistics, Long> {
 
     List<AdminKpiStatistics> findByStatDateBetweenOrderByStatDate(LocalDate startDate, LocalDate endDate);
 
     List<AdminKpiStatistics> findTop7ByStatDateBetweenOrderByStatDateDesc(LocalDate start, LocalDate end);
+
+    Optional<Object> findByStatDate(LocalDate date);
 }

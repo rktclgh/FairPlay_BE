@@ -7,7 +7,15 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "admin_kpi_statistics")
+@Table(
+        name = "admin_kpi_statistics",
+        uniqueConstraints = {
+        @UniqueConstraint(name = "uk_admin_kpi_statistics_stat_date", columnNames = "stat_date")
+        },
+        indexes = {
+        @Index(name = "idx_admin_kpi_statistics_stat_date", columnList = "stat_date")
+        }
+        )
 @Getter
 @Setter
 @NoArgsConstructor
@@ -29,7 +37,8 @@ public class AdminKpiStatistics {
     @Column(name = "total_reservations", nullable = false)
     private Long totalReservations;
 
-    @Column(name = "total_sales", nullable = false)
+
+    @Column(name = "total_sales", nullable = false, precision = 19, scale = 2)
     private BigDecimal totalSales;
 
     @Column(name = "stat_date", nullable = false)
