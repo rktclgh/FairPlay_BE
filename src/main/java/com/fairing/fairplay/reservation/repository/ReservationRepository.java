@@ -18,7 +18,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
   List<Reservation> findByUser_userId(Long userUserId);
 
-  Optional<Reservation> findByReservationIdAndUser(Long reservationId, Users user);
+  Optional<Reservation> findByReservationIdAndUser_UserId(Long reservationId, Long userId);
 
   // 본인 예약 중 관람 일자가 지난 행사 목록 (행사 제목, 건물, 주소, 관람날짜, 요일, 시작시간, 행사시작날짜, 행사종료날짜)
   @Query(
@@ -29,6 +29,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
                     e.titleKr,
                     e.eventDetail.location.buildingName,
                     e.eventDetail.location.address,
+                    e.eventDetail.thumbnailUrl,
                     r.schedule.date,
                     r.schedule.weekday,
                     r.schedule.startTime,
