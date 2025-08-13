@@ -28,7 +28,7 @@ public interface BannerRepository extends JpaRepository<Banner, Long> {
     );
 
     // (2) 타입 무시하고 전체 활성 배너 (필요하면 유지)
-    List<Banner> findAllByBannerStatusCode_CodeAndStartDateBeforeAndEndDateAfterOrderByPriorityDescStartDateDesc(
+    List<Banner> findAllByBannerStatusCode_CodeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByPriorityAsc(
             String code, LocalDateTime now1, LocalDateTime now2
     );
 

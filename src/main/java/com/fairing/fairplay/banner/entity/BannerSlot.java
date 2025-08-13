@@ -61,7 +61,6 @@ public class BannerSlot {
     void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
         if (status == null) status = BannerSlotStatus.AVAILABLE;
-        if (slotType == null) slotType = BannerSlotType.HERO;
         if (quota == null) quota = 1;
     }
 }
