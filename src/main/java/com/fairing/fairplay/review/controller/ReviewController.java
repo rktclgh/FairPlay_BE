@@ -1,5 +1,6 @@
 package com.fairing.fairplay.review.controller;
 
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
 import com.fairing.fairplay.review.dto.ReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewSaveRequestDto;
@@ -7,6 +8,7 @@ import com.fairing.fairplay.review.dto.ReviewSaveResponseDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateRequestDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateResponseDto;
 import com.fairing.fairplay.review.service.ReviewService;
+import com.fairing.fairplay.user.entity.Users;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +16,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -39,10 +42,10 @@ public class ReviewController {
   // 행사 상세 페이지 리뷰 조회
   // GET /events/{eventId}/reviews?page=0&size=10&sort=createdDate,desc
   @GetMapping("/{eventId}")
-  public ResponseEntity<Page<ReviewResponseDto>> getReviewForEvent(@PathVariable Long eventId,
+  public ResponseEntity<Page<ReviewResponseDto>> getReviewForEvent(@PathVariable Long eventId, @AuthenticationPrincipal CustomUserDetails userDetails,
       @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
     return ResponseEntity.status(HttpStatus.OK)
-        .body(reviewService.getReviewForEvent(eventId, pageable));
+        .body(reviewService.getReviewForEvent(userDetails,eventId, pageable));
   }
 
   // 마이페이지 리뷰 조회

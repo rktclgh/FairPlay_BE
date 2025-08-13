@@ -1,6 +1,7 @@
 package com.fairing.fairplay.review.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.review.dto.EventDto;
@@ -85,25 +86,29 @@ public class ReviewService {
   }
 
   // 행사 상세 페이지 - 특정 행사 리뷰 조회. CustomUserDetails 추가 예정
-  public Page<ReviewResponseDto> getReviewForEvent(Long eventId, Pageable pageable) {
-    Long loginUserId = 3L;
-    Users user = null;
-    if (loginUserId != null) {
-      user = findUserOrThrow(loginUserId);
+  public Page<ReviewResponseDto> getReviewForEvent(CustomUserDetails userDetails, Long eventId, Pageable pageable) {
+    Long loginUserId;
+    if (userDetails != null) {
+      loginUserId = userDetails.getUserId();
+    } else {
+      loginUserId = null;
     }
 
+    // 특정 이벤트 리뷰 조회
     Page<Review> reviewPage = reviewRepository.findByEventId(eventId, pageable);
 
+    // 리뷰 ID 추출
     List<Long> reviewIds = reviewPage.stream()
         .map(Review::getId)
         .toList();
 
+    // 이벤트의 리뷰들에 대한 카운트
     Map<Long, Long> reactionCountMap = reviewReactionService.findReactionCountsByReviewIds(
         reviewIds);
 
     return reviewPage.map(review -> {
       long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
-      boolean isMine = (loginUserId != null && review.getUser().getUserId().equals(loginUserId));
+      boolean isMine = (loginUserId != null) && loginUserId.equals(review.getUser().getUserId());
       return buildReviewResponse(review, reactionCount, isMine);
     });
   }
