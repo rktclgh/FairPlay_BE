@@ -42,8 +42,8 @@ public interface BannerSlotRepository extends JpaRepository<BannerSlot, Long> {
            s.lockedBy = :userId,
            s.lockedUntil = :lockedUntil
             where s.id in :slotIds
-             and s.status = 'AVAILABLE'
-             and (s.lockedUntil is null or s.lockedUntil < CURRENT_TIMESTAMP)
+            and s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.AVAILABLE
+            and (s.lockedUntil is null or s.lockedUntil < CURRENT_TIMESTAMP)
             """)
     int lockSlots(@Param("slotIds") List<Long> slotIds,
                   @Param("userId") Long userId,
@@ -65,16 +65,13 @@ public interface BannerSlotRepository extends JpaRepository<BannerSlot, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
   update BannerSlot s
-     set s.status = :to,
-         s.soldBannerId = :bannerId
+     set s.status = :to
    where s.id in :slotIds
      and s.status in :allowedFrom
 """)
     int markSold(@Param("slotIds") List<Long> slotIds,
-                 @Param("bannerId") Long bannerId,
                  @Param("to") BannerSlotStatus to,
                  @Param("allowedFrom") List<BannerSlotStatus> allowedFrom);
-    int markSold(@Param("slotIds") List<Long> slotIds);
 
     // 결제 후 생성된 배너 id 연결 (native가 깔끔)
     @Modifying(clearAutomatically = true, flushAutomatically = true)

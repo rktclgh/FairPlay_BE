@@ -48,7 +48,6 @@ public class BannerSlotService {
 
         int updated = bannerSlotRepository.markSold(
                 slotIds,
-                bannerId,
                 BannerSlotStatus.SOLD,
                 List.of(BannerSlotStatus.LOCKED) // 필요시 상태 더 추가
         );
