@@ -68,7 +68,7 @@ public class ReviewController {
   // 마이페이지 리뷰 조회
   @GetMapping
   public ResponseEntity<Page<ReviewResponseDto>> getReviewForUser(
-      @AuthenticationPrincipal CustomUserDetails userDetails, int page) {
+      @AuthenticationPrincipal CustomUserDetails userDetails, @RequestParam(defaultValue = "0") int page) {
     return ResponseEntity.status(HttpStatus.OK)
         .body(reviewService.getReviewForUser(userDetails, page));
   }

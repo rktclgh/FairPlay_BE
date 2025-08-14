@@ -172,7 +172,7 @@ public class ReviewService {
 
   // 리뷰 수정 (리액션 제외)
   @Transactional
-  public ReviewUpdateResponseDto updateReview(@AuthenticationPrincipal CustomUserDetails userDetails, Long reviewId,
+  public ReviewUpdateResponseDto updateReview(CustomUserDetails userDetails, Long reviewId,
       ReviewUpdateRequestDto dto) {
     if(userDetails == null){
       throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
