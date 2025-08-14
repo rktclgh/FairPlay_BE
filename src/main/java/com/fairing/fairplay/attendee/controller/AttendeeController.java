@@ -41,7 +41,8 @@ public class AttendeeController {
   @GetMapping("/{reservationId}")
   public ResponseEntity<AttendeeListInfoResponseDto> findAll(@PathVariable Long reservationId,
       @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ResponseEntity.status(HttpStatus.OK).body(attendeeService.findAll(reservationId, userDetails));
+    return ResponseEntity.status(HttpStatus.OK)
+        .body(attendeeService.findAll(reservationId, userDetails));
   }
 
   // 참석자 정보 변경 -> 단체 예약일 경우에만 접근 가능

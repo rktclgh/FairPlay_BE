@@ -14,7 +14,6 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
-
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +41,9 @@ public class AttendeeService {
   @Transactional
   public AttendeeInfoResponseDto saveGuest(String token, AttendeeSaveRequestDto dto) {
     ShareTicket shareTicket = shareTicketService.validateAndUseToken(token);
+    if(dto.getAgreeToTerms() == null || !dto.getAgreeToTerms()){
+      throw new CustomException(HttpStatus.BAD_REQUEST,"약관에 대해 동의하지 않았으므로 참석자 등록을 할 수 없습니다.");
+    }
     AttendeeInfoResponseDto attendeeInfoResponseDto = saveAttendee("GUEST", dto,
         shareTicket.getReservation().getReservationId());
     shareTicketService.updateShareTicket(shareTicket);
@@ -52,11 +54,14 @@ public class AttendeeService {
   public AttendeeListInfoResponseDto findAll(Long reservationId, CustomUserDetails userDetails) {
     Reservation reservation = findReservation(reservationId);
 
+    if(userDetails == null){
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"참석자 목록을 조회할 권한이 없습니다.");
+    }
     Long userId = userDetails.getUserId();
 
-    // 대표자와 현재 수정 요청한 요청자의 ID 비교
+    // 참석자 조회 요청한 사용자와 예매 대표자가 일치하는 지 조회
     if (!Objects.equals(reservation.getUser().getUserId(), userId)) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "현재 사용자와 티켓 소유주가 일치하지 않습니다.");
+      throw new CustomException(HttpStatus.FORBIDDEN, "현재 사용자와 예매 대표자가 일치하지 않으므로 조회할 권한이 없습니다.");
     }
 
     List<Attendee> attendees = attendeeRepository.findAllByReservation_ReservationIdOrderByIdAsc(
@@ -76,20 +81,24 @@ public class AttendeeService {
   @Transactional
   public AttendeeInfoResponseDto updateAttendee(Long attendeeId, AttendeeUpdateRequestDto dto,
       CustomUserDetails userDetails) {
+    if(userDetails == null){
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"참석자 정보를 수정할 권한이 없습니다.");
+    }
     Long userId = userDetails.getUserId();
 
     // 예약 있는지 조회
     Reservation reservation = findReservation(dto.getReservationId());
+
+    // 대표자와 현재 수정 요청한 요청자의 ID 비교
+    if (!Objects.equals(reservation.getUser().getUserId(), userId)) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "현재 사용자와 예매 대표자가 일치하지 않으므로 수정할 권한이 없습니다.");
+    }
 
     // 참석자 정보 조회 -> 예약ID + 참석자ID
     Attendee attendee = attendeeRepository.findByIdAndReservation_ReservationId(attendeeId,
             reservation.getReservationId())
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
 
-    // 대표자와 현재 수정 요청한 요청자의 ID 비교
-    if (!Objects.equals(reservation.getUser().getUserId(), userId)) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "현재 사용자와 티켓 소유주가 일치하지 않습니다.");
-    }
 
     // 수정하려는 정보가 대표자일 경우 수정 불가하므로 예외 발생
     if (AttendeeTypeCode.PRIMARY.equals(attendee.getAttendeeTypeCode().getCode().trim())) {
@@ -136,6 +145,7 @@ public class AttendeeService {
         .attendeeTypeCode(attendeeTypeCode)
         .phone(dto.getPhone())
         .email(dto.getEmail())
+        .agreeToTerms(dto.getAgreeToTerms())
         .reservation(reservation)
         .build();
     Attendee savedAttendee = attendeeRepository.save(attendee);
@@ -149,17 +159,12 @@ public class AttendeeService {
         .name(attendee.getName())
         .email(attendee.getEmail())
         .phone(attendee.getPhone())
+        .agreeToTerms(attendee.getAgreeToTerms())
         .build();
   }
 
   private Reservation findReservation(Long reservationId) {
     return reservationRepository.findById(reservationId).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND, "예약 정보를 조회할 수 없습니다."));
-  }
-
-  private void checkReservation(Long reservationId) {
-    if (!reservationRepository.existsById(reservationId)) {
-      throw new CustomException(HttpStatus.NOT_FOUND, "예약 정보를 조회할 수 없습니다.");
-    }
   }
 }

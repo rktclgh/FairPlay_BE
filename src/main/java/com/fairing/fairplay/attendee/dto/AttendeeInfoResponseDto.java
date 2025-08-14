@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-// 참석자 개별
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
@@ -17,4 +16,5 @@ public class AttendeeInfoResponseDto {
   private String name;
   private String email;
   private String phone;
+  private Boolean agreeToTerms;
 }
