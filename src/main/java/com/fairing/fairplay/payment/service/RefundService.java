@@ -47,10 +47,15 @@ public class RefundService {
      * 1단계: 구매자의 환불 요청 - DB에만 저장, 아임포트 호출하지 않음
      */
     @Transactional
-    public PaymentResponseDto requestRefund(Long paymentId, PaymentRequestDto paymentRequestDto) {
+    public PaymentResponseDto requestRefund(Long paymentId, PaymentRequestDto paymentRequestDto, Long userId) {
 
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new IllegalArgumentException("결제 내역이 없습니다."));
+
+        // 본인의 결제인지 확인
+        if (!payment.getUser().getUserId().equals(userId)) {
+            throw new IllegalArgumentException("본인의 결제 내역만 환불 요청할 수 있습니다.");
+        }
 
         // 환불 가능한 상태인지 확인
         validateRefundRequest(payment, paymentRequestDto.getRefundRequestAmount());
@@ -76,7 +81,7 @@ public class RefundService {
      * 2단계: 관리자의 환불 승인 - 이때 아임포트에 환불 요청
      */
     @Transactional
-    public PaymentResponseDto approveRefund(Long refundId) {
+    public PaymentResponseDto approveRefund(Long refundId, Long adminUserId) {
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
 
@@ -131,7 +136,7 @@ public class RefundService {
      * 환불 요청 거절
      */
     @Transactional
-    public PaymentResponseDto rejectRefund(Long refundId, String rejectReason) {
+    public PaymentResponseDto rejectRefund(Long refundId, String rejectReason, Long adminUserId) {
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
 
@@ -267,7 +272,7 @@ public class RefundService {
      * 대기 중인 환불 요청 조회 (관리자용)
      */
     @Transactional(readOnly = true)
-    public List<RefundResponseDto> getPendingRefunds(Long eventId) {
+    public List<RefundResponseDto> getPendingRefunds(Long eventId, CustomUserDetails userDetails) {
         RefundStatusCode requestedStatus = refundStatusCodeRepository.findByCode("REQUESTED")
                 .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: REQUESTED"));
         

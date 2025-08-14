@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -48,6 +49,14 @@ public class ReservationResponseDto {
     private LocalDateTime updatedAt;
     private boolean canceled;
     private LocalDateTime canceledAt;
+    
+    // 결제 정보
+    private Long paymentId;
+    private String merchantUid;
+    private String impUid;
+    private BigDecimal paymentAmount;
+    private String paymentStatus;
+    private LocalDateTime paidAt;
 
     public static ReservationResponseDto from(Reservation reservation) {
         ReservationResponseDto dto = new ReservationResponseDto();
@@ -86,7 +95,7 @@ public class ReservationResponseDto {
         dto.updatedAt = reservation.getUpdatedAt();
         dto.canceled = reservation.isCanceled();
         dto.canceledAt = reservation.getCanceled_at();
-        
+
         return dto;
     }
     

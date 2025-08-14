@@ -1,7 +1,6 @@
 package com.fairing.fairplay.payment.entity;
 
 import com.fairing.fairplay.event.entity.Event;
-import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.user.entity.Users;
 import jakarta.persistence.*;
 import lombok.*;
@@ -25,8 +24,8 @@ public class Payment {
     private Long paymentId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "event_id", nullable = false)
-    private Event event; // 결제가 속한 이벤트
+    @JoinColumn(name = "event_id", nullable = true)
+    private Event event; // 결제가 속한 이벤트 (광고 결제 등은 이벤트와 무관할 수 있음)
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
