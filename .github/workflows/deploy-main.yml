@@ -1,0 +1,121 @@
+name: deploy-on-main
+
+on:
+  push:
+    branches: [ "main" ]
+  repository_dispatch:
+    types: [fe-updated]   # 프론트 레포에서 알림 오면 트리거
+
+env:
+  # 필요시 조정: 백엔드 프로젝트 루트 경로 (기본 '.')
+  BACKEND_DIR: .
+  IMAGE_NAME: songchih/fairplay-backend:latest
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout BE (this repo)
+        uses: actions/checkout@v4
+
+      # ---------- Frontend 가져오기 & 빌드 ----------
+      - name: Checkout FE (FairPlay_FE)
+        uses: actions/checkout@v4
+        with:
+          repository: Fairing-15th/FairPlay_FE
+          ref: main
+          path: fe-src
+          token: ${{ secrets.CI_GITHUB_TOKEN }} # PAT(repo read) 필요
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: fe-src/package-lock.json
+
+      - name: Install FE deps
+        working-directory: fe-src
+        run: npm ci
+
+      - name: Create FE .env from Secrets
+        working-directory: fe-src
+        run: |
+          rm -f .env
+          {
+            echo "VITE_BACKEND_BASE_URL=${{ secrets.VITE_BACKEND_BASE_URL }}"
+            echo "VITE_FRONTEND_BASE_URL=${{ secrets.VITE_FRONTEND_BASE_URL }}"
+            echo "VITE_CDN_BASE_URL=${{ secrets.VITE_CDN_BASE_URL }}"
+            echo "VITE_KAKAO_CLIENT_ID=${{ secrets.VITE_KAKAO_CLIENT_ID }}"
+            echo "VITE_KAKAO_MAP_ID=${{ secrets.VITE_KAKAO_MAP_ID }}"
+          } >> .env
+
+      - name: Build FE
+        working-directory: fe-src
+        run: npm run build
+
+      - name: Inject FE dist into BE static
+        run: |
+          rm -rf "${{ env.BACKEND_DIR }}/src/main/resources/static"
+          mkdir -p "${{ env.BACKEND_DIR }}/src/main/resources/static"
+          cp -r fe-src/dist/* "${{ env.BACKEND_DIR }}/src/main/resources/static/"
+
+      # ---------- Backend jar build ----------
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Grant execute for gradlew
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: chmod +x gradlew
+
+      - name: Build Spring Boot jar
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: ./gradlew clean bootJar --no-daemon
+
+      # ---------- Docker build & push ----------
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.BACKEND_DIR }}
+          push: true
+          tags: ${{ env.IMAGE_NAME }}
+
+  deploy-ec2:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add EC2 host to known_hosts
+        run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy on EC2 (compose pull & up -d)
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh ${EC2_USER:-ubuntu}@${{ secrets.EC2_HOST }} "
+            echo \$DOCKERHUB_TOKEN | docker login -u \$DOCKERHUB_USERNAME --password-stdin &&
+            cd ~/fairplay-deploy &&
+            docker compose pull &&
+            docker compose up -d &&
+            docker image prune -f
+          "
