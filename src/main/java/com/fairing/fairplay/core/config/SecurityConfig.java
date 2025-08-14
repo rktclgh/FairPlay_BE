@@ -6,6 +6,7 @@ import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -70,6 +71,7 @@ public class SecurityConfig {
                                 "/api/events/user/role",
                                 "/api/super-admin/**"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                         .requestMatchers("/api/chat/presence/connect",
                                 "/api/chat/presence/disconnect")
                         .authenticated() // JWT 인증
