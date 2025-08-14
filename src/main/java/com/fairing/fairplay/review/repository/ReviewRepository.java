@@ -29,7 +29,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
   Page<Review> findByEventId(@Param("eventId") Long eventId, Pageable pageable);
 
   @Query("select new com.fairing.fairplay.review.dto.EventDto(" +
-      "e.titleKr, l.buildingName, l.address, " +
+      "e.titleKr, l.buildingName, l.address, ed.thumbnailUrl, " +
       "s.date, s.weekday, s.startTime, " +
       "ed.startDate, ed.endDate) " +
       "from Reservation r " +

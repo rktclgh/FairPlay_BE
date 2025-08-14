@@ -25,8 +25,11 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,19 +45,26 @@ public class ReviewService {
 
   // 본인이 예매한 행사에 대해서만 리뷰 작성 가능
   @Transactional
-  public ReviewSaveResponseDto save(ReviewSaveRequestDto dto) {
+  public ReviewSaveResponseDto save(ReviewSaveRequestDto dto, CustomUserDetails userDetails) {
+    if(userDetails == null){
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
+    }
+    Long userId = userDetails.getUserId();
     // user 임시 설정
-    Users user = findUserOrThrow(1L);
+    Users user = findUserOrThrow(userId);
+    log.info("user id:{}", userId);
+
+    log.info("reservation id:{}", dto.getReservationId());
 
     // 1. user의 사용자 권한이 일반 사용자인지 검증
-//    if (!user.getRoleCode().getCode().equals("COMMON")) {
-//      throw new CustomException(HttpStatus.FORBIDDEN,
-//          "리뷰를 작성할 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
-//    }
+    if (!user.getRoleCode().getCode().equals("COMMON")) {
+      throw new CustomException(HttpStatus.FORBIDDEN,
+          "리뷰를 작성할 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
+    }
 
     // 2. 리뷰 작성자와 예약자가 일치하는지 조회
     Reservation reservation = reviewReservationService.checkReservationIdAndUser(
-        dto.getReservationId(), user);
+        dto.getReservationId(), user.getUserId());
 
     // 3. 예약이 취소되었는지 검증
     reviewReservationService.checkReservationIsCancelled(reservation);
@@ -126,9 +136,19 @@ public class ReviewService {
   }
 
   // 마이페이지 - 본인의 모든 리뷰 조회
-  public Page<ReviewResponseDto> getReviewForUser(Long userId, Pageable pageable) {
+  public Page<ReviewResponseDto> getReviewForUser(CustomUserDetails userDetails, int page) {
     // 1.  사용자 존재 여부 확인
-    Users user = findUserOrThrow(userId);
+    Pageable pageable = PageRequest.of(page, 5, Sort.by(Sort.Direction.DESC, "createdAt"));
+    if (userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+    }
+
+    if (page < 0) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "page는 0 이상의 정수여야 합니다.");
+    }
+
+    Users user = userRepository.findById(userDetails.getUserId()).orElseThrow(() ->
+        new CustomException(HttpStatus.NOT_FOUND, "사용자가 조회되지 않습니다."));
 
     // 2. 리뷰 페이징 조회
     Page<Review> reviewPage = reviewRepository.findByUser(user, pageable);
@@ -149,10 +169,15 @@ public class ReviewService {
     });
   }
 
+
   // 리뷰 수정 (리액션 제외)
   @Transactional
-  public ReviewUpdateResponseDto updateReview(Long userId, Long reviewId,
+  public ReviewUpdateResponseDto updateReview(CustomUserDetails userDetails, Long reviewId,
       ReviewUpdateRequestDto dto) {
+    if(userDetails == null){
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
+    }
+    Long userId = userDetails.getUserId();
     // 1.  사용자 존재 여부 확인
     Users user = findUserOrThrow(userId);
 
@@ -189,7 +214,11 @@ public class ReviewService {
 
   // 리뷰 삭제
   @Transactional
-  public ReviewDeleteResponseDto deleteReview(Long userId, Long reviewId) {
+  public ReviewDeleteResponseDto deleteReview(CustomUserDetails userDetails, Long reviewId) {
+    if(userDetails == null){
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
+    }
+    Long userId = userDetails.getUserId();
     // 1.  사용자 존재 여부 확인
     Users user = findUserOrThrow(userId);
     // 2. 사용자 권한 확인
@@ -205,7 +234,7 @@ public class ReviewService {
 
     // 4. 리뷰와 연결된 예약이 존재하는지 확인
     Reservation reservation = reviewReservationService.checkReservationIdAndUser(
-        review.getReservation().getReservationId(), user);
+        review.getReservation().getReservationId(), review.getUser().getUserId());
 
     // 5. 삭제 가능 기한 검증
     LocalDate endDate = reservation.getSchedule().getDate();
@@ -233,7 +262,8 @@ public class ReviewService {
   private ReviewResponseDto buildReviewResponse(Review review, Long reactionCount, boolean owner) {
     EventDto eventDto = buildEvent(review.getReservation());
     ReviewDto reviewDto = buildReview(review, reactionCount);
-    return new ReviewResponseDto(eventDto, reviewDto, owner);
+    return new ReviewResponseDto(review.getReservation().getReservationId(), eventDto, reviewDto,
+        owner);
   }
 
   private EventDto buildEvent(Reservation reservation) {
@@ -261,6 +291,7 @@ public class ReviewService {
 
   // 별점 검증
   private void validateStar(Integer star) {
+    log.info("star is {}", star);
     if (star == null || star < 0 || star > 5) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "별점은 0~5 사이어야 합니다.");
     }

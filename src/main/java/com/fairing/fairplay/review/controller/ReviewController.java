@@ -40,8 +40,10 @@ public class ReviewController {
 
   // 리뷰 저장
   @PostMapping
-  public ResponseEntity<ReviewSaveResponseDto> saveReview(@RequestBody ReviewSaveRequestDto dto) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(reviewService.save(dto));
+  public ResponseEntity<ReviewSaveResponseDto> saveReview(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @RequestBody ReviewSaveRequestDto dto) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(reviewService.save(dto, userDetails));
   }
 
   // 마이페이지 리뷰 작성한 행사 목록 조회
@@ -66,21 +68,25 @@ public class ReviewController {
   // 마이페이지 리뷰 조회
   @GetMapping
   public ResponseEntity<Page<ReviewResponseDto>> getReviewForUser(
-      @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+      @AuthenticationPrincipal CustomUserDetails userDetails, @RequestParam(defaultValue = "0") int page) {
     return ResponseEntity.status(HttpStatus.OK)
-        .body(reviewService.getReviewForUser(1L, pageable));
+        .body(reviewService.getReviewForUser(userDetails, page));
   }
 
   // 리뷰 수정 요청 ( 비공개여부, 리뷰 내용 등)
   @PatchMapping("/{reviewId}")
-  public ResponseEntity<ReviewUpdateResponseDto> updateReview(@PathVariable Long reviewId,
+  public ResponseEntity<ReviewUpdateResponseDto> updateReview(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long reviewId,
       @RequestBody ReviewUpdateRequestDto dto) {
-    return ResponseEntity.status(HttpStatus.OK).body(reviewService.updateReview(1L, reviewId, dto));
+    return ResponseEntity.status(HttpStatus.OK)
+        .body(reviewService.updateReview(userDetails, reviewId, dto));
   }
 
   // 리뷰 삭제
   @DeleteMapping("/{reviewId}")
-  public ResponseEntity<ReviewDeleteResponseDto> deleteReview(@PathVariable Long reviewId) {
-    return ResponseEntity.status(HttpStatus.OK).body(reviewService.deleteReview(1L, reviewId));
+  public ResponseEntity<ReviewDeleteResponseDto> deleteReview(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long reviewId) {
+    return ResponseEntity.status(HttpStatus.OK)
+        .body(reviewService.deleteReview(userDetails, reviewId));
   }
 }

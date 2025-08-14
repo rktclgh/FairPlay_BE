@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class ReviewResponseDto {
 
+  private Long reservationId;
   private EventDto event; // 리뷰 작성한 행사 정보
   private ReviewDto review;
   private boolean owner;
