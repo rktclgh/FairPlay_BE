@@ -69,11 +69,11 @@ public class SecurityConfig {
                                 "/api/events/apply", // 행사 등록 신청
                                 "/api/events/apply/check",
                                 "/api/events/user/role",
-                                "/api/super-admin/**",
-                                "/api/form", // 참석자 폼 조회
-                                "/api/attendees" // 참석자 정보 저장
+                                "/api/super-admin/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/attendees").permitAll()
                         .requestMatchers("/api/chat/presence/connect",
                                 "/api/chat/presence/disconnect")
                         .authenticated() // JWT 인증
