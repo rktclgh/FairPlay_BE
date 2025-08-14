@@ -73,6 +73,8 @@ public class SecurityConfig {
                                 "/api/rag/**" // RAG API (개발/테스트용)
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/attendees").permitAll()
                         .requestMatchers("/api/chat/presence/connect",
                                 "/api/chat/presence/disconnect")
                         .authenticated() // JWT 인증
