@@ -190,11 +190,12 @@ public class RagController {
     public ResponseEntity<?> testSearch(@RequestParam String query, 
                                        @RequestParam(defaultValue = "5") int topK) {
         try {
-            var result = vectorSearchService.search(query, topK);
+            int safeTopK = Math.max(1, Math.min(topK, 20));
+            var result = vectorSearchService.search(query, safeTopK);
             
             return ResponseEntity.ok(Map.of(
                 "query", query,
-                "topK", topK,
+                "topK", safeTopK,
                 "totalChunks", result.getTotalChunks(),
                 "foundChunks", result.getChunks().size(),
                 "contextLength", result.getContextText().length(),

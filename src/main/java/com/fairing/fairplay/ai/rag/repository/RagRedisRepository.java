@@ -35,7 +35,10 @@ public class RagRedisRepository {
             // 개별적으로 필드 저장하여 타입 이슈 방지
             redisTemplate.opsForHash().put(chunkKey, "docId", chunk.getDocId());
             redisTemplate.opsForHash().put(chunkKey, "text", chunk.getText());
-            redisTemplate.opsForHash().put(chunkKey, "vector", encodeVector(chunk.getEmbedding()));
+            float[] embedding = chunk.getEmbedding();
+            if (embedding != null) {
+                redisTemplate.opsForHash().put(chunkKey, "vector", encodeVector(embedding));
+            }
             redisTemplate.opsForHash().put(chunkKey, "createdAt", chunk.getCreatedAt());
             
             // 청크 목록에 추가
@@ -72,7 +75,9 @@ public class RagRedisRepository {
             .chunkId(chunkId)
             .docId(data.get("docId"))
             .text(data.get("text"))
-            .embedding(decodeVector(data.get("vector")))
+            .embedding(data.get("vector") != null && !data.get("vector").isEmpty()
+                ? decodeVector(data.get("vector"))
+                : null)
             .createdAt(createdAt)
             .build());
     }

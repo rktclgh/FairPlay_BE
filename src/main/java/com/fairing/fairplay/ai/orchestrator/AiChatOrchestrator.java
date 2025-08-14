@@ -89,7 +89,18 @@ public class AiChatOrchestrator {
         }
 
         // 마지막 사용자 메시지 추출
-        String userQuestion = history.get(history.size() - 1).getContent();
+        String userQuestion = null;
+        for (int i = history.size() - 1; i >= 0; i--) {
+            ChatMessage m = history.get(i);
+            if (!m.getSenderId().equals(botUserId)) {
+                userQuestion = m.getContent();
+                break;
+            }
+        }
+        if (userQuestion == null || userQuestion.isBlank()) {
+            System.out.println("AI 응답 스킵: 사용자 발화를 찾지 못함");
+            return;
+        }
 
         // RAG 기반 응답 생성
         String reply;

@@ -30,6 +30,11 @@ public class RagChatService {
      */
     public RagResponse chat(String userQuestion, List<ChatMessageDto> conversationHistory) {
         try {
+            if (userQuestion == null || userQuestion.trim().isEmpty()) {
+                log.warn("빈 사용자 질문 수신: RAG 검색 생략");
+                return fallbackToZeroShot("어떤 점이 궁금하신가요? 질문을 조금만 더 자세히 알려주세요.", conversationHistory);
+            }
+            
             // 벡터 검색으로 관련 컨텍스트 찾기
             SearchResult searchResult = vectorSearchService.search(userQuestion);
             
@@ -72,6 +77,9 @@ public class RagChatService {
                 log.warn("LLM에서 빈 응답 수신. fallback으로 전환");
                 return fallbackToZeroShot(userQuestion, conversationHistory);
             }
+            
+            // 마크다운 형식 제거 (**text** -> text)
+            response = response.replaceAll("\\*\\*([^*]+)\\*\\*", "$1");
             
             // 인용 정보 구성
             List<CitedChunk> citedChunks = searchResult.getChunks().stream()
@@ -150,6 +158,9 @@ public class RagChatService {
             
             if (response == null || response.trim().isEmpty()) {
                 response = "죄송해요, 지금은 시스템에 일시적인 문제가 있어요. 잠시 후 다시 시도해주세요.";
+            } else {
+                // 마크다운 형식 제거
+                response = response.replaceAll("\\*\\*([^*]+)\\*\\*", "$1");
             }
             
             return RagResponse.builder()
