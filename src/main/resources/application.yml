@@ -94,9 +94,10 @@ iamport:
   base-url: ${IAMPORT_BASE_URL:https://api.iamport.kr}
 llm:
   provider: GEMINI # 이후 OPENAI 로 바꾸면 OpenAI로 전환됨
+  bot-user-id: 999    # AI 챗봇의 사용자 ID
   gemini:
-    api-key: ${GEMINI_API_KEY:} # 환경변수 권장
-    model: gemini-2.5-flash # 기본값(경량/저지연)
+    api-key: ${GEMINI_API_KEY:}       # 환경변수 권장
+    model: gemini-2.5-flash           # 기본값(경량/저지연)
   openai:
 #    api-key: ${OPENAI_API_KEY:}       # 나중에 전환용
 #    model: gpt-4o-mini
@@ -106,3 +107,10 @@ banner:
     default-minutes: 2880 # ←신청 슬롯 기본 락 유지시간 (분)  // BannerApplicationService @Value
     cleanup:
       delay: 300000 #  만료락 해제 주기(밀리초)
+
+
+# 로깅 설정
+logging:
+  level:
+    com.fairing.fairplay.ai.client.GoogleGeminiClient: DEBUG
+    com.fairing.fairplay.ai.rag.service: DEBUG
