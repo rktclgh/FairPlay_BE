@@ -7,9 +7,8 @@ on:
     types: [fe-updated]   # 프론트 레포에서 알림 오면 트리거
 
 env:
-  # 필요시 조정: 백엔드 프로젝트 루트 경로 (기본 '.')
-  BACKEND_DIR: .
-  IMAGE_NAME: songchih/fairplay-backend:latest
+  BACKEND_DIR: .                                 # BE 프로젝트 루트 경로
+  IMAGE_NAME: songchih/fairplay-backend:latest   # Docker Hub <namespace>/<repo>:tag
 
 permissions:
   contents: read
@@ -29,7 +28,7 @@ jobs:
           repository: Fairing-15th/FairPlay_FE
           ref: main
           path: fe-src
-          token: ${{ secrets.CI_GITHUB_TOKEN }} # PAT(repo read) 필요
+          token: ${{ secrets.CI_GITHUB_TOKEN }} # PAT(repo read) 필요 (repo + workflow 권장)
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -40,7 +39,9 @@ jobs:
 
       - name: Install FE deps
         working-directory: fe-src
-        run: npm ci
+        # lock 불일치 시 ci가 실패하니, 우선 ci 시도 -> 실패하면 install로 폴백
+        run: |
+          (npm ci) || npm install
 
       - name: Create FE .env from Secrets
         working-directory: fe-src
@@ -81,9 +82,15 @@ jobs:
         run: ./gradlew clean bootJar --no-daemon
 
       # ---------- Docker build & push ----------
-      - name: Docker login
+      - name: Guard: check DockerHub secrets
+        run: |
+          [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] || (echo "❌ DOCKERHUB_USERNAME missing" && exit 1)
+          [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]    || (echo "❌ DOCKERHUB_TOKEN missing" && exit 1)
+
+      - name: Docker login (docker.io)
         uses: docker/login-action@v3
         with:
+          registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
