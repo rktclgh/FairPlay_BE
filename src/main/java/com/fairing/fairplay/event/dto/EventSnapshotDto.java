@@ -35,12 +35,14 @@ public class EventSnapshotDto {
     private String officialUrl;
     private Integer eventTime;
     private String thumbnailUrl;
+    private String bannerUrl;
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer mainCategoryId;
     private Integer subCategoryId;
     private Integer regionCodeId;
     private Boolean reentryAllowed;
+    private Boolean checkInAllowed;
     private Boolean checkOutAllowed;
     private List<EventSnapshotDto.ExternalLinkSnapshot> externalLinks;
 

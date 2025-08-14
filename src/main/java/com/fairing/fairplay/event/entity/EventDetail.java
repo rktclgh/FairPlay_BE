@@ -60,6 +60,9 @@ public class EventDetail {
     @Column(name = "thumbnail_url", length = 255)
     private String thumbnailUrl;
 
+    @Column(name = "banner_url", length = 255)
+    private String bannerUrl;
+
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
@@ -88,6 +91,9 @@ public class EventDetail {
 
     @Column(name = "reentry_allowed", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT TRUE")
     private Boolean reentryAllowed = true;
+
+    @Column(name = "check_in_allowed", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    private Boolean checkInAllowed = false;
 
     @Column(name = "check_out_allowed", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
     private Boolean checkOutAllowed = false;

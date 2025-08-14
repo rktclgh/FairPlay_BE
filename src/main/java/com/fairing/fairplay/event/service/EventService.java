@@ -267,7 +267,6 @@ public class EventService {
     public EventResponseDto updateEvent(Long eventId, EventStatusThumbnailDto eventRequestDto, Long managerId) {
 
         Event event = checkEventAndDetail(eventId, "update");
-        Integer newVersion = createVersion(event, managerId);
         EventDetail eventDetail = event.getEventDetail();
 
         // 썸네일 파일 처리
@@ -302,6 +301,7 @@ public class EventService {
         }
 
         Event savedEvent = eventRepository.save(event);
+        Integer newVersion = createVersion(savedEvent, managerId);
 
         return EventResponseDto.builder()
                 .message("행사 정보가 업데이트되었습니다.")
@@ -320,9 +320,6 @@ public class EventService {
 
         Event event = checkEventAndDetail(eventId, "update");
         EventDetail eventDetail = event.getEventDetail();
-
-        log.info("버전 생성 for eventId: {}", eventId);
-        Integer newVersion = createVersion(event, managerId);
 
         log.info("행사 상세 업데이트 for eventId: {}", eventId);
 
@@ -366,6 +363,9 @@ public class EventService {
         entityManager.flush();
         entityManager.refresh(event);
         entityManager.refresh(eventDetail);
+
+        log.info("버전 생성 for eventId: {}", eventId);
+        Integer newVersion = createVersion(event, managerId);
 
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, newVersion, "이벤트 상세 정보가 업데이트되었습니다.");
     }
@@ -667,6 +667,8 @@ public class EventService {
             eventDetail.setThumbnailUrl(eventDetailRequestDto.getThumbnailUrl());
         if (eventDetailRequestDto.getReentryAllowed() != null)
             eventDetail.setReentryAllowed(eventDetailRequestDto.getReentryAllowed());
+        if (eventDetailRequestDto.getCheckInAllowed() != null)
+            eventDetail.setCheckInAllowed(eventDetailRequestDto.getCheckInAllowed());
         if (eventDetailRequestDto.getCheckOutAllowed() != null)
             eventDetail.setCheckOutAllowed(eventDetailRequestDto.getCheckOutAllowed());
     }
@@ -705,6 +707,7 @@ public class EventService {
                 .eventTime(detail.getEventTime())
                 .externalLinks(links)
                 .reentryAllowed(detail.getReentryAllowed())
+                .checkInAllowed(detail.getCheckInAllowed())
                 .checkOutAllowed(detail.getCheckOutAllowed())
                 .build();
     }
@@ -738,25 +741,25 @@ public class EventService {
                     .build());
 
             String tempUrl = "/api/uploads/download?key=" + fileDto.getS3Key();
-            String publicUrl = s3UploadResponseDto.getFileUrl();
+            String cdnUrl = s3UploadResponseDto.getFileUrl();
 
             switch (fileDto.getUsage()) {
                 case "thumbnail":
-                    eventDetail.setThumbnailUrl(publicUrl);
+                    eventDetail.setThumbnailUrl(cdnUrl);
                     break;
                 case "content":
                     if (eventDetail.getContent() != null) {
-                        eventDetail.setContent(eventDetail.getContent().replace(tempUrl, publicUrl));
+                        eventDetail.setContent(eventDetail.getContent().replace(tempUrl, cdnUrl));
                     }
                     break;
                 case "bio":
                     if (eventDetail.getBio() != null) {
-                        eventDetail.setBio(eventDetail.getBio().replace(tempUrl, publicUrl));
+                        eventDetail.setBio(eventDetail.getBio().replace(tempUrl, cdnUrl));
                     }
                     break;
                 case "policy":
                     if (eventDetail.getPolicy() != null) {
-                        eventDetail.setPolicy(eventDetail.getPolicy().replace(tempUrl, publicUrl));
+                        eventDetail.setPolicy(eventDetail.getPolicy().replace(tempUrl, cdnUrl));
                     }
                     break;
             }

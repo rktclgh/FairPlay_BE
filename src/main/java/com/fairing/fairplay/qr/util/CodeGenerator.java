@@ -2,11 +2,14 @@ package com.fairing.fairplay.qr.util;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
+import com.fairing.fairplay.qr.entity.QrTicket;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hashids.Hashids;
@@ -26,9 +29,21 @@ public class CodeGenerator {
   private final StringRedisTemplate redisTemplate;
   private final Hashids hashids;
 
-  // QR 고유 코드 생성 ex. 550e8400-e29b-41d4-a716-446655440000
-  public String generateRandomToken() {
-    return UUID.randomUUID().toString().replace("-", "");
+  // QR 고유 코드 생성 ex.nk2s0
+  public String generateQrCode(QrTicket qrTicket) {
+    ZonedDateTime zdt = qrTicket.getExpiredAt().atZone(ZoneId.of("Asia/Seoul"));
+    long epochSeconds = zdt.toEpochSecond();
+
+    long randomSalt = random.nextLong(1_000_000, 9_999_999);
+
+    long[] numbers = new long[]{
+        safeLong(qrTicket.getId()),
+        safeLong(qrTicket.getAttendee().getId()),
+        epochSeconds,
+        randomSalt
+    };
+
+    return hashids.encode(numbers);
   }
 
   // 수동 코드 생성 ex. ABCD-EFGH
@@ -86,10 +101,6 @@ public class CodeGenerator {
           "티켓 번호 생성 중 오류가 발생했습니다: " + e.getMessage());
     }
 
-  }
-  // 토큰 문자열 -> long[]으로 변환
-  private long[] decodeToken(String token) {
-    return hashids.decode(token);
   }
 
   // DTO 값이 null일 때 오류 방지용

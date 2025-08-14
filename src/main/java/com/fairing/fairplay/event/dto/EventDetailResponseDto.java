@@ -71,6 +71,9 @@ public class EventDetailResponseDto {
     /* 재입장 허용 여부 */
     private Boolean reentryAllowed;
 
+    /* 입장 스캔 여부 */
+    private Boolean checkInAllowed;
+
     /* 퇴장 스캔 여부 */
     private Boolean checkOutAllowed;
 }

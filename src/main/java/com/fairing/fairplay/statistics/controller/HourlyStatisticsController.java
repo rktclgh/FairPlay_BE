@@ -1,5 +1,6 @@
 package com.fairing.fairplay.statistics.controller;
 
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.statistics.dto.hourly.HourlyAnalysisResponseDto;
 import com.fairing.fairplay.statistics.service.hourly.HourlyAnalysisService;
 import lombok.RequiredArgsConstructor;
@@ -18,11 +19,11 @@ public class HourlyStatisticsController {
     private final HourlyAnalysisService hourlyAnalysisService;
 
     @GetMapping("/hourly/{eventId}")
+    @FunctionAuth("getHourlyStatistics")
     public HourlyAnalysisResponseDto getHourlyStatistics(
             @PathVariable Long eventId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end
-    ) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
         if (start.isAfter(end)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "시작 날짜는 종료 날짜보다 늦을 수 없습니다.");
         }
@@ -31,10 +32,10 @@ public class HourlyStatisticsController {
 
     // 단일 날짜 조회용 (기존 호환성)
     @GetMapping("/hourly/{eventId}/date")
+    @FunctionAuth("getHourlyStatisticsByDate")
     public HourlyAnalysisResponseDto getHourlyStatisticsByDate(
             @PathVariable Long eventId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
-    ) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return hourlyAnalysisService.analyzeHourlyBookings(eventId, date, date);
     }
 }

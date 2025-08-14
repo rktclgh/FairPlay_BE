@@ -14,16 +14,39 @@ import org.springframework.web.socket.config.annotation.*;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
+    private final StompChannelInterceptor stompChannelInterceptor;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // WebSocket 엔드포인트 (SockJS 없이)
         registry.addEndpoint("/ws/chat")
+                .setAllowedOriginPatterns("*")
+                .addInterceptors(jwtHandshakeInterceptor);
+
+        // SockJS fallback 엔드포인트 (JSONP 비활성화)
+        registry.addEndpoint("/ws/chat-sockjs")
                 .setAllowedOriginPatterns("*")
                 .addInterceptors(jwtHandshakeInterceptor)
                 .withSockJS()
                 .setSessionCookieNeeded(false)
-                .setHeartbeatTime(25000)  // 25초마다 heartbeat
-                .setDisconnectDelay(30000); // 30초 disconnect delay
+                .setHeartbeatTime(25000)
+                .setDisconnectDelay(30000)
+                .setSuppressCors(false);
+
+        // 알림 전용 WebSocket 엔드포인트  
+        registry.addEndpoint("/ws/notifications")
+                .setAllowedOriginPatterns("*")
+                .addInterceptors(jwtHandshakeInterceptor);
+
+        // 알림 전용 SockJS fallback 엔드포인트
+        registry.addEndpoint("/ws/notifications-sockjs")
+                .setAllowedOriginPatterns("*")
+                .addInterceptors(jwtHandshakeInterceptor)
+                .withSockJS()
+                .setSessionCookieNeeded(false)
+                .setHeartbeatTime(25000)
+                .setDisconnectDelay(30000)
+                .setSuppressCors(false);
     }
 
     @Override
@@ -32,6 +55,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setHeartbeatValue(new long[]{25000, 25000}) // heartbeat 25초
                 .setTaskScheduler(heartBeatScheduler()); // TaskScheduler 추가
         config.setApplicationDestinationPrefixes("/app");
+    }
+
+    @Override
+    public void configureClientInboundChannel(org.springframework.messaging.simp.config.ChannelRegistration registration) {
+        registration.interceptors(stompChannelInterceptor);
     }
 
     @Bean

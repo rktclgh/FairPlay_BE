@@ -1,4 +1,4 @@
-package com.fairing.fairplay.notification.service;
+package com.fairing.fairplay.core.email.service;
 
 import com.fairing.fairplay.core.email.service.AbstractEmailService;
 import com.fairing.fairplay.core.util.EmailSender;

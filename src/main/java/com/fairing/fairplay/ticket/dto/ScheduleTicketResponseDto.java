@@ -18,7 +18,7 @@ public class ScheduleTicketResponseDto {    // 회차별 각 티켓 정보
     private Long ticketId;
     private String name;
     private Integer price;
-    private Integer remainingStock;
+    private Integer saleQuantity;           // 판매할 수량 (화면 표시용)
     private LocalDateTime salesStartAt;
     private LocalDateTime salesEndAt;
     private Boolean visible;

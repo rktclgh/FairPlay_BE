@@ -9,7 +9,7 @@ import java.util.List;
 @Getter
     @AllArgsConstructor
     public class CalendarGroupedDto {
-        private LocalDate date;
-        private List<String> titles;
+    private LocalDate date;
+    private List<CalendarEventSummaryDto> events;
 
 }

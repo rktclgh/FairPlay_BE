@@ -8,7 +8,7 @@ POST http://localhost:8080/api/attendees?token={{token}}
 Content-Type: application/json
 
 {
-  "name": "2테스트2",
+  "name": "22테스트22",
   "email": "khyeon2021@kyonggi.ac.kr",
   "phone": "010-12345-5678",
   "birth": null
@@ -21,7 +21,11 @@ Content-Type: application/json
 
 {
   "reservationId": 2,
-  "name": "1테스트",
+  "name": "11수정11",
   "email": "khyeon2020@naver.com",
   "phone": "010-1111-3333"
 }
+
+### 행사별 참석자 전체 조회
+@eventId = 1
+GET http://localhost:8080/api/attendees/events/{{eventId}}

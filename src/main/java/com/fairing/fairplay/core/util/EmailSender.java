@@ -7,11 +7,13 @@ import jakarta.mail.util.ByteArrayDataSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
 import java.util.Properties;
 
 @Component
+@Slf4j
 public class EmailSender {
 
     @Value("${spring.mail.host}")
@@ -41,6 +43,8 @@ public class EmailSender {
         });
 
         try {
+            log.info("Attempting to send email to: {}, subject: {}", to, subject);
+            
             MimeMessage message = new MimeMessage(session);
             message.setFrom(new InternetAddress(username));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
@@ -69,8 +73,11 @@ public class EmailSender {
 
             message.setContent(multipart);
             Transport.send(message);
+            
+            log.info("Email sent successfully to: {}", to);
         } catch (Exception e) {
-            throw new RuntimeException("메일 전송 실패", e);
+            log.error("Failed to send email to: {}, error: {}", to, e.getMessage(), e);
+            throw new RuntimeException("메일 전송 실패: " + e.getMessage(), e);
         }
     }
 }

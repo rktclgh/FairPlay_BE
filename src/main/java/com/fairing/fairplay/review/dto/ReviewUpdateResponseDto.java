@@ -15,5 +15,5 @@ public class ReviewUpdateResponseDto {
   private Long reviewId; // 리뷰ID
   private Integer star; // 별점
   private String comment; // 내용
-  private Boolean isPublic; // 공개 여부
+  private boolean visible; // 공개 여부
 }

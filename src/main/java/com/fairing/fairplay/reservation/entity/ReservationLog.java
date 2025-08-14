@@ -32,12 +32,13 @@ public class ReservationLog {
     private LocalDateTime changedAt;
 
     @ManyToOne
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "changed_by")
     private Users changedBy;
 
     public ReservationLog(Reservation reservation, ReservationStatusCode reservationStatusCode, Users changedBy) {
         this.reservation = reservation;
         this.reservationStatusCode = reservationStatusCode;
         this.changedBy = changedBy;
+        this.changedAt = LocalDateTime.now();
     }
 }

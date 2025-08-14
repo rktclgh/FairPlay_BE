@@ -34,7 +34,7 @@ Authorization: Bearer {{access_token}}
   "policy": "환불은 7일 이내에 가능합니다.",
   "officialUrl": "https://art.seoul.go.kr/event/seoul-dessert-fair",
   "eventTime": 180,
-  "thumbnailUrl": "https://ticketimage.interpark.com/Play/image/large/25/25007142_p.gif",
+  "thumbnailUrl": "https://your-cloudfront-domain.cloudfront.net/images/concert-thumbnail.jpg",
   "startDate": "2025-10-01",
   "endDate": "2025-10-02",
   "mainCategoryId": 4,
@@ -50,6 +50,7 @@ Authorization: Bearer {{access_token}}
     }
   ],
   "reentryAllowed": false,
+  "checkInAllowed": false,
   "checkOutAllowed": false
 }
 
@@ -96,9 +97,8 @@ Content-Type: application/json
 Authorization: Bearer {{access_token}}
 
 {
-  "titleKr": "서울 겨울 콘서트 : 2025",
-  "hostName": "SBS",
-  "thumbnailUrl": "/images/gd2.png"
+  "titleKr": "G-DRAGON 2026 월드투어",
+  "titleEng": "G-DRAGON 2026 WORLD TOUR"
 }
 
 ### 행사 삭제

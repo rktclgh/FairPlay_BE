@@ -1,16 +1,12 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.qr.dto.CheckInResponseDto;
-import com.fairing.fairplay.qr.dto.GuestManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.GuestQrCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.MemberManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.MemberQrCheckInRequestDto;
+import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
+import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
-import com.fairing.fairplay.qr.dto.QrTicketUpdateRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class QrTicketService {
 
   private final QrTicketIssueService qrTicketIssueService;
-  private final QrTicketEntryService qrTicketEntryService;
 
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
@@ -44,10 +39,16 @@ public class QrTicketService {
    * 2. 회원이 마이페이지에서 QR 링크 조회 안될 때 관리자 강제 QR 티켓 리셋
    * 3. 마이페이지 접근 안되는 회원/비회원에게 강제 QR 티켓 링크 재발급해 메일 전송
    * */
-  // QR 티켓 재발급 1
+  // QR 티켓 재발급 1-1
   @Transactional
-  public QrTicketUpdateResponseDto reissueQrTicket(QrTicketUpdateRequestDto dto) {
-    return qrTicketIssueService.reissueQrTicket(dto);
+  public QrTicketUpdateResponseDto reissueQrTicketByGuest(QrTicketReissueGuestRequestDto dto) {
+    return qrTicketIssueService.reissueQrTicketByGuest(dto);
+  }
+
+  // QR 티켓 재발급 1-2
+  @Transactional
+  public QrTicketUpdateResponseDto reissueQrTicketByMember(QrTicketReissueMemberRequestDto dto, CustomUserDetails userDetails) {
+    return qrTicketIssueService.reissueQrTicketByMember(dto,userDetails);
   }
 
   // QR 티켓 재발급 2
@@ -60,40 +61,5 @@ public class QrTicketService {
   @Transactional
   public QrTicketReissueResponseDto reissueAdminQrTicket(QrTicketReissueRequestDto dto) {
     return qrTicketIssueService.reissueAdminQrTicket(dto);
-  }
-
-  /*
-   * 체크인
-   * 1. 회원+QR
-   * 2. 회원+수동
-   * 3. 비회원+QR
-   * 4. 비회원+수동
-   *
-   */
-
-  // 체크인 1
-  @Transactional
-  public CheckInResponseDto checkInWithQrByMember(MemberQrCheckInRequestDto dto,
-      CustomUserDetails userDetails) {
-    return qrTicketEntryService.checkIn(dto, userDetails);
-  }
-
-  // 체크인 2
-  @Transactional
-  public CheckInResponseDto checkInWithManualByMember(MemberManualCheckInRequestDto dto,
-      CustomUserDetails userDetails) {
-    return qrTicketEntryService.checkIn(dto, userDetails);
-  }
-
-  // 체크인 3
-  @Transactional
-  public CheckInResponseDto checkInWithQrByGuest(GuestQrCheckInRequestDto dto) {
-    return qrTicketEntryService.checkIn(dto);
-  }
-
-  // 체크인 4
-  @Transactional
-  public CheckInResponseDto checkInWithManualByGuest(GuestManualCheckInRequestDto dto) {
-    return qrTicketEntryService.checkIn(dto);
   }
 }

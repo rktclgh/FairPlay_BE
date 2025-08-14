@@ -1,0 +1,337 @@
+### ===== 예약 시스템 API 테스트 =====
+### 예약 시스템의 모든 기능을 테스트하는 HTTP 파일입니다.
+### 플로우: 1. 사용자 가입/로그인 → 2. 예약 CRUD → 3. 관리자 기능
+
+### ===== 변수 설정 =====
+### ✅ 모든 ID는 API 호출 시 자동 생성되어 저장됩니다
+@baseUrl = http://localhost:8080
+@access_token = {{access_token}}
+@eventId = 8
+@scheduleId = 1
+@ticketId = 1
+@reservationId = {{reservationId}}
+@randomInt = 1
+@user_email = user_1@example.com
+@user_password = test1234!
+
+### ===== 1. 사전 준비: 사용자 가입 및 로그인 =====
+
+### 📝 1-1. 일반 사용자 회원가입 (랜덤 정보)
+POST {{baseUrl}}/api/users/signup
+Content-Type: application/json
+
+{
+  "email": "{{user_email}}",
+  "name": "테스트유저{{randomInt}}",
+  "nickname": "예약테스터1{{randomInt}}",
+  "phone": "01082828282",
+  "password": "{{user_password}}",
+  "roleCodeId": 2
+}
+
+### 🔐 1-2. 로그인 (위에서 가입한 계정 자동 사용)
+### ✅ 로그인 성공 시 access_token이 자동으로 저장되어 모든 API에서 사용됩니다
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "{{user_email}}",
+    "password": "{{user_password}}"
+}
+
+> {%
+// 응답 구조에 따라 accessToken 또는 access_token 경로 확인
+if (response.body.accessToken) {
+    client.global.set("access_token", response.body.accessToken);
+} else if (response.body.access_token) {
+    client.global.set("access_token", response.body.access_token);
+} else if (response.body.data && response.body.data.accessToken) {
+    client.global.set("access_token", response.body.data.accessToken);
+}
+%}
+
+### ===== 1.5. 테스트 데이터 생성 (Event, Schedule, Ticket) =====
+
+### 🏢 1-3. Event 생성 (행사 등록)
+### ✅ 생성 성공 시 eventId가 자동으로 저장됩니다
+POST {{baseUrl}}/api/events
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "email": "{{user_email}}",
+  "titleKr": "테스트 행사 {{randomInt}}",
+  "titleEng": "Test Event {{randomInt}}",
+  "hidden": false
+}
+
+> {%
+if (response.body.eventId) {
+    client.global.set("eventId", response.body.eventId);
+} else if (response.body.data && response.body.data.eventId) {
+    client.global.set("eventId", response.body.data.eventId);
+} else if (response.body.id) {
+    client.global.set("eventId", response.body.id);
+}
+%}
+
+### 🏢 1-4. Event 상세 등록 (행사 상세 정보)
+POST {{baseUrl}}/api/events/{{eventId}}/details
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "titleKr": "테스트 행사 상세 정보",
+  "titleEng": "Test Event Details",
+  "address": "서울특별시 강남구 테헤란로 123",
+  "placeName": "테스트 컨벤션 센터",
+  "latitude": 37.5665,
+  "longitude": 126.9780,
+  "placeUrl": "https://place.map.test.com/12345",
+  "locationDetail": "메인홀",
+  "hostName": "테스트 주최사",
+  "contactInfo": "02-123-4567",
+  "bio": "테스트용 행사입니다",
+  "content": "자동화 테스트를 위한 행사입니다",
+  "policy": "테스트 환불 정책",
+  "officialUrl": "https://test-event.com",
+  "eventTime": 120,
+  "thumbnailUrl": "https://via.placeholder.com/300x200",
+  "startDate": "2025-12-01",
+  "endDate": "2025-12-02",
+  "mainCategoryId": 4,
+  "subCategoryId": 401,
+  "externalLinks": [
+    {
+      "url": "https://test-ticket.com",
+      "displayText": "테스트 예매"
+    }
+  ]
+}
+
+### 📅 1-5. Schedule 생성 (일정 등록)
+### ✅ 생성 성공 시 scheduleId가 자동으로 저장됩니다
+POST {{baseUrl}}/api/events/{{eventId}}/schedule
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "date": "2025-12-01",
+  "startTime": "14:00:00",
+  "endTime": "16:00:00",
+  "weekday": 1,
+  "types": "EVENT"
+}
+
+> {%
+if (response.body.scheduleId) {
+    client.global.set("scheduleId", response.body.scheduleId);
+} else if (response.body.data && response.body.data.scheduleId) {
+    client.global.set("scheduleId", response.body.data.scheduleId);
+} else if (response.body.id) {
+    client.global.set("scheduleId", response.body.id);
+}
+%}
+
+### 🎫 1-6. Ticket 생성 (티켓 등록)
+### ✅ 생성 성공 시 ticketId가 자동으로 저장됩니다
+POST {{baseUrl}}/api/events/{{eventId}}/tickets
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "name": "테스트 일반 티켓",
+  "description": "테스트용 티켓입니다",
+  "maxPurchase": 5,
+  "price": 20000,
+  "stock": 100,
+  "types": "EVENT"
+}
+
+> {%
+if (response.body.ticketId) {
+    client.global.set("ticketId", response.body.ticketId);
+} else if (response.body.data && response.body.data.ticketId) {
+    client.global.set("ticketId", response.body.data.ticketId);
+} else if (response.body.id) {
+    client.global.set("ticketId", response.body.id);
+}
+%}
+
+### 🎫 1-7. 회차별 티켓 등록
+POST http://localhost:8080/api/events/{{eventId}}/schedule/{{scheduleId}}/tickets
+Content-type: application/json
+Accept: application/json
+
+[
+  {
+    "ticketId": 1,
+    "remainingStock": 100,
+    "salesStartAt": "2025-09-01T09:00:00",
+    "salesEndAt": "2025-09-20T18:00:00",
+    "visible": true
+  }
+]
+
+### ===== 2. 예약 관련 API 테스트 =====
+
+### 📋 2-1. 예약 신청 (POST /api/events/{eventId}/reservations)
+### ✅ 예약 성공 시 reservationId가 자동으로 저장되어 이후 API에서 사용됩니다
+POST {{baseUrl}}/api/events/{{eventId}}/reservations
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "scheduleId": {{scheduleId}},
+  "ticketId": {{ticketId}},
+  "quantity": 2,
+  "price": 40000
+}
+
+> {%
+// 응답 구조에 따라 reservationId 경로 확인
+if (response.body.reservationId) {
+    client.global.set("reservationId", response.body.reservationId);
+} else if (response.body.data && response.body.data.reservationId) {
+    client.global.set("reservationId", response.body.data.reservationId);
+} else if (response.body.id) {
+    client.global.set("reservationId", response.body.id);
+}
+%}
+
+### 🔍 2-2. 예약 상세 조회 (GET /api/events/{eventId}/reservations/{reservationId})
+GET {{baseUrl}}/api/events/{{eventId}}/reservations/{{reservationId}}
+Authorization: Bearer {{access_token}}
+
+### 📊 2-3. 행사별 전체 예약 조회 - 관리자용 (GET /api/events/{eventId}/reservations)
+GET {{baseUrl}}/api/events/{{eventId}}/reservations
+Authorization: Bearer {{access_token}}
+
+### ✏️ 2-4. 예약 수정 (PUT /api/events/{eventId}/reservations/{reservationId})
+PUT {{baseUrl}}/api/events/{{eventId}}/reservations/{{reservationId}}
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "scheduleId": {{scheduleId}},
+  "ticketId": {{ticketId}},
+  "quantity": 1,
+  "price": 20000
+}
+
+### 👥 2-5. 예약자 명단 조회 - 행사 관리자용 (GET /api/events/{eventId}/reservations/attendees)
+GET {{baseUrl}}/api/events/{{eventId}}/reservations/attendees
+Authorization: Bearer {{access_token}}
+
+### 👥 2-6. 예약자 명단 조회 (상태 필터링) - 행사 관리자용
+GET {{baseUrl}}/api/events/{{eventId}}/reservations/attendees?status=CONFIRMED
+Authorization: Bearer {{access_token}}
+
+### 📥 2-7. 예약자 명단 엑셀 다운로드 - 행사 관리자용 (GET /api/events/{eventId}/reservations/attendees/excel)
+GET {{baseUrl}}/api/events/1/reservations/attendees/excel
+Authorization: Bearer {{access_token}}
+
+### 📥 2-8. 예약자 명단 엑셀 다운로드 (상태 필터링) - 행사 관리자용
+GET {{baseUrl}}/api/events/{{eventId}}/reservations/attendees/excel?status=CONFIRMED
+Authorization: Bearer {{access_token}}
+
+### ❌ 2-9. 예약 취소 (PATCH /api/events/{eventId}/reservations/{reservationId})
+PATCH {{baseUrl}}/api/events/{{eventId}}/reservations/{{reservationId}}
+Authorization: Bearer {{access_token}}
+
+### ===== 3. 사용자별 예약 조회 API 테스트 =====
+
+### 👤 3-1. 내 예약 목록 조회 (GET /api/me/reservations)
+GET {{baseUrl}}/api/me/reservations
+Authorization: Bearer {{access_token}}
+
+### ===== 4. 실패 케이스 테스트 =====
+
+### ❌ 4-1. 재고 부족 시 예약 신청 (실패 케이스)
+POST {{baseUrl}}/api/events/{{eventId}}/reservations
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "scheduleId": {{scheduleId}},
+  "ticketId": {{ticketId}},
+  "quantity": 999,
+  "price": 40000
+}
+
+### ❌ 4-2. 존재하지 않는 예약 조회 (실패 케이스)
+GET {{baseUrl}}/api/events/{{eventId}}/reservations/99999
+Authorization: Bearer {{access_token}}
+
+### ❌ 4-3. 다른 사용자의 예약 수정 시도 (실패 케이스)
+PUT {{baseUrl}}/api/events/{{eventId}}/reservations/99999
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "scheduleId": {{scheduleId}},
+  "ticketId": {{ticketId}},
+  "quantity": 1,
+  "price": 20000
+}
+
+### 🔐 4-4. 인증 없이 API 호출 (실패 케이스)
+GET {{baseUrl}}/api/events/{{eventId}}/reservations
+
+### ===== 5. 동시성 테스트 (같은 티켓 동시 예약) =====
+
+### 🚀 5-1. 첫 번째 사용자 예약 (동시성 테스트용)
+POST {{baseUrl}}/api/events/{{eventId}}/reservations
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "scheduleId": {{scheduleId}},
+  "ticketId": {{ticketId}},
+  "quantity": 1,
+  "price": 20000
+}
+
+### 🚀 5-2. 두 번째 사용자 예약 (다른 사용자 토큰으로 실행)
+POST {{baseUrl}}/api/events/{{eventId}}/reservations
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "scheduleId": {{scheduleId}},
+  "ticketId": {{ticketId}},
+  "quantity": 1,
+  "price": 20000
+}
+
+### ===== 테스트 가이드 =====
+### 
+### 🔧 테스트 실행 전 필수 확인사항:
+### 1. ✅ 서버 실행 상태: 실제 포트 확인 후 @baseUrl 수정
+### 2. ✅ 데이터베이스 상태: eventId, scheduleId, ticketId가 실제 존재하는지 확인
+### 3. ✅ API 응답 구조: 로그인/예약 응답 필드명이 코드와 일치하는지 확인
+### 4. ✅ 권한 설정: 관리자 기능 테스트 시 적절한 권한 보유 확인
+### 
+### 🚀 권장 테스트 순서 (완전 자동화):
+### Step 1: 1-1 회원가입 → 1-2 로그인 (토큰 자동 저장)
+### Step 2: 1-3 Event 생성 (eventId 저장) → 1-4 Event 상세 등록
+### Step 3: 1-5 Schedule 생성 (scheduleId 저장) → 1-6 Ticket 생성 (ticketId 저장)  
+### Step 4: 2-1 예약 신청 (reservationId 저장) → 2-2 상세 조회
+### Step 5: 2-4 예약 수정 → 2-3 전체 조회 → 3-1 내 예약 조회
+### Step 6: 2-5~2-8 관리자 기능 → 2-9 예약 취소
+### Step 7: 4-1~4-4 실패 케이스 → 5-1~5-2 동시성 테스트
+### 
+### 💡 예상 이슈 및 해결책:
+### - 401 Unauthorized: access_token 저장 실패 → 로그인 응답 구조 확인
+### - 404 Not Found: API 경로 오류 → 서버 설정 및 컨트롤러 확인
+### - 400 Bad Request: 필수 필드 누락 → 요청 데이터 구조 확인
+### - 500 Server Error: 서버 오류 → 로그 확인
+### - ID 저장 실패: JavaScript 응답 처리 확인 → API 응답 구조 분석
+### 
+### ⚠️  중요 주의사항:
+### - 🎯 완전 자동화: 1-1부터 순서대로 실행하면 모든 ID가 자동 생성됨
+### - 📊 각 단계별로 응답 확인 후 다음 단계 진행 권장  
+### - 🔑 관리자 기능(2-5~2-8)은 적절한 권한 없이 403 Forbidden 발생 가능
+### - 🚀 동시성 테스트(5-1~5-2)는 브라우저 여러 탭에서 동시 실행 필요
+### - ❌ 실패 케이스(4-1~4-4)도 의도된 동작이므로 정상적인 오류 응답 확인
+### - 🗂️ 더 이상 DB에서 실제 ID를 찾아 변경할 필요 없음!

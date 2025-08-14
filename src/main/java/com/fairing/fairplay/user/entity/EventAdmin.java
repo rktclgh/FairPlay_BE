@@ -37,4 +37,3 @@ public class EventAdmin {
     @Column(nullable = false)
     private Boolean active = false;
 }
-

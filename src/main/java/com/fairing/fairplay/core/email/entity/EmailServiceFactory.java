@@ -1,12 +1,14 @@
 package com.fairing.fairplay.core.email.entity;
 
+import org.springframework.stereotype.Component;
+
 import com.fairing.fairplay.core.email.service.AbstractEmailService;
 import com.fairing.fairplay.core.email.service.SendQrTicketEmailService;
 import com.fairing.fairplay.core.email.service.SuccessQrTicketEmailService;
 import com.fairing.fairplay.core.email.service.TemporaryPasswordEmailService;
 import com.fairing.fairplay.core.email.service.VerificationEmailService;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor

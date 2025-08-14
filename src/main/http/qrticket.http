@@ -38,3 +38,39 @@ Content-Type: application/json
   "attendeeId": 2,
   "ticketNo": "EVT202408A-20250806-0002"
 }
+
+### 회원 QR 스캔 입장
+POST http://localhost:8080/api/qr-tickets/check-in/member/qr
+Content-Type: application/json
+
+{
+ "reservationId": 1,
+  "qrCode": "asdf"
+}
+
+### 회원 수동코드 스캔 입장
+POST http://localhost:8080/api/qr-tickets/check-in/member/manual
+Content-Type: application/json
+
+{
+  "reservationId": 1,
+  "manualCode": "asdf"
+}
+
+### 비회원 QR 스캔 입장
+POST http://localhost:8080/api/qr-tickets/check-in/guest/qr
+Content-Type: application/json
+
+{
+  "qrLinkToken": "dddd",
+  "qrCode": "asdf"
+}
+
+### 비회원 수동코드 스캔 입장
+POST http://localhost:8080/api/qr-tickets/check-in/guest/manual
+Content-Type: application/json
+
+{
+  "qrLinkToken": "dddd",
+  "manualCode": "asdf"
+}

@@ -2,208 +2,191 @@ package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
-import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.qr.dto.CheckInResponseDto;
-import com.fairing.fairplay.qr.dto.GuestManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.GuestQrCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.MemberManualCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.MemberQrCheckInRequestDto;
-import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
-import com.fairing.fairplay.qr.entity.QrCheckLog;
-import com.fairing.fairplay.qr.entity.QrLog;
+import com.fairing.fairplay.qr.dto.scan.AdminCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.AdminForceCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.CheckInRequestDto;
+import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
+import com.fairing.fairplay.qr.dto.scan.ManualCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.QrCheckRequestDto;
+import com.fairing.fairplay.qr.dto.scan.QrCodeDecodeDto;
+import com.fairing.fairplay.qr.entity.QrActionCode;
+import com.fairing.fairplay.qr.entity.QrCheckStatusCode;
 import com.fairing.fairplay.qr.entity.QrTicket;
-import com.fairing.fairplay.qr.repository.QrCheckLogRepository;
-import com.fairing.fairplay.qr.repository.QrLogRepository;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.CodeValidator;
+import com.fairing.fairplay.user.entity.Users;
 import java.time.LocalDateTime;
-import java.util.Optional;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-// QR 티켓 입장/퇴장
+/*
+ * 1. 재입장 가능 여부 검토
+ * 2. 최초 입장인지 재입장인지 판단
+ * 3. 코드 스캔 로그 기록
+ * 4. QR 코드 일치 하는 지 검토
+ * 5. QR 티켓 처리
+ * - 중복 스캔 여부 검토 -> 로그 기록 후 예외
+ * - 잘못된 스캔 여부 검토 -> 로그 기록 후 예외
+ * - QR 체크인 로그 기록
+ * */
 @Service
 @RequiredArgsConstructor
 public class QrTicketEntryService {
+
   private final QrTicketRepository qrTicketRepository;
-  private final AttendeeRepository attendeeRepository;
-  private final CodeValidator codeValidator; // 검증 로직 분리
-  private final QrLogRepository qrLogRepository;
-  private final QrCheckLogRepository qrCheckLogRepository;
+  private final QrTicketVerificationService qrTicketVerificationService;
   private final QrLogService qrLogService;
+  private final QrTicketAttendeeService qrTicketAttendeeService;
+  private final QrEntryValidateService qrEntryValidateService;
 
-  // 회원 QR 코드 체크인
-  public CheckInResponseDto checkIn(MemberQrCheckInRequestDto dto, CustomUserDetails userDetails) {
-    // 예약자 조회
-    Attendee attendee = findAttendeeByReservation(dto.getReservationId());
-    // 예약자와 현재 로그인한 사용자 일치 여부 조회
-    if(!userDetails.getUserId().equals(attendee.getReservation().getUser().getUserId()))  {
-      throw new CustomException(HttpStatus.UNAUTHORIZED,"예약자와 현재 로그인한 사용자가 일치하지 않습니다.");
+  private static final String QR = "QR";
+  private static final String MANUAL = "MANUAL";
+  private final CodeValidator codeValidator;
+
+  // QR 체크인
+  public CheckResponseDto checkInWithQr(QrCheckRequestDto dto) {
+    // 코드 디코딩
+    QrCodeDecodeDto qrCodeDecodeDto = codeValidator.decodeToQrTicket(dto.getQrCode());
+
+    // QR 코드 토큰 이용한 티켓 조회
+    QrTicket qrTicket = qrTicketRepository.findById(qrCodeDecodeDto.getQrTicketId()).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 QR 코드입니다.")
+    );
+
+
+    // QR 티켓 참석자 조회
+    Attendee attendee = qrTicket.getAttendee();
+    AttendeeTypeCode primaryTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
+    AttendeeTypeCode guestTypeCode = qrTicketAttendeeService.findGuestTypeCode();
+    // 회원인지 검증
+    if (attendee.getAttendeeTypeCode().equals(primaryTypeCode)) {
+      // 회원인지 검증
+      Users user = qrTicket.getAttendee().getReservation().getUser();
+      qrTicketVerificationService.validateUser(user);
+    }else if(attendee.getAttendeeTypeCode().equals(guestTypeCode)) {
+      // 비회원일 경우 qr 티켓의 참석자와 qrcode에 저장된 참석자 정보가 일치하는지 판단
+      if (qrCodeDecodeDto.getAttendeeId() == null) {
+        throw new CustomException(HttpStatus.BAD_REQUEST, "QR 코드에 참석자 정보가 없습니다.");
+      }
+      if(!attendee.getId().equals(qrCodeDecodeDto.getAttendeeId())){
+        throw new CustomException(HttpStatus.NOT_FOUND,"참석자와 일치하는 QR 티켓이 없습니다.");
+      }
+    }else {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "지원하지 않는 참석자 유형입니다.");
     }
-    // QR 티켓 조회
-    QrTicket qrTicket = findQrTicket(attendee);
-    // qrcode 비교
-    verifyQrCode(qrTicket, dto.getQrCode());
-    // 재입장 여부 검토
-    verifyReEntry(qrTicket);
-    // QR 티켓 처리
-    LocalDateTime checkInTime = processCheckIn(qrTicket);
 
-    return CheckInResponseDto.builder()
+    CheckInRequestDto checkInRequestDto = CheckInRequestDto.builder()
+        .attendee(attendee)
+        .codeType(QR)
+        .codeValue(qrTicket.getQrCode())
+        .qrActionCode(QrActionCode.CHECKED_IN)
+        .build();
+    return processCheckInCommon(qrTicket, checkInRequestDto);
+  }
+
+  // 수동 코드 체크인
+  public CheckResponseDto checkInWithManual(ManualCheckRequestDto dto) {
+    QrTicket qrTicket = qrTicketRepository.findByManualCode(dto.getManualCode()).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 수동 코드입니다.")
+    );
+
+    // QR 티켓에 저장된 참석자 조회
+    Attendee attendee = qrTicket.getAttendee();
+    AttendeeTypeCode primaryTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
+    // 회원인지 검증
+    if (attendee.getAttendeeTypeCode().equals(primaryTypeCode)) {
+      Users user = qrTicket.getAttendee().getReservation().getUser();
+      qrTicketVerificationService.validateUser(user);
+    }
+
+    CheckInRequestDto checkInRequestDto = CheckInRequestDto.builder()
+        .attendee(attendee)
+        .codeType(MANUAL)
+        .codeValue(qrTicket.getManualCode())
+        .qrActionCode(QrActionCode.MANUAL_CHECKED_IN)
+        .build();
+    return processCheckInCommon(qrTicket, checkInRequestDto);
+  }
+
+  // 강제 입퇴장 체크인
+  public CheckResponseDto adminForceCheck(AdminForceCheckRequestDto dto) {
+    return processAdminForceCheck(dto);
+  }
+
+  /**
+   * 체크인 공통 로직
+   */
+  private CheckResponseDto processCheckInCommon(QrTicket qrTicket, CheckInRequestDto dto) {
+    // QrActionCode 검토
+    QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.SCANNED);
+    // 코드 스캔 기록
+    qrLogService.scannedQrLog(qrTicket, qrActionCode);
+    // 재입장 가능 여부 검토 - 입장 기록 자체가 있는지 조회
+    qrEntryValidateService.verifyReEntry(qrTicket);
+    // 현재 입장이 최초입장인지 재입장인지 판단 QrCheckStatusCode.ENTRY, rCheckStatusCode.REENTRY
+    String entryType = qrLogService.determineEntryOrReEntry(qrTicket);
+    // 중복 스캔 -> QrLog: invalid, QrChecktLog: duplicate 저장
+    qrEntryValidateService.preventDuplicateScan(qrTicket, entryType);
+    // 코드 비교
+    if (QR.equals(dto.getCodeType())) {
+      qrTicketVerificationService.verifyQrCode(qrTicket, dto.getCodeValue());
+    } else {
+      qrTicketVerificationService.verifyManualCode(qrTicket, dto.getCodeValue());
+    }
+    // QR 티켓 처리
+    LocalDateTime checkInTime = processCheckIn(qrTicket, dto.getQrActionCode(), entryType);
+    return CheckResponseDto.builder()
         .message("체크인 완료되었습니다.")
         .checkInTime(checkInTime)
         .build();
-  }
-
-  // 회원 수동 코드 체크인
-  public CheckInResponseDto checkIn(MemberManualCheckInRequestDto dto, CustomUserDetails userDetails) {
-    // 예약자 조회
-    Attendee attendee = findAttendeeByReservation(dto.getReservationId());
-    // 예약자와 현재 로그인한 사용자 일치 여부 조회
-    if(!userDetails.getUserId().equals(attendee.getReservation().getUser().getUserId()))  {
-      throw new CustomException(HttpStatus.UNAUTHORIZED,"예약자와 현재 로그인한 사용자가 일치하지 않습니다.");
-    }
-    // QR 티켓 조회
-    QrTicket qrTicket = findQrTicket(attendee);
-    // 수동 코드 비교
-    verifyManualCode(qrTicket, dto.getManualCode());
-    // 재입장 여부 검토
-    verifyReEntry(qrTicket);
-    // QR 티켓 처리
-    LocalDateTime checkInTime = processCheckIn(qrTicket);
-    return CheckInResponseDto.builder()
-        .message("체크인 완료되었습니다.")
-        .checkInTime(checkInTime)
-        .build();
-  }
-
-  // 비회원 QR 코드 체크인
-  public CheckInResponseDto checkIn(GuestQrCheckInRequestDto dto) {
-    // qr 티켓 링크 token 조회
-    QrTicketRequestDto qrLinkTokenInfo = codeValidator.decodeToDto(dto.getQrLinkToken());
-    // 참석자 조회
-    Attendee attendee = findAttendeeByAttendee(qrLinkTokenInfo.getAttendeeId());
-    // qr 티켓 조회
-    QrTicket qrTicket = findQrTicket(attendee);
-    // qrcode 비교
-    verifyQrCode(qrTicket, dto.getQrCode());
-    // 재입장 여부 검토
-    verifyReEntry(qrTicket);
-    // QR 티켓 처리
-    LocalDateTime checkInTime = processCheckIn(qrTicket);
-    return CheckInResponseDto.builder()
-        .message("체크인 완료되었습니다.")
-        .checkInTime(checkInTime)
-        .build();
-  }
-
-  // 비회원 수동 코드 체크인
-  public CheckInResponseDto checkIn(GuestManualCheckInRequestDto dto) {
-    // qr 티켓 링크 token 조회
-    QrTicketRequestDto qrLinkTokenInfo = codeValidator.decodeToDto(dto.getQrLinkToken());
-    // 참석자 조회
-    Attendee attendee = findAttendeeByAttendee(qrLinkTokenInfo.getAttendeeId());
-    // qr 티켓 조회
-    QrTicket qrTicket = findQrTicket(attendee);
-    // 수동 코드 비교
-    verifyManualCode(qrTicket, dto.getManualCode());
-    // 재입장 여부 검토
-    verifyReEntry(qrTicket);
-    // QR 티켓 처리
-    LocalDateTime checkInTime = processCheckIn(qrTicket);
-    return CheckInResponseDto.builder()
-        .message("체크인 완료되었습니다.")
-        .checkInTime(checkInTime)
-        .build();
-  }
-
-  // 회원 attendee 조회
-  private Attendee findAttendeeByReservation(Long reservationId) {
-    return attendeeRepository.findByReservation_ReservationIdAndAttendeeTypeCode_Code(
-            reservationId, AttendeeTypeCode.PRIMARY)
-        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자를 조회하지 못했습니다."));
-  }
-
-  // 비회원 attendee 조회
-  private Attendee findAttendeeByAttendee(Long attendeeId) {
-    return attendeeRepository.findById(attendeeId)
-        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자를 조회하지 못했습니다."));
-  }
-
-  // QR 티켓 조회
-  private QrTicket findQrTicket(Attendee attendee) {
-    return qrTicketRepository.findByAttendee(attendee)
-        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "예약된 QR 티켓을 찾지 못했습니다."));
-  }
-
-  // QR 코드 검증
-  private void verifyQrCode(QrTicket qrTicket, String qrCode) {
-    if (!qrTicket.getActive()) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "만료된 QR 티켓입니다.");
-    }
-
-    QrLog qrLog = qrLogRepository.findByActionCode_Code("").orElse(null);
-
-    // 재입장 여부 확인
-    if (qrLog != null && !qrTicket.getReentryAllowed()) {
-      throw new CustomException(HttpStatus.UNAUTHORIZED, "이미 입장한 이력이 있으며 재입장할 수 없습니다.");
-    }
-
-    if (!qrTicket.getQrCode().equals(qrCode)) {
-      throw new CustomException(HttpStatus.UNAUTHORIZED, "참석자 정보와 일치하지 않습니다.");
-    }
-  }
-
-  // 수동 코드 검증
-  private void verifyManualCode(QrTicket qrTicket, String manualCode) {
-    codeValidator.validateManualCode(manualCode);
-
-    if (!qrTicket.getManualCode().equals(manualCode)) {
-      throw new CustomException(HttpStatus.UNAUTHORIZED, "참석자 정보와 일치하지 않습니다.");
-    }
-  }
-
-  // 재입장 가능 여부 검토
-  private void verifyReEntry(QrTicket qrTicket) {
-    // 체크인/체크아웃 로그 조회 (해당 티켓, 사용자 기준)
-    Optional<QrCheckLog> qrLogCheckInOpt = qrCheckLogRepository.findTop1ByQrTicketAndCheckStatusCode_CodeOrderByCreatedAtDesc(
-        qrTicket, "CHECKIN");
-    Optional<QrCheckLog> qrLogCheckOutOpt = qrCheckLogRepository.findTop1ByQrTicketAndCheckStatusCode_CodeOrderByCreatedAtDesc(
-        qrTicket, "CHECKOUT");
-
-    // 체크아웃
-    boolean checkOutAllowed = qrTicket.getEventSchedule().getEvent().getEventDetail()
-        .getCheckOutAllowed();
-
-    boolean hasCheckIn = qrLogCheckInOpt.isPresent();
-    boolean hasCheckOut = qrLogCheckOutOpt.isPresent();
-
-    // 재입장 불가 + 입장 기록 있음
-    if (!qrTicket.getReentryAllowed() && hasCheckIn) {
-      throw new CustomException(HttpStatus.UNAUTHORIZED, "입장한 기록이 있으므로 재입장할 수 없습니다.");
-    }
-
-    // 재입장 불가 + 퇴장 기록 없음(퇴장 가능 이벤트에서)
-    if (!qrTicket.getReentryAllowed() && checkOutAllowed && !hasCheckOut) {
-      throw new CustomException(HttpStatus.UNAUTHORIZED, "퇴장한 기록이 없으므로 재입장할 수 없습니다.");
-    }
   }
 
   // 검증 완료 후 디비 데이터 저장
-  private LocalDateTime processCheckIn(QrTicket ticket ) {
-    // qr코드 상태변경 log
-    qrLogSave(ticket, "CHECKIN");
-    // 체크인 상태변경 log
-    // 체크인 여부 확인
-    LocalDateTime now = LocalDateTime.now();
-    return now;
+  private LocalDateTime processCheckIn(QrTicket qrTicket, String checkInType, String entryType) {
+    // actionCodeType = CHECKED_IN, MANUAL_CHECKED_IN
+    QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(checkInType);
+    // checkStatusCode = ENTRY, REENTRY
+    QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(
+        entryType);
+    // 잘못된 입퇴장 스캔 -> ENTRY, REENTRY
+    qrEntryValidateService.preventInvalidScan(qrTicket, qrCheckStatusCode.getCode());
+    return qrLogService.entryQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
   }
 
-  // QR 로그 저장
-  private void qrLogSave(QrTicket qrTicket, String type){
-//    qrLogService(qrTicket, type);
+  // 관리자 강제 입퇴장
+  private CheckResponseDto processAdminForceCheck(AdminForceCheckRequestDto dto) {
+    QrTicket qrTicket = qrTicketRepository.findByTicketNo(dto.getTicketNo()).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND, "티켓 번호와 일치하는 티켓이 없습니다.")
+    );
+
+    Attendee attendee = qrTicket.getAttendee();
+
+    QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(
+        dto.getQrCheckStatusCode());
+    QrActionCode qrActionCode = switch (qrCheckStatusCode.getCode()) {
+      case QrCheckStatusCode.ENTRY ->
+          qrEntryValidateService.validateQrActionCode(QrActionCode.FORCE_CHECKED_IN);
+      case QrCheckStatusCode.EXIT ->
+          qrEntryValidateService.validateQrActionCode(QrActionCode.FORCE_CHECKED_OUT);
+      default -> throw new CustomException(HttpStatus.BAD_REQUEST, "유효하지 않은 체크 상태 코드입니다.");
+    };
+
+    AdminCheckRequestDto adminCheckRequestDto = AdminCheckRequestDto.builder()
+        .attendee(attendee)
+        .qrTicket(qrTicket)
+        .qrActionCode(qrActionCode)
+        .qrCheckStatusCode(qrCheckStatusCode)
+        .build();
+    // 강제 처리 → 검증 로직 건너뛰고 바로 기록
+    LocalDateTime checkInTime = qrLogService.forceCheckQrLog(adminCheckRequestDto.getQrTicket(),
+        adminCheckRequestDto.getQrActionCode(),
+        adminCheckRequestDto.getQrCheckStatusCode());
+    return CheckResponseDto.builder()
+        .message("관리자 강제 " + adminCheckRequestDto.getQrCheckStatusCode().getCode() + " 완료")
+        .checkInTime(checkInTime)
+        .build();
   }
 }

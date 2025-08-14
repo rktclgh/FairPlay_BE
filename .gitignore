@@ -69,5 +69,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# === QueryDSL 및 생성된 파일들 ===
+/src/main/generated/
+/bin/generated-sources/
+/bin/generated-test-sources/
+/build/generated/
+
 # === 예시 환경파일(필요시) ===
 # !.env.example

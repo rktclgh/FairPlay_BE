@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 public class AttendeeListInfoResponseDto {
+
   private Long reservationId;
   private List<AttendeeInfoResponseDto> attendees;
 }

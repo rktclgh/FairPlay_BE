@@ -1,6 +1,7 @@
 package com.fairing.fairplay.chat.controller;
 
 import com.fairing.fairplay.chat.service.ChatPresenceService;
+import com.fairing.fairplay.chat.service.UserPresenceService;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/chat/presence")
@@ -15,6 +17,7 @@ import java.util.Set;
 public class ChatPresenceController {
 
     private final ChatPresenceService chatPresenceService;
+    private final UserPresenceService userPresenceService;
 
     // 기존 메서드들 (호환성 유지)
     @GetMapping
@@ -42,18 +45,23 @@ public class ChatPresenceController {
     @PostMapping("/connect")
     public void userConnect(@AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
+        System.out.println("🟢 사용자 접속 요청: " + userId);
         chatPresenceService.setUserOnline(userId);
+        System.out.println("✅ 사용자 온라인 상태 설정 완료: " + userId);
     }
 
     @PostMapping("/disconnect")
     public void userDisconnect(@AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
+        System.out.println("🔴 사용자 연결해제 요청: " + userId);
         chatPresenceService.setUserOffline(userId);
+        System.out.println("✅ 사용자 오프라인 상태 설정 완료: " + userId);
     }
 
     @GetMapping("/status/{userId}")
     public Map<String, Object> getUserStatus(@PathVariable Long userId) {
-        boolean isOnline = chatPresenceService.isUserOnline(userId);
+        // Redis 기반 온라인 상태 확인
+        boolean isOnline = userPresenceService.isUserOnline(userId);
         return Map.of(
             "userId", userId,
             "isOnline", isOnline
@@ -62,7 +70,17 @@ public class ChatPresenceController {
 
     @GetMapping("/online-users")
     public Set<Long> getOnlineUsers() {
-        return chatPresenceService.getOnlineUsers();
+        // Redis에서 온라인 사용자 목록을 가져와서 Long으로 변환
+        return userPresenceService.getOnlineUserIds().stream()
+                .map(userIdStr -> {
+                    try {
+                        return Long.parseLong(userIdStr);
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
+                })
+                .filter(userId -> userId != null)
+                .collect(Collectors.toSet());
     }
 
     // ADMIN 권한 사용자들의 온라인 상태 확인

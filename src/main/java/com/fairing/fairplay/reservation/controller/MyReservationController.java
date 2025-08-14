@@ -27,14 +27,7 @@ public class MyReservationController {
         List<Reservation> myReservations =  reservationService.getMyReservations(userId);
 
         List<ReservationResponseDto> response = myReservations.stream()
-                .map(r -> new ReservationResponseDto(
-                        r.getEvent(),
-                        r.getSchedule(),
-                        r.getTicket(),
-                        r.getUser(),
-                        r.getQuantity(),
-                        r.getPrice()
-                ))
+                .map(ReservationResponseDto::from)
                 .toList();
 
         return ResponseEntity.ok(response);
