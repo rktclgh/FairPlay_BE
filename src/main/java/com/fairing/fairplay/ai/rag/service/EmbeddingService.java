@@ -65,17 +65,31 @@ public class EmbeddingService {
         
         // 특정 키워드에 따른 벡터 조정 (이벤트 관련)
         if (text.contains("이벤트") || text.contains("event")) {
-            for (int i = 0; i < 50; i++) vector[i] += 0.1f;
+            for (int i = 0; i < 50; i++) vector[i] += 0.3f;
         }
         if (text.contains("예약") || text.contains("reservation")) {
-            for (int i = 50; i < 100; i++) vector[i] += 0.1f;
+            for (int i = 50; i < 100; i++) vector[i] += 0.3f;
         }
         if (text.contains("티켓") || text.contains("ticket")) {
-            for (int i = 100; i < 150; i++) vector[i] += 0.1f;
+            for (int i = 100; i < 150; i++) vector[i] += 0.3f;
         }
         if (text.contains("장소") || text.contains("위치") || text.contains("location")) {
-            for (int i = 150; i < 200; i++) vector[i] += 0.1f;
+            for (int i = 150; i < 200; i++) vector[i] += 0.3f;
         }
+        
+        // 추가 키워드 패턴 강화
+        if (text.contains("광복") || text.contains("선율") || text.contains("음악")) {
+            for (int i = 200; i < 250; i++) vector[i] += 0.5f;
+        }
+        if (text.contains("공연") || text.contains("콘서트") || text.contains("라이브")) {
+            for (int i = 250; i < 300; i++) vector[i] += 0.4f;
+        }
+        if (text.contains("축제") || text.contains("페어") || text.contains("전시")) {
+            for (int i = 300; i < 350; i++) vector[i] += 0.4f;
+        }
+        
+        // 문자열 유사도 기반 강화 (n-gram)
+        addNgramFeatures(text, vector);
         
         // 벡터 정규화
         float norm = 0.0f;
@@ -92,6 +106,29 @@ public class EmbeddingService {
         
         log.debug("텍스트 임베딩 완료: {} 문자 -> {} 차원 벡터", text.length(), VECTOR_DIMENSION);
         return vector;
+    }
+    
+    /**
+     * N-gram 기반 특징 추가 (문자열 유사도 개선)
+     */
+    private void addNgramFeatures(String text, float[] vector) {
+        // 2-gram (bigram) 특징
+        for (int i = 0; i < text.length() - 1; i++) {
+            String bigram = text.substring(i, i + 2);
+            int hash = Math.abs(bigram.hashCode()) % 50;
+            if (350 + hash < vector.length) {
+                vector[350 + hash] += 0.1f;
+            }
+        }
+        
+        // 3-gram (trigram) 특징 - 한국어에 효과적
+        for (int i = 0; i < text.length() - 2; i++) {
+            String trigram = text.substring(i, i + 3);
+            int hash = Math.abs(trigram.hashCode()) % 34;
+            if (350 + hash < vector.length) {
+                vector[350 + hash] += 0.2f;
+            }
+        }
     }
     
     /**

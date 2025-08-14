@@ -29,7 +29,7 @@ public class VectorSearchService {
     
     // 검색 설정
     private static final int DEFAULT_TOP_K = 5;
-    private static final double SIMILARITY_THRESHOLD = 0.05;
+    private static final double SIMILARITY_THRESHOLD = 0.2;
     private static final int MAX_CONTEXT_LENGTH = 2000;
     
     /**
@@ -46,6 +46,23 @@ public class VectorSearchService {
         
         // 캐시 초기화
         initializeCacheIfNeeded();
+        
+        // 벡터 검색 결과
+        SearchResult vectorResult = performVectorSearch(query, topK);
+        
+        // 벡터 검색 결과가 충분하지 않으면 키워드 검색으로 보완
+        if (vectorResult.getChunks().size() < topK / 2) {
+            SearchResult keywordResult = performKeywordSearch(query, topK);
+            return combineSearchResults(vectorResult, keywordResult, topK);
+        }
+        
+        return vectorResult;
+    }
+    
+    /**
+     * 벡터 기반 검색
+     */
+    private SearchResult performVectorSearch(String query, int topK) throws Exception {
         
         if (chunkCache.isEmpty()) {
             return SearchResult.builder()
@@ -182,6 +199,90 @@ public class VectorSearchService {
         }
         
         return context.toString().trim();
+    }
+    
+    /**
+     * 키워드 기반 검색 (벡터 검색 보완용)
+     */
+    private SearchResult performKeywordSearch(String query, int topK) {
+        List<SearchResult.ScoredChunk> keywordMatches = new ArrayList<>();
+        String[] keywords = query.toLowerCase().split("\\s+");
+        
+        for (Chunk chunk : chunkCache.values()) {
+            String chunkText = chunk.getText().toLowerCase();
+            double score = 0.0;
+            
+            // 키워드 포함 점수 계산
+            for (String keyword : keywords) {
+                if (chunkText.contains(keyword)) {
+                    score += 1.0;
+                    // 제목이나 중요 부분에 있으면 가중치 추가
+                    if (chunkText.contains("제목") && chunkText.contains(keyword)) {
+                        score += 2.0;
+                    }
+                }
+            }
+            
+            // 전체 쿼리 매칭 보너스
+            if (chunkText.contains(query.toLowerCase())) {
+                score += 3.0;
+            }
+            
+            if (score > 0) {
+                keywordMatches.add(SearchResult.ScoredChunk.builder()
+                    .chunk(chunk)
+                    .similarity(score / keywords.length) // 정규화
+                    .build());
+            }
+        }
+        
+        // 점수순 정렬
+        List<SearchResult.ScoredChunk> topKeywordChunks = keywordMatches.stream()
+            .sorted((a, b) -> Double.compare(b.getSimilarity(), a.getSimilarity()))
+            .limit(topK)
+            .collect(Collectors.toList());
+        
+        return SearchResult.builder()
+            .chunks(topKeywordChunks)
+            .contextText(buildContextText(topKeywordChunks))
+            .totalChunks(chunkCache.size())
+            .build();
+    }
+    
+    /**
+     * 벡터 검색과 키워드 검색 결과 결합
+     */
+    private SearchResult combineSearchResults(SearchResult vectorResult, SearchResult keywordResult, int topK) {
+        Set<String> seenChunkIds = new HashSet<>();
+        List<SearchResult.ScoredChunk> combinedChunks = new ArrayList<>();
+        
+        // 벡터 검색 결과 우선 추가
+        for (SearchResult.ScoredChunk chunk : vectorResult.getChunks()) {
+            if (!seenChunkIds.contains(chunk.getChunk().getChunkId())) {
+                combinedChunks.add(chunk);
+                seenChunkIds.add(chunk.getChunk().getChunkId());
+            }
+        }
+        
+        // 키워드 검색 결과 보완 추가
+        for (SearchResult.ScoredChunk chunk : keywordResult.getChunks()) {
+            if (!seenChunkIds.contains(chunk.getChunk().getChunkId()) && combinedChunks.size() < topK) {
+                combinedChunks.add(chunk);
+                seenChunkIds.add(chunk.getChunk().getChunkId());
+            }
+        }
+        
+        // 최종 점수순 정렬
+        combinedChunks = combinedChunks.stream()
+            .sorted((a, b) -> Double.compare(b.getSimilarity(), a.getSimilarity()))
+            .limit(topK)
+            .collect(Collectors.toList());
+        
+        return SearchResult.builder()
+            .chunks(combinedChunks)
+            .contextText(buildContextText(combinedChunks))
+            .totalChunks(chunkCache.size())
+            .build();
     }
     
     /**

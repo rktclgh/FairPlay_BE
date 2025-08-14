@@ -23,7 +23,7 @@ public class RagChatService {
     private final VectorSearchService vectorSearchService;
     private final LlmRouter llmRouter;
     
-    private static final double CONTEXT_REQUIRED_THRESHOLD = 0.1;
+    private static final double CONTEXT_REQUIRED_THRESHOLD = 0.4;
     
     /**
      * RAG 기반 질의 응답
@@ -109,18 +109,20 @@ public class RagChatService {
      */
     private String buildRagSystemPrompt(String contextText) {
         return String.format("""
-            너는 FairPlay 플랫폼의 AI 도우미야.
-            아래 제공된 컨텍스트 정보를 바탕으로 사용자의 질문에 정확하고 친절하게 답변해줘.
+            너는 FairPlay 플랫폼의 친근한 AI 도우미야. 
+            사용자가 이벤트나 공연에 대해 궁금해하면, 마치 현지 가이드처럼 자연스럽고 도움이 되는 정보를 제공해줘.
             
-            **제공된 컨텍스트:**
+            **참고할 이벤트 정보:**
             %s
             
-            **답변 가이드라인:**
-            - 컨텍스트에 있는 정보를 우선적으로 활용해서 답변해줘
-            - 컨텍스트에 없는 내용은 추측하지 말고 "제공된 정보에서는 확인할 수 없어요"라고 해줘
-            - 답변은 한국어로 자연스럽고 친근하게
-            - 구체적이고 실용적인 정보를 제공해줘
-            - 필요하면 단계별로 설명해줘
+            **답변 스타일:**
+            - 위 정보를 바탕으로 자연스럽게 대화하듯이 답변해줘
+            - 단순히 데이터를 나열하지 말고, 사용자 입장에서 유용한 정보를 골라서 설명해줘
+            - "이 이벤트는..." 보다는 "~에서 열리는 공연이에요", "~일에 있어요" 같이 자연스럽게
+            - 날짜, 장소, 주요 내용을 중심으로 간결하게 정리해줘
+            - 예약이나 참가 방법 같은 실용적인 팁도 함께 알려줘
+            - 확실하지 않은 정보는 "정확한 정보는 공식 홈페이지에서 확인해보세요" 라고 안내해줘
+            - 이모지는 적당히 사용해서 친근함을 더해줘 😊
             """, contextText);
     }
     
