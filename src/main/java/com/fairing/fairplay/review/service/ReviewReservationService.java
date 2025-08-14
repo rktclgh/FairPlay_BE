@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,13 +23,14 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReviewReservationService {
 
   private final ReservationRepository reservationRepository;
   private final ReviewRepository reviewRepository;
 
-  public Reservation checkReservationIdAndUser(Long reservationId, Users user) {
-    return reservationRepository.findByReservationIdAndUser(reservationId, user).orElseThrow(() ->
+  public Reservation checkReservationIdAndUser(Long reservationId, Long userId) {
+    return reservationRepository.findByReservationIdAndUser_UserId(reservationId, userId).orElseThrow(() ->
         new CustomException(HttpStatus.FORBIDDEN, "해당 사용자의 예약 정보를 찾을 수 없습니다."));
   }
 
@@ -66,7 +68,6 @@ public class ReviewReservationService {
     // 4. 각 행사 DTO에 대해 reservationId가 reviewedIds Set에 있으면 hasReview = true 아니면 hasReview = false
     reservations.getContent()
         .forEach(dto -> dto.setHasReview(reviewedIds.contains(dto.getReservationId())));
-
     return reservations;
 
   }

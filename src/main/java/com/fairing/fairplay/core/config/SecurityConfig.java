@@ -36,6 +36,7 @@ public class SecurityConfig {
                                 "/assets/**",
                                 "/images/**",
                                 "/favicon.ico",
+                                "/api/calendar/**",
                                 "/static/**",
                                 "/manifest.json",
                                 "/robots.txt",
