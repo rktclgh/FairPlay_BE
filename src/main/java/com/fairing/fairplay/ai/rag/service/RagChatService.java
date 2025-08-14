@@ -60,13 +60,11 @@ public class RagChatService {
             }
             
             // 대화 기록 추가 (최근 5개만)
+            // 현재 질문은 conversationHistory의 마지막에 이미 포함되어 있으므로 중복 추가하지 않음
             if (conversationHistory != null && !conversationHistory.isEmpty()) {
                 int startIndex = Math.max(0, conversationHistory.size() - 5);
                 prompt.addAll(conversationHistory.subList(startIndex, conversationHistory.size()));
             }
-            
-            // 현재 질문 추가
-            prompt.add(ChatMessageDto.user(userQuestion));
             
             // LLM 호출
             String response = llmRouter.pick(null).chat(prompt, 0.7, 1024);
@@ -150,9 +148,19 @@ public class RagChatService {
             if (conversationHistory != null && !conversationHistory.isEmpty()) {
                 int startIndex = Math.max(0, conversationHistory.size() - 3);
                 fallbackPrompt.addAll(conversationHistory.subList(startIndex, conversationHistory.size()));
+                
+                // 마지막 메시지가 현재 userQuestion과 동일하면 중복 추가 방지
+                ChatMessageDto lastMsg = conversationHistory.get(conversationHistory.size() - 1);
+                if (lastMsg != null && userQuestion.equals(lastMsg.getContent())) {
+                    // 이미 포함되어 있으므로 추가하지 않음
+                } else {
+                    // 새로운 질문이므로 추가
+                    fallbackPrompt.add(ChatMessageDto.user(userQuestion));
+                }
+            } else {
+                // 대화 기록이 없으면 현재 질문 추가
+                fallbackPrompt.add(ChatMessageDto.user(userQuestion));
             }
-            
-            fallbackPrompt.add(ChatMessageDto.user(userQuestion));
             
             String response = llmRouter.pick(null).chat(fallbackPrompt, 0.7, 512);
             
