@@ -4,17 +4,21 @@ import com.fairing.fairplay.attendee.entity.QAttendee;
 import com.fairing.fairplay.event.entity.QEvent;
 import com.fairing.fairplay.event.entity.QEventDetail;
 import com.fairing.fairplay.reservation.entity.QReservation;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class AttendeeRepositoryCustom {
 
   private final JPAQueryFactory jpaQueryFactory;
+  private final EntityManager entityManager;
 
   public void deleteAttendeesByEventEndDate() {
     QAttendee attendee = QAttendee.attendee;
@@ -22,13 +26,19 @@ public class AttendeeRepositoryCustom {
     QEvent event = QEvent.event;
     QEventDetail eventDetail = QEventDetail.eventDetail;
 
-    LocalDateTime sixMonthsAgo = LocalDateTime.now().minusMonths(6);
+    LocalDate sixMonthsAgo = LocalDate.now().minusMonths(6);
 
     long deletedCount = jpaQueryFactory
         .delete(attendee)
-        .where(attendee.reservation.event.eventDetail.endDate.before(LocalDate.from(sixMonthsAgo)))
+        .where(attendee.reservation.reservationId.in(
+            JPAExpressions.select(reservation.reservationId)
+                .from(reservation)
+                .join(reservation.event, event)
+                .join(event.eventDetail, eventDetail)
+                .where(eventDetail.endDate.before(sixMonthsAgo))
+        ))
         .execute();
 
-    System.out.println("[Attendee Cleanup] 삭제된 참석자 수: " + deletedCount);
-  }
+    entityManager.clear();
+    log.info("[Attendee Cleanup] 삭제된 참석자 수: {}", deletedCount);  }
 }
