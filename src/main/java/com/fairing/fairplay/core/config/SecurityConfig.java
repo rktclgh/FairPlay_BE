@@ -69,7 +69,9 @@ public class SecurityConfig {
                                 "/api/events/apply", // 행사 등록 신청
                                 "/api/events/apply/check",
                                 "/api/events/user/role",
-                                "/api/super-admin/**"
+                                "/api/super-admin/**",
+                                "/api/form", // 참석자 폼 조회
+                                "/api/attendees" // 참석자 정보 저장
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                         .requestMatchers("/api/chat/presence/connect",
