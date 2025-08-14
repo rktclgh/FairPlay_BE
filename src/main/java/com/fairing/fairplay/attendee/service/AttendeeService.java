@@ -7,6 +7,7 @@ import com.fairing.fairplay.attendee.dto.AttendeeUpdateRequestDto;
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
+import com.fairing.fairplay.attendee.repository.AttendeeRepositoryCustom;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
@@ -14,6 +15,8 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,7 @@ public class AttendeeService {
 
   private final AttendeeRepository attendeeRepository;
   private final AttendeeTypeCodeRepository attendeeTypeCodeRepository;
+  private final AttendeeRepositoryCustom attendeeRepositoryCustom;
   private final ShareTicketService shareTicketService;
   private final ReservationRepository reservationRepository;
 
@@ -129,6 +133,12 @@ public class AttendeeService {
     return attendees.stream()
         .map(this::buildAttendeeInfoResponse)
         .toList();
+  }
+
+  // 생성된 지 6개월 지난 참석자 정보 삭제
+  @Transactional
+  public void deleteOldAttendees(){
+    attendeeRepositoryCustom.deleteAttendeesByEventEndDate();
   }
 
   // DB save 로직 분리
