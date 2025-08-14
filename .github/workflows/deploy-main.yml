@@ -116,17 +116,22 @@ jobs:
         env:
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh ${EC2_USER:-ubuntu}@${{ secrets.EC2_HOST }} 'bash -s' <<'EOF'
-          set -e
+          ssh ${EC2_USER:-ubuntu}@${{ secrets.EC2_HOST }} 'bash -se' <<'EOF'
+          set -euo pipefail
           cd ~/fairplay-deploy
 
-          # .env 로드해서 환경변수로 export
-          set -a
-          [ -f .env ] && . ./.env
-          set +a
+          # 개행 정규화(윈도우 CR 제거)
+          sed -i 's/\r$//' .env
 
-          # 비대화형 로그인 (TTY 필요 없음)
-          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          # .env에서 값만 안전하게 추출 (따옴표/공백 제거)
+          DU=$(grep -E '^DOCKERHUB_USERNAME=' .env | sed -E 's/^DOCKERHUB_USERNAME=//; s/^"//; s/"$//; s/[[:space:]]+$//')
+          DT=$(grep -E '^DOCKERHUB_TOKEN=' .env     | sed -E 's/^DOCKERHUB_TOKEN=//;     s/^"//; s/"$//; s/[[:space:]]+$//')
+
+          if [ -z "$DU" ] || [ -z "$DT" ]; then
+            echo "DOCKERHUB_USERNAME/DOCKERHUB_TOKEN이 .env에 없거나 비어있습니다."; exit 1
+          fi
+
+          echo "$DT" | docker login -u "$DU" --password-stdin
 
           docker compose pull
           docker compose up -d
