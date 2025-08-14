@@ -31,7 +31,7 @@ public class ShareTicketController {
 
   // 공유폼조회
   // 폼링크 조회 시 기본 정보 세팅
-  @GetMapping()
+  @GetMapping
   public ResponseEntity<ShareTicketInfoResponseDto> getFormInfo(@RequestParam String token){
     return ResponseEntity.status(HttpStatus.OK).body(shareTicketService.getFormInfo(token));
   }
