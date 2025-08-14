@@ -71,7 +71,8 @@ public class SecurityConfig {
                                 "/api/events/user/role",
                                 "/api/super-admin/**",
                                 "/api/form", // 참석자 폼 조회
-                                "/api/attendees" // 참석자 정보 저장
+                                "/api/attendees", // 참석자 정보 저장
+                                "/api/rag/**" // RAG API (개발/테스트용)
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                         .requestMatchers("/api/chat/presence/connect",
