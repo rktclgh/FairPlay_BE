@@ -1,5 +1,6 @@
 package com.fairing.fairplay.notification.service;
 
+import com.fairing.fairplay.core.email.service.NotificationEmailService;
 import com.fairing.fairplay.notification.entity.*;
 import com.fairing.fairplay.notification.repository.*;
 import com.fairing.fairplay.notification.dto.*;
@@ -21,7 +22,7 @@ public class NotificationService {
     private final NotificationTypeCodeRepository typeCodeRepository;
     private final NotificationMethodCodeRepository methodCodeRepository;
     private final NotificationLogRepository notificationLogRepository;
-    private final com.fairing.fairplay.notification.service.NotificationEmailService notificationEmailService;
+    private final NotificationEmailService notificationEmailService;
     private final UserRepository userRepository;
     
     @Autowired

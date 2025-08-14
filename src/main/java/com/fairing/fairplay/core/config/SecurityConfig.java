@@ -68,7 +68,8 @@ public class SecurityConfig {
                                 "/api/events/apply", // 행사 등록 신청
                                 "/api/events/apply/check",
                                 "/api/events/user/role",
-                                "/api/super-admin/**"
+                                "/api/super-admin/**",
+                                "/api/rag/**" // RAG API (개발/테스트용)
                         ).permitAll()
                         .requestMatchers("/api/chat/presence/connect",
                                 "/api/chat/presence/disconnect")
