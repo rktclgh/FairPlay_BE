@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * RAG 관리 API 컨트롤러
@@ -42,14 +43,16 @@ public class RagController {
                 request.getCategory()
             );
             
-            return ResponseEntity.ok(Map.of(
-                "success", result.isSuccess(),
-                "docId", result.getDocId(),
-                "totalChunks", result.getTotalChunks(),
-                "processedChunks", result.getProcessedChunks(),
-                "failedChunks", result.getFailedChunks(),
-                "errorMessage", result.getErrorMessage()
-            ));
+            var body = new HashMap<String, Object>();
+            body.put("success", result.isSuccess());
+            body.put("docId", result.getDocId());
+            body.put("totalChunks", result.getTotalChunks());
+            body.put("processedChunks", result.getProcessedChunks());
+            body.put("failedChunks", result.getFailedChunks());
+            if (result.getErrorMessage() != null && !result.getErrorMessage().isBlank()) {
+                body.put("errorMessage", result.getErrorMessage());
+            }
+            return ResponseEntity.ok(body);
             
         } catch (Exception e) {
             log.error("인제스트 API 오류", e);
