@@ -114,14 +114,21 @@ jobs:
 
       - name: Deploy on EC2 (compose pull & up -d)
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
-          ssh ${EC2_USER:-ubuntu}@${{ secrets.EC2_HOST }} "
-            echo \$DOCKERHUB_TOKEN | docker login -u \$DOCKERHUB_USERNAME --password-stdin &&
-            cd ~/fairplay-deploy &&
-            docker compose pull &&
-            docker compose up -d &&
-            docker image prune -f
-          "
+          ssh ${EC2_USER:-ubuntu}@${{ secrets.EC2_HOST }} 'bash -s' <<'EOF'
+          set -e
+          cd ~/fairplay-deploy
+
+          # .env 로드해서 환경변수로 export
+          set -a
+          [ -f .env ] && . ./.env
+          set +a
+
+          # 비대화형 로그인 (TTY 필요 없음)
+          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+          docker compose pull
+          docker compose up -d
+          docker image prune -f
+          EOF
