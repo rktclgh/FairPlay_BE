@@ -4,11 +4,11 @@ on:
   push:
     branches: [ "main" ]
   repository_dispatch:
-    types: [fe-updated]   # 프론트 레포에서 알림 오면 트리거
+    types: [ fe-updated ]  # 프론트 레포에서 알림 오면 트리거
 
 env:
-  BACKEND_DIR: .                                 # BE 프로젝트 루트 경로
-  IMAGE_NAME: songchih/fairplay-backend:latest   # Docker Hub <namespace>/<repo>:tag
+  BACKEND_DIR: .                           # BE 프로젝트 루트 경로
+  IMAGE_NAME: songchih/fairplay-backend:latest
 
 permissions:
   contents: read
@@ -28,7 +28,7 @@ jobs:
           repository: Fairing-15th/FairPlay_FE
           ref: main
           path: fe-src
-          token: ${{ secrets.CI_GITHUB_TOKEN }} # PAT(repo read) 필요 (repo + workflow 권장)
+          token: ${{ secrets.CI_GITHUB_TOKEN }}  # PAT(repo read) 필요
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -39,9 +39,8 @@ jobs:
 
       - name: Install FE deps
         working-directory: fe-src
-        # lock 불일치 시 ci가 실패하니, 우선 ci 시도 -> 실패하면 install로 폴백
         run: |
-          (npm ci) || npm install
+          npm ci || npm install
 
       - name: Create FE .env from Secrets
         working-directory: fe-src
@@ -82,10 +81,10 @@ jobs:
         run: ./gradlew clean bootJar --no-daemon
 
       # ---------- Docker build & push ----------
-      - name: Guard: check DockerHub secrets
+      - name: Verify DockerHub secrets
         run: |
-          [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] || (echo "❌ DOCKERHUB_USERNAME missing" && exit 1)
-          [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]    || (echo "❌ DOCKERHUB_TOKEN missing" && exit 1)
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then echo "Missing DOCKERHUB_USERNAME"; exit 1; fi
+          if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then echo "Missing DOCKERHUB_TOKEN"; exit 1; fi
 
       - name: Docker login (docker.io)
         uses: docker/login-action@v3
