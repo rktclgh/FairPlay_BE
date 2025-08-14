@@ -23,7 +23,7 @@ public class RagChatService {
     private final VectorSearchService vectorSearchService;
     private final LlmRouter llmRouter;
     
-    private static final double CONTEXT_REQUIRED_THRESHOLD = 0.4;
+    private static final double CONTEXT_REQUIRED_THRESHOLD = 0.2;
     
     /**
      * RAG 기반 질의 응답
