@@ -23,6 +23,7 @@ public class ReservationResponseDto {
     private Long eventId;
     private String eventName;
     private String eventDescription;
+    private String eventThumbnailUrl;
     
     // 회차 정보 (일정)
     private Long scheduleId;
@@ -56,6 +57,7 @@ public class ReservationResponseDto {
     private String impUid;
     private BigDecimal paymentAmount;
     private String paymentStatus;
+    private String paymentMethod;
     private LocalDateTime paidAt;
 
     public static ReservationResponseDto from(Reservation reservation) {
@@ -67,6 +69,11 @@ public class ReservationResponseDto {
         dto.eventId = reservation.getEvent().getEventId();
         dto.eventName = reservation.getEvent().getTitleKr();
         dto.eventDescription = reservation.getEvent().getTitleEng();
+        
+        // 이벤트 썸네일 URL (EventDetail에서 가져오기)
+        if (reservation.getEvent().getEventDetail() != null) {
+            dto.eventThumbnailUrl = reservation.getEvent().getEventDetail().getThumbnailUrl();
+        }
         
         // 일정 정보
         if (reservation.getSchedule() != null) {

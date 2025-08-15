@@ -19,24 +19,9 @@ import com.fairing.fairplay.core.email.service.EventEmailService;
 import com.fairing.fairplay.core.email.service.TemporaryPasswordEmailService;
 import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.EventApplyRequestDto;
-import com.fairing.fairplay.event.entity.ApplyStatusCode;
-import com.fairing.fairplay.event.entity.Event;
-import com.fairing.fairplay.event.entity.EventApply;
-import com.fairing.fairplay.event.entity.EventDetail;
-import com.fairing.fairplay.event.entity.EventStatusCode;
-import com.fairing.fairplay.event.entity.Location;
-import com.fairing.fairplay.event.entity.MainCategory;
-import com.fairing.fairplay.event.entity.RegionCode;
-import com.fairing.fairplay.event.entity.SubCategory;
-import com.fairing.fairplay.event.repository.ApplyStatusCodeRepository;
-import com.fairing.fairplay.event.repository.EventApplyRepository;
-import com.fairing.fairplay.event.repository.EventDetailRepository;
-import com.fairing.fairplay.event.repository.EventRepository;
-import com.fairing.fairplay.event.repository.EventStatusCodeRepository;
-import com.fairing.fairplay.event.repository.LocationRepository;
-import com.fairing.fairplay.event.repository.MainCategoryRepository;
-import com.fairing.fairplay.event.repository.RegionCodeRepository;
-import com.fairing.fairplay.event.repository.SubCategoryRepository;
+import com.fairing.fairplay.event.dto.EventApplyResponseDto;
+import com.fairing.fairplay.event.entity.*;
+import com.fairing.fairplay.event.repository.*;
 import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.repository.FileRepository;
 import com.fairing.fairplay.file.service.FileService;
@@ -140,16 +125,30 @@ public class EventApplyService {
         eventApply.setBusinessNumber(requestDto.getBusinessNumber());
         eventApply.setBusinessName(requestDto.getBusinessName());
         eventApply.setBusinessDate(requestDto.getBusinessDate());
-        eventApply.setVerified(requestDto.getVerified() != null ? requestDto.getVerified() : false);
+        Boolean verifiedValue = requestDto.getVerified() != null ? requestDto.getVerified() : false;
+        log.info("사업자 검증 상태 설정 - 요청값: {}, 설정값: {}", requestDto.getVerified(), verifiedValue);
+        eventApply.setVerified(verifiedValue);
         eventApply.setManagerName(requestDto.getManagerName());
         eventApply.setEmail(requestDto.getEmail());
         eventApply.setContactNumber(requestDto.getContactNumber());
         eventApply.setTitleKr(requestDto.getTitleKr());
         eventApply.setTitleEng(requestDto.getTitleEng());
 
+        // Location 처리 로직
+        Location location = null;
         if (requestDto.getLocationId() != null) {
-            Location location = locationRepository.findById(requestDto.getLocationId())
+            // 기존 Location 사용
+            location = locationRepository.findById(requestDto.getLocationId())
                     .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "위치 정보를 찾을 수 없습니다."));
+        } else if (requestDto.getAddress() != null && requestDto.getPlaceName() != null) {
+            // 새로운 Location 생성 (카카오맵에서 받은 데이터)
+            location = createLocationFromKakaoData(requestDto);
+        } else if (requestDto.getLocationDetail() != null && !requestDto.getLocationDetail().trim().isEmpty()) {
+            // locationDetail에 JSON 형태로 장소 정보가 있는 경우 파싱해서 처리
+            location = createLocationFromLocationDetail(requestDto.getLocationDetail());
+        }
+        
+        if (location != null) {
             eventApply.setLocation(location);
         }
         eventApply.setLocationDetail(requestDto.getLocationDetail());
@@ -497,10 +496,10 @@ public class EventApplyService {
         // RegionCode 설정 - Location의 주소에서 추출
         setRegionCodeFromLocation(eventDetail, eventApply);
 
-        eventDetail.setContent("행사 내용을 입력해주세요.");
-        eventDetail.setPolicy("행사 정책을 입력해주세요.");
+        eventDetail.setContent("");
+        eventDetail.setPolicy("");
         eventDetail.setHostName(eventApply.getManagerName());
-        eventDetail.setContactInfo(eventApply.getEmail());
+        eventDetail.setContactInfo(""); // 문의처 정보는 별도로 입력받아야 함, 담당자 이메일과는 다름
         eventDetail.setReentryAllowed(true);
         eventDetail.setCheckOutAllowed(false);
 
@@ -606,5 +605,125 @@ public class EventApplyService {
                 }
             }
         }
+    }
+
+    /**
+     * 카카오맵 데이터로부터 새로운 Location 생성
+     */
+    private Location createLocationFromKakaoData(EventApplyRequestDto requestDto) {
+        log.info("카카오맵 데이터로 Location 생성 시작 - placeName: {}, address: {}", 
+                requestDto.getPlaceName(), requestDto.getAddress());
+        
+        // 기존에 같은 placeName으로 등록된 Location이 있는지 확인
+        Location existingLocation = locationRepository.findByPlaceName(requestDto.getPlaceName());
+        if (existingLocation != null) {
+            log.info("기존 Location 사용 - placeName: {}, locationId: {}", 
+                    requestDto.getPlaceName(), existingLocation.getLocationId());
+            return existingLocation;
+        }
+        
+        // 새로운 Location 생성
+        Location location = new Location();
+        location.setPlaceName(requestDto.getPlaceName());
+        location.setAddress(requestDto.getAddress());
+        location.setLatitude(requestDto.getLatitude());
+        location.setLongitude(requestDto.getLongitude());
+        location.setPlaceUrl(requestDto.getPlaceUrl());
+        
+        Location savedLocation = locationRepository.save(location);
+        log.info("새로운 Location 생성 완료 - locationId: {}, placeName: {}", 
+                savedLocation.getLocationId(), savedLocation.getPlaceName());
+        
+        return savedLocation;
+    }
+
+    /**
+     * locationDetail JSON에서 장소 정보를 파싱하여 Location 생성
+     */
+    private Location createLocationFromLocationDetail(String locationDetail) {
+        try {
+            log.info("locationDetail JSON 파싱 시작: {}", locationDetail);
+            
+            // JSON 파싱 (간단한 방식으로 처리)
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode jsonNode = objectMapper.readTree(locationDetail);
+            
+            String placeName = jsonNode.has("placeName") ? jsonNode.get("placeName").asText() : null;
+            String address = jsonNode.has("address") ? jsonNode.get("address").asText() : null;
+            
+            if (placeName == null || address == null) {
+                log.warn("필수 장소 정보가 없음 - placeName: {}, address: {}", placeName, address);
+                return null;
+            }
+            
+            // 기존에 같은 placeName으로 등록된 Location이 있는지 확인
+            Location existingLocation = locationRepository.findByPlaceName(placeName);
+            if (existingLocation != null) {
+                log.info("기존 Location 사용 - placeName: {}, locationId: {}", 
+                        placeName, existingLocation.getLocationId());
+                return existingLocation;
+            }
+            
+            // 새로운 Location 생성
+            Location location = new Location();
+            location.setPlaceName(placeName);
+            location.setAddress(address);
+            
+            if (jsonNode.has("latitude") && !jsonNode.get("latitude").isNull()) {
+                location.setLatitude(new java.math.BigDecimal(jsonNode.get("latitude").asDouble()));
+            }
+            if (jsonNode.has("longitude") && !jsonNode.get("longitude").isNull()) {
+                location.setLongitude(new java.math.BigDecimal(jsonNode.get("longitude").asDouble()));
+            }
+            if (jsonNode.has("placeUrl") && !jsonNode.get("placeUrl").isNull()) {
+                location.setPlaceUrl(jsonNode.get("placeUrl").asText());
+            }
+            
+            Location savedLocation = locationRepository.save(location);
+            log.info("JSON에서 새로운 Location 생성 완료 - locationId: {}, placeName: {}", 
+                    savedLocation.getLocationId(), savedLocation.getPlaceName());
+            
+            return savedLocation;
+            
+        } catch (Exception e) {
+            log.error("locationDetail JSON 파싱 실패: {}, 오류: {}", locationDetail, e.getMessage());
+            return null;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public EventApplyResponseDto getEventApplicationDetail(Long applicationId) {
+        EventApply entity = eventApplyRepository.findById(applicationId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "신청 내역을 찾을 수 없습니다.", null));
+
+        return EventApplyResponseDto.builder()
+                .eventApplyId(entity.getEventApplyId())
+                .statusCode(entity.getStatusCode().getCode())
+                .statusName(entity.getStatusCode().getName())
+                .eventEmail(entity.getEventEmail())
+                .businessNumber(entity.getBusinessNumber())
+                .businessName(entity.getBusinessName())
+                .businessDate(entity.getBusinessDate())
+                .verified(entity.getVerified())
+                .managerName(entity.getManagerName())
+                .contactNumber(entity.getContactNumber())
+                .email(entity.getEmail())
+                .titleKr(entity.getTitleKr())
+                .titleEng(entity.getTitleEng())
+                .fileUrl(entity.getFileUrl())
+                .applyAt(entity.getApplyAt())
+                .adminComment(entity.getAdminComment())
+                .statusUpdatedAt(entity.getStatusUpdatedAt())
+                .locationId(entity.getLocation().getLocationId())
+                .address(entity.getLocation().getAddress())
+                .locationName(entity.getLocation().getPlaceName())
+                .locationDetail(entity.getLocationDetail())
+                .startDate(entity.getStartDate())
+                .endDate(entity.getEndDate())
+                .mainCategoryName(entity.getMainCategory().getGroupName())
+                .subCategoryName(entity.getSubCategory().getCategoryName())
+                .bannerUrl(entity.getBannerUrl())
+                .thumbnailUrl(entity.getThumbnailUrl())
+                .build();
     }
 }
