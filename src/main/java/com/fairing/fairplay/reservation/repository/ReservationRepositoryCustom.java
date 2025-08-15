@@ -4,7 +4,6 @@ import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.entity.QAttendee;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.reservation.entity.QReservation;
-import com.fairing.fairplay.reservation.entity.ReservationStatusCode;
 import com.fairing.fairplay.ticket.entity.QEventSchedule;
 import com.fairing.fairplay.ticket.entity.QScheduleTicket;
 import com.querydsl.core.Tuple;
@@ -48,7 +47,8 @@ public class ReservationRepositoryCustom {
             attendee.id,
             attendee.name,
             attendee.email,
-            reservation.event.eventId)
+            reservation.event.eventId,
+            schedule)
         .from(reservation)
         .join(schedule).on(schedule.scheduleId.eq(reservation.schedule.scheduleId))
         .join(scheduleTicket).on(
