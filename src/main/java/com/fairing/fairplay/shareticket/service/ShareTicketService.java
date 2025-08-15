@@ -2,16 +2,17 @@ package com.fairing.fairplay.shareticket.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
-import com.fairing.fairplay.payment.entity.Payment;
-
+import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
+import com.fairing.fairplay.qr.util.CodeValidator;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import com.fairing.fairplay.shareticket.dto.ShareTicketInfoResponseDto;
 import com.fairing.fairplay.shareticket.dto.ShareTicketSaveRequestDto;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.repository.ShareTicketRepository;
 import java.nio.ByteBuffer;
-
 import java.util.Base64;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 
 @Service
 @RequiredArgsConstructor
@@ -84,6 +86,27 @@ public class ShareTicketService {
 
     shareTicketRepository.save(shareTicket);
     return token;
+  }
+
+  public ShareTicketInfoResponseDto getFormInfo(String token) {
+    ShareTicket shareTicket = shareTicketRepository.findByLinkToken(token).orElseThrow(
+        () -> new CustomException(HttpStatus.BAD_REQUEST,"잘못된 폼 링크입니다.")
+    );
+
+    if(!shareTicket.getLinkToken().equals(token)) {
+      throw new CustomException(HttpStatus.BAD_REQUEST,"잘못된 폼 링크입니다.");
+    }
+
+    Event event = shareTicket.getReservation().getEvent();
+    if(event == null) {
+      throw new CustomException(HttpStatus.NOT_FOUND,"적절한 행사가 조회되지 않습니다.");
+    }
+
+    return ShareTicketInfoResponseDto.builder()
+        .formId(shareTicket.getId())
+        .eventId(event.getEventId())
+        .eventName(event.getTitleKr())
+        .build();
   }
 
   // 공유폼 token 유효성 검사

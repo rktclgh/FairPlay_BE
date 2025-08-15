@@ -6,6 +6,8 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.event.service.EventService;
+import com.fairing.fairplay.history.etc.ChangeEvent;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -170,6 +172,7 @@ public class EventController {
     // 행사 상세 업데이트
     @PatchMapping("/{eventId}/details")
     @FunctionAuth("updateEventDetail")
+    @ChangeEvent("행사 수정")
     public ResponseEntity<EventDetailResponseDto> updateEventDetail(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
@@ -189,6 +192,7 @@ public class EventController {
     // 행사 소프트 딜리트 (hidden + isDeleted 처리)
     @DeleteMapping("/{eventId}")
     @FunctionAuth("softDeleteEvent")
+    @ChangeEvent("행사 소프트 삭제")
     public ResponseEntity<String> softDeleteEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable("eventId") Long eventId) {
@@ -202,6 +206,7 @@ public class EventController {
     // 행사 삭제 (전체 관리자가 행사 잘못 생성했을 경우 등)
     @DeleteMapping("/{eventId}/hard")
     @FunctionAuth("deleteEvent")
+    @ChangeEvent("행사 삭제")
     public ResponseEntity<String> deleteEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable("eventId") Long eventId) {
@@ -215,6 +220,7 @@ public class EventController {
     // 행사 강제 삭제
     @DeleteMapping("/{eventId}/force")
     @FunctionAuth("forcedDeleteEvent")
+    @ChangeEvent("행사 강제 삭제")
     public ResponseEntity<String> forcedDeleteEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable("eventId") Long eventId) {

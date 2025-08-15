@@ -2,7 +2,6 @@ package com.fairing.fairplay.history.service;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
@@ -15,14 +14,19 @@ import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
 @Service
 public class LoginHistoryService {
 
-        @Autowired
-        private LoginHistoryRepository loginHistoryRepository;
+        private final LoginHistoryRepository loginHistoryRepository;
 
-        @Autowired
-        private UserRepository userRepository;
+        private final UserRepository userRepository;
 
-        @Autowired
-        private UserRoleCodeRepository userRoleCodeRepository;
+        private final UserRoleCodeRepository userRoleCodeRepository;
+
+        public LoginHistoryService(LoginHistoryRepository loginHistoryRepository,
+                        UserRepository userRepository,
+                        UserRoleCodeRepository userRoleCodeRepository) {
+                this.loginHistoryRepository = loginHistoryRepository;
+                this.userRepository = userRepository;
+                this.userRoleCodeRepository = userRoleCodeRepository;
+        }
 
         public void saveLoginHistory(LoginHistoryDto loginHistory) {
                 Users user = userRepository.findById(loginHistory.getUserId())
@@ -46,6 +50,7 @@ public class LoginHistoryService {
                                 .map(history -> new LoginHistoryDto(
                                                 history.getId(),
                                                 history.getUser().getUserId(),
+                                                history.getUser().getName(),
                                                 history.getRoleCode().getId(),
                                                 history.getIp(),
                                                 history.getUserAgent(),

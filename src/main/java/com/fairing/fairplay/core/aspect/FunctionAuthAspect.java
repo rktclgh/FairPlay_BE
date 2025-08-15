@@ -1,31 +1,22 @@
 package com.fairing.fairplay.core.aspect;
 
-import java.lang.reflect.Method;
-import java.math.BigInteger;
-
-import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import com.fairing.fairplay.admin.repository.AccountLevelRepository;
-import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.etc.FunctionAuth;
-import com.fairing.fairplay.core.etc.FunctionLevelEnum;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 
 @Aspect
 @Component
 public class FunctionAuthAspect {
 
-    @Autowired
-    private AccountLevelRepository accountLevelRepository;
+    private final AccountLevelRepository accountLevelRepository;
 
+    public FunctionAuthAspect(AccountLevelRepository accountLevelRepository) {
+        this.accountLevelRepository = accountLevelRepository;
+    }
     // @Around("@annotation(com.fairing.fairplay.core.etc.FunctionAuth)")
     // public Object checkFunctionAuth(ProceedingJoinPoint joinPoint) throws
     // Throwable {
@@ -50,13 +41,14 @@ public class FunctionAuthAspect {
 
     // }
 
-    private Long getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof CustomUserDetails) {
-            return ((CustomUserDetails) principal).getUserId();
-        }
+    // private Long getCurrentUserId() {
+    // Authentication authentication =
+    // SecurityContextHolder.getContext().getAuthentication();
+    // Object principal = authentication.getPrincipal();
+    // if (principal instanceof CustomUserDetails) {
+    // return ((CustomUserDetails) principal).getUserId();
+    // }
 
-        return null; // 인증되지 않은 경우 null 반환
-    }
+    // return null; // 인증되지 않은 경우 null 반환
+    // }
 }

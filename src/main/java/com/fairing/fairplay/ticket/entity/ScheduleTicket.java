@@ -30,13 +30,16 @@ public class ScheduleTicket {
     @JoinColumn(name = "schedule_id")
     private EventSchedule eventSchedule;
 
-    @Column(name = "remaining_stock", nullable = false)
-    private Integer remainingStock;
+    @Column(name = "remaining_stock")
+    private Integer remainingStock;  // 실제 재고 (시스템 관리용)
 
-    @Column(name = "sales_start_at", nullable = false)
+    @Column(name = "sale_quantity")
+    private Integer saleQuantity;    // 판매할 수량 (관리자 설정)
+
+    @Column(name = "sales_start_at")
     private LocalDateTime salesStartAt;
 
-    @Column(name = "sales_end_at", nullable = false)
+    @Column(name = "sales_end_at")
     private LocalDateTime salesEndAt;
 
     @Column(nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
@@ -64,7 +67,8 @@ public class ScheduleTicket {
                     .id(new ScheduleTicketId(dto.getTicketId(), scheduleId))
                     .ticket(ticket)
                     .eventSchedule(schedule)
-                    .remainingStock(dto.getRemainingStock())
+                    .remainingStock(dto.getSaleQuantity()) // 초기 재고는 판매 수량으로 설정
+                    .saleQuantity(dto.getSaleQuantity())
                     .salesStartAt(dto.getSalesStartAt())
                     .salesEndAt(dto.getSalesEndAt())
                     .visible(dto.getVisible())
