@@ -97,4 +97,10 @@ public class EventDetail {
 
     @Column(name = "check_out_allowed", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
     private Boolean checkOutAllowed = false;
+
+    @Column(name = "host_company", length = 255)
+    private String hostCompany;
+
+    @Column(name = "age", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    private Boolean age = false;
 }

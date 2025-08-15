@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -31,6 +32,14 @@ public class EventApplyRequestDto {
     // EventDetail과 비슷한 정보들
     private Long locationId;
     private String locationDetail;
+    
+    // 새로운 장소 정보 (카카오맵에서 받은 데이터)
+    private String address;
+    private String placeName;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private String placeUrl;
+    
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer mainCategoryId;

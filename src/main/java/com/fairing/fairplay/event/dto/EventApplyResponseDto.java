@@ -1,10 +1,7 @@
 package com.fairing.fairplay.event.dto;
 
 import com.fairing.fairplay.event.entity.EventApply;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,6 +10,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class EventApplyResponseDto {
     
     private Long eventApplyId;
@@ -35,6 +33,7 @@ public class EventApplyResponseDto {
     
     // EventDetail 정보들
     private Long locationId;
+    private String address;
     private String locationName;
     private String locationDetail;
     private LocalDate startDate;
@@ -90,4 +89,5 @@ public class EventApplyResponseDto {
 
         return dto;
     }
+
 }
