@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @RequestMapping("/api/form")
 public class ShareTicketController {
+
   private final ShareTicketService shareTicketService;
 
   // 공유폼생성
@@ -32,9 +33,7 @@ public class ShareTicketController {
   // 공유폼조회
   // 폼링크 조회 시 기본 정보 세팅
   @GetMapping
-  public ResponseEntity<ShareTicketInfoResponseDto> getFormInfo(@RequestParam String token){
+  public ResponseEntity<ShareTicketInfoResponseDto> getFormInfo(@RequestParam String token) {
     return ResponseEntity.status(HttpStatus.OK).body(shareTicketService.getFormInfo(token));
   }
-
-  //자동저장
 }
