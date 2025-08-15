@@ -5,7 +5,9 @@ import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,16 +28,13 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    // 결제 요청 정보 저장 (예약/부스/광고 통합)
+    // 결제 요청 정보 저장
     @PostMapping("/request")
     @FunctionAuth("requestPayment")
     public ResponseEntity<PaymentResponseDto> requestPayment(@RequestBody PaymentRequestDto paymentRequestDto,
                                                              @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // 임시 하드코딩: userId = 1L
-        Long userId = 1L;
-        // if(userDetails != null) { userId = userDetails.getUserId(); }
-        
-        PaymentResponseDto savedPayment = paymentService.savePayment(paymentRequestDto, userId);
+
+        PaymentResponseDto savedPayment = paymentService.savePayment(paymentRequestDto, userDetails.getUserId());
         return ResponseEntity.ok(savedPayment);
     }
 
@@ -54,8 +53,10 @@ public class PaymentController {
             @RequestParam(required = false) Long eventId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        // 임시 하드코딩: ADMIN 사용자로 설정
-        // CustomUserDetails mockUser = CustomUserDetails.builder().userId(1L).roleCode("ADMIN").build();
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
+        }
+        
         List<PaymentResponseDto> payments = paymentService.getAllPayments(eventId, userDetails);
         return ResponseEntity.ok(payments);
     }
@@ -63,12 +64,43 @@ public class PaymentController {
     // 나의 결제 목록 조회 (예약/부스/광고 전체)
     @GetMapping("/me")
     public ResponseEntity<List<PaymentResponseDto>> getMyPayments(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        // 임시 하드코딩: userId = 1L
-        Long userId = 1L;
-        // if(userDetails != null) { userId = userDetails.getUserId(); }
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
+        }
         
+        Long userId = userDetails.getUserId();
         List<PaymentResponseDto> myPayments = paymentService.getMyPayments(userId);
         return ResponseEntity.ok(myPayments);
+    }
+
+    // merchantUid 생성 API
+    @GetMapping("/merchant-uid")
+    public ResponseEntity<String> generateMerchantUid(@RequestParam String targetType) {
+        String merchantUid = paymentService.generateMerchantUid(targetType);
+        return ResponseEntity.ok(merchantUid);
+    }
+
+    // 결제 target_id 업데이트 API
+    @PutMapping("/{merchantUid}/target-id")
+    @FunctionAuth("updatePaymentTargetId")
+    public ResponseEntity<Void> updatePaymentTargetId(
+            @PathVariable String merchantUid,
+            @RequestBody TargetIdUpdateRequest request) {
+        paymentService.updatePaymentTargetId(merchantUid, request.getTargetId());
+        return ResponseEntity.ok().build();
+    }
+
+    // 내부 DTO 클래스
+    public static class TargetIdUpdateRequest {
+        private Long targetId;
+        
+        public Long getTargetId() {
+            return targetId;
+        }
+        
+        public void setTargetId(Long targetId) {
+            this.targetId = targetId;
+        }
     }
 
 }
