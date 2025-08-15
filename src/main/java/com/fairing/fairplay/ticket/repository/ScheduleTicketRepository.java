@@ -23,7 +23,7 @@ public interface ScheduleTicketRepository extends JpaRepository<ScheduleTicket, 
             t.ticketId,
             t.name,
             t.price,
-            st.saleQuantity,
+            COALESCE(st.remainingStock, st.saleQuantity, 0),
             st.salesStartAt,
             st.salesEndAt,
             st.visible
