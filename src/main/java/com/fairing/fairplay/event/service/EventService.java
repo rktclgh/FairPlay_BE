@@ -3,6 +3,7 @@ package com.fairing.fairplay.event.service;
 import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
@@ -16,6 +17,7 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.user.entity.EventAdmin;
+import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.EventAdminRepository;
 import com.fairing.fairplay.wishlist.repository.WishlistRepository;
 import jakarta.persistence.EntityManager;
@@ -203,7 +205,8 @@ public class EventService {
     @Transactional
     public EventSummaryResponseDto getEvents(
             String keyword, Integer mainCategoryId, Integer subCategoryId,
-            String regionName, LocalDate fromDate, LocalDate toDate, Pageable pageable) {
+            String regionName, LocalDate fromDate, LocalDate toDate, 
+            CustomUserDetails userDetails, Pageable pageable) {
         log.info("행사 목록 조회 필터");
         log.info("keyword : {}", keyword);
         log.info("mainCategoryId : {}", mainCategoryId);
@@ -211,9 +214,14 @@ public class EventService {
         log.info("regionName : {}", regionName);
         log.info("fromDate : {}", fromDate);
         log.info("toDate : {}", toDate);
+        
+        // 관리자 권한 확인
+        boolean includeHidden = userDetails != null && "ADMIN".equals(userDetails.getRoleCode());
+        log.info("사용자 권한: {}, 숨겨진 행사 포함 여부: {}", 
+                userDetails != null ? userDetails.getRoleCode() : "비로그인", includeHidden);
 
         Page<EventSummaryDto> eventPage = eventQueryRepository.findEventSummariesWithFilters (
-                keyword, mainCategoryId, subCategoryId, regionName, fromDate, toDate, pageable);
+                keyword, mainCategoryId, subCategoryId, regionName, fromDate, toDate, includeHidden, pageable);
 
         log.info("행사 목록 조회 완료: {}", eventPage.getTotalElements());
         return EventSummaryResponseDto.builder()
@@ -240,9 +248,60 @@ public class EventService {
                 .toList();
     }
 
+    // 사용자 담당 이벤트 조회 (한 계정당 하나)
+    public EventResponseDto getUserEvent(CustomUserDetails userDetails) {
+        String roleCode = userDetails.getRoleCode();
+        Long userId = userDetails.getUserId();
+        
+        log.info("사용자 담당 이벤트 조회 - 사용자 ID: {}, 권한: {}", userId, roleCode);
+
+        // 행사 담당자는 자신이 담당하는 이벤트 조회
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            log.info("행사 담당자 권한으로 담당 이벤트 조회");
+            List<Event> userEvents = eventRepository.findByManager_User_UserId(userId);
+            log.info("조회된 담당 이벤트 수: {}", userEvents.size());
+            
+            if (userEvents.isEmpty()) {
+                throw new CustomException(HttpStatus.NOT_FOUND, "담당하는 행사가 없습니다.");
+            }
+            
+            if (userEvents.size() > 1) {
+                log.warn("한 사용자가 여러 이벤트를 담당하고 있습니다. 첫 번째 이벤트를 반환합니다.");
+            }
+            
+            Event event = userEvents.get(0);
+            log.info("담당 이벤트 - ID: {}, 코드: {}, 매니저 ID: {}", 
+                event.getEventId(), 
+                event.getEventCode(),
+                event.getManager() != null ? event.getManager().getUser().getUserId() : "null");
+            
+            return EventResponseDto.builder()
+                    .eventId(event.getEventId())
+                    .managerId(event.getManager().getUser().getUserId())
+                    .eventCode(event.getEventCode())
+                    .hidden(event.getHidden())
+                    .version(event.getEventVersions() != null && !event.getEventVersions().isEmpty() ? 
+                        event.getEventVersions().stream().mapToInt(EventVersion::getVersionNumber).max().orElse(0) : 0)
+                    .build();
+        }
+
+        // 전체 관리자는 첫 번째 이벤트 반환 (테스트용)
+        if ("ADMIN".equals(roleCode)) {
+            log.info("전체 관리자 권한으로 첫 번째 이벤트 조회");
+            List<EventResponseDto> allEvents = getEventList();
+            if (allEvents.isEmpty()) {
+                throw new CustomException(HttpStatus.NOT_FOUND, "등록된 행사가 없습니다.");
+            }
+            return allEvents.get(0);
+        }
+
+        // 기타 권한은 접근 불가
+        throw new CustomException(HttpStatus.FORBIDDEN, "행사 조회 권한이 없습니다.");
+    }
+
     // 행사 상세 조회
     @Transactional
-    public EventDetailResponseDto getEventDetail(Long eventId) {
+    public EventDetailResponseDto getEventDetail(Long eventId, CustomUserDetails userDetails) {
         Event event = checkEventAndDetail(eventId, "read");
         EventDetail eventDetail = event.getEventDetail();
 
@@ -253,8 +312,22 @@ public class EventService {
                         .build())
                 .toList();
 
-        event.incrementViewCount();
-        log.info("행사 조회 성공 및 조회 수 증가: {}", event.getViewCount());
+        boolean shouldIncrement = true;
+        if (userDetails != null) {
+            String roleCode = userDetails.getRoleCode();
+            if ("ADMIN".equals(roleCode)) {
+                shouldIncrement = false;
+            } else if ("EVENT_MANAGER".equals(roleCode)) {
+                if (event.getManager() != null && userDetails.getUserId().equals(event.getManager().getUser().getUserId())) {
+                    shouldIncrement = false;
+                }
+            }
+        }
+
+        if (shouldIncrement) {
+            event.incrementViewCount();
+            log.info("행사 조회 성공 및 조회 수 증가: {}", event.getViewCount());
+        }
 
         int versionNumber = eventVersionRepository.findTopByEventOrderByVersionNumberDesc(event)
                 .map(EventVersion::getVersionNumber)
@@ -674,9 +747,12 @@ public class EventService {
     }
 
     private EventDetailResponseDto buildEventDetailResponseDto(Event event, EventDetail detail, List<ExternalLinkResponseDto> links, Integer version, String message) {
+        EventAdmin manager = event.getManager();
+        Users user = (manager != null) ? manager.getUser() : null;
+
         return EventDetailResponseDto.builder()
                 .message(message)
-                .managerId(event.getManager().getUser().getUserId())
+                .managerId(user != null ? user.getUserId() : null)
                 .eventCode(event.getEventCode())
                 .createdAt(detail.getCreatedAt())
                 .updatedAt(detail.getUpdatedAt())
@@ -701,6 +777,10 @@ public class EventService {
                 .hostName(detail.getHostName())
                 .contactInfo(detail.getContactInfo())
                 .officialUrl(detail.getOfficialUrl())
+                .managerName(user != null ? user.getName() : null)
+                .managerPhone(manager != null ? manager.getContactNumber() : null)
+                .managerEmail(manager != null ? manager.getContactEmail() : null)
+                .managerBusinessNumber(manager != null ? manager.getBusinessNumber() : null)
                 .bio(detail.getBio())
                 .content(detail.getContent())
                 .policy(detail.getPolicy())
@@ -709,6 +789,8 @@ public class EventService {
                 .reentryAllowed(detail.getReentryAllowed())
                 .checkInAllowed(detail.getCheckInAllowed())
                 .checkOutAllowed(detail.getCheckOutAllowed())
+                .hostCompany(detail.getHostCompany())
+                .age(detail.getAge())
                 .build();
     }
 
