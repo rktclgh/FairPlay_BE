@@ -76,6 +76,7 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
             String regionName,
             LocalDate fromDate,
             LocalDate toDate,
+            Boolean includeHidden,
             Pageable pageable
     ) {
         QEvent event = QEvent.event;
@@ -85,8 +86,13 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 
         // 조건 조립
         BooleanBuilder builder = new BooleanBuilder()
-                .and(event.hidden.eq(false))    // 숨겨지지 않은 이벤트만
                 .and(detail.eventDetailId.isNotNull());  // 상세 정보가 등록된 이벤트만
+        
+        // 숨겨진 행사 포함 여부 처리
+        if (includeHidden == null || !includeHidden) {
+            builder.and(event.hidden.eq(false));    // 숨겨지지 않은 이벤트만
+        }
+        // includeHidden이 true면 hidden 조건을 추가하지 않음 (모든 행사 조회)
 
         // 키워드 필터: 제목 한글 또는 영문
         if (keyword != null && !keyword.trim().isEmpty()) {

@@ -44,6 +44,8 @@ public class EventSnapshotDto {
     private Boolean reentryAllowed;
     private Boolean checkInAllowed;
     private Boolean checkOutAllowed;
+    private String hostCompany;
+    private Boolean age;
     private List<EventSnapshotDto.ExternalLinkSnapshot> externalLinks;
 
     @Data

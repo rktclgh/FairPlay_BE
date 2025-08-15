@@ -46,7 +46,6 @@ public class SecurityConfig {
                                 "/api/auth/logout",
                                 "/api/auth/refresh",
                                 "/api/events",                     // GET 행사 목록 조회
-                                "/api/events/list",                // GET 행사 목록 (테스트용)
                                 "/api/events/*/details",           // GET 행사 상세 조회 (*/details 패턴)
                                                                 "/api/users/forgot-password",
                                                                 "/swagger-ui/**",
