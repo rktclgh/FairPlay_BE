@@ -20,4 +20,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     // imp_uid 중복 검증용
     boolean existsByImpUidAndPaymentStatusCode_Code(String impUid, String paymentStatusCode);
+    
+    // 특정 target_id와 payment_target_type으로 결제 정보 조회
+    Optional<Payment> findByTargetIdAndPaymentTargetType_PaymentTargetCode(Long targetId, String paymentTargetCode);
 }
