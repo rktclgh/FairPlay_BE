@@ -1,9 +1,13 @@
 package com.fairing.fairplay.event.controller;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-
+import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.etc.FunctionAuth;
+import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.event.dto.*;
+import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.event.service.EventService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -11,31 +15,11 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
-import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.etc.FunctionAuth;
-import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.event.dto.EventDetailRequestDto;
-import com.fairing.fairplay.event.dto.EventDetailResponseDto;
-import com.fairing.fairplay.event.dto.EventRequestDto;
-import com.fairing.fairplay.event.dto.EventResponseDto;
-import com.fairing.fairplay.event.dto.EventStatusThumbnailDto;
-import com.fairing.fairplay.event.dto.EventSummaryResponseDto;
-import com.fairing.fairplay.event.repository.EventRepository;
-import com.fairing.fairplay.event.service.EventService;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.*;
 import software.amazon.awssdk.services.s3.S3Client;
+
+import java.time.LocalDate;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/events")

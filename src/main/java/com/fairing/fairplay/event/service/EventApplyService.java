@@ -480,10 +480,10 @@ public class EventApplyService {
         // RegionCode 설정 - Location의 주소에서 추출
         setRegionCodeFromLocation(eventDetail, eventApply);
 
-        eventDetail.setContent("행사 내용을 입력해주세요.");
-        eventDetail.setPolicy("행사 정책을 입력해주세요.");
+        eventDetail.setContent("");
+        eventDetail.setPolicy("");
         eventDetail.setHostName(eventApply.getManagerName());
-        eventDetail.setContactInfo(eventApply.getEmail());
+        eventDetail.setContactInfo(""); // 문의처 정보는 별도로 입력받아야 함, 담당자 이메일과는 다름
         eventDetail.setReentryAllowed(true);
         eventDetail.setCheckOutAllowed(false);
 

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long>, EventQueryRepository {
@@ -24,4 +25,6 @@ public interface EventRepository extends JpaRepository<Event, Long>, EventQueryR
 
     // 사용자 ID로 담당 이벤트 조회
     List<Event> findByManager_User_UserId(Long userId);
+
+    Optional<Event> findByEventCode(String eventCode);
 }
