@@ -100,8 +100,8 @@ public class ReviewService {
 
     Page<ReviewWithOwnerDto> reviewWithOwnerDtos = rawPage.map(row -> {
       Review review = (Review) row[0];
-      long reactionCount = ((Number) row[1]).longValue();
-      long liked = ((Number) row[2]).longValue();
+      long reactionCount = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+      long liked = row[2] != null ? ((Number) row[2]).longValue() : 0L;
       Long authorId = (row[3] != null) ? ((Number) row[3]).longValue() : null;
 
       boolean isLiked = (loginUserId != null) && liked > 0;
