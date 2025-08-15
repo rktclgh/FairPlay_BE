@@ -205,7 +205,8 @@ public class EventService {
     @Transactional
     public EventSummaryResponseDto getEvents(
             String keyword, Integer mainCategoryId, Integer subCategoryId,
-            String regionName, LocalDate fromDate, LocalDate toDate, Pageable pageable) {
+            String regionName, LocalDate fromDate, LocalDate toDate, 
+            CustomUserDetails userDetails, Pageable pageable) {
         log.info("행사 목록 조회 필터");
         log.info("keyword : {}", keyword);
         log.info("mainCategoryId : {}", mainCategoryId);
@@ -213,9 +214,14 @@ public class EventService {
         log.info("regionName : {}", regionName);
         log.info("fromDate : {}", fromDate);
         log.info("toDate : {}", toDate);
+        
+        // 관리자 권한 확인
+        boolean includeHidden = userDetails != null && "ADMIN".equals(userDetails.getRoleCode());
+        log.info("사용자 권한: {}, 숨겨진 행사 포함 여부: {}", 
+                userDetails != null ? userDetails.getRoleCode() : "비로그인", includeHidden);
 
         Page<EventSummaryDto> eventPage = eventQueryRepository.findEventSummariesWithFilters (
-                keyword, mainCategoryId, subCategoryId, regionName, fromDate, toDate, pageable);
+                keyword, mainCategoryId, subCategoryId, regionName, fromDate, toDate, includeHidden, pageable);
 
         log.info("행사 목록 조회 완료: {}", eventPage.getTotalElements());
         return EventSummaryResponseDto.builder()

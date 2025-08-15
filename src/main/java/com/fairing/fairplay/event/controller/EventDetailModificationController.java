@@ -85,10 +85,12 @@ public class EventDetailModificationController {
 
         // 외부 링크 처리 - externalLinks는 별도로 처리하고 officialUrl도 별도로 처리
         if (requestDto.getExternalLinks() != null) modificationDto.setExternalLinks(requestDto.getExternalLinks());
-        if (requestDto.getOfficialUrl() != null) modificationDto.setOfficialUrl(requestDto.getOfficialUrl());
-        
+
         // tempFiles 처리
         if (requestDto.getTempFiles() != null) modificationDto.setTempFiles(requestDto.getTempFiles());
+        
+        // deletedFileIds 처리
+        if (requestDto.getDeletedFileIds() != null) modificationDto.setDeletedFileIds(requestDto.getDeletedFileIds());
 
         EventDetailModificationRequest request = modificationRequestService.createModificationRequest(
                 eventId, modificationDto, auth.getUserId());
@@ -140,14 +142,19 @@ public class EventDetailModificationController {
     public ResponseEntity<EventDetailModificationResponseDto> getModificationRequestDetail(
             @PathVariable Long requestId, @AuthenticationPrincipal CustomUserDetails auth) {
 
-        Long managerId = modificationRequestRepository.getReferenceById(requestId).getEvent().getManager().getUserId();
-        if (auth.getRoleCode().equals("EVENT_MANAGER") && !managerId.equals(auth.getUserId())) {
-            log.info("담당 행사 관리자가 아님");
-            throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
-        }
-
+        // 한 번의 조회로 권한 체크와 데이터 반환 처리
         EventDetailModificationRequest request =
                 modificationRequestService.getModificationRequestById(requestId);
+
+        // EVENT_MANAGER 권한일 경우 담당 행사 관리자인지 확인
+        if (auth.getRoleCode().equals("EVENT_MANAGER")) {
+            Long managerId = request.getEvent().getManager().getUserId();
+            if (!managerId.equals(auth.getUserId())) {
+                log.info("담당 행사 관리자가 아님: requestId={}, managerId={}, userId={}", 
+                         requestId, managerId, auth.getUserId());
+                throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+            }
+        }
 
         EventDetailModificationResponseDto responseDto = EventDetailModificationResponseDto.from(request);
         return ResponseEntity.ok(responseDto);

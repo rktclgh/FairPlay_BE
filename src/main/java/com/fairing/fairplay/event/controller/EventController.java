@@ -121,17 +121,20 @@ public class EventController {
             @RequestParam(required = false) String regionName,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
-            @PageableDefault(size = 10) Pageable pageable) {
+            @PageableDefault(size = 10) Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
         EventSummaryResponseDto response = eventService.getEvents(keyword, mainCategoryId, subCategoryId, regionName,
-                fromDate, toDate, pageable);
+                fromDate, toDate, userDetails, pageable);
         return ResponseEntity.ok(response);
     }
 
-    // 사용자 담당 이벤트 조회 (한 계정당 하나)
+    // 사용자 담당 이벤트 조회
     @GetMapping("/my-event")
     public ResponseEntity<EventResponseDto> getMyEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
+        checkAuth(userDetails, EVENT);
+
         EventResponseDto event = eventService.getUserEvent(userDetails);
         return ResponseEntity.ok(event);
     }

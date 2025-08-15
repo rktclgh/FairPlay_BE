@@ -9,9 +9,11 @@ import com.fairing.fairplay.event.dto.EventSnapshotDto;
 import com.fairing.fairplay.event.dto.ExternalLinkRequestDto;
 import com.fairing.fairplay.event.entity.*;
 import com.fairing.fairplay.event.repository.*;
+import com.fairing.fairplay.file.service.FileService;
 import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.EventAdminRepository;
+import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -34,11 +36,13 @@ public class EventDetailModificationRequestService {
     private final SubCategoryRepository subCategoryRepository;
     private final RegionCodeRepository regionCodeRepository;
     private final EventAdminRepository eventAdminRepository;
+    private final UserRepository userRepository;
     private final ExternalLinkRepository externalLinkRepository;
     private final EventVersionService eventVersionService;
     private final AwsS3Service awsS3Service;
+    private final FileService fileService;
 
-    public EventDetailModificationRequestService(EventDetailModificationRequestRepository modificationRequestRepository, UpdateStatusCodeRepository updateStatusCodeRepository, EventRepository eventRepository, EventDetailRepository eventDetailRepository, LocationRepository locationRepository, MainCategoryRepository mainCategoryRepository, SubCategoryRepository subCategoryRepository, RegionCodeRepository regionCodeRepository, EventAdminRepository eventAdminRepository, ExternalLinkRepository externalLinkRepository, EventVersionService eventVersionService, AwsS3Service awsS3Service) {
+    public EventDetailModificationRequestService(EventDetailModificationRequestRepository modificationRequestRepository, UpdateStatusCodeRepository updateStatusCodeRepository, EventRepository eventRepository, EventDetailRepository eventDetailRepository, LocationRepository locationRepository, MainCategoryRepository mainCategoryRepository, SubCategoryRepository subCategoryRepository, RegionCodeRepository regionCodeRepository, EventAdminRepository eventAdminRepository, UserRepository userRepository, ExternalLinkRepository externalLinkRepository, EventVersionService eventVersionService, AwsS3Service awsS3Service, FileService fileService) {
         this.modificationRequestRepository = modificationRequestRepository;
         this.updateStatusCodeRepository = updateStatusCodeRepository;
         this.eventRepository = eventRepository;
@@ -48,9 +52,11 @@ public class EventDetailModificationRequestService {
         this.subCategoryRepository = subCategoryRepository;
         this.regionCodeRepository = regionCodeRepository;
         this.eventAdminRepository = eventAdminRepository;
+        this.userRepository = userRepository;
         this.externalLinkRepository = externalLinkRepository;
         this.eventVersionService = eventVersionService;
         this.awsS3Service = awsS3Service;
+        this.fileService = fileService;
     }
 
     // 수정 요청
@@ -119,6 +125,20 @@ public class EventDetailModificationRequestService {
             if (modificationDto.getBio() != null) {
                 String updatedBio = replaceUrlsInContent(modificationDto.getBio(), urlMappings);
                 modificationDto.setBio(updatedBio);
+            }
+        }
+        
+        // 삭제할 파일 처리
+        if (modificationDto.getDeletedFileIds() != null && !modificationDto.getDeletedFileIds().isEmpty()) {
+            for (Long fileId : modificationDto.getDeletedFileIds()) {
+                try {
+                    log.info("파일 삭제 시작: fileId={}", fileId);
+                    fileService.deleteFile(fileId);
+                    log.info("파일 삭제 완료: fileId={}", fileId);
+                } catch (Exception e) {
+                    log.error("파일 삭제 실패: fileId={}, error={}", fileId, e.getMessage());
+                    // 파일 삭제 실패 시에도 수정 요청은 계속 진행
+                }
             }
         }
 
@@ -390,12 +410,13 @@ public class EventDetailModificationRequestService {
         if (modifiedData.getManagerPhone() != null) eventAdmin.setContactNumber(modifiedData.getManagerPhone());
         if (modifiedData.getManagerEmail() != null) eventAdmin.setContactEmail(modifiedData.getManagerEmail());
 
-        // Event, EventDetail, EventAdmin, Users 모두 저장
         eventRepository.save(event);
         eventDetailRepository.save(eventDetail);
         eventAdminRepository.save(eventAdmin);
-        // Users 엔티티 저장을 위해서는 UserRepository가 필요하지만, 
-        // EventAdmin이 저장될 때 cascade 설정으로 자동으로 Users도 저장됨
+        if (eventAdminUser != null) {
+            userRepository.save(eventAdminUser);
+            log.info("Users 엔티티 저장 완료");
+        }
     }
 
     private EventDetailModificationDto convertEventDetailToDto(EventDetail eventDetail) {
@@ -417,10 +438,7 @@ public class EventDetailModificationRequestService {
                     String contactNumber = eventAdmin.getContactNumber();
                     String contactEmail = eventAdmin.getContactEmail();
                     Boolean verified = eventAdmin.getVerified();
-                    
-                    log.info("BusinessNumber: {}, ContactNumber: {}, ContactEmail: {}", 
-                        businessNumber, contactNumber, contactEmail);
-                    
+
                     dto.setBusinessNumber(businessNumber);
                     dto.setVerified(verified);
                     dto.setManagerPhone(contactNumber);
@@ -429,7 +447,6 @@ public class EventDetailModificationRequestService {
                     Users user = eventAdmin.getUser();
                     if (user != null) {
                         String userName = user.getName();
-                        log.info("User Name: {}", userName);
                         dto.setManagerName(userName);
                     } else {
                         log.info("EventAdmin.User is null");
@@ -456,18 +473,7 @@ public class EventDetailModificationRequestService {
         
         dto.setLocationDetail(eventDetail.getLocationDetail());
         dto.setHostName(eventDetail.getHostName());
-        
-        // contactInfo가 담당자 이메일과 동일한 경우 빈 값으로 처리 (잘못된 데이터 필터링)
-        String contactInfo = eventDetail.getContactInfo();
-        if (event != null && event.getManager() != null) {
-            String managerEmail = event.getManager().getContactEmail();
-            if (contactInfo != null && contactInfo.equals(managerEmail)) {
-                log.info("ContactInfo에 담당자 이메일이 잘못 저장되어 있어 빈 값으로 처리: {}", contactInfo);
-                contactInfo = ""; // 실제 문의처 정보가 아니므로 빈 값으로 변경
-            }
-        }
-        log.info("처리된 ContactInfo: {}", contactInfo);
-        dto.setContactInfo(contactInfo);
+        dto.setContactInfo(eventDetail.getContactInfo());
         dto.setBio(eventDetail.getBio());
         dto.setContent(eventDetail.getContent());
         dto.setPolicy(eventDetail.getPolicy());

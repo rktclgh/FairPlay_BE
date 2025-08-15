@@ -66,6 +66,8 @@ public class EventApplyController {
     }
 
     @GetMapping("/applications/{applicationId}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @FunctionAuth("getEventApplicationDetail")
     public ResponseEntity<EventApplyResponseDto> getEventApplicationDetail(
             @PathVariable Long applicationId) {
         EventApplyResponseDto detail = eventApplyService.getEventApplicationDetail(applicationId);
