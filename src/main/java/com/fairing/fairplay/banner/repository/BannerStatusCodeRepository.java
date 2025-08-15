@@ -10,3 +10,4 @@ import java.util.Optional;
 public interface BannerStatusCodeRepository extends JpaRepository<BannerStatusCode, Long> {
     Optional<BannerStatusCode> findByCode(String code);
 }
+

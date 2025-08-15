@@ -22,15 +22,17 @@ public class EventDto {
   private String title;
   private String buildingName;
   private String address;
+  private String thumbnail;
   private ViewingScheduleInfo viewingScheduleInfo;
   private EventScheduleInfo eventScheduleInfo;
 
-  public EventDto(String title, String buildingName, String address,
+  public EventDto(String title, String buildingName, String address, String thumbnail,
       LocalDate scheduleDate, int weekday, LocalTime startTime,
       LocalDate startDate, LocalDate endDate) {
     this.title = title;
     this.buildingName = buildingName;
     this.address = address;
+    this.thumbnail = thumbnail;
     this.viewingScheduleInfo = new ViewingScheduleInfo(
         DateTimeUtils.formatDate(scheduleDate),
         DateTimeUtils.formatDayOfWeek(weekday),

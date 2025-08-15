@@ -108,7 +108,7 @@ public class ReservationController {
 
     // 예약자 명단 엑셀 다운로드 (행사 관리자용)
     @GetMapping("/attendees/excel")
-    @FunctionAuth("getReservationAttendees")
+    @FunctionAuth("downloadAttendeesExcel")
     public ResponseEntity<byte[]> downloadAttendeesExcel(@PathVariable Long eventId,
             @RequestParam(required = false) String status,
             @AuthenticationPrincipal CustomUserDetails userDetails) throws IOException {

@@ -21,7 +21,7 @@ public interface DailyStatsCustomRepository {
 
     Page<AdminReservationStatsListDto> searchEventReservationWithRank(LocalDate startDate, LocalDate endDate, String keyword, String mainCategory, String subCategory, Pageable pageable);
 
-    Page<AdminReservationStatsListDto> aggregatedPopularity(
+    Page<AdminReservationStatsListDto> aggregatedEvents(
             LocalDate startDate,
             LocalDate endDate,
             String mainCategory,

@@ -23,7 +23,7 @@ public interface ScheduleTicketRepository extends JpaRepository<ScheduleTicket, 
             t.ticketId,
             t.name,
             t.price,
-            st.remainingStock,
+            st.saleQuantity,
             st.salesStartAt,
             st.salesEndAt,
             st.visible
@@ -37,6 +37,7 @@ public interface ScheduleTicketRepository extends JpaRepository<ScheduleTicket, 
            AND st.ticket.ticketId = t.ticketId
         WHERE e.eventId = :eventId
           AND es.scheduleId = :scheduleId
+          AND t.deleted = false
     """)
     List<ScheduleTicketResponseDto> findScheduleTickets(
             @Param("eventId") Long eventId,

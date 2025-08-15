@@ -1,39 +1,41 @@
 package com.fairing.fairplay.review.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.review.dto.EventDto;
 import com.fairing.fairplay.review.dto.ReviewDeleteResponseDto;
 import com.fairing.fairplay.review.dto.ReviewDto;
+import com.fairing.fairplay.review.dto.ReviewForEventResponseDto;
 import com.fairing.fairplay.review.dto.ReviewResponseDto;
 import com.fairing.fairplay.review.dto.ReviewSaveRequestDto;
 import com.fairing.fairplay.review.dto.ReviewSaveResponseDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateRequestDto;
 import com.fairing.fairplay.review.dto.ReviewUpdateResponseDto;
+import com.fairing.fairplay.review.dto.ReviewWithOwnerDto;
 import com.fairing.fairplay.review.entity.Review;
 import com.fairing.fairplay.review.repository.ReviewRepository;
-
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.TextStyle;
+import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReviewService {
 
   private final ReviewRepository reviewRepository;
@@ -43,19 +45,26 @@ public class ReviewService {
 
   // 본인이 예매한 행사에 대해서만 리뷰 작성 가능
   @Transactional
-  public ReviewSaveResponseDto save(ReviewSaveRequestDto dto) {
+  public ReviewSaveResponseDto save(ReviewSaveRequestDto dto, CustomUserDetails userDetails) {
+    if(userDetails == null){
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
+    }
+    Long userId = userDetails.getUserId();
     // user 임시 설정
-    Users user = findUserOrThrow(1L);
+    Users user = findUserOrThrow(userId);
+    log.info("user id:{}", userId);
+
+    log.info("reservation id:{}", dto.getReservationId());
 
     // 1. user의 사용자 권한이 일반 사용자인지 검증
-//    if (!user.getRoleCode().getCode().equals("COMMON")) {
-//      throw new CustomException(HttpStatus.FORBIDDEN,
-//          "리뷰를 작성할 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
-//    }
+    if (!user.getRoleCode().getCode().equals("COMMON")) {
+      throw new CustomException(HttpStatus.FORBIDDEN,
+          "리뷰를 작성할 사용자 타입이 아닙니다. 현재 사용자 타입: " + user.getRoleCode().getCode());
+    }
 
     // 2. 리뷰 작성자와 예약자가 일치하는지 조회
     Reservation reservation = reviewReservationService.checkReservationIdAndUser(
-        dto.getReservationId(), user);
+        dto.getReservationId(), user.getUserId());
 
     // 3. 예약이 취소되었는지 검증
     reviewReservationService.checkReservationIsCancelled(reservation);
@@ -85,33 +94,61 @@ public class ReviewService {
   }
 
   // 행사 상세 페이지 - 특정 행사 리뷰 조회. CustomUserDetails 추가 예정
-  public Page<ReviewResponseDto> getReviewForEvent(Long eventId, Pageable pageable) {
-    Long loginUserId = 3L;
-    Users user = null;
-    if (loginUserId != null) {
-      user = findUserOrThrow(loginUserId);
+  public ReviewForEventResponseDto getReviewForEvent(CustomUserDetails userDetails, Long eventId,
+      Pageable pageable) {
+    log.info("getReviewForEvent:{}", eventId);
+    Long loginUserId;
+    if (userDetails != null) {
+      loginUserId = userDetails.getUserId();
+    } else {
+      loginUserId = null;
     }
 
+    // 특정 이벤트 리뷰 조회
     Page<Review> reviewPage = reviewRepository.findByEventId(eventId, pageable);
 
+    // 리뷰 ID 추출
     List<Long> reviewIds = reviewPage.stream()
         .map(Review::getId)
         .toList();
+    log.info("reviewIds size: {}", reviewIds.size());
 
-    Map<Long, Long> reactionCountMap = reviewReactionService.findReactionCountsByReviewIds(
-        reviewIds);
+    // 이벤트의 리뷰들에 대한 카운트
+    Map<Long, Long> reactionCountMap =
+        reviewIds.isEmpty() ? Collections.emptyMap()
+            : reviewReactionService.findReactionCountsByReviewIds(reviewIds);
 
-    return reviewPage.map(review -> {
+    Page<ReviewWithOwnerDto> reviewWithOwnerDtos = reviewPage.map(review -> {
       long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
-      boolean isMine = (loginUserId != null && review.getUser().getUserId().equals(loginUserId));
-      return buildReviewResponse(review, reactionCount, isMine);
+      log.info("reactionCount:{}", reactionCount);
+      boolean isMine = (loginUserId != null) && loginUserId.equals(review.getUser().getUserId());
+      log.info("isMine:{}", isMine);
+      ReviewDto reviewDto = buildReview(review, reactionCount);
+      return ReviewWithOwnerDto.builder()
+          .review(reviewDto)
+          .owner(isMine)
+          .build();
     });
+
+    return ReviewForEventResponseDto.builder()
+        .eventId(eventId)
+        .reviews(reviewWithOwnerDtos).build();
   }
 
   // 마이페이지 - 본인의 모든 리뷰 조회
-  public Page<ReviewResponseDto> getReviewForUser(Long userId, Pageable pageable) {
+  public Page<ReviewResponseDto> getReviewForUser(CustomUserDetails userDetails, int page) {
     // 1.  사용자 존재 여부 확인
-    Users user = findUserOrThrow(userId);
+    Pageable pageable = PageRequest.of(page, 5, Sort.by(Sort.Direction.DESC, "createdAt"));
+    if (userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+    }
+
+    if (page < 0) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "page는 0 이상의 정수여야 합니다.");
+    }
+
+    Users user = userRepository.findById(userDetails.getUserId()).orElseThrow(() ->
+        new CustomException(HttpStatus.NOT_FOUND, "사용자가 조회되지 않습니다."));
 
     // 2. 리뷰 페이징 조회
     Page<Review> reviewPage = reviewRepository.findByUser(user, pageable);
@@ -132,10 +169,15 @@ public class ReviewService {
     });
   }
 
+
   // 리뷰 수정 (리액션 제외)
   @Transactional
-  public ReviewUpdateResponseDto updateReview(Long userId, Long reviewId,
+  public ReviewUpdateResponseDto updateReview(CustomUserDetails userDetails, Long reviewId,
       ReviewUpdateRequestDto dto) {
+    if(userDetails == null){
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
+    }
+    Long userId = userDetails.getUserId();
     // 1.  사용자 존재 여부 확인
     Users user = findUserOrThrow(userId);
 
@@ -172,7 +214,11 @@ public class ReviewService {
 
   // 리뷰 삭제
   @Transactional
-  public ReviewDeleteResponseDto deleteReview(Long userId, Long reviewId) {
+  public ReviewDeleteResponseDto deleteReview(CustomUserDetails userDetails, Long reviewId) {
+    if(userDetails == null){
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
+    }
+    Long userId = userDetails.getUserId();
     // 1.  사용자 존재 여부 확인
     Users user = findUserOrThrow(userId);
     // 2. 사용자 권한 확인
@@ -188,7 +234,7 @@ public class ReviewService {
 
     // 4. 리뷰와 연결된 예약이 존재하는지 확인
     Reservation reservation = reviewReservationService.checkReservationIdAndUser(
-        review.getReservation().getReservationId(), user);
+        review.getReservation().getReservationId(), review.getUser().getUserId());
 
     // 5. 삭제 가능 기한 검증
     LocalDate endDate = reservation.getSchedule().getDate();
@@ -216,7 +262,8 @@ public class ReviewService {
   private ReviewResponseDto buildReviewResponse(Review review, Long reactionCount, boolean owner) {
     EventDto eventDto = buildEvent(review.getReservation());
     ReviewDto reviewDto = buildReview(review, reactionCount);
-    return new ReviewResponseDto(eventDto, reviewDto, owner);
+    return new ReviewResponseDto(review.getReservation().getReservationId(), eventDto, reviewDto,
+        owner);
   }
 
   private EventDto buildEvent(Reservation reservation) {
@@ -227,6 +274,7 @@ public class ReviewService {
   private ReviewDto buildReview(Review review, Long reactionCount) {
     return ReviewDto.builder()
         .reviewId(review.getId())
+        .nickname(review.getUser().getNickname())
         .star(review.getStar())
         .reactions(reactionCount)
         .comment(review.getComment())
@@ -243,6 +291,7 @@ public class ReviewService {
 
   // 별점 검증
   private void validateStar(Integer star) {
+    log.info("star is {}", star);
     if (star == null || star < 0 || star > 5) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "별점은 0~5 사이어야 합니다.");
     }
