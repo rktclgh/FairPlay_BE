@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 public class AdminSalesStatisticsService {
 
     private final AdminSalesStatisticsRepository adminSalesStatisticsRepositorys;
-    private final int PAGE_SIZE = 10;
+    private final int DEFAULT_PAGE_SIZE = 10;
     public AdminSalesSummaryDto summarySales(LocalDate startDate, LocalDate endDate, String type){
 
         if (startDate == null || endDate == null) {
@@ -116,11 +116,8 @@ public class AdminSalesStatisticsService {
             default -> totalSales;
         };
 
-        long daysBetween = ChronoUnit.DAYS.between(startDate, endDate);
-        if(sales == null){
-            sales = BigDecimal.ZERO;
-        }
-        BigDecimal avgSales = sales.divide(BigDecimal.valueOf(daysBetween), 2, RoundingMode.HALF_UP);
+        long daysInclusive = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        BigDecimal avgSales = sales.divide(BigDecimal.valueOf(daysInclusive), 2, RoundingMode.HALF_UP);
 
 
         return AdminSalesSummaryDto.builder()
@@ -246,11 +243,11 @@ public class AdminSalesStatisticsService {
                         List<AdminSalesStatistics> list = entry.getValue();
 
                         BigDecimal totalSales = list.stream()
-                                .map(AdminSalesStatistics::getAdvertisingRevenue)
+                                .map(s -> s.getAdvertisingRevenue() != null ? s.getAdvertisingRevenue() : BigDecimal.ZERO)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                         long totalPayments = list.stream()
-                                .mapToLong(AdminSalesStatistics::getAdvertisingPaymentCount)
+                                .mapToLong(s -> s.getAdvertisingPaymentCount() != null ? s.getAdvertisingPaymentCount() : 0L)
                                 .sum();
 
                         return AdminSalesMonthlyTrendDto.builder()
@@ -273,11 +270,11 @@ public class AdminSalesStatisticsService {
                         List<AdminSalesStatistics> list = entry.getValue();
 
                         BigDecimal totalSales = list.stream()
-                                .map(AdminSalesStatistics::getBoothRevenue)
+                                .map(s -> s.getBoothRevenue() != null ? s.getBoothRevenue() : BigDecimal.ZERO)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                         long totalPayments = list.stream()
-                                .mapToLong(AdminSalesStatistics::getBoothPaymentCount)
+                                .mapToLong(s -> s.getBoothPaymentCount() != null ? s.getBoothPaymentCount() : 0L)
                                 .sum();
 
                         return AdminSalesMonthlyTrendDto.builder()
@@ -299,11 +296,11 @@ public class AdminSalesStatisticsService {
                         List<AdminSalesStatistics> list = entry.getValue();
 
                         BigDecimal totalSales = list.stream()
-                                .map(AdminSalesStatistics::getReservationRevenue)
+                                .map(s -> s.getReservationRevenue() != null ? s.getReservationRevenue() : BigDecimal.ZERO)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                         long totalPayments = list.stream()
-                                .mapToLong(AdminSalesStatistics::getReservationPaymentCount)
+                                .mapToLong(s -> s.getReservationPaymentCount() != null ? s.getReservationPaymentCount() : 0L)
                                 .sum();
 
                         return AdminSalesMonthlyTrendDto.builder()
@@ -326,11 +323,11 @@ public class AdminSalesStatisticsService {
                         List<AdminSalesStatistics> list = entry.getValue();
 
                         BigDecimal totalSales = list.stream()
-                                .map(AdminSalesStatistics::getOtherRevenue)
+                                .map(s -> s.getOtherRevenue() != null ? s.getOtherRevenue() : BigDecimal.ZERO)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                         long totalPayments = list.stream()
-                                .mapToLong(AdminSalesStatistics::getOtherPaymentCount)
+                                .mapToLong(s -> s.getOtherPaymentCount() != null ? s.getOtherPaymentCount() : 0L)
                                 .sum();
 
                         return AdminSalesMonthlyTrendDto.builder()
@@ -352,11 +349,11 @@ public class AdminSalesStatisticsService {
                         List<AdminSalesStatistics> list = entry.getValue();
 
                         BigDecimal totalSales = list.stream()
-                                .map(AdminSalesStatistics::getTotalSales)
+                                .map(s -> s.getTotalSales() != null ? s.getTotalSales() : BigDecimal.ZERO)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                         long totalPayments = list.stream()
-                                .mapToLong(AdminSalesStatistics::getPaymentCount)
+                                .mapToLong(s -> s.getPaymentCount() != null ? s.getPaymentCount() : 0L)
                                 .sum();
 
                         return AdminSalesMonthlyTrendDto.builder()
@@ -373,9 +370,9 @@ public class AdminSalesStatisticsService {
         return trend;
     }
 
-    public Page<AdminSalesDetailListDto> salesDetailList(LocalDate startDate, LocalDate endDate, int size){
+    public Page<AdminSalesDetailListDto> salesDetailList(LocalDate startDate, LocalDate endDate, int page){
 
-        Pageable pageable = PageRequest.of(PAGE_SIZE, size);
+        Pageable pageable = PageRequest.of(page,DEFAULT_PAGE_SIZE);
 
         if (startDate == null || endDate == null) {
             throw new IllegalArgumentException("시작일/종료일은 null일 수 없습니다.");
