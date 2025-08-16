@@ -13,8 +13,10 @@ import lombok.Setter;
 @NoArgsConstructor
 public class QrTicketResponseDto {
 
+  private Long qrTicketId;
   private String title; // 행사명
   private String buildingName; //행사 장소
+  private String address;
   private String qrCode; // qr이미지 코드
   private String manualCode; // 수동 코드
   private String ticketNo; // 티켓 번호
@@ -26,10 +28,12 @@ public class QrTicketResponseDto {
    *
    * @see com.fairing.fairplay.qr.repository.QrTicketRepository#findDtoById(Long)
    */
-  public QrTicketResponseDto(String title, String buildingName,
+  public QrTicketResponseDto(Long qrTicketId, String title, String buildingName, String address,
       String ticketNo, String qrCode, String manualCode) {
+    this.qrTicketId = qrTicketId;
     this.title = title;
     this.buildingName = buildingName;
+    this.address = address;
     this.ticketNo = ticketNo;
     this.qrCode = qrCode;
     this.manualCode = manualCode;
