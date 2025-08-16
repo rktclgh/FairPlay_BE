@@ -10,6 +10,9 @@ import com.fairing.fairplay.reservation.dto.ReservationResponseDto;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -95,14 +98,19 @@ public class ReservationController {
         return ResponseEntity.ok(response);
     }
 
-    // 예약자 명단 조회 (행사 관리자용)
+    // 예약자 명단 조회 (행사 관리자용) - 페이지네이션 지원
     @GetMapping("/attendees")
     @FunctionAuth("getReservationAttendees")
-    public ResponseEntity<List<ReservationAttendeeDto>> getReservationAttendees(@PathVariable Long eventId,
+    public ResponseEntity<Page<ReservationAttendeeDto>> getReservationAttendees(
+            @PathVariable Long eventId,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) Long reservationId,
+            @PageableDefault(size = 15, sort = "createdAt") Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // TODO: 행사 관리자 권한 확인 로직 추가 필요
-        List<ReservationAttendeeDto> attendees = reservationService.getReservationAttendees(eventId, status);
+        Page<ReservationAttendeeDto> attendees = reservationService.getReservationAttendees(
+                eventId, status, name, phone, reservationId, pageable);
         return ResponseEntity.ok(attendees);
     }
 
@@ -112,7 +120,6 @@ public class ReservationController {
     public ResponseEntity<byte[]> downloadAttendeesExcel(@PathVariable Long eventId,
             @RequestParam(required = false) String status,
             @AuthenticationPrincipal CustomUserDetails userDetails) throws IOException {
-        // TODO: 행사 관리자 권한 확인 로직 추가 필요
         byte[] excelData = reservationService.generateAttendeesExcel(eventId, status);
 
         String filename = "event_" + eventId + "_attendees.xlsx";

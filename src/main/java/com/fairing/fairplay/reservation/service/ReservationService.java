@@ -26,6 +26,9 @@ import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -372,7 +375,20 @@ public class ReservationService {
         return reservationRepository.findByUser_userId(userId);
     }
 
-    // 예약자 명단 조회 (행사 관리자용)
+    // 예약자 명단 조회 (행사 관리자용) - 페이지네이션 지원
+    @Transactional(readOnly = true)
+    public Page<ReservationAttendeeDto> getReservationAttendees(
+            Long eventId, String status, String name, String phone, Long reservationId, Pageable pageable) {
+        
+        // Repository에서 페이지네이션과 필터링을 지원하는 메서드 호출
+        Page<Reservation> reservationPage = reservationRepository.findReservationsWithFilters(
+                eventId, status, name, phone, reservationId, pageable);
+        
+        // Reservation을 ReservationAttendeeDto로 변환
+        return reservationPage.map(ReservationAttendeeDto::from);
+    }
+
+    // 기존 메서드 유지 (엑셀 다운로드용)
     @Transactional(readOnly = true)
     public List<ReservationAttendeeDto> getReservationAttendees(Long eventId, String status) {
         List<Reservation> reservations;

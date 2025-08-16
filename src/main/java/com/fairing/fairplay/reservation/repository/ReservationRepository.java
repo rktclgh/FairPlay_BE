@@ -54,4 +54,27 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
       """)
   Page<PossibleReviewResponseDto> findPossibleReviewReservationsDto(@Param("userId") Long userId,
       Pageable pageable);
+
+  // 예약자 명단 조회 (페이지네이션 + 필터링)
+  @Query(value = """
+      SELECT r FROM Reservation r
+      JOIN FETCH r.user u
+      JOIN FETCH r.event e
+      LEFT JOIN FETCH r.schedule s
+      LEFT JOIN FETCH r.ticket t
+      LEFT JOIN FETCH r.reservationStatusCode rsc
+      WHERE r.event.eventId = :eventId
+      AND (:status IS NULL OR rsc.code = :status)
+      AND (:name IS NULL OR LOWER(u.name) LIKE LOWER(CONCAT('%', :name, '%')))
+      AND (:phone IS NULL OR u.phone LIKE CONCAT('%', :phone, '%'))
+      AND (:reservationId IS NULL OR r.reservationId = :reservationId)
+      ORDER BY r.createdAt DESC
+      """)
+  Page<Reservation> findReservationsWithFilters(
+      @Param("eventId") Long eventId,
+      @Param("status") String status,
+      @Param("name") String name,
+      @Param("phone") String phone,
+      @Param("reservationId") Long reservationId,
+      Pageable pageable);
 }
