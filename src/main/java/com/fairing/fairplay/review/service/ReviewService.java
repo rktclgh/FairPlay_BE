@@ -19,9 +19,9 @@ import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,7 +29,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,15 +45,12 @@ public class ReviewService {
   // 본인이 예매한 행사에 대해서만 리뷰 작성 가능
   @Transactional
   public ReviewSaveResponseDto save(ReviewSaveRequestDto dto, CustomUserDetails userDetails) {
-    if(userDetails == null){
-      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
+    if (userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인 후 사용 가능합니다.");
     }
     Long userId = userDetails.getUserId();
-    // user 임시 설정
-    Users user = findUserOrThrow(userId);
-    log.info("user id:{}", userId);
 
-    log.info("reservation id:{}", dto.getReservationId());
+    Users user = findUserOrThrow(userId);
 
     // 1. user의 사용자 권한이 일반 사용자인지 검증
     if (!user.getRoleCode().getCode().equals("COMMON")) {
@@ -93,46 +89,37 @@ public class ReviewService {
     return buildReviewSaveResponse(saveReview);
   }
 
-  // 행사 상세 페이지 - 특정 행사 리뷰 조회. CustomUserDetails 추가 예정
+  // 행사 상세 페이지 - 특정 행사 리뷰 조회.
   public ReviewForEventResponseDto getReviewForEvent(CustomUserDetails userDetails, Long eventId,
       Pageable pageable) {
     log.info("getReviewForEvent:{}", eventId);
-    Long loginUserId;
-    if (userDetails != null) {
-      loginUserId = userDetails.getUserId();
-    } else {
-      loginUserId = null;
-    }
+    Long loginUserId = (userDetails != null) ? userDetails.getUserId() : null;
 
-    // 특정 이벤트 리뷰 조회
-    Page<Review> reviewPage = reviewRepository.findByEventId(eventId, pageable);
+    Page<Object[]> rawPage = reviewRepository.findReviewsWithReactionInfo(eventId, loginUserId,
+        pageable);
 
-    // 리뷰 ID 추출
-    List<Long> reviewIds = reviewPage.stream()
-        .map(Review::getId)
-        .toList();
-    log.info("reviewIds size: {}", reviewIds.size());
+    Page<ReviewWithOwnerDto> reviewWithOwnerDtos = rawPage.map(row -> {
+      Review review = (Review) row[0];
+      long reactionCount = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+      long liked = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+      Long authorId = (row[3] != null) ? ((Number) row[3]).longValue() : null;
 
-    // 이벤트의 리뷰들에 대한 카운트
-    Map<Long, Long> reactionCountMap =
-        reviewIds.isEmpty() ? Collections.emptyMap()
-            : reviewReactionService.findReactionCountsByReviewIds(reviewIds);
+      boolean isLiked = (loginUserId != null) && liked > 0;
+      boolean isMine = (loginUserId != null) && Objects.equals(loginUserId, authorId);
 
-    Page<ReviewWithOwnerDto> reviewWithOwnerDtos = reviewPage.map(review -> {
-      long reactionCount = reactionCountMap.getOrDefault(review.getId(), 0L);
-      log.info("reactionCount:{}", reactionCount);
-      boolean isMine = (loginUserId != null) && loginUserId.equals(review.getUser().getUserId());
-      log.info("isMine:{}", isMine);
       ReviewDto reviewDto = buildReview(review, reactionCount);
+
       return ReviewWithOwnerDto.builder()
           .review(reviewDto)
           .owner(isMine)
+          .liked(isLiked)
           .build();
     });
 
     return ReviewForEventResponseDto.builder()
         .eventId(eventId)
-        .reviews(reviewWithOwnerDtos).build();
+        .reviews(reviewWithOwnerDtos)
+        .build();
   }
 
   // 마이페이지 - 본인의 모든 리뷰 조회
@@ -169,13 +156,12 @@ public class ReviewService {
     });
   }
 
-
   // 리뷰 수정 (리액션 제외)
   @Transactional
   public ReviewUpdateResponseDto updateReview(CustomUserDetails userDetails, Long reviewId,
       ReviewUpdateRequestDto dto) {
-    if(userDetails == null){
-      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
+    if (userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인 후 사용 가능합니다.");
     }
     Long userId = userDetails.getUserId();
     // 1.  사용자 존재 여부 확인
@@ -215,8 +201,9 @@ public class ReviewService {
   // 리뷰 삭제
   @Transactional
   public ReviewDeleteResponseDto deleteReview(CustomUserDetails userDetails, Long reviewId) {
-    if(userDetails == null){
-      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 사용 가능합니다.");
+
+    if (userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인 후 사용 가능합니다.");
     }
     Long userId = userDetails.getUserId();
     // 1.  사용자 존재 여부 확인
@@ -274,6 +261,7 @@ public class ReviewService {
   private ReviewDto buildReview(Review review, Long reactionCount) {
     return ReviewDto.builder()
         .reviewId(review.getId())
+        .userId(review.getUser().getUserId())
         .nickname(review.getUser().getNickname())
         .star(review.getStar())
         .reactions(reactionCount)
