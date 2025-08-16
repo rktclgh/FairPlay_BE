@@ -4,6 +4,8 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.notification.dto.*;
 import com.fairing.fairplay.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,9 @@ import java.util.List;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    
+    @Autowired
+    private ApplicationContext applicationContext;
 
     // 내 알림 리스트
     @GetMapping
@@ -42,6 +47,17 @@ public class NotificationController {
     public ResponseEntity<Void> delete(@PathVariable Long notificationId,
                                        @AuthenticationPrincipal CustomUserDetails userDetails) {
         notificationService.deleteNotificationByUser(notificationId, userDetails.getUserId());
+        
+        // WebSocket으로 실시간 삭제 알림 전송
+        try {
+            NotificationWebSocketController webSocketController = 
+                    applicationContext.getBean(NotificationWebSocketController.class);
+            webSocketController.sendNotificationDeleted(userDetails.getUserId(), notificationId);
+        } catch (Exception e) {
+            // WebSocket 전송 실패해도 삭제는 완료됨
+            System.err.println("WebSocket 삭제 알림 전송 실패: " + e.getMessage());
+        }
+        
         return ResponseEntity.noContent().build();
     }
 
