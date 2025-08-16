@@ -16,6 +16,7 @@ public interface QrTicketRepository extends JpaRepository<QrTicket, Long> {
           SELECT new com.fairing.fairplay.qr.dto.QrTicketResponseDto(
             e.titleKr,
             l.buildingName,
+            l.address,
             q.ticketNo,
             q.qrCode,
             q.manualCode)
