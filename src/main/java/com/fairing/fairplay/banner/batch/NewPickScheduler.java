@@ -23,7 +23,7 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Profile("local")
+//@Profile("local")
 
 public class NewPickScheduler {
 

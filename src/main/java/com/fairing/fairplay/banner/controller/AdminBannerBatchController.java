@@ -5,9 +5,11 @@ import com.fairing.fairplay.banner.batch.HotPickScheduler;
 import com.fairing.fairplay.banner.batch.NewPickScheduler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/batch")
 @RequiredArgsConstructor
 public class AdminBannerBatchController {
