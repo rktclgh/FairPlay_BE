@@ -20,6 +20,8 @@ import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
+import com.fairing.fairplay.notification.service.NotificationService;
+import com.fairing.fairplay.notification.dto.NotificationRequestDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +59,9 @@ public class PaymentService {
     private final TicketRepository ticketRepository;
     private final EventScheduleRepository eventScheduleRepository;
     private final ScheduleTicketRepository scheduleTicketRepository;
+    
+    // 알림 서비스
+    private final NotificationService notificationService;
     
     // 아임포트 API 설정
     @Value("${iamport.api-key}")
@@ -116,6 +121,42 @@ public class PaymentService {
 
         Payment saved = paymentRepository.save(payment);
         return PaymentResponseDto.fromEntity(saved);
+    }
+
+    // 무료 티켓 직접 처리 (PG사 연동 없음)
+    @Transactional
+    public PaymentResponseDto processFreeTicket(PaymentRequestDto paymentRequestDto, Long userId) {
+        // 1. 요청 데이터 유효성 검증
+        validatePaymentRequest(paymentRequestDto);
+        
+        // 2. 무료 티켓인지 확인
+        BigDecimal totalAmount = paymentRequestDto.getPrice().multiply(new BigDecimal(paymentRequestDto.getQuantity()));
+        if (totalAmount.compareTo(BigDecimal.ZERO) != 0) {
+            throw new IllegalArgumentException("무료 티켓이 아닙니다. 금액: " + totalAmount);
+        }
+        
+        // 3. 결제 정보 저장 (PENDING 상태)
+        PaymentResponseDto savedPayment = savePayment(paymentRequestDto, userId);
+        
+        // 4. 즉시 완료 처리 (PG사 연동 없이)
+        Payment payment = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
+                .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
+        
+        // 5. 결제 완료 상태로 변경
+        PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
+                .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
+        
+        payment.setPaymentStatusCode(completedStatus);
+        payment.setPaidAt(LocalDateTime.now());
+        // 무료 티켓의 경우 imp_uid는 "FREE_" + merchantUid 형태로 설정
+        payment.setImpUid("FREE_" + payment.getMerchantUid());
+        
+        Payment savedPaymentEntity = paymentRepository.save(payment);
+        
+        // 6. 결제 완료 후 후속 처리 (예약 생성 등)
+        processPaymentCompletionActions(savedPaymentEntity);
+        
+        return PaymentResponseDto.fromEntity(savedPaymentEntity);
     }
 
     // 티켓 결제 완료 처리 (PG사 결제 후 호출)
@@ -321,6 +362,9 @@ public class PaymentService {
                 System.out.println("기존 예약 상태 업데이트 완료 - reservationId: " + reservationId);
             }
             
+            // 예약 처리 성공 후 알림 발송
+            sendPaymentCompletionNotifications(payment, payment.getTargetId());
+            
         } catch (Exception e) {
             System.err.println("예약 처리 실패 - paymentId: " + payment.getPaymentId() + 
                               ", error: " + e.getMessage());
@@ -517,7 +561,7 @@ public class PaymentService {
      * 결제 금액 유효성 검증
      */
     private void validatePaymentAmount(BigDecimal amount) {
-        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("결제 금액이 유효하지 않습니다: " + amount);
         }
         
@@ -549,6 +593,93 @@ public class PaymentService {
         if (paymentRequestDto.getPaymentTargetType() == null || paymentRequestDto.getPaymentTargetType().trim().isEmpty()) {
             throw new IllegalArgumentException("결제 대상 타입이 없습니다.");
         }
+    }
+
+    /**
+     * 결제 완료 알림 발송 (웹 + 이메일 동시)
+     */
+    private void sendPaymentCompletionNotifications(Payment payment, Long reservationId) {
+        try {
+            Long userId = payment.getUser().getUserId();
+            String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
+            BigDecimal amount = payment.getAmount();
+            String userName = payment.getUser().getName();
+            
+            // 무료 티켓 여부 확인
+            boolean isFreeTicket = amount.compareTo(BigDecimal.ZERO) == 0;
+            String actionType = isFreeTicket ? "예매" : "결제";
+            
+            // 1. 웹 알림 발송 (실시간)
+            NotificationRequestDto webNotification = NotificationService.buildWebNotification(
+                userId, 
+                isFreeTicket ? "RESERVATION" : "PAYMENT", 
+                String.format("%s 완료", actionType), 
+                String.format("%s %s가 완료되었습니다! 마이페이지에서 확인해보세요.", eventTitle, actionType),
+                "/mypage/reservation"
+            );
+            notificationService.createNotification(webNotification);
+            
+            // 2. 이메일 알림 발송 (상세 정보)
+            NotificationRequestDto emailNotification = NotificationService.buildEmailNotification(
+                userId,
+                isFreeTicket ? "RESERVATION" : "PAYMENT",
+                String.format("[FairPlay] %s %s 완료", eventTitle, actionType),
+                generatePaymentEmailContent(payment, reservationId, isFreeTicket),
+                null
+            );
+            notificationService.createNotification(emailNotification);
+            
+            System.out.println(String.format("알림 발송 완료 - userId: %d, paymentId: %d, type: %s", 
+                              userId, payment.getPaymentId(), actionType));
+            
+        } catch (Exception e) {
+            // 알림 발송 실패해도 결제는 성공으로 처리
+            System.err.println("결제 완료 알림 발송 실패 - paymentId: " + payment.getPaymentId() + 
+                              ", error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 결제/예매 완료 이메일 내용 생성
+     */
+    private String generatePaymentEmailContent(Payment payment, Long reservationId, boolean isFreeTicket) {
+        String userName = payment.getUser().getName();
+        String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
+        String actionType = isFreeTicket ? "예매" : "결제";
+        String amountText = isFreeTicket ? "무료" : payment.getAmount().toString() + "원";
+        
+        return String.format("""
+            안녕하세요, %s님
+            
+            %s %s가 성공적으로 완료되었습니다.
+            
+            [%s 정보]
+            - 이벤트: %s
+            - %s 금액: %s
+            - %s 일시: %s
+            - 예약 번호: %s
+            - 주문 번호: %s
+            
+            티켓 정보 및 QR 코드는 마이페이지 > 예매 내역에서 확인하실 수 있습니다.
+            
+            행사 당일 QR 코드 또는 예약 번호를 지참해 주시기 바랍니다.
+            
+            문의사항이 있으시면 언제든 고객센터로 연락 주세요.
+            
+            감사합니다.
+            FairPlay 팀
+            """, 
+            userName,
+            eventTitle, actionType,
+            actionType,
+            eventTitle,
+            actionType, amountText,
+            actionType, payment.getPaidAt() != null ? 
+                payment.getPaidAt().format(DateTimeFormatter.ofPattern("yyyy년 MM월 dd일 HH:mm")) : 
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy년 MM월 dd일 HH:mm")),
+            reservationId != null ? reservationId.toString() : "처리중",
+            payment.getMerchantUid()
+        );
     }
 
 }
