@@ -1,18 +1,5 @@
 package com.fairing.fairplay.event.service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
-import org.hashids.Hashids;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.fairing.fairplay.admin.service.LevelService;
 import com.fairing.fairplay.admin.service.SuperAdminService;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.service.EventEmailService;
@@ -22,6 +9,8 @@ import com.fairing.fairplay.event.dto.EventApplyRequestDto;
 import com.fairing.fairplay.event.dto.EventApplyResponseDto;
 import com.fairing.fairplay.event.entity.*;
 import com.fairing.fairplay.event.repository.*;
+import com.fairing.fairplay.file.dto.S3UploadRequestDto;
+import com.fairing.fairplay.file.dto.TempFileUploadDto;
 import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.repository.FileRepository;
 import com.fairing.fairplay.file.service.FileService;
@@ -34,11 +23,22 @@ import com.fairing.fairplay.user.repository.EventAdminRepository;
 import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
 import com.fairing.fairplay.user.service.UserService;
-
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hashids.Hashids;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class EventApplyService {
 
     private final EventApplyRepository eventApplyRepository;
@@ -65,42 +65,6 @@ public class EventApplyService {
     private final RegionCodeRepository regionCodeRepository;
     private final SuperAdminService superAdminService;
 
-    public EventApplyService(EventApplyRepository eventApplyRepository,
-            ApplyStatusCodeRepository applyStatusCodeRepository, LocationRepository locationRepository,
-            MainCategoryRepository mainCategoryRepository, SubCategoryRepository subCategoryRepository,
-            EventRepository eventRepository, EventDetailRepository eventDetailRepository,
-            EventStatusCodeRepository eventStatusCodeRepository, EventVersionService eventVersionService,
-            UserRepository userRepository, UserRoleCodeRepository userRoleCodeRepository,
-            EventAdminRepository eventAdminRepository, PasswordEncoder passwordEncoder, Hashids hashids,
-            TemporaryPasswordEmailService temporaryPasswordEmailService, AwsS3Service awsS3Service,
-            UserService userService, FileRepository fileRepository, FileService fileService,
-            EventEmailService eventEmailService, NotificationService notificationService,
-            RegionCodeRepository regionCodeRepository, SuperAdminService superAdminService) {
-        this.eventApplyRepository = eventApplyRepository;
-        this.applyStatusCodeRepository = applyStatusCodeRepository;
-        this.locationRepository = locationRepository;
-        this.mainCategoryRepository = mainCategoryRepository;
-        this.subCategoryRepository = subCategoryRepository;
-        this.eventRepository = eventRepository;
-        this.eventDetailRepository = eventDetailRepository;
-        this.eventStatusCodeRepository = eventStatusCodeRepository;
-        this.eventVersionService = eventVersionService;
-        this.userRepository = userRepository;
-        this.userRoleCodeRepository = userRoleCodeRepository;
-        this.eventAdminRepository = eventAdminRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.hashids = hashids;
-        this.temporaryPasswordEmailService = temporaryPasswordEmailService;
-        this.awsS3Service = awsS3Service;
-        this.userService = userService;
-        this.fileRepository = fileRepository;
-        this.fileService = fileService;
-        this.eventEmailService = eventEmailService;
-        this.notificationService = notificationService;
-        this.regionCodeRepository = regionCodeRepository;
-        this.superAdminService = superAdminService;
-    }
-
     @Transactional
     public EventApply submitEventApplication(EventApplyRequestDto requestDto) {
 
@@ -126,7 +90,6 @@ public class EventApplyService {
         eventApply.setBusinessName(requestDto.getBusinessName());
         eventApply.setBusinessDate(requestDto.getBusinessDate());
         Boolean verifiedValue = requestDto.getVerified() != null ? requestDto.getVerified() : false;
-        log.info("사업자 검증 상태 설정 - 요청값: {}, 설정값: {}", requestDto.getVerified(), verifiedValue);
         eventApply.setVerified(verifiedValue);
         eventApply.setManagerName(requestDto.getManagerName());
         eventApply.setEmail(requestDto.getEmail());
@@ -134,7 +97,6 @@ public class EventApplyService {
         eventApply.setTitleKr(requestDto.getTitleKr());
         eventApply.setTitleEng(requestDto.getTitleEng());
 
-        // Location 처리 로직
         Location location = null;
         if (requestDto.getLocationId() != null) {
             // 기존 Location 사용
@@ -168,105 +130,50 @@ public class EventApplyService {
             eventApply.setSubCategory(subCategory);
         }
 
-        if (requestDto.getTempFiles() != null && !requestDto.getTempFiles().isEmpty()) {
-            processTempFilesAndSetUrls(eventApply, requestDto.getTempFiles());
-        }
-
         EventApply savedEventApply = eventApplyRepository.save(eventApply);
 
         if (requestDto.getTempFiles() != null && !requestDto.getTempFiles().isEmpty()) {
-            createFileRecordsForApply(savedEventApply, requestDto.getTempFiles());
+            processAndLinkFiles(savedEventApply, requestDto.getTempFiles());
         }
 
         return savedEventApply;
     }
 
-    private void processTempFilesAndSetUrls(EventApply eventApply, List<EventApplyRequestDto.FileUploadDto> tempFiles) {
-        for (EventApplyRequestDto.FileUploadDto fileDto : tempFiles) {
+    private void processAndLinkFiles(EventApply eventApply, List<TempFileUploadDto> tempFiles) {
+        for (TempFileUploadDto fileDto : tempFiles) {
             try {
-                log.info("Processing temporary file - S3 Key: {}, Usage: {}, Original Name: {}",
-                        fileDto.getS3Key(), fileDto.getUsage(), fileDto.getOriginalFileName());
-
                 String directory = "event-apply/" + fileDto.getUsage();
-                String newKey = awsS3Service.moveToPermanent(fileDto.getS3Key(), directory);
-                String finalFileUrl = awsS3Service.getCdnUrl(newKey);
+
+                File savedFile = fileService.uploadFile(S3UploadRequestDto.builder()
+                        .s3Key(fileDto.getS3Key())
+                        .originalFileName(fileDto.getOriginalFileName())
+                        .fileType(fileDto.getFileType())
+                        .fileSize(fileDto.getFileSize())
+                        .directoryPrefix(directory)
+                        .usage(fileDto.getUsage())
+                        .build());
+
+                fileService.createFileLink(savedFile, "EVENT_APPLY", eventApply.getEventApplyId());
+
+                String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
 
                 switch (fileDto.getUsage().toLowerCase()) {
                     case "file":
                     case "application_file":
-                        eventApply.setFileUrl(finalFileUrl);
-                        log.info("Set fileUrl: {}", finalFileUrl);
+                        eventApply.setFileUrl(cdnUrl);
                         break;
                     case "banner":
-                        eventApply.setBannerUrl(finalFileUrl);
-                        log.info("Set bannerUrl: {}", finalFileUrl);
+                        eventApply.setBannerUrl(cdnUrl);
                         break;
                     case "thumbnail":
-                        eventApply.setThumbnailUrl(finalFileUrl);
-                        log.info("Set thumbnailUrl: {}", finalFileUrl);
+                        eventApply.setThumbnailUrl(cdnUrl);
                         break;
                     default:
                         log.warn("Unknown file usage '{}' for temp key {}", fileDto.getUsage(), fileDto.getS3Key());
                 }
-            } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
-                log.error("Temporary file not found in S3 - Key: {}, Original Name: {}. " +
-                        "파일이 만료되었거나 이미 삭제되었을 수 있습니다.", fileDto.getS3Key(), fileDto.getOriginalFileName());
-                throw new CustomException(HttpStatus.BAD_REQUEST,
-                        "임시 파일을 찾을 수 없습니다: " + fileDto.getOriginalFileName() + ". 파일을 다시 업로드해 주세요.");
             } catch (Exception e) {
                 log.error("Error processing temporary file with key {}: {}", fileDto.getS3Key(), e.getMessage(), e);
-                throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR,
-                        "파일 처리 중 오류가 발생했습니다: " + fileDto.getOriginalFileName());
-            }
-        }
-    }
-
-    private void createFileRecordsForApply(EventApply eventApply, List<EventApplyRequestDto.FileUploadDto> tempFiles) {
-        for (EventApplyRequestDto.FileUploadDto fileDto : tempFiles) {
-            try {
-                String finalUrl;
-                switch (fileDto.getUsage().toLowerCase()) {
-                    case "file":
-                    case "application_file":
-                        finalUrl = eventApply.getFileUrl();
-                        break;
-                    case "banner":
-                        finalUrl = eventApply.getBannerUrl();
-                        break;
-                    case "thumbnail":
-                        finalUrl = eventApply.getThumbnailUrl();
-                        break;
-                    default:
-                        continue;
-                }
-
-                if (finalUrl == null) {
-                    log.warn("Final URL for usage '{}' is null, skipping file record creation.", fileDto.getUsage());
-                    continue;
-                }
-
-                String s3Key = awsS3Service.getS3KeyFromPublicUrl(finalUrl);
-                if (s3Key == null) {
-                    log.error("Could not extract S3 key from URL: {}", finalUrl);
-                    continue;
-                }
-
-                File file = File.builder()
-                        .eventApply(eventApply)
-                        .fileUrl(s3Key)
-                        .referenced(true)
-                        .fileType(fileDto.getFileType())
-                        .directory("event-apply/" + fileDto.getUsage())
-                        .originalFileName(fileDto.getOriginalFileName())
-                        .storedFileName(s3Key.substring(s3Key.lastIndexOf('/') + 1))
-                        .fileSize(fileDto.getFileSize())
-                        .thumbnail("thumbnail".equalsIgnoreCase(fileDto.getUsage()))
-                        .build();
-
-                fileRepository.save(file);
-
-            } catch (Exception e) {
-                log.error("Error creating file record for temp key {}: {}", fileDto.getS3Key(), e.getMessage(), e);
+                throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 처리 중 오류가 발생했습니다: " + fileDto.getOriginalFileName());
             }
         }
     }
@@ -292,14 +199,12 @@ public class EventApplyService {
         eventApply.updateStatus(approvedStatus, adminComment);
         eventApplyRepository.save(eventApply);
 
-        // Send approval email with account info
         eventEmailService.sendApprovalEmail(
                 eventApply.getEmail(),
                 eventApply.getTitleKr(),
-                eventApply.getEventEmail(), // Username is event email
+                eventApply.getEventEmail(),
                 tempPassword);
 
-        // Send web notification to the new event admin
         try {
             NotificationRequestDto notificationDto = new NotificationRequestDto();
             notificationDto.setUserId(eventAdmin.getUserId());
@@ -335,13 +240,11 @@ public class EventApplyService {
 
         deleteEventApplyFiles(eventApply);
 
-        // Send rejection email
         eventEmailService.sendRejectionEmail(
                 eventApply.getEmail(),
                 eventApply.getTitleKr(),
                 adminComment);
 
-        // Send web notification if the applicant has a user account
         try {
             userRepository.findByEmail(eventApply.getEmail()).ifPresent(user -> {
                 NotificationRequestDto notificationDto = new NotificationRequestDto();
@@ -368,29 +271,11 @@ public class EventApplyService {
 
     private void deleteEventApplyFiles(EventApply eventApply) {
         try {
-            List<String> urlsToDelete = new ArrayList<>();
-            if (eventApply.getFileUrl() != null && !eventApply.getFileUrl().isEmpty()) {
-                urlsToDelete.add(eventApply.getFileUrl());
+            List<File> filesToDelete = fileRepository.findByTargetTypeAndTargetId("EVENT_APPLY", eventApply.getEventApplyId());
+            for (File file : filesToDelete) {
+                fileService.deleteFile(file.getId());
             }
-            if (eventApply.getBannerUrl() != null && !eventApply.getBannerUrl().isEmpty()) {
-                urlsToDelete.add(eventApply.getBannerUrl());
-            }
-            if (eventApply.getThumbnailUrl() != null && !eventApply.getThumbnailUrl().isEmpty()) {
-                urlsToDelete.add(eventApply.getThumbnailUrl());
-            }
-
-            for (String url : urlsToDelete) {
-                try {
-                    String s3Key = awsS3Service.getS3KeyFromPublicUrl(url);
-                    if (s3Key != null) {
-                        fileService.deleteFileByS3Key(s3Key);
-                        log.info("파일 삭제 성공 - EventApply ID: {}, S3 Key: {}", eventApply.getEventApplyId(), s3Key);
-                    }
-                } catch (Exception e) {
-                    log.error("개별 파일 삭제 실패 - EventApply ID: {}, URL: {}, 오류: {}",
-                            eventApply.getEventApplyId(), url, e.getMessage());
-                }
-            }
+            log.info("EventApply 파일 삭제 완료 - EventApply ID: {}", eventApply.getEventApplyId());
         } catch (Exception e) {
             log.error("EventApply 파일 삭제 중 오류 발생 - EventApply ID: {}, 오류: {}",
                     eventApply.getEventApplyId(), e.getMessage());
@@ -439,7 +324,7 @@ public class EventApplyService {
                 .nickname(eventApply.getManagerName())
                 .phone(eventApply.getContactNumber())
                 .roleCode(eventAdminRole)
-                .build(); // @PrePersist가 createdAt, updatedAt을 자동 설정
+                .build();
 
         log.info("사용자 엔티티 빌드 완료, 저장 시도 중");
         Users savedUser = userRepository.save(user);
@@ -499,7 +384,7 @@ public class EventApplyService {
         eventDetail.setContent("");
         eventDetail.setPolicy("");
         eventDetail.setHostName(eventApply.getManagerName());
-        eventDetail.setContactInfo(""); // 문의처 정보는 별도로 입력받아야 함, 담당자 이메일과는 다름
+        eventDetail.setContactInfo("");
         eventDetail.setReentryAllowed(true);
         eventDetail.setCheckOutAllowed(false);
 
@@ -512,8 +397,7 @@ public class EventApplyService {
 
     private void moveFilesToEvent(EventApply eventApply, Long eventId, EventDetail eventDetail) {
         try {
-            // EventApply와 연결된 모든 File 엔티티 조회
-            List<File> eventApplyFiles = fileRepository.findByEventApply(eventApply);
+            List<File> eventApplyFiles = fileRepository.findByTargetTypeAndTargetId("EVENT_APPLY", eventApply.getEventApplyId());
 
             for (File file : eventApplyFiles) {
                 try {
@@ -528,7 +412,6 @@ public class EventApplyService {
                         case "thumbnails":
                             eventDetail.setThumbnailUrl(newCdnUrl);
                             break;
-                        // documents는 EventDetail에 URL 필드가 없으므로 File 엔티티에만 저장
                     }
 
                     log.info("파일 이동 성공 - EventApply: {}, File: {}, Usage: {}",
@@ -559,7 +442,6 @@ public class EventApplyService {
             }
         }
 
-        // 기본값은 documents
         return "documents";
     }
 
@@ -596,7 +478,6 @@ public class EventApplyService {
             } catch (Exception e) {
                 log.error("RegionCode 설정 실패 - EventApply ID: {}, 오류: {}",
                         eventApply.getEventApplyId(), e.getMessage());
-                // RegionCode 설정에 실패하면 기본값으로 서울 설정
                 RegionCode defaultRegionCode = regionCodeRepository.findByName("서울")
                         .orElse(null);
                 if (defaultRegionCode != null) {
@@ -644,7 +525,7 @@ public class EventApplyService {
         try {
             log.info("locationDetail JSON 파싱 시작: {}", locationDetail);
             
-            // JSON 파싱 (간단한 방식으로 처리)
+            // JSON 파싱
             com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
             com.fasterxml.jackson.databind.JsonNode jsonNode = objectMapper.readTree(locationDetail);
             
