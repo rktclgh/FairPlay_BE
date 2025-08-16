@@ -65,7 +65,11 @@ public class ReviewService {
     // 3. 예약이 취소되었는지 검증
     reviewReservationService.checkReservationIsCancelled(reservation);
 
-    // 4. 이미 작성한 리뷰가 있는지 조회
+    // 4. 리뷰 작성 가능 기간 제한
+    LocalDate endDate = reservation.getSchedule().getDate();
+    validateReviewPeriod(endDate);
+
+    // 5. 이미 작성한 리뷰가 있는지 조회
     if (reviewRepository.existsByReservationAndUser(reservation, user)) {
       throw new CustomException(HttpStatus.CONFLICT, "이미 리뷰를 작성한 행사입니다.");
     }
@@ -173,10 +177,14 @@ public class ReviewService {
     Review review = reviewRepository.findByIdAndUser(reviewId, user)
         .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "리뷰를 조회할 수 없습니다."));
 
-    // 4. 별점 검증
+    // 4. 리뷰 수정 가능 기한 검증
+    LocalDate endDate = review.getReservation().getSchedule().getDate();
+    validateReviewPeriod(endDate);
+
+    // 5. 별점 검증
     validateStar(dto.getStar());
 
-    // 5.  리뷰 수정 (createdAt, reaction 수정 불가)
+    // 6.  리뷰 수정 (createdAt, reaction 수정 불가)
     review.setStar(dto.getStar());
     review.setVisible(dto.getVisible());
     review.setComment(dto.getComment());
@@ -270,6 +278,15 @@ public class ReviewService {
     log.info("star is {}", star);
     if (star == null || star < 0 || star > 5) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "별점은 0~5 사이어야 합니다.");
+    }
+  }
+
+  // 리뷰 작성 가능 기간 검증
+  private void validateReviewPeriod(LocalDate endDate) {
+    LocalDate now = LocalDate.now();
+
+    if (now.isBefore(endDate)) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "행사가 종료된 후에만 리뷰를 작성하실 수 있습니다.");
     }
   }
 }
