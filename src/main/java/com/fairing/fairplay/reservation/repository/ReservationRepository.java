@@ -31,7 +31,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
                     e.eventDetail.location.address,
                     e.eventDetail.thumbnailUrl,
                     r.schedule.date,
-                    r.schedule.weekday,
+                    COALESCE(r.schedule.weekday, 0),
                     r.schedule.startTime,
                     e.eventDetail.startDate,
                     e.eventDetail.endDate
