@@ -223,11 +223,7 @@ public class ReviewService {
     Reservation reservation = reviewReservationService.checkReservationIdAndUser(
         review.getReservation().getReservationId(), review.getUser().getUserId());
 
-    // 5. 삭제 가능 기한 검증
-    LocalDate endDate = reservation.getSchedule().getDate();
-    validateDeletePeriod(endDate);
-
-    // 6. 리뷰 삭제
+    // 5. 리뷰 삭제
     reviewRepository.delete(review);
 
     return ReviewDeleteResponseDto.builder()
@@ -291,17 +287,6 @@ public class ReviewService {
 
     if (now.isBefore(endDate)) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "행사가 종료된 후에만 리뷰를 작성하실 수 있습니다.");
-    }
-    if (endDate.plusDays(7).isBefore(LocalDate.now())) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "리뷰 작성 기간이 만료되었습니다.");
-    }
-  }
-
-  // 리뷰 삭제 가능 기간 검증
-  private void validateDeletePeriod(LocalDate endDate) {
-    LocalDate now = LocalDate.now();
-    if (endDate.plusDays(30).isBefore(now)) {
-      throw new CustomException(HttpStatus.BAD_REQUEST, "리뷰 삭제 가능 기간이 만료되었습니다.");
     }
   }
 }

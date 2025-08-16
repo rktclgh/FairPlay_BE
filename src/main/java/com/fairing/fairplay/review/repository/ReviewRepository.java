@@ -72,7 +72,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
       JOIN es.event e
       LEFT JOIN ReviewReaction rr ON rr.review = r
       WHERE e.eventId = :eventId
-        AND r.visible = true
       GROUP BY r, r.user.userId
       """,
       countQuery = """
@@ -82,7 +81,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
           JOIN res.schedule es
           JOIN es.event e
           WHERE e.eventId = :eventId
-           AND r.visible = true
           """
   )
   Page<Object[]> findReviewsWithReactionInfo(@Param("eventId") Long eventId,
