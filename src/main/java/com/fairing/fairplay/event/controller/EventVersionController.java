@@ -3,6 +3,7 @@ package com.fairing.fairplay.event.controller;
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.dto.EventDetailModificationResponseDto;
+import com.fairing.fairplay.event.dto.EventDetailResponseDto;
 import com.fairing.fairplay.event.dto.EventVersionComparisonDto;
 import com.fairing.fairplay.event.dto.EventVersionResponseDto;
 import com.fairing.fairplay.event.entity.EventDetailModificationRequest;
@@ -34,7 +35,9 @@ public class EventVersionController {
             @PathVariable Long eventId,
             Pageable pageable) {
 
+        log.info("행사 버전 목록 조회 시도: eventId={}", eventId);
         Page<EventVersion> versionPage = eventVersionService.getEventVersions(eventId, pageable);
+        log.info("조회 성공");
         Page<EventVersionResponseDto> responseDto = versionPage.map(EventVersionResponseDto::from);
 
         return ResponseEntity.ok(responseDto);
@@ -43,12 +46,11 @@ public class EventVersionController {
     @GetMapping("/{versionNumber}")
     @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('ADMIN')")
     @FunctionAuth("getEventVersion")
-    public ResponseEntity<EventVersionResponseDto> getEventVersion(
+    public ResponseEntity<EventDetailResponseDto> getEventVersion(
             @PathVariable Long eventId,
             @PathVariable Integer versionNumber) {
 
-        EventVersion eventVersion = eventVersionService.getEventVersion(eventId, versionNumber);
-        EventVersionResponseDto responseDto = EventVersionResponseDto.from(eventVersion);
+        EventDetailResponseDto responseDto = eventVersionService.getEventVersionAsDetailResponse(eventId, versionNumber);
 
         return ResponseEntity.ok(responseDto);
     }
