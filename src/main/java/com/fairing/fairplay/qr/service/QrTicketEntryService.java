@@ -19,6 +19,7 @@ import com.fairing.fairplay.user.entity.Users;
 import java.time.LocalDateTime;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -34,6 +35,7 @@ import org.springframework.stereotype.Service;
  * */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class QrTicketEntryService {
 
   private final QrTicketRepository qrTicketRepository;
@@ -124,20 +126,29 @@ public class QrTicketEntryService {
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.SCANNED);
     // 코드 스캔 기록
     qrLogService.scannedQrLog(qrTicket, qrActionCode);
+    log.info("qrActionCode : {}", qrActionCode);
+    log.info("QrLog SCANNED 저장 qrTicket: {}",qrTicket.getId());
     // 재입장 가능 여부 검토 - 입장 기록 자체가 있는지 조회
     qrEntryValidateService.verifyReEntry(qrTicket);
+    log.info("재입장 가능 여부 통과");
     // 현재 입장이 최초입장인지 재입장인지 판단 QrCheckStatusCode.ENTRY, rCheckStatusCode.REENTRY
     String entryType = qrLogService.determineEntryOrReEntry(qrTicket);
+    log.info("현재 입장 상태:{}",entryType);
     // 중복 스캔 -> QrLog: invalid, QrChecktLog: duplicate 저장
     qrEntryValidateService.preventDuplicateScan(qrTicket, entryType);
+    log.info("중복 스캔 여부 통과");
     // 코드 비교
     if (QR.equals(dto.getCodeType())) {
+      log.info("체크인 타입:QR");
       qrTicketVerificationService.verifyQrCode(qrTicket, dto.getCodeValue());
     } else {
+      log.info("체크인 타입:MANUAL");
       qrTicketVerificationService.verifyManualCode(qrTicket, dto.getCodeValue());
     }
+    log.info("QR 티켓 처리 시작");
     // QR 티켓 처리
     LocalDateTime checkInTime = processCheckIn(qrTicket, dto.getQrActionCode(), entryType);
+    log.info("QR 티켓 처리 완료");
     return CheckResponseDto.builder()
         .message("체크인 완료되었습니다.")
         .checkInTime(checkInTime)
@@ -146,13 +157,16 @@ public class QrTicketEntryService {
 
   // 검증 완료 후 디비 데이터 저장
   private LocalDateTime processCheckIn(QrTicket qrTicket, String checkInType, String entryType) {
+    log.info("qrTicket : {} DB 저장 시작",qrTicket.getId());
     // actionCodeType = CHECKED_IN, MANUAL_CHECKED_IN
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(checkInType);
     // checkStatusCode = ENTRY, REENTRY
     QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(
         entryType);
+    log.info("QrActionCode : {} , QrCheckStatusCode : {}", qrActionCode, qrCheckStatusCode);
     // 잘못된 입퇴장 스캔 -> ENTRY, REENTRY
     qrEntryValidateService.preventInvalidScan(qrTicket, qrCheckStatusCode.getCode());
+    log.info("잘뭇된 입퇴장 스캔 여부 통과");
     return qrLogService.entryQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
   }
 

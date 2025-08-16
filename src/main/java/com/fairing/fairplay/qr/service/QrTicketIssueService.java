@@ -310,5 +310,4 @@ public class QrTicketIssueService {
   private String getTime(LocalTime time) {
     return time.format(DateTimeFormatter.ofPattern("HH:mm"));
   }
-
 }
