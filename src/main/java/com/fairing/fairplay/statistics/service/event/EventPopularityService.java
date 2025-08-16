@@ -74,7 +74,7 @@ public class EventPopularityService {
         if (subCategory != null && "all".equalsIgnoreCase(subCategory)) {
             subCategory = "";
         }
-        return popularityRepository.aggregatedPopularity(startDate, endDate, mainCategory, subCategory, pageable);
+        return popularityRepository.paymentCountPopularity(startDate, endDate, mainCategory, subCategory, pageable);
     }
 
     private PopularityOverviewResponseDto calculateOverview(List<EventPopularityStatisticsListDto> allStats) {
