@@ -113,7 +113,8 @@ public class EventScheduleService {
         schedule.setDate(requestDto.getDate());
         schedule.setStartTime(requestDto.getStartTime());
         schedule.setEndTime(requestDto.getEndTime());
-        schedule.setWeekday(requestDto.getWeekday());
+        // 날짜를 기반으로 요일 자동 계산: 일요일(0) ~ 토요일(6)
+        schedule.setWeekday(requestDto.getDate().getDayOfWeek().getValue() % 7);
 
         return EventScheduleResponseDto.from(schedule);
     }
