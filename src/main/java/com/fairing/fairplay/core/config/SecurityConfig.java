@@ -47,8 +47,6 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/events",                     // GET 행사 목록 조회
                                 "/api/events/*/details",           // GET 행사 상세 조회 (*/details 패턴)
-                                "/api/events/*/schedule",          // GET 행사 스케줄 조회
-                                "/api/events/*/tickets",           // GET 행사 티켓 조회
                                                                 "/api/users/forgot-password",
                                                                 "/swagger-ui/**",
                                                                 "/v3/api-docs/**",
@@ -76,6 +74,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/attendees").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/schedule").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/tickets").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events//schedule/*/tickets").permitAll()
                         .requestMatchers("/api/chat/presence/connect",
                                 "/api/chat/presence/disconnect")
                         .authenticated() // JWT 인증
