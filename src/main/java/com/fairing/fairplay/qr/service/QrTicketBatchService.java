@@ -50,26 +50,42 @@ public class QrTicketBatchService {
   private final QrLogService qrLogService;
   private final QrEntryValidateService qrEntryValidateService;
 
-  // 행사 1일 남은 예약건 조회
+  // 행사 오늘 또는 전날 예약건 조회
   public List<Tuple> fetchQrTicketBatch() {
     return reservationRepositoryCustom.findReservationsOneDayBeforeEventWithoutRepresentatives();
   }
 
   // 비회원 QR 티켓 링크 발급
   public void generateQrLink(List<Tuple> reservations) {
-    QReservation reservation = QReservation.reservation;
+    QReservation qreservation = QReservation.reservation;
     QAttendee attendee = QAttendee.attendee;
     QEventSchedule eventSchedule = QEventSchedule.eventSchedule;
     QEvent qevent = QEvent.event;
 
+    LocalDate today = LocalDate.now();
+
     for (Tuple tuple : reservations) {
-      Long reservationId = tuple.get(reservation.reservationId); // 예약 ID
-      Long ticketId = tuple.get(reservation.ticket.ticketId); // 티켓 ID
+      Reservation reservation = tuple.get(qreservation); // 예약 ID
+      Long ticketId = reservation.getTicket().getTicketId();
       Event event = tuple.get(qevent); // 행사 ID
       Long attendeeId = tuple.get(attendee.id); //참석자 ID
       String attendeeName = tuple.get(attendee.name); // 참석자 이름
       String attendeeEmail = tuple.get(attendee.email); // 참석자 이메일
       EventSchedule schedule = tuple.get(eventSchedule);
+
+      LocalDate reservationDate = reservation.getCreatedAt().toLocalDate();
+      LocalDate scheduleDate = schedule.getDate();
+
+      boolean sendToday;
+      if (reservationDate.isEqual(scheduleDate.minusDays(1))) {
+        // 예매일이 행사 전날 → 행사 당일 0시 발송
+        sendToday = scheduleDate.isEqual(today);
+      } else {
+        // 그 외 → 행사 전날 0시 발송
+        sendToday = scheduleDate.minusDays(1).isEqual(today);
+      }
+
+      if (!sendToday) continue; // 오늘 발송 대상이 아니면 스킵
 
       String eventName = event.getTitleKr();
       String eventDate =
@@ -82,7 +98,7 @@ public class QrTicketBatchService {
       try {
         QrTicketRequestDto dto = QrTicketRequestDto.builder()
             .attendeeId(attendeeId)
-            .reservationId(reservationId)
+            .reservationId(reservation.getReservationId())
             .eventId(event.getEventId())
             .ticketId(ticketId)
             .build();
