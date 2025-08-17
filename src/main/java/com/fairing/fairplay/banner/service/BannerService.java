@@ -31,6 +31,8 @@ public class BannerService {
     private static final String ACTION_CREATE = "CREATE";
     private static final String ACTION_UPDATE = "UPDATE";
     private static final String ACTION_PRIORITY_CHANGE = "PRIORITY_CHANGE";
+    private static final String TYPE_MD_PICK = "MD_PICK";
+    private static final String STATUS_INACTIVE = "INACTIVE";
 
     private final BannerRepository bannerRepository;
     private final BannerStatusCodeRepository bannerStatusCodeRepository;
@@ -44,9 +46,18 @@ public class BannerService {
     @Value("${cloud.aws.s3.banner-dir:banner}")
     private String bannerDir;
 
+    // 등록
     @Transactional
     public BannerResponseDto createBanner(BannerRequestDto dto, Long adminId) {
         validateEvent(dto.getEventId());
+
+
+        if (dto.getStartDate() == null || dto.getEndDate() == null) {
+                        throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간(startDate, endDate)은 필수입니다.", null);
+                    }
+                if (dto.getStartDate().isAfter(dto.getEndDate())) {
+                        throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
+                    }
 
         BannerStatusCode statusCode = getStatusCodeOr404(dto.getStatusCode());
         BannerType bannerType = getBannerTypeOr404(dto.getBannerTypeId());
@@ -61,10 +72,16 @@ public class BannerService {
                 statusCode,
                 bannerType
         );
+
         banner.setEventId(dto.getEventId());
         banner.setCreatedBy(adminId);
 
         Banner saved = bannerRepository.save(banner);
+
+        if (TYPE_MD_PICK.equals(bannerType.getCode()) && STATUS_ACTIVE.equals(statusCode.getCode())) {
+            BannerStatusCode inactive = getStatusCodeOr404(STATUS_INACTIVE);
+            bannerRepository.deactivateOthersActiveByType(TYPE_MD_PICK, STATUS_ACTIVE, inactive, saved.getId());
+        }
 
         String finalImageUrl = resolveImageUrlForCreate(dto, saved.getId());
         saved.setImageUrl(finalImageUrl);
@@ -73,6 +90,7 @@ public class BannerService {
         return toDto(saved);
     }
 
+    // 수정
     @Transactional
     public BannerResponseDto updateBanner(Long bannerId, BannerRequestDto dto, Long adminId) {
         Banner banner = getBannerOr404(bannerId);
@@ -81,11 +99,15 @@ public class BannerService {
             validateEvent(dto.getEventId());
             banner.setEventId(dto.getEventId());
         }
-        if (dto.getStartDate() != null && dto.getEndDate() != null
-                && dto.getStartDate().isAfter(dto.getEndDate())) {
-            throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
-        }
 
+        // 부분 수정 시 기존 값과 병합하여 기간 검증
+                LocalDateTime newStart = dto.getStartDate() != null ? dto.getStartDate() : banner.getStartDate();
+                LocalDateTime newEnd   = dto.getEndDate()   != null ? dto.getEndDate()   : banner.getEndDate();
+                if (newStart.isAfter(newEnd)) {
+                        throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
+                    }
+
+        // 통일된 이미지 처리(수정 전용: 입력 없으면 기존 유지)
         String finalImageUrl = resolveImageUrlForUpdate(dto, banner, adminId);
 
         BannerStatusCode statusCode = getStatusCodeOr404(dto.getStatusCode());
@@ -102,16 +124,35 @@ public class BannerService {
         );
         banner.updateStatus(statusCode);
 
+// MD_PICK 하나만 유지: 결과가 MD_PICK + ACTIVE면 자기 자신 제외 모두 INACTIVE
+        if (TYPE_MD_PICK.equals(banner.getBannerType().getCode())
+                && STATUS_ACTIVE.equals(banner.getBannerStatusCode().getCode())) {
+            BannerStatusCode inactive = getStatusCodeOr404(STATUS_INACTIVE);
+            bannerRepository.deactivateOthersActiveByType(
+                    TYPE_MD_PICK, STATUS_ACTIVE, inactive, banner.getId()
+            );
+        }
+
         logBannerAction(banner, adminId, ACTION_UPDATE);
         return toDto(banner);
     }
 
+    // 상태 우선 순위
     @Transactional
     public void changeStatus(Long bannerId, BannerStatusUpdateDto dto, Long adminId) {
         Banner banner = getBannerOr404(bannerId);
         BannerStatusCode statusCode = getStatusCodeOr404(dto.getStatusCode());
         banner.updateStatus(statusCode);
         logBannerAction(banner, adminId, ACTION_UPDATE);
+
+        //  MD_PICK을 ACTIVE로 바꾸면, 자신 제외 모두 INACTIVE
+        if (TYPE_MD_PICK.equals(banner.getBannerType().getCode())
+                && STATUS_ACTIVE.equals(statusCode.getCode())) {
+            BannerStatusCode inactive = getStatusCodeOr404(STATUS_INACTIVE);
+            bannerRepository.deactivateOthersActiveByType(
+                    TYPE_MD_PICK, STATUS_ACTIVE, inactive, banner.getId()
+            );
+        }
     }
 
     @Transactional
@@ -121,6 +162,7 @@ public class BannerService {
         logBannerAction(banner, adminId, ACTION_PRIORITY_CHANGE);
     }
 
+    // 조회
     @Transactional(readOnly = true)
     public List<BannerResponseDto> getAllActiveBanners() {
         LocalDateTime now = LocalDateTime.now();
@@ -142,12 +184,15 @@ public class BannerService {
                 .collect(Collectors.toList());
     }
 
+    // 공통 핼퍼
+
     private void validateEvent(Long eventId) {
         if (eventId == null || !eventRepository.existsById(eventId)) {
             throw new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다.", null);
         }
     }
 
+    // 등록: s3Key 또는 imageUrl 반드시 필요(없으면 400)
     private String resolveImageUrlForCreate(BannerRequestDto dto, Long bannerId) {
         if (!StringUtils.hasText(dto.getS3Key()) && !StringUtils.hasText(dto.getImageUrl())) {
             throw new CustomException(HttpStatus.BAD_REQUEST, "이미지 정보가 없습니다. s3Key 또는 imageUrl이 필요합니다.", null);
@@ -158,6 +203,7 @@ public class BannerService {
         return dto.getImageUrl();
     }
 
+    // 수정: s3Key가 있으면 업로드, imageUrl이 있으면 교체, 둘 다 없으면 기존 유지
     private String resolveImageUrlForUpdate(BannerRequestDto dto, Banner banner, Long adminId) {
         if (StringUtils.hasText(dto.getS3Key())) {
             // 기존 파일이 있다면 삭제
