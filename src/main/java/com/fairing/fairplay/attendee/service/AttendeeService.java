@@ -34,7 +34,6 @@ public class AttendeeService {
   private final ReservationRepository reservationRepository;
 
   // 대표자 정보 저장
-  @Transactional
   public AttendeeInfoResponseDto savePrimary(AttendeeSaveRequestDto dto, Long reservationId) {
     if (dto.getAgreeToTerms() == null || !dto.getAgreeToTerms()) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "약관에 대해 동의하지 않았으므로 참석자 등록을 할 수 없습니다.");

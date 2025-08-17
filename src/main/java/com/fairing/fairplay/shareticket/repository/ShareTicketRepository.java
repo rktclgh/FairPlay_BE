@@ -1,5 +1,6 @@
 package com.fairing.fairplay.shareticket.repository;
 
+import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,4 +19,6 @@ public interface ShareTicketRepository extends JpaRepository<ShareTicket, Long> 
   boolean existsByLinkToken(String token);
 
   boolean existsByReservation_ReservationId(Long reservationId);
+
+  ShareTicket findByReservation(Reservation reservation);
 }
