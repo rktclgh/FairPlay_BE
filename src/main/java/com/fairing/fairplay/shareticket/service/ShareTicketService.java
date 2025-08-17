@@ -49,9 +49,7 @@ public class ShareTicketService {
   }
 
   public ShareTicketInfoResponseDto getFormInfo(String token) {
-    ShareTicket shareTicket = shareTicketRepository.findByLinkToken(token).orElseThrow(
-        () -> new CustomException(HttpStatus.BAD_REQUEST, "잘못된 폼 링크입니다.")
-    );
+    ShareTicket shareTicket = validateAndUseToken(token);
 
     if (!shareTicket.getLinkToken().equals(token)) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "잘못된 폼 링크입니다.");
