@@ -1,5 +1,6 @@
 package com.fairing.fairplay.booth.dto;
 
+import com.fairing.fairplay.file.dto.TempFileUploadDto;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -31,7 +32,12 @@ public class BoothApplicationRequestDto {
     @NotBlank
     @Email
     @Size(max = 100)
-    private String email;
+    private String contactEmail;
+
+    @NotBlank
+    @Email
+    @Size(max = 100)
+    private String boothEmail;
 
     @NotBlank
     @Pattern(regexp = "^[0-9\\-\\s]+$", message = "숫자, 하이픈(-), 공백만 허용됩니다.")
@@ -50,5 +56,7 @@ public class BoothApplicationRequestDto {
     @NotNull
     @Future(message = "종료일은 현재보다 이후여야 합니다.")
     private LocalDate endDate;
+
+    private TempFileUploadDto tempBannerUrl;
 
 }
