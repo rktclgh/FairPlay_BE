@@ -12,8 +12,7 @@ public interface ShareTicketRepository extends JpaRepository<ShareTicket, Long> 
 
   Optional<ShareTicket> findByLinkToken(String linkToken);
 
-  List<ShareTicket> findAllByExpiredAtGreaterThanEqualAndExpiredAtLessThan(LocalDateTime startDate,
-      LocalDateTime endDate,
+  List<ShareTicket> findAllByExpiredAtLessThan(LocalDateTime endDate,
       Pageable pageable);
 
   boolean existsByLinkToken(String token);

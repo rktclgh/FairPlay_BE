@@ -29,9 +29,7 @@ public class ShareTicketBatchService {
     LocalDateTime endDate = now.plusDays(1).atStartOfDay(); // 11
     log.info("fetchExpiredBatch startDate: {}, endDate: {}", startDate, endDate);
 
-    return shareTicketRepository.findAllByExpiredAtGreaterThanEqualAndExpiredAtLessThan(
-        startDate, endDate,
-        pageable);
+    return shareTicketRepository.findAllByExpiredAtLessThan(endDate, pageable);
   }
 
   // 공유 폼 링크 만료 -> 스케줄러 자동 실행
