@@ -39,9 +39,22 @@ public class Notification {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         if (this.isRead == null) this.isRead = false;
+    }
+
+    // Soft Delete 메서드
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    // 삭제 여부 확인
+    public boolean isDeleted() {
+        return this.deletedAt != null;
     }
 }

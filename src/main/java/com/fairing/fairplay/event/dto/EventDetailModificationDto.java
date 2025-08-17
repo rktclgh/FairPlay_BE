@@ -36,7 +36,9 @@ public class EventDetailModificationDto {
     private String thumbnailUrl;
     private String bannerUrl;
     private Integer mainCategoryId;
+    private String mainCategoryName;
     private Integer subCategoryId;
+    private String subCategoryName;
     private Integer regionCodeId;
     private String businessNumber;  // 사업자 등록 번호
     private Boolean verified;

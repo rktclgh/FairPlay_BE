@@ -531,6 +531,8 @@ public class EventDetailModificationRequestService {
         UpdateStatusCode pendingStatus = updateStatusCodeRepository.findByCode("PENDING")
                 .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "대기 상태 코드를 찾을 수 없습니다."));
 
+        log.info("버전 복구 요청: from {} -> to {}", latestVersion.getVersionNumber(), targetVersionNumber);
+
         // 스냅샷을 ModificationDto로 변환
         EventDetailModificationDto modificationDto = convertSnapshotToModificationDto(targetSnapshot);
 
@@ -551,27 +553,70 @@ public class EventDetailModificationRequestService {
     private EventDetailModificationDto convertSnapshotToModificationDto(EventSnapshotDto snapshot) {
         EventDetailModificationDto dto = new EventDetailModificationDto();
 
+        // 기본 행사 정보
+        dto.setTitleKr(snapshot.getTitleKr());
+        dto.setTitleEng(snapshot.getTitleEng());
+        
+        // 위치 정보
         dto.setLocationId(snapshot.getLocationId());
+        dto.setAddress(snapshot.getAddress());
+        dto.setPlaceName(snapshot.getPlaceName());
+        dto.setLatitude(snapshot.getLatitude());
+        dto.setLongitude(snapshot.getLongitude());
+        dto.setPlaceUrl(snapshot.getPlaceUrl());
         dto.setLocationDetail(snapshot.getLocationDetail());
+        
+        // 날짜 정보
+        dto.setStartDate(snapshot.getStartDate());
+        dto.setEndDate(snapshot.getEndDate());
+        
+        // 주최자 정보
         dto.setHostName(snapshot.getHostName());
+        dto.setHostCompany(snapshot.getHostCompany());
         dto.setContactInfo(snapshot.getContactInfo());
+        dto.setOfficialUrl(snapshot.getOfficialUrl());
+        
+        // 행사 상세 정보
         dto.setBio(snapshot.getBio());
         dto.setContent(snapshot.getContent());
         dto.setPolicy(snapshot.getPolicy());
-        dto.setOfficialUrl(snapshot.getOfficialUrl());
         dto.setEventTime(snapshot.getEventTime());
+        dto.setAge(snapshot.getAge());
+        
+        // 이미지 정보
         dto.setThumbnailUrl(snapshot.getThumbnailUrl());
         dto.setBannerUrl(snapshot.getBannerUrl());
-        dto.setStartDate(snapshot.getStartDate());
-        dto.setEndDate(snapshot.getEndDate());
+        
+        // 카테고리 정보
         dto.setMainCategoryId(snapshot.getMainCategoryId());
+        dto.setMainCategoryName(snapshot.getMainCategoryName());
         dto.setSubCategoryId(snapshot.getSubCategoryId());
+        dto.setSubCategoryName(snapshot.getSubCategoryName());
         dto.setRegionCodeId(snapshot.getRegionCodeId());
-        dto.setReentryAllowed(snapshot.getReentryAllowed());
+        
+        // 체크인/체크아웃 설정
         dto.setCheckInAllowed(snapshot.getCheckInAllowed());
         dto.setCheckOutAllowed(snapshot.getCheckOutAllowed());
-        dto.setHostCompany(snapshot.getHostCompany());
-        dto.setAge(snapshot.getAge());
+        dto.setReentryAllowed(snapshot.getReentryAllowed());
+        
+        // 매니저 정보
+        dto.setBusinessNumber(snapshot.getBusinessNumber());
+        dto.setManagerName(snapshot.getManagerName());
+        dto.setManagerPhone(snapshot.getManagerPhone());
+        dto.setManagerEmail(snapshot.getManagerEmail());
+        
+        // 외부 링크 변환
+        if (snapshot.getExternalLinks() != null) {
+            List<ExternalLinkRequestDto> externalLinks = snapshot.getExternalLinks().stream()
+                    .map(link -> {
+                        ExternalLinkRequestDto linkDto = new ExternalLinkRequestDto();
+                        linkDto.setUrl(link.getUrl());
+                        linkDto.setDisplayText(link.getDisplayText());
+                        return linkDto;
+                    })
+                    .toList();
+            dto.setExternalLinks(externalLinks);
+        }
 
         return dto;
     }

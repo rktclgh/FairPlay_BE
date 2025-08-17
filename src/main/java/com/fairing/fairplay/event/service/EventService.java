@@ -9,7 +9,7 @@ import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
 import com.fairing.fairplay.event.repository.*;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
-import com.fairing.fairplay.file.dto.S3UploadResponseDto;
+import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.service.FileService;
 import com.fairing.fairplay.payment.entity.Payment;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
@@ -205,7 +205,7 @@ public class EventService {
     @Transactional
     public EventSummaryResponseDto getEvents(
             String keyword, Integer mainCategoryId, Integer subCategoryId,
-            String regionName, LocalDate fromDate, LocalDate toDate, 
+            String regionName, LocalDate fromDate, LocalDate toDate,
             CustomUserDetails userDetails, Pageable pageable) {
         log.info("행사 목록 조회 필터");
         log.info("keyword : {}", keyword);
@@ -355,15 +355,18 @@ public class EventService {
                 }
             }
 
-            S3UploadResponseDto s3UploadResponseDto = fileService.uploadFile(S3UploadRequestDto.builder()
+            File savedFile = fileService.uploadFile(S3UploadRequestDto.builder()
                     .s3Key(fileDto.getS3Key())
-                    .eventId(eventId)
                     .originalFileName(fileDto.getOriginalFileName())
                     .fileType(fileDto.getFileType())
                     .fileSize(fileDto.getFileSize())
                     .directoryPrefix(directoryPrefix)
+                    .usage("thumbnail")
                     .build());
-            eventDetail.setThumbnailUrl(s3UploadResponseDto.getFileUrl());
+
+            fileService.createFileLink(savedFile, "EVENT", eventId);
+
+            eventDetail.setThumbnailUrl(awsS3Service.getCdnUrl(savedFile.getFileUrl()));
             log.info("썸네일 변경 완료");
         }
 
@@ -811,19 +814,21 @@ public class EventService {
         }
 
         for (EventDetailRequestDto.FileUploadDto fileDto : eventDetailRequestDto.getTempFiles()) {
-            String directoryPrefix = "event/" + eventId + "/" + fileDto.getUsage();
+            String directoryPrefix = "events/" + eventId + "/" + fileDto.getUsage();
 
-            S3UploadResponseDto s3UploadResponseDto = fileService.uploadFile(S3UploadRequestDto.builder()
+            File savedFile = fileService.uploadFile(S3UploadRequestDto.builder()
                     .s3Key(fileDto.getS3Key())
-                    .eventId(eventId)
                     .originalFileName(fileDto.getOriginalFileName())
                     .fileType(fileDto.getFileType())
                     .fileSize(fileDto.getFileSize())
                     .directoryPrefix(directoryPrefix)
+                    .usage(fileDto.getUsage())
                     .build());
 
+            fileService.createFileLink(savedFile, "EVENT", eventId);
+
             String tempUrl = "/api/uploads/download?key=" + fileDto.getS3Key();
-            String cdnUrl = s3UploadResponseDto.getFileUrl();
+            String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
 
             switch (fileDto.getUsage()) {
                 case "thumbnail":
