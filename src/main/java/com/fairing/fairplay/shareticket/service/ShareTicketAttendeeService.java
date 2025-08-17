@@ -35,11 +35,22 @@ public class ShareTicketAttendeeService {
   @Transactional
   public ShareTicketSaveResponseDto saveShareTicketAndAttendee(CustomUserDetails userDetails,
       ShareTicketSaveRequestDto dto) {
+    if(userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 이용해주세요");
+    }
 
     // 1. attendee 저장
     Users buyUser = userRepository.findByUserId(userDetails.getUserId()).orElseThrow(
-        () -> new CustomException(HttpStatus.FORBIDDEN, "회원을 조회할 수 없습니다.")
+        () -> new CustomException(HttpStatus.UNAUTHORIZED, "회원을 조회할 수 없습니다.")
     );
+
+    Reservation reservation = reservationRepository.findById(dto.getReservationId()).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다.")
+    );
+
+    if(!reservation.getUser().getUserId().equals(buyUser.getUserId())) {
+      throw new CustomException(HttpStatus.FORBIDDEN,"해당 예약에 대한 권한이 없습니다.");
+    }
 
     AttendeeSaveRequestDto attendeeSaveRequestDto = AttendeeSaveRequestDto.builder()
         .name(buyUser.getName())

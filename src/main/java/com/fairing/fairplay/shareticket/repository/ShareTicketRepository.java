@@ -20,5 +20,5 @@ public interface ShareTicketRepository extends JpaRepository<ShareTicket, Long> 
 
   boolean existsByReservation_ReservationId(Long reservationId);
 
-  ShareTicket findByReservation(Reservation reservation);
+  Optional<ShareTicket> findByReservation(Reservation reservation);
 }

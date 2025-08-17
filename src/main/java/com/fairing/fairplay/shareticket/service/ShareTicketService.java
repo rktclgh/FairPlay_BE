@@ -37,7 +37,13 @@ public class ShareTicketService {
         () -> new CustomException(HttpStatus.NOT_FOUND, "예약이 조회되지 않습니다.")
     );
 
-    ShareTicket shareTicket = shareTicketRepository.findByReservation(reservation);
+    ShareTicket shareTicket = shareTicketRepository.findByReservation(reservation).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND,"해당 예약에 조회되는 참석자 등록 폼은 없습니다.")
+    );
+
+    if(!reservation.getUser().getUserId().equals(userDetails.getUserId())) {
+      throw new CustomException(HttpStatus.FORBIDDEN,"해당 예약에 대한 권한이 없습니다.");
+    }
 
     if (shareTicket.getExpired()) {
       throw new CustomException(HttpStatus.FORBIDDEN, "링크가 만료되었습니다.");
