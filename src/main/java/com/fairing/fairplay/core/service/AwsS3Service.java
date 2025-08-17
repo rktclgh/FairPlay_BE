@@ -97,6 +97,10 @@ public class AwsS3Service {
             log.error("Source file not found: {}", key, e);
             throw new CustomException(HttpStatus.NOT_FOUND, "영구 저장으로 이동할 임시 파일을 찾을 수 없습니다: " + key);
         } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                log.error("Source file not found (S3 404): {}", key, e);
+                throw new CustomException(HttpStatus.NOT_FOUND, "영구 저장으로 이동할 임시 파일을 찾을 수 없습니다: " + key);
+            }
             log.error("Error moving file from {} to {}: {}", key, destKey, e.getMessage(), e);
             throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 이동 중 S3 오류가 발생했습니다.");
         }
@@ -124,7 +128,7 @@ public class AwsS3Service {
     public String getPublicUrl(String key) {
         return s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toExternalForm();
     }
-    
+
     /**
      * CloudFront를 통한 CDN URL 생성
      * CloudFront 도메인이 설정되어 있으면 CloudFront URL, 없으면 직접 S3 URL 반환
@@ -232,7 +236,7 @@ public class AwsS3Service {
             return false;
         } catch (S3Exception e) {
             log.error("파일 존재 여부 확인 중 S3 오류 발생 - Key: {}, 오류: {}", key, e.getMessage());
-            return false; 
+            return false;
         }
     }
 }

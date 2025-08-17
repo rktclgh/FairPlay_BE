@@ -814,7 +814,7 @@ public class EventService {
         }
 
         for (EventDetailRequestDto.FileUploadDto fileDto : eventDetailRequestDto.getTempFiles()) {
-            String directoryPrefix = "event/" + eventId + "/" + fileDto.getUsage();
+            String directoryPrefix = "events/" + eventId + "/" + fileDto.getUsage();
 
             File savedFile = fileService.uploadFile(S3UploadRequestDto.builder()
                     .s3Key(fileDto.getS3Key())

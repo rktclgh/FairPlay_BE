@@ -152,7 +152,10 @@ public class BannerService {
         if (!StringUtils.hasText(dto.getS3Key()) && !StringUtils.hasText(dto.getImageUrl())) {
             throw new CustomException(HttpStatus.BAD_REQUEST, "이미지 정보가 없습니다. s3Key 또는 imageUrl이 필요합니다.", null);
         }
-        return uploadToS3(dto, bannerId);
+        if (StringUtils.hasText(dto.getS3Key())) {
+            return uploadToS3(dto, bannerId);
+        }
+        return dto.getImageUrl();
     }
 
     private String resolveImageUrlForUpdate(BannerRequestDto dto, Banner banner, Long adminId) {
