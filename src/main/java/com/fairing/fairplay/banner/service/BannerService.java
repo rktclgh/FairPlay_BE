@@ -18,7 +18,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-
+import com.fairing.fairplay.file.entity.File;
 @Service
 @RequiredArgsConstructor
 public class BannerService {
@@ -48,10 +48,12 @@ public class BannerService {
         validateEvent(dto.getEventId());
 
 
-        if (dto.getStartDate() != null && dto.getEndDate() != null
-                && dto.getStartDate().isAfter(dto.getEndDate())) {
-            throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
-        }
+        if (dto.getStartDate() == null || dto.getEndDate() == null) {
+                        throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간(startDate, endDate)은 필수입니다.", null);
+                    }
+                if (dto.getStartDate().isAfter(dto.getEndDate())) {
+                        throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
+                    }
 
         // 통일된 이미지 처리(등록 전용: 반드시 이미지 필요)
         String finalImageUrl = resolveImageUrlForCreate(dto);
@@ -92,10 +94,13 @@ public class BannerService {
             validateEvent(dto.getEventId());
             banner.setEventId(dto.getEventId());
         }
-        if (dto.getStartDate() != null && dto.getEndDate() != null
-                && dto.getStartDate().isAfter(dto.getEndDate())) {
-            throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
-        }
+
+        // 부분 수정 시 기존 값과 병합하여 기간 검증
+                LocalDateTime newStart = dto.getStartDate() != null ? dto.getStartDate() : banner.getStartDate();
+                LocalDateTime newEnd   = dto.getEndDate()   != null ? dto.getEndDate()   : banner.getEndDate();
+                if (newStart.isAfter(newEnd)) {
+                        throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
+                    }
 
         // 통일된 이미지 처리(수정 전용: 입력 없으면 기존 유지)
         String finalImageUrl = resolveImageUrlForUpdate(dto, banner.getImageUrl());
@@ -104,14 +109,15 @@ public class BannerService {
         BannerType bannerType = getBannerTypeOr404(dto.getBannerTypeId());
 
         banner.updateInfo(
-                dto.getTitle(),
-                finalImageUrl,
-                dto.getLinkUrl(),
-                dto.getStartDate(),
-                dto.getEndDate(),
-                dto.getPriority(),
-                bannerType
+                          dto.getTitle()     != null ? dto.getTitle()     : banner.getTitle(),
+                          finalImageUrl,
+                          dto.getLinkUrl()   != null ? dto.getLinkUrl()   : banner.getLinkUrl(),
+                          newStart,
+                          newEnd,
+                          dto.getPriority()  != null ? dto.getPriority()  : banner.getPriority(),
+                  bannerType
         );
+
         banner.updateStatus(statusCode);
 
 // MD_PICK 하나만 유지: 결과가 MD_PICK + ACTIVE면 자기 자신 제외 모두 INACTIVE
