@@ -78,6 +78,29 @@ public class NotificationWebSocketController {
     }
 
     /**
+     * 알림 삭제 WebSocket 메시지 핸들링
+     */
+    @MessageMapping("/notifications/delete")
+    public void deleteNotification(@Payload Long notificationId, Principal principal) {
+        try {
+            if (principal != null) {
+                Long userId = Long.parseLong(principal.getName());
+                notificationService.deleteNotificationByUser(notificationId, userId);
+                log.info("알림 삭제 처리: notificationId={}, userId={}", notificationId, userId);
+                
+                // 삭제 완료를 해당 사용자에게 알림
+                messagingTemplate.convertAndSendToUser(
+                    userId.toString(),
+                    "/topic/notifications/deleted",
+                    notificationId
+                );
+            }
+        } catch (Exception e) {
+            log.error("알림 삭제 처리 실패: notificationId={}", notificationId, e);
+        }
+    }
+
+    /**
      * 전체 사용자에게 공지사항 형태의 알림 전송
      */
     public void sendBroadcastNotification(NotificationResponseDto notification) {
@@ -86,6 +109,22 @@ public class NotificationWebSocketController {
             messagingTemplate.convertAndSend("/topic/notifications/broadcast", notification);
         } catch (Exception e) {
             log.error("브로드캐스트 알림 전송 실패", e);
+        }
+    }
+
+    /**
+     * 특정 사용자에게 알림 삭제 완료 알림 전송
+     */
+    public void sendNotificationDeleted(Long userId, Long notificationId) {
+        try {
+            log.info("알림 삭제 완료 알림 전송: userId={}, notificationId={}", userId, notificationId);
+            messagingTemplate.convertAndSendToUser(
+                userId.toString(),
+                "/topic/notifications/deleted",
+                notificationId
+            );
+        } catch (Exception e) {
+            log.error("알림 삭제 완료 알림 전송 실패: userId={}, notificationId={}", userId, notificationId, e);
         }
     }
 }

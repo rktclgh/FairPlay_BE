@@ -14,6 +14,7 @@ import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
 import com.fairing.fairplay.qr.dto.scan.QrCheckRequestDto;
 import com.fairing.fairplay.qr.service.EntryExitService;
+import com.fairing.fairplay.qr.service.QrTicketBatchService;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,7 @@ public class QrTicketController {
 
   private final QrTicketService qrTicketService;
   private final EntryExitService entryExitService;
+  private final QrTicketBatchService qrTicketBatchService;
 
   // 마이페이지에서 QR 티켓 조회
   @PostMapping
@@ -114,5 +116,10 @@ public class QrTicketController {
   public ResponseEntity<CheckResponseDto> adminForceCheck(
       @RequestBody AdminForceCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.adminForceCheck(dto));
+  }
+
+  @PostMapping("/admin/issue")
+  public void adminForceIssue(){
+    qrTicketService.adminForceIssue();
   }
 }

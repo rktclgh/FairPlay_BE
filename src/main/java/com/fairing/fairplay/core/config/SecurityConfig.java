@@ -31,6 +31,8 @@ public class SecurityConfig {
                         .disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        //.requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                         .requestMatchers(
                                 "/",                // 루트 경로 (index.html)
                                 "/index.html",      // 메인 정적 페이지
@@ -71,6 +73,7 @@ public class SecurityConfig {
                                 "/api/super-admin/**",
                                 "/api/rag/**", // RAG API (개발/테스트용)
                                 "api/events/*/booths/**"
+                                "/api/qr-tickets/admin/issue" // QR 티켓 강제 재발급 (테스트용)
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/form").permitAll()

@@ -1,5 +1,9 @@
 package com.fairing.fairplay.qr.service;
 
+import com.fairing.fairplay.attendee.entity.Attendee;
+import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
+import com.fairing.fairplay.attendee.repository.AttendeeRepository;
+import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
@@ -8,6 +12,15 @@ import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
+import com.fairing.fairplay.qr.entity.QrTicket;
+import com.fairing.fairplay.qr.repository.QrTicketRepository;
+import com.fairing.fairplay.qr.util.CodeGenerator;
+import com.fairing.fairplay.reservation.entity.Reservation;
+import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import com.fairing.fairplay.reservation.service.ReservationService;
+import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +33,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class QrTicketService {
 
   private final QrTicketIssueService qrTicketIssueService;
+  private final ReservationService reservationService;
+  private final QrTicketRepository qrTicketRepository;
+  private final AttendeeRepository attendeeRepository;
+  private final EventScheduleRepository eventScheduleRepository;
+  private final CodeGenerator codeGenerator;
+  private final ReservationRepository reservationRepository;
+  private final AttendeeTypeCodeRepository attendeeTypeCodeRepository;
 
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
@@ -61,5 +81,43 @@ public class QrTicketService {
   @Transactional
   public QrTicketReissueResponseDto reissueAdminQrTicket(QrTicketReissueRequestDto dto) {
     return qrTicketIssueService.reissueAdminQrTicket(dto);
+  }
+
+  // 테스트 강제 QR 티켓 발급
+  @Transactional
+  public void adminForceIssue(){
+
+    EventSchedule es = eventScheduleRepository.findById(35L).orElse(null);
+    Reservation re = reservationRepository.findById(23L).orElse(null);
+
+    AttendeeTypeCode typeCode = attendeeTypeCodeRepository.findByCode(AttendeeTypeCode.PRIMARY).orElse(null);
+
+    Attendee attendee = Attendee.builder()
+        .name("김희연")
+        .attendeeTypeCode(typeCode)
+        .phone("01000000000")
+        .email("khy3851@hanmail.net")
+        .agreeToTerms(true)
+        .reservation(re)
+        .build();
+    Attendee a = attendeeRepository.saveAndFlush(attendee);
+
+    String eventCode = es.getEvent().getEventCode();
+    LocalDateTime expiredAt = LocalDateTime.of(es.getDate(), es.getEndTime()); //만료날짜+시간 설정
+    String ticketNo = codeGenerator.generateTicketNo(eventCode); // 티켓번호 설정
+
+    QrTicket qrTicket = QrTicket.builder()
+        .attendee(a)
+        .eventSchedule(es)
+        .reentryAllowed(false)
+        .expiredAt(expiredAt)
+        .issuedAt(LocalDateTime.now())
+        .active(true)
+        .ticketNo(ticketNo)
+        .qrCode(null)
+        .manualCode(null)
+        .build();
+    qrTicketRepository.save(qrTicket);
+
   }
 }

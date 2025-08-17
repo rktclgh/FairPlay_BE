@@ -78,7 +78,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
     }
 
     @Override
-    public Page<EventPopularityStatisticsListDto> aggregatedPopularity(
+    public Page<EventPopularityStatisticsListDto>  paymentCountPopularity(
             LocalDate startDate,
             LocalDate endDate,
             String mainCategory,

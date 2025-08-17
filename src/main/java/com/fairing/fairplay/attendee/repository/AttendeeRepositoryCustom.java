@@ -40,5 +40,6 @@ public class AttendeeRepositoryCustom {
         .execute();
 
     entityManager.clear();
-    log.info("[Attendee Cleanup] 삭제된 참석자 수: {}", deletedCount);  }
+    log.info("[Attendee Cleanup] 삭제된 참석자 수: {}", deletedCount);
+  }
 }
