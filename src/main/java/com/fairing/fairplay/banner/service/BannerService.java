@@ -4,23 +4,27 @@ import com.fairing.fairplay.banner.dto.*;
 import com.fairing.fairplay.banner.entity.*;
 import com.fairing.fairplay.banner.repository.*;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
-import com.fairing.fairplay.file.dto.S3UploadResponseDto;
+import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.service.FileService;
 import com.fairing.fairplay.user.entity.Users;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-import com.fairing.fairplay.file.entity.File;
+
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BannerService {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
@@ -35,10 +39,10 @@ public class BannerService {
     private final BannerActionCodeRepository bannerActionCodeRepository;
     private final BannerLogRepository bannerLogRepository;
     private final FileService fileService;
+    private final AwsS3Service awsS3Service;
     private final BannerTypeRepository bannerTypeRepository;
     private final EventRepository eventRepository;
 
-    // S3 디렉토리명 설정(기본값 banner)
     @Value("${cloud.aws.s3.banner-dir:banner}")
     private String bannerDir;
 
@@ -55,15 +59,12 @@ public class BannerService {
                         throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
                     }
 
-        // 통일된 이미지 처리(등록 전용: 반드시 이미지 필요)
-        String finalImageUrl = resolveImageUrlForCreate(dto);
-
         BannerStatusCode statusCode = getStatusCodeOr404(dto.getStatusCode());
         BannerType bannerType = getBannerTypeOr404(dto.getBannerTypeId());
 
         Banner banner = new Banner(
                 dto.getTitle(),
-                finalImageUrl,
+                null, // 이미지 URL은 파일 처리 후 설정
                 dto.getLinkUrl(),
                 dto.getPriority(),
                 dto.getStartDate(),
@@ -71,6 +72,7 @@ public class BannerService {
                 statusCode,
                 bannerType
         );
+
         banner.setEventId(dto.getEventId());
         banner.setCreatedBy(adminId);
 
@@ -80,6 +82,9 @@ public class BannerService {
             BannerStatusCode inactive = getStatusCodeOr404(STATUS_INACTIVE);
             bannerRepository.deactivateOthersActiveByType(TYPE_MD_PICK, STATUS_ACTIVE, inactive, saved.getId());
         }
+
+        String finalImageUrl = resolveImageUrlForCreate(dto, saved.getId());
+        saved.setImageUrl(finalImageUrl);
 
         logBannerAction(saved, adminId, ACTION_CREATE);
         return toDto(saved);
@@ -103,21 +108,20 @@ public class BannerService {
                     }
 
         // 통일된 이미지 처리(수정 전용: 입력 없으면 기존 유지)
-        String finalImageUrl = resolveImageUrlForUpdate(dto, banner.getImageUrl());
+        String finalImageUrl = resolveImageUrlForUpdate(dto, banner, adminId);
 
         BannerStatusCode statusCode = getStatusCodeOr404(dto.getStatusCode());
         BannerType bannerType = getBannerTypeOr404(dto.getBannerTypeId());
 
         banner.updateInfo(
-                          dto.getTitle()     != null ? dto.getTitle()     : banner.getTitle(),
-                          finalImageUrl,
-                          dto.getLinkUrl()   != null ? dto.getLinkUrl()   : banner.getLinkUrl(),
-                          newStart,
-                          newEnd,
-                          dto.getPriority()  != null ? dto.getPriority()  : banner.getPriority(),
-                  bannerType
+                dto.getTitle(),
+                finalImageUrl,
+                dto.getLinkUrl(),
+                dto.getStartDate(),
+                dto.getEndDate(),
+                dto.getPriority(),
+                bannerType
         );
-
         banner.updateStatus(statusCode);
 
 // MD_PICK 하나만 유지: 결과가 MD_PICK + ACTIVE면 자기 자신 제외 모두 INACTIVE
@@ -189,38 +193,51 @@ public class BannerService {
     }
 
     // 등록: s3Key 또는 imageUrl 반드시 필요(없으면 400)
-    private String resolveImageUrlForCreate(BannerRequestDto dto) {
+    private String resolveImageUrlForCreate(BannerRequestDto dto, Long bannerId) {
+        if (!StringUtils.hasText(dto.getS3Key()) && !StringUtils.hasText(dto.getImageUrl())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "이미지 정보가 없습니다. s3Key 또는 imageUrl이 필요합니다.", null);
+        }
         if (StringUtils.hasText(dto.getS3Key())) {
-            return uploadToS3(dto);
+            return uploadToS3(dto, bannerId);
         }
-        if (StringUtils.hasText(dto.getImageUrl())) {
-            return dto.getImageUrl();
-        }
-        throw new CustomException(HttpStatus.BAD_REQUEST, "이미지 정보가 없습니다. s3Key 또는 imageUrl이 필요합니다.", null);
+        return dto.getImageUrl();
     }
 
     // 수정: s3Key가 있으면 업로드, imageUrl이 있으면 교체, 둘 다 없으면 기존 유지
-    private String resolveImageUrlForUpdate(BannerRequestDto dto, String currentUrl) {
+    private String resolveImageUrlForUpdate(BannerRequestDto dto, Banner banner, Long adminId) {
         if (StringUtils.hasText(dto.getS3Key())) {
-            return uploadToS3(dto);
+            // 기존 파일이 있다면 삭제
+            if (StringUtils.hasText(banner.getImageUrl())) {
+                try {
+                    String s3Key = awsS3Service.getS3KeyFromPublicUrl(banner.getImageUrl());
+                    if (s3Key != null) {
+                        fileService.deleteFileByS3Key(s3Key);
+                    }
+                } catch (Exception e) {
+                    log.warn("기존 배너 이미지 S3 삭제 실패 - URL: {}, Error: {}", banner.getImageUrl(), e.getMessage());
+                }
+            }
+            return uploadToS3(dto, banner.getId());
         }
         if (StringUtils.hasText(dto.getImageUrl())) {
             return dto.getImageUrl();
         }
-        return currentUrl;
+        return banner.getImageUrl();
     }
 
-    private String uploadToS3(BannerRequestDto dto) {
-        S3UploadResponseDto uploadResult = fileService.uploadFile(
+    private String uploadToS3(BannerRequestDto dto, Long bannerId) {
+        File savedFile = fileService.uploadFile(
                 S3UploadRequestDto.builder()
                         .s3Key(dto.getS3Key())
                         .originalFileName(dto.getOriginalFileName())
                         .fileType(dto.getFileType())
                         .fileSize(dto.getFileSize())
                         .directoryPrefix(bannerDir)
+                        .usage("banner")
                         .build()
         );
-        return uploadResult.getFileUrl();
+        fileService.createFileLink(savedFile, "BANNER", bannerId);
+        return awsS3Service.getCdnUrl(savedFile.getFileUrl());
     }
 
     private void logBannerAction(Banner banner, Long adminId, String actionCodeStr) {

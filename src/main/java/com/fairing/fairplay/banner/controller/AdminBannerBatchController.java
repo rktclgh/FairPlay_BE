@@ -9,7 +9,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@PreAuthorize("hasRole('ADMIN')")
 @RequestMapping("/api/admin/batch")
 @RequiredArgsConstructor
 public class AdminBannerBatchController {
