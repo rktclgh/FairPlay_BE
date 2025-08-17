@@ -11,6 +11,7 @@ import com.fairing.fairplay.attendee.repository.AttendeeRepositoryCustom;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
@@ -34,6 +35,8 @@ public class AttendeeService {
   private final AttendeeRepositoryCustom attendeeRepositoryCustom;
   private final ShareTicketService shareTicketService;
   private final ReservationRepository reservationRepository;
+
+  private final QrTicketService qrTicketService;
 
   // 대표자 정보 저장
   @Transactional
@@ -82,6 +85,13 @@ public class AttendeeService {
         .reservationId(reservationId)
         .attendees(result)
         .build();
+  }
+
+  // 참석자 단건 조회
+  public Attendee findById(Long attendeeId) {
+    return attendeeRepository.findById(attendeeId).orElseThrow(
+        () -> new CustomException(HttpStatus.NOT_FOUND, "참석자가 조회되지 않습니다.")
+    );
   }
 
   // 동반자 정보 수정

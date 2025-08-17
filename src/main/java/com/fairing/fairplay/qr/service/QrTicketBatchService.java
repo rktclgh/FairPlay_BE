@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -116,7 +117,7 @@ public class QrTicketBatchService {
     log.info("🚩 persistedTickets 생성됨: {}", persistedTickets.size());
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.ISSUED);
     log.info("🚩 qrActionCode: {}", qrActionCode.getCode());
-    qrLogService.issuedQrLog(persistedTickets, qrActionCode);
+    qrLogService.issuedQrLogs(persistedTickets, qrActionCode);
   }
 
   /*
@@ -126,34 +127,24 @@ public class QrTicketBatchService {
   private List<QrTicket> scheduleCreateQrTicket() {
     // 현재 날짜 기준 다음날 시작하는 행사 데이터 추출
     LocalDate today = LocalDate.now();
-    LocalDate targetDate = LocalDate.now().plusDays(1);
+    LocalDate tomorrow = LocalDate.now().plusDays(1);
 
-    List<Tuple> results = qrTicketRepositoryCustom.findAllByEventDate(targetDate);
+    // 오늘과 내일 시작하는 행사 모두 조회
+    List<Tuple> results = qrTicketRepositoryCustom.findAllByEventDate(Arrays.asList(today, tomorrow));
 
     // attendeeId, reservationId 집합 추출
-    Set<Long> attendeeIds = results.stream()
-        .map(tuple -> tuple.get(0, Attendee.class).getId())
-        .collect(Collectors.toSet());
-
-    Set<Long> reservationIds = results.stream()
-        .map(tuple -> tuple.get(2, Reservation.class).getReservationId())
-        .collect(Collectors.toSet());
-
-    // 이미 발급된 티켓을 한 번에 조회
+    // 이미 발급된 티켓 키 집합
     Set<String> issuedTicketKeys = qrTicketRepository
-        .findByAttendeeIdsAndReservationIds(attendeeIds, reservationIds)
+        .findByAttendeeIdsAndReservationIds(
+            results.stream().map(t -> t.get(0, Attendee.class).getId()).collect(Collectors.toSet()),
+            results.stream().map(t -> t.get(2, Reservation.class).getReservationId()).collect(Collectors.toSet())
+        )
         .stream()
-        .map(ticket -> ticket.getAttendee().getId() + "_" + ticket.getAttendee().getReservation()
-            .getReservationId())
+        .map(this::makeTicketKey) // 별도 메서드로 분리
         .collect(Collectors.toSet());
 
     return results.stream()
-        .filter(tuple -> {
-          Attendee a = tuple.get(0, Attendee.class);
-          Reservation r = tuple.get(2, Reservation.class);
-          String key = a.getId() + "_" + r.getReservationId();
-          return !issuedTicketKeys.contains(key);
-        })
+        .filter(tuple -> !issuedTicketKeys.contains(makeTicketKey(tuple.get(0, Attendee.class), tuple.get(2, Reservation.class))))
         .map(tuple -> {
           Attendee a = tuple.get(0, Attendee.class);
           Event e = tuple.get(1, Event.class);
@@ -182,6 +173,15 @@ public class QrTicketBatchService {
               .build();
         })
         .toList();
+  }
+
+  // 발급 여부 체크용 key 생성
+  private String makeTicketKey(Attendee attendee, Reservation reservation) {
+    return attendee.getId() + "_" + reservation.getReservationId();
+  }
+
+  private String makeTicketKey(QrTicket ticket) {
+    return ticket.getAttendee().getId() + "_" + ticket.getAttendee().getReservation().getReservationId();
   }
 
   private String getDate(LocalDate date) {

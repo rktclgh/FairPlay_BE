@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class ShareTicketBatchService {
 
   private final ShareTicketRepository shareTicketRepository;
-  private final ReservationRepository reservationRepository;
 
   // 만료 날짜가 오늘이고 아직 만료처리되지 않은 공유 폼 링크 조회
   public List<ShareTicket> fetchExpiredBatch(int page, int size) {

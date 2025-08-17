@@ -33,13 +33,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class QrTicketService {
 
   private final QrTicketIssueService qrTicketIssueService;
-  private final ReservationService reservationService;
   private final QrTicketRepository qrTicketRepository;
   private final AttendeeRepository attendeeRepository;
   private final EventScheduleRepository eventScheduleRepository;
   private final CodeGenerator codeGenerator;
   private final ReservationRepository reservationRepository;
   private final AttendeeTypeCodeRepository attendeeTypeCodeRepository;
+
+  // 대표자/동반자 QR 티켓 생성
+  public void generateQrTicket(Attendee attendee, Reservation reservation) {
+    qrTicketIssueService.generateQrTicket(attendee, reservation);
+  }
 
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
