@@ -22,6 +22,10 @@ public class BoothExperienceReservationResponseDto {
 
     private String boothName; // 부스명
 
+    private Long eventId; // 행사 ID
+
+    private String eventName; // 행사명
+
     private Long userId; // 예약자 ID
 
     private String userName; // 예약자 이름
@@ -58,6 +62,8 @@ public class BoothExperienceReservationResponseDto {
                 .experienceTitle(entity.getBoothExperience().getTitle())
                 .boothId(entity.getBoothExperience().getBooth().getId())
                 .boothName(entity.getBoothExperience().getBooth().getBoothTitle())
+                .eventId(entity.getBoothExperience().getBooth().getEvent().getEventId())
+                .eventName(entity.getBoothExperience().getBooth().getEvent().getTitleKr())
                 .userId(entity.getUser().getUserId())
                 .userName(entity.getUser().getName())
                 .statusCode(entity.getExperienceStatusCode().getCode())
