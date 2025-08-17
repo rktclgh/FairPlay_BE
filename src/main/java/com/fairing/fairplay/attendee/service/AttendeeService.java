@@ -15,11 +15,10 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 /*참석자 서비스*/
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AttendeeService {
 
   private final AttendeeRepository attendeeRepository;
@@ -38,8 +38,8 @@ public class AttendeeService {
   // 대표자 정보 저장
   @Transactional
   public AttendeeInfoResponseDto savePrimary(AttendeeSaveRequestDto dto, Long reservationId) {
-    if(dto.getAgreeToTerms() == null || !dto.getAgreeToTerms()){
-      throw new CustomException(HttpStatus.BAD_REQUEST,"약관에 대해 동의하지 않았으므로 참석자 등록을 할 수 없습니다.");
+    if (dto.getAgreeToTerms() == null || !dto.getAgreeToTerms()) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "약관에 대해 동의하지 않았으므로 참석자 등록을 할 수 없습니다.");
     }
     return saveAttendee("PRIMARY", dto, reservationId);
   }
@@ -48,8 +48,9 @@ public class AttendeeService {
   @Transactional
   public AttendeeInfoResponseDto saveGuest(String token, AttendeeSaveRequestDto dto) {
     ShareTicket shareTicket = shareTicketService.validateAndUseToken(token);
-    if(dto.getAgreeToTerms() == null || !dto.getAgreeToTerms()){
-      throw new CustomException(HttpStatus.BAD_REQUEST,"약관에 대해 동의하지 않았으므로 참석자 등록을 할 수 없습니다.");
+    log.info("shareTicket:{}", shareTicket.getLinkToken());
+    if (dto.getAgreeToTerms() == null || !dto.getAgreeToTerms()) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "약관에 대해 동의하지 않았으므로 참석자 등록을 할 수 없습니다.");
     }
     AttendeeInfoResponseDto attendeeInfoResponseDto = saveAttendee("GUEST", dto,
         shareTicket.getReservation().getReservationId());
@@ -61,8 +62,8 @@ public class AttendeeService {
   public AttendeeListInfoResponseDto findAll(Long reservationId, CustomUserDetails userDetails) {
     Reservation reservation = findReservation(reservationId);
 
-    if(userDetails == null){
-      throw new CustomException(HttpStatus.UNAUTHORIZED,"참석자 목록을 조회할 권한이 없습니다.");
+    if (userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "참석자 목록을 조회할 권한이 없습니다.");
     }
     Long userId = userDetails.getUserId();
 
@@ -88,8 +89,8 @@ public class AttendeeService {
   @Transactional
   public AttendeeInfoResponseDto updateAttendee(Long attendeeId, AttendeeUpdateRequestDto dto,
       CustomUserDetails userDetails) {
-    if(userDetails == null){
-      throw new CustomException(HttpStatus.UNAUTHORIZED,"참석자 정보를 수정할 권한이 없습니다.");
+    if (userDetails == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "참석자 정보를 수정할 권한이 없습니다.");
     }
     Long userId = userDetails.getUserId();
 
@@ -105,7 +106,6 @@ public class AttendeeService {
     Attendee attendee = attendeeRepository.findByIdAndReservation_ReservationId(attendeeId,
             reservation.getReservationId())
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "참석자 정보를 조회할 수 없습니다."));
-
 
     // 수정하려는 정보가 대표자일 경우 수정 불가하므로 예외 발생
     if (AttendeeTypeCode.PRIMARY.equals(attendee.getAttendeeTypeCode().getCode().trim())) {
@@ -140,7 +140,7 @@ public class AttendeeService {
 
   // 생성된 지 6개월 지난 참석자 정보 삭제
   @Transactional
-  public void deleteOldAttendees(){
+  public void deleteOldAttendees() {
     attendeeRepositoryCustom.deleteAttendeesByEventEndDate();
   }
 

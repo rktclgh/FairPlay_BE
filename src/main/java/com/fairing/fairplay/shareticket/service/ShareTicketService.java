@@ -3,9 +3,7 @@ package com.fairing.fairplay.shareticket.service;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.event.entity.Event;
-import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
-import com.fairing.fairplay.qr.util.CodeValidator;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.dto.ShareTicketInfoResponseDto;
@@ -13,6 +11,8 @@ import com.fairing.fairplay.shareticket.dto.ShareTicketSaveRequestDto;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.repository.ShareTicketRepository;
 import java.nio.ByteBuffer;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -74,14 +74,24 @@ public class ShareTicketService {
       throw new CustomException(HttpStatus.BAD_REQUEST, "허용 인원은 1명 이상이어야 합니다.");
     }
 
+    LocalDate scheduleDate = reservation.getSchedule().getDate();
+    LocalDate today = LocalDateTime.now().toLocalDate();
+
+    LocalDateTime expiredAt;
+    if (today.equals(
+        scheduleDate.minusDays(1))) {
+      expiredAt = scheduleDate.atStartOfDay();
+    } else {
+      expiredAt = scheduleDate.minusDays(1).atStartOfDay();
+    }
+
     ShareTicket shareTicket = ShareTicket.builder()
         .linkToken(token) // 폼 링크 토큰
         .totalAllowed(dto.getTotalAllowed()) //대표자 제출 O
         .expired(false) // 만료 여부
         .submittedCount(1) // 대표자 제출
         .reservation(reservation) // 예약 연결
-        .expiredAt(reservation.getSchedule().getDate().minusDays(1)
-            .atStartOfDay()) // 폼 만료 기한 (행사 시작일 하루 전)
+        .expiredAt(expiredAt) // 폼 만료 기한 (행사 시작일 하루 전)
         .build();
 
     shareTicketRepository.save(shareTicket);
@@ -90,16 +100,16 @@ public class ShareTicketService {
 
   public ShareTicketInfoResponseDto getFormInfo(String token) {
     ShareTicket shareTicket = shareTicketRepository.findByLinkToken(token).orElseThrow(
-        () -> new CustomException(HttpStatus.BAD_REQUEST,"잘못된 폼 링크입니다.")
+        () -> new CustomException(HttpStatus.BAD_REQUEST, "잘못된 폼 링크입니다.")
     );
 
-    if(!shareTicket.getLinkToken().equals(token)) {
-      throw new CustomException(HttpStatus.BAD_REQUEST,"잘못된 폼 링크입니다.");
+    if (!shareTicket.getLinkToken().equals(token)) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "잘못된 폼 링크입니다.");
     }
 
     Event event = shareTicket.getReservation().getEvent();
-    if(event == null) {
-      throw new CustomException(HttpStatus.NOT_FOUND,"적절한 행사가 조회되지 않습니다.");
+    if (event == null) {
+      throw new CustomException(HttpStatus.NOT_FOUND, "적절한 행사가 조회되지 않습니다.");
     }
 
     return ShareTicketInfoResponseDto.builder()
@@ -114,14 +124,22 @@ public class ShareTicketService {
     ShareTicket shareTicket = shareTicketRepository.findByLinkToken(token)
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "요청하신 링크를 찾을 수 없습니다."));
 
-    // 만료된 링크 (행사시작 1일전)
-    if (shareTicket.getExpired()) {
-      throw new LinkExpiredException("해당 링크는 더 이상 유효하지 않습니다.", "/link-expired");
-    }
-
     // 티켓 구매 수 == 폼 제출 횟수
     if (shareTicket.isFull()) {
       throw new LinkExpiredException("참가자 등록이 이미 마감되었습니다.", "/link-closed");
+    }
+
+    // 만약 행사 전 날 예약했을 경우 만료 검증 패스
+    LocalDateTime now = LocalDateTime.now();
+
+    if ((shareTicket.getCreatedAt().isBefore(now) || shareTicket.getCreatedAt().isEqual(now)) &&
+        (shareTicket.getExpiredAt().isAfter(now) || shareTicket.getExpiredAt().isEqual(now))) {
+      return shareTicket;
+    }
+
+    // 만료된 링크 (행사시작 1일전)
+    if (shareTicket.getExpired()) {
+      throw new LinkExpiredException("해당 링크는 더 이상 유효하지 않습니다.", "/link-expired");
     }
     return shareTicket;
   }
