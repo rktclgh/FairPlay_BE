@@ -35,7 +35,7 @@ public class ShareTicketAttendeeService {
   @Transactional
   public ShareTicketSaveResponseDto saveShareTicketAndAttendee(CustomUserDetails userDetails,
       ShareTicketSaveRequestDto dto) {
-    if(userDetails == null) {
+    if(userDetails == null || dto.getReservationId() == null) {
       throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 이용해주세요");
     }
 
@@ -73,7 +73,7 @@ public class ShareTicketAttendeeService {
   // 공유 폼 링크 생성 -> 예약 성공 시 예약 서비스 단계에서 사용
   private String generateToken(ShareTicketSaveRequestDto dto) {
     if (dto == null) {
-      throw new IllegalArgumentException("유효하지 않은 요청입니다.");
+      throw new CustomException(HttpStatus.NOT_FOUND,"유효하지 않은 요청입니다.");
     }
 
     // 예약 유무 조회
