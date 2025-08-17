@@ -2,11 +2,16 @@ package com.fairing.fairplay.booth.service;
 
 import com.fairing.fairplay.booth.dto.*;
 import com.fairing.fairplay.booth.entity.*;
-import com.fairing.fairplay.booth.repository.*;
 import com.fairing.fairplay.booth.mapper.BoothApplicationMapper;
+import com.fairing.fairplay.booth.repository.*;
+import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
-
+import com.fairing.fairplay.file.dto.S3UploadRequestDto;
+import com.fairing.fairplay.file.dto.TempFileUploadDto;
+import com.fairing.fairplay.file.entity.File;
+import com.fairing.fairplay.file.service.FileService;
 import com.fairing.fairplay.user.entity.BoothAdmin;
 import com.fairing.fairplay.user.entity.UserRoleCode;
 import com.fairing.fairplay.user.entity.Users;
@@ -14,6 +19,8 @@ import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +30,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class BoothApplicationServiceImpl implements BoothApplicationService {
 
     private final BoothApplicationRepository boothApplicationRepository;
@@ -35,7 +43,8 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
     private final BoothRepository boothRepository;
     private final BoothTypeRepository boothTypeRepository;
     private final BoothAdminRepository boothAdminRepository;
-
+    private final AwsS3Service awsS3Service;
+    private final FileService fileService;
 
     @Override
     public Long applyBooth(BoothApplicationRequestDto dto) {
@@ -56,11 +65,42 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
         BoothType boothType = boothTypeRepository.findById(dto.getBoothTypeId())
                 .orElseThrow(() -> new EntityNotFoundException("선택한 부스 타입을 찾을 수 없습니다."));
 
-        BoothApplication entity = mapper.toEntity(dto, event, boothType, status, paymentStatus);
+        BoothApplication boothApplication = mapper.toEntity(dto, event, boothType, status, paymentStatus);
 
-        BoothApplication saved = boothApplicationRepository.save(entity);
+        BoothApplication saved = boothApplicationRepository.save(boothApplication);
+
+        if (dto.getTempBannerUrl() != null) {
+            processAndLinkFiles(saved, dto.getTempBannerUrl());
+        }
 
         return saved.getId();
+    }
+
+    private void processAndLinkFiles(BoothApplication boothApply, TempFileUploadDto tempFile) {
+        if (tempFile == null) {
+            return;
+        }
+        try {
+            String directory = "booth-apply/" + tempFile.getUsage();
+
+            File savedFile = fileService.uploadFile(S3UploadRequestDto.builder()
+                    .s3Key(tempFile.getS3Key())
+                    .originalFileName(tempFile.getOriginalFileName())
+                    .fileType(tempFile.getFileType())
+                    .fileSize(tempFile.getFileSize())
+                    .directoryPrefix(directory)
+                    .usage(tempFile.getUsage())
+                    .build());
+
+            fileService.createFileLink(savedFile, "BOOTH_APPLY", boothApply.getId());
+
+            String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
+            boothApply.setBoothBannerUrl(cdnUrl);
+
+        } catch (Exception e) {
+            log.error("Error processing temporary file with key {}: {}", tempFile.getS3Key(), e.getMessage(), e);
+            throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 처리 중 오류가 발생했습니다: " + tempFile.getOriginalFileName());
+        }
     }
 
     @Override
@@ -70,7 +110,7 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
                 .toList();
     }
 
-        @Override
+    @Override
     public BoothApplicationResponseDto getBoothApplication(Long id) {
         BoothApplication application = boothApplicationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("신청 정보를 찾을 수 없습니다."));
@@ -89,19 +129,17 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
         application.setAdminComment(dto.getAdminComment());
         application.setStatusUpdatedAt(LocalDateTime.now());
 
-        // 승인 시 부스 생성
         if ("APPROVED".equals(newStatus.getCode())) {
             BoothType boothType = application.getBoothType();
 
-            // BoothAdmin 자동 생성 (없으면 생성)
-            BoothAdmin boothAdmin = boothAdminRepository.findByEmail(application.getEmail())
+            BoothAdmin boothAdmin = boothAdminRepository.findByEmail(application.getContactEmail())
                     .orElseGet(() -> {
-                        Users user = userRepository.findByEmail(application.getEmail())
+                        Users user = userRepository.findByEmail(application.getContactEmail())
                                 .orElseThrow(() -> new EntityNotFoundException("사용자 없음"));
 
                         BoothAdmin newAdmin = new BoothAdmin();
                         newAdmin.setUser(user);
-                        newAdmin.setEmail(application.getEmail());
+                        newAdmin.setEmail(application.getContactEmail());
                         newAdmin.setManagerName(application.getManagerName());
                         newAdmin.setContactNumber(application.getContactNumber());
                         newAdmin.setOfficialUrl(application.getOfficialUrl());
@@ -133,12 +171,11 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 상태 코드입니다."));
 
         booth.setBoothPaymentStatusCode(statusCode);
-        booth.setAdminComment(dto.getAdminComment());  // 관리자 사유 기록
-        booth.setStatusUpdatedAt(LocalDateTime.now()); // 상태 변경 시간 기록
+        booth.setAdminComment(dto.getAdminComment());
+        booth.setStatusUpdatedAt(LocalDateTime.now());
 
-        //  결제 완료(PAID)일 경우, 사용자 권한을 BOOTH_MANAGER로 변경
         if ("PAID".equals(dto.getPaymentStatusCode())) {
-            Users user = userRepository.findByEmail(booth.getEmail())
+            Users user = userRepository.findByEmail(booth.getContactEmail())
                     .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
 
             UserRoleCode boothManagerCode = userRoleCodeRepository.findByCode("BOOTH_MANAGER")
@@ -154,22 +191,18 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
         BoothApplication application = boothApplicationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("부스 신청 정보를 찾을 수 없습니다."));
 
-        // 유저 이메일 가져오기 (CustomUserDetails 사용)
         String requesterEmail = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."))
                 .getEmail();
 
-        if (!application.getEmail().equalsIgnoreCase(requesterEmail)) {
+        if (!application.getContactEmail().equalsIgnoreCase(requesterEmail)) {
             throw new SecurityException("해당 신청을 취소할 권한이 없습니다.");
         }
 
-        // 결제 상태를 CANCELLED로 변경
         BoothPaymentStatusCode cancelled = paymentCodeRepository.findByCode("CANCELLED")
                 .orElseThrow(() -> new EntityNotFoundException("결제 상태 코드(CANCELLED)를 찾을 수 없습니다."));
 
         application.setBoothPaymentStatusCode(cancelled);
         application.setStatusUpdatedAt(LocalDateTime.now());
     }
-
-
 }

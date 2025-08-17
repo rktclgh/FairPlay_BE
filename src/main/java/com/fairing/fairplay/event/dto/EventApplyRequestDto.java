@@ -1,5 +1,6 @@
 package com.fairing.fairplay.event.dto;
 
+import com.fairing.fairplay.file.dto.TempFileUploadDto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -27,7 +28,7 @@ public class EventApplyRequestDto {
     private String titleEng;
     
     // 파일 업로드 정보
-    private List<FileUploadDto> tempFiles;
+    private List<TempFileUploadDto> tempFiles;
     
     // EventDetail과 비슷한 정보들
     private Long locationId;
@@ -49,16 +50,5 @@ public class EventApplyRequestDto {
     // 기존 bannerUrl, thumbnailUrl은 하위 호환성을 위해 유지
     private String bannerUrl;
     private String thumbnailUrl;
-    
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class FileUploadDto {
-        private String s3Key;
-        private String originalFileName;
-        private String fileType;
-        private Long fileSize;
-        private String usage; // "application_file", "banner", "thumbnail" 등
-    }
+
 }

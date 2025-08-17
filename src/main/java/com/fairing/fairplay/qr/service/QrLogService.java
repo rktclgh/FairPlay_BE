@@ -48,6 +48,9 @@ public class QrLogService {
     LocalDateTime entryTime = saveQrLog(qrTicket, qrActionCode);
     // qrCheckLog: ENTRY or REENTRY 저장
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    log.info("입장 저장 완료");
+    log.info("entryTime: {}", entryTime);
+    log.info("qrCheckStatusCode: {}", qrCheckStatusCode);
     return entryTime;
   }
 

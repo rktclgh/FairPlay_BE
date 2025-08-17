@@ -15,10 +15,16 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepositoryCustom;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 
+import com.fairing.fairplay.ticket.entity.QEventSchedule;
 import com.querydsl.core.Tuple;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +57,7 @@ public class QrTicketBatchService {
   public void generateQrLink(List<Tuple> reservations) {
     QReservation reservation = QReservation.reservation;
     QAttendee attendee = QAttendee.attendee;
+    QEventSchedule eventSchedule = QEventSchedule.eventSchedule;
 
     for (Tuple tuple : reservations) {
       Long reservationId = tuple.get(reservation.reservationId); // 예약 ID
@@ -59,6 +66,16 @@ public class QrTicketBatchService {
       Long attendeeId = tuple.get(attendee.id); //참석자 ID
       String attendeeName = tuple.get(attendee.name); // 참석자 이름
       String attendeeEmail = tuple.get(attendee.email); // 참석자 이메일
+      EventSchedule schedule = tuple.get(eventSchedule);
+      Event event = schedule.getEvent();
+
+      String eventName = event.getTitleKr();
+      String eventDate =
+          getDate(event.getEventDetail().getStartDate()) + " ~ " + getDate(event.getEventDetail()
+              .getEndDate());
+      String viewingDate =
+          schedule.getDate().toString() + " (" + getDayOfWeek(schedule.getWeekday()) + ") "
+              + getTime(schedule.getStartTime());
 
       try {
         QrTicketRequestDto dto = QrTicketRequestDto.builder()
@@ -68,7 +85,7 @@ public class QrTicketBatchService {
             .ticketId(ticketId)
             .build();
         String qrUrl = qrLinkService.generateQrLink(dto);
-        qrEmailService.sendQrEmail(qrUrl, attendeeEmail, attendeeName);
+        qrEmailService.sendQrEmail(qrUrl, eventName, eventDate, viewingDate, attendeeEmail, attendeeName);
         log.info("이메일 전송 완료:{}", attendeeEmail);
       } catch (Exception e) {
         throw new RuntimeException(e);
@@ -125,10 +142,9 @@ public class QrTicketBatchService {
     Set<String> issuedTicketKeys = qrTicketRepository
         .findByAttendeeIdsAndReservationIds(attendeeIds, reservationIds)
         .stream()
-        .map(ticket -> ticket.getAttendee().getId() + "_" + ticket.getAttendee().getReservation().getReservationId())
+        .map(ticket -> ticket.getAttendee().getId() + "_" + ticket.getAttendee().getReservation()
+            .getReservationId())
         .collect(Collectors.toSet());
-
-
 
     return results.stream()
         .filter(tuple -> {
@@ -167,5 +183,16 @@ public class QrTicketBatchService {
         .toList();
   }
 
-  // 행사 종료된 모든 QR 티켓 qr코드, 수동 코드 삭제
+  private String getDate(LocalDate date) {
+    return date.format(DateTimeFormatter.ofPattern("yyyy. MM. dd"));
+  }
+
+  private String getDayOfWeek(int weekday) {
+    int dayOfWeekValue = (weekday == 0) ? 7 : weekday; // 0(일)은 7로 매핑
+    return DayOfWeek.of(dayOfWeekValue).getDisplayName(TextStyle.FULL, Locale.KOREAN);
+  }
+
+  private String getTime(LocalTime time) {
+    return time.format(DateTimeFormatter.ofPattern("HH:mm"));
+  }
 }

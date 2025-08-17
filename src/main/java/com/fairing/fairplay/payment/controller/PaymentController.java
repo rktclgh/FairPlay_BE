@@ -38,6 +38,16 @@ public class PaymentController {
         return ResponseEntity.ok(savedPayment);
     }
 
+    // 무료 티켓 처리 (PG사 연동 없이 직접 처리)
+    @PostMapping("/free")
+    @FunctionAuth("processFreeTicket")
+    public ResponseEntity<PaymentResponseDto> processFreeTicket(
+            @RequestBody PaymentRequestDto paymentRequestDto,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        PaymentResponseDto freeTicketPayment = paymentService.processFreeTicket(paymentRequestDto, userDetails.getUserId());
+        return ResponseEntity.ok(freeTicketPayment);
+    }
+
     // 결제 완료 처리 (PG사 결제 후 호출)
     @PostMapping("/complete")
     @FunctionAuth("completePayment")

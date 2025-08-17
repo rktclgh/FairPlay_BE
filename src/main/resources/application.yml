@@ -114,3 +114,7 @@ logging:
   level:
     com.fairing.fairplay.ai.client.GoogleGeminiClient: DEBUG
     com.fairing.fairplay.ai.rag.service: DEBUG
+
+# QR 티켓 조회 주소
+qr:
+  url: ${QR_TICKET_REACT_URL}

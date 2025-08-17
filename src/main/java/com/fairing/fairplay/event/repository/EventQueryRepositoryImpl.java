@@ -1,9 +1,12 @@
 package com.fairing.fairplay.event.repository;
 
+import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.EventSummaryDto;
 import com.fairing.fairplay.event.dto.QEventSummaryDto;
 import com.fairing.fairplay.event.entity.QEvent;
 import com.fairing.fairplay.event.entity.QEventDetail;
+import com.fairing.fairplay.file.entity.File;
+import com.fairing.fairplay.file.repository.FileRepository;
 import com.fairing.fairplay.ticket.entity.QEventTicket;
 import com.fairing.fairplay.ticket.entity.QTicket;
 import com.querydsl.core.BooleanBuilder;
@@ -15,13 +18,18 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Repository
 @RequiredArgsConstructor
 public class EventQueryRepositoryImpl implements EventQueryRepository {
 
     private final JPAQueryFactory queryFactory;
+    private final FileRepository fileRepository;
+    private final AwsS3Service awsS3Service;
 
     @Override
     public Page<EventSummaryDto> findEventSummaries(Pageable pageable) {
@@ -47,12 +55,12 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         detail.regionCode.name
                 ))
                 .from(event)
-                .join(event.eventDetail, detail)       // 상세 정보가 있는 이벤트만 조회
+                .join(event.eventDetail, detail)
                 .leftJoin(event.eventTickets, eventTicket)
                 .leftJoin(eventTicket.ticket, ticket)
                 .where(
-                        event.hidden.eq(false),         // 숨겨지지 않은 이벤트만
-                        detail.eventDetailId.isNotNull()     // 상세 정보가 등록된 이벤트만
+                        event.hidden.eq(false),
+                        detail.eventDetailId.isNotNull()
                 )
                 .groupBy(event.eventId)
                 .offset(pageable.getOffset())
@@ -65,11 +73,15 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                 .leftJoin(event.eventDetail, detail)
                 .fetchOne();
 
+        if (!content.isEmpty()) {
+            enrichEventSummariesWithFiles(content);
+        }
+
         return new PageImpl<>(content, pageable, total == null ? 0 : total);
     }
 
     @Override
-    public Page<EventSummaryDto> findEventSummariesWithFilters (
+    public Page<EventSummaryDto> findEventSummariesWithFilters(
             String keyword,
             Integer mainCategoryId,
             Integer subCategoryId,
@@ -84,17 +96,13 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
         QEventTicket eventTicket = QEventTicket.eventTicket;
         QTicket ticket = QTicket.ticket;
 
-        // 조건 조립
         BooleanBuilder builder = new BooleanBuilder()
-                .and(detail.eventDetailId.isNotNull());  // 상세 정보가 등록된 이벤트만
-        
-        // 숨겨진 행사 포함 여부 처리
-        if (includeHidden == null || !includeHidden) {
-            builder.and(event.hidden.eq(false));    // 숨겨지지 않은 이벤트만
-        }
-        // includeHidden이 true면 hidden 조건을 추가하지 않음 (모든 행사 조회)
+                .and(detail.eventDetailId.isNotNull());
 
-        // 키워드 필터: 제목 한글 또는 영문
+        if (includeHidden == null || !includeHidden) {
+            builder.and(event.hidden.eq(false));
+        }
+
         if (keyword != null && !keyword.trim().isEmpty()) {
             builder.and(
                     event.titleKr.containsIgnoreCase(keyword)
@@ -102,7 +110,6 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
             );
         }
 
-        // 카테고리 ID 필터
         if (mainCategoryId != null) {
             builder.and(detail.mainCategory.groupId.eq(mainCategoryId));
         }
@@ -111,14 +118,12 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
             builder.and(detail.subCategory.categoryId.eq(subCategoryId));
         }
 
-        // 지역 필터
         if (regionName != null && !regionName.equals("모든지역")) {
             builder.and(
                     detail.regionCode.name.eq(regionName)
             );
         }
 
-        // 행사 기간 필터
         if (fromDate != null) {
             builder.and(detail.endDate.goe(fromDate));
         }
@@ -126,14 +131,13 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
             builder.and(detail.startDate.loe(toDate));
         }
 
-        // 콘텐츠 쿼리
         List<EventSummaryDto> content = queryFactory
                 .select(new QEventSummaryDto(
                         event.eventId,
                         event.eventCode,
                         event.hidden,
                         event.titleKr,
-                        ticket.price.min(), // 최소 가격 (null 허용)
+                        ticket.price.min(),
                         detail.mainCategory.groupName,
                         detail.location.placeName,
                         detail.location.latitude,
@@ -144,7 +148,7 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         detail.regionCode.name
                 ))
                 .from(event)
-                .join(event.eventDetail, detail)    // 상세 정보가 있는 이벤트만 조회
+                .join(event.eventDetail, detail)
                 .leftJoin(event.eventTickets, eventTicket)
                 .leftJoin(eventTicket.ticket, ticket)
                 .where(builder)
@@ -154,7 +158,6 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                 .orderBy(event.eventId.desc())
                 .fetch();
 
-        // 카운트 쿼리
         Long total = queryFactory
                 .select(event.countDistinct())
                 .from(event)
@@ -162,9 +165,40 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                 .where(builder)
                 .fetchOne();
 
+        if (!content.isEmpty()) {
+            enrichEventSummariesWithFiles(content);
+        }
+
         return new PageImpl<>(content, pageable, total == null ? 0 : total);
     }
 
+    private void enrichEventSummariesWithFiles(List<EventSummaryDto> summaries) {
+        List<Long> eventIds = summaries.stream()
+                .map(EventSummaryDto::getId)
+                .collect(Collectors.toList());
 
+        List<Object[]> fileResults = fileRepository.findByTargetTypeAndTargetIdIn("EVENT", eventIds);
 
+        Map<Long, List<File>> filesByEventId = fileResults.stream()
+                .collect(Collectors.groupingBy(
+                        obj -> (Long) obj[1],
+                        Collectors.mapping(obj -> (File) obj[0], Collectors.toList())
+                ));
+
+        summaries.forEach(dto -> {
+            List<File> files = filesByEventId.getOrDefault(dto.getId(), new ArrayList<>());
+            dto.setFiles(files.stream()
+                    .map(file -> EventSummaryDto.FileDto.builder()
+                            .id(file.getId())
+                            .fileUrl(awsS3Service.getCdnUrl(file.getFileUrl()))
+                            .originalFileName(file.getOriginalFileName())
+                            .build())
+                    .collect(Collectors.toList()));
+
+            files.stream()
+                    .filter(file -> file.getDirectory() != null && file.getDirectory().contains("thumbnail"))
+                    .findFirst()
+                    .ifPresent(thumbFile -> dto.setThumbnailUrl(awsS3Service.getCdnUrl(thumbFile.getFileUrl())));
+        });
+    }
 }
