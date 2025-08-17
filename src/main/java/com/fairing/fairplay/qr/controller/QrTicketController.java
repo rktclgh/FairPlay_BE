@@ -33,7 +33,6 @@ public class QrTicketController {
 
   private final QrTicketService qrTicketService;
   private final EntryExitService entryExitService;
-  private final QrTicketBatchService qrTicketBatchService;
 
   // 마이페이지에서 QR 티켓 조회
   @PostMapping
