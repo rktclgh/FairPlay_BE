@@ -1,9 +1,8 @@
 package com.fairing.fairplay.booth.entity;
 
 import com.fairing.fairplay.event.entity.Event;
-import com.fairing.fairplay.user.entity.BoothAdmin;
 import com.fairing.fairplay.ticket.entity.BoothTicket;
-
+import com.fairing.fairplay.user.entity.BoothAdmin;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -58,7 +57,12 @@ public class Booth {
     @Column(name="booth_banner_url", length=512)
     private String boothBannerUrl;
 
+    @Column(name="is_deleted", nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private Boolean isDeleted = false;
+
     @OneToMany(mappedBy = "booth", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<BoothTicket> boothTickets = new HashSet<>();
 
+    @OneToMany(mappedBy = "booth", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<BoothExternalLink> boothExternalLinks = new HashSet<>();
 }
