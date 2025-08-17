@@ -1,6 +1,7 @@
 package com.fairing.fairplay.qr.repository;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
+import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import java.util.List;
@@ -29,6 +30,27 @@ public interface QrTicketRepository extends JpaRepository<QrTicket, Long> {
         WHERE q.id = :qrTicketId
       """)
   Optional<QrTicketResponseDto> findDtoById(@Param("qrTicketId") Long qrTicketId);
+
+  @Query("""
+          SELECT new com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto(
+            q.id,
+            r.reservationId,
+            e.titleKr,
+            l.buildingName,
+            l.address,
+            q.ticketNo,
+            q.qrCode,
+            q.manualCode)
+        FROM QrTicket q
+        JOIN q.attendee a
+        JOIN a.reservation r
+        JOIN q.eventSchedule es
+        JOIN es.event e
+        JOIN e.eventDetail ed
+        JOIN ed.location l
+        WHERE q.id = :qrTicketId
+      """)
+  Optional<QrTicketGuestResponseDto> findGuestDtoById(@Param("qrTicketId") Long qrTicketId);
 
   Optional<QrTicket> findByAttendee(Attendee attendee);
 

@@ -5,6 +5,7 @@ import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
@@ -17,7 +18,6 @@ import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.CodeGenerator;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
-import com.fairing.fairplay.reservation.service.ReservationService;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import java.time.LocalDateTime;
@@ -53,7 +53,7 @@ public class QrTicketService {
 
   // 비회원 QR 티켓 조회 -> QR 티켓 링크 통한 조회
   @Transactional
-  public QrTicketResponseDto issueGuest(String token) {
+  public QrTicketGuestResponseDto issueGuest(String token) {
     return qrTicketIssueService.issueGuestTicket(token);
   }
 

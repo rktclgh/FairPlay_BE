@@ -7,6 +7,7 @@ import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
@@ -107,8 +108,8 @@ public class QrTicketIssueService {
       throw new CustomException(HttpStatus.FORBIDDEN, "본인의 예약만 조회할 수 있습니다.");
     }
 
-    if(!reservation.getSchedule().getDate().equals(LocalDate.now())) {
-      throw new CustomException(HttpStatus.FORBIDDEN,"QR 티켓은 당일에만 조회 가능합니다.");
+    if (!reservation.getSchedule().getDate().equals(LocalDate.now())) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
     }
 
     AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
@@ -119,14 +120,14 @@ public class QrTicketIssueService {
 
   // 비회원 QR 티켓 조회 -> QR 티켓 링크 통한 조회
   @Transactional
-  public QrTicketResponseDto issueGuestTicket(String token) {
+  public QrTicketGuestResponseDto issueGuestTicket(String token) {
     // 토큰 파싱해 예약 정보 조회
     QrTicketRequestDto dto = qrLinkService.decodeToDto(token);
 
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
-    if(!reservation.getSchedule().getDate().equals(LocalDate.now())) {
-      throw new CustomException(HttpStatus.FORBIDDEN,"QR 티켓은 당일에만 조회 가능합니다.");
+    if (!reservation.getSchedule().getDate().equals(LocalDate.now())) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
     }
 
     AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findGuestTypeCode();
@@ -134,7 +135,7 @@ public class QrTicketIssueService {
     // QR 티켓 조회해 qr code, manualcode 생성해서 반환
     QrTicket savedTicket = generateAndSaveQrTicket(dto, attendeeTypeCode.getId());
     // 프론트 응답
-    return buildQrTicketResponse(savedTicket, reservation);
+    return buildQrGuestTicketResponse(savedTicket, reservation);
   }
 
   // QR 티켓 재발급 - 새로고침 버튼
@@ -323,6 +324,28 @@ public class QrTicketIssueService {
     return dto;
   }
 
+  private QrTicketGuestResponseDto buildQrGuestTicketResponse(QrTicket qrTicket,
+      Reservation reservation) {
+    QrTicketGuestResponseDto dto = qrTicketRepository.findGuestDtoById(qrTicket.getId())
+        .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "티켓 조회 실패"));
+
+    if (reservation.getCreatedAt() != null) {
+      String formattedDate = reservation.getCreatedAt().format(
+          DateTimeFormatter.ofPattern("yyyy. MM. dd"));
+      dto.setReservationDate(formattedDate);
+    }
+
+    QrTicketGuestResponseDto.ViewingScheduleInfo viewingScheduleInfo = new QrTicketGuestResponseDto.ViewingScheduleInfo(
+        getDate(reservation.getSchedule().getDate()),
+        getDayOfWeek(reservation.getSchedule().getWeekday()),
+        getTime(reservation.getSchedule().getStartTime()),
+        getTime(reservation.getSchedule().getEndTime())
+    );
+    dto.setViewingScheduleInfo(viewingScheduleInfo);
+    dto.setSeatInfo(reservation.getTicket().getName());
+    return dto;
+  }
+
   private ViewingScheduleInfo getViewingScheduleInfo(Long eventId, Long scheduleId) {
 
     EventSchedule eventSchedule = eventScheduleRepository.findByEvent_EventIdAndScheduleId(eventId,
@@ -340,6 +363,7 @@ public class QrTicketIssueService {
         .startTime(startTime)
         .build();
   }
+
 
   private String getDate(LocalDate date) {
     return date.format(DateTimeFormatter.ofPattern("yyyy. MM. dd"));
