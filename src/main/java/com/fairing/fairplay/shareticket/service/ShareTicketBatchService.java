@@ -45,6 +45,7 @@ public class ShareTicketBatchService {
 
     log.info("expiredToken: {}", shareTickets.size());
     shareTicketRepository.saveAll(shareTickets);
+    shareTicketRepository.flush();
   }
 
   // 만료된 정보 삭제

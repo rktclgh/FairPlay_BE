@@ -48,7 +48,6 @@ public class AttendeeService {
   @Transactional
   public AttendeeInfoResponseDto saveGuest(String token, AttendeeSaveRequestDto dto) {
     ShareTicket shareTicket = shareTicketService.validateAndUseToken(token);
-    log.info("shareTicket:{}", shareTicket.getLinkToken());
     if (dto.getAgreeToTerms() == null || !dto.getAgreeToTerms()) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "약관에 대해 동의하지 않았으므로 참석자 등록을 할 수 없습니다.");
     }

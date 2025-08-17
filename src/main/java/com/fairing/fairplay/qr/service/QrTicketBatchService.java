@@ -4,6 +4,7 @@ import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.entity.QAttendee;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.entity.QEvent;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.entity.QrActionCode;
 import com.fairing.fairplay.qr.entity.QrTicket;
@@ -58,16 +59,16 @@ public class QrTicketBatchService {
     QReservation reservation = QReservation.reservation;
     QAttendee attendee = QAttendee.attendee;
     QEventSchedule eventSchedule = QEventSchedule.eventSchedule;
+    QEvent qevent = QEvent.event;
 
     for (Tuple tuple : reservations) {
       Long reservationId = tuple.get(reservation.reservationId); // 예약 ID
       Long ticketId = tuple.get(reservation.ticket.ticketId); // 티켓 ID
-      Long eventId = tuple.get(reservation.schedule.event.eventId); // 행사 ID
+      Event event = tuple.get(qevent); // 행사 ID
       Long attendeeId = tuple.get(attendee.id); //참석자 ID
       String attendeeName = tuple.get(attendee.name); // 참석자 이름
       String attendeeEmail = tuple.get(attendee.email); // 참석자 이메일
       EventSchedule schedule = tuple.get(eventSchedule);
-      Event event = schedule.getEvent();
 
       String eventName = event.getTitleKr();
       String eventDate =
@@ -81,7 +82,7 @@ public class QrTicketBatchService {
         QrTicketRequestDto dto = QrTicketRequestDto.builder()
             .attendeeId(attendeeId)
             .reservationId(reservationId)
-            .eventId(eventId)
+            .eventId(event.getEventId())
             .ticketId(ticketId)
             .build();
         String qrUrl = qrLinkService.generateQrLink(dto);
@@ -102,6 +103,7 @@ public class QrTicketBatchService {
     if (qrTickets == null || qrTickets.isEmpty()) {
       return;
     }
+    log.info("qrTickets size: {}",qrTickets.size());
 
     qrTicketRepository.saveAll(qrTickets);
     qrTicketRepository.flush();
@@ -123,9 +125,8 @@ public class QrTicketBatchService {
    * */
   private List<QrTicket> scheduleCreateQrTicket() {
     // 현재 날짜 기준 다음날 시작하는 행사 데이터 추출
+    LocalDate today = LocalDate.now();
     LocalDate targetDate = LocalDate.now().plusDays(1);
-
-    log.info("[QrTicketInitProvider] scheduleCreateQrTicket - targetDate: {}", targetDate);
 
     List<Tuple> results = qrTicketRepositoryCustom.findAllByEventDate(targetDate);
 
