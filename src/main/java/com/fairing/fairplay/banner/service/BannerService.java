@@ -395,6 +395,11 @@ public class BannerService {
             throw new CustomException(HttpStatus.BAD_REQUEST, "type/date가 비었습니다.", null);
         }
 
+        // 정책: HERO 일괄 재정렬 금지 (필요 시 타입 화이트리스트로 전환)
+           if ("HERO".equals(req.type())) {
+               throw new CustomException(HttpStatus.FORBIDDEN, "HERO 배너는 일괄 재정렬을 지원하지 않습니다.", null);
+               }
+
         LocalDate d = req.date();
         var rows = bannerRepository.lockByTypeAndDate(
                 req.type(),
@@ -412,8 +417,9 @@ public class BannerService {
         // 1) 요청된 배너들을 입력 순서대로 1..k
         var assigned = new java.util.HashSet<Long>();
         int p = 1;
-        for (var it : req.items()) {
-            var b = rows.stream()
+        var items = (req.items() == null) ? java.util.List.<ReorderRequestDto.Item>of() : req.items();
+          for (var it : items) {
+               var b = rows.stream()
                     .filter(x -> x.getId().equals(it.bannerId()))
                     .findFirst()
                     .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "배너 없음: " + it.bannerId(), null));

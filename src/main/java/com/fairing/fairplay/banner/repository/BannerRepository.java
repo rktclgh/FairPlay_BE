@@ -115,13 +115,14 @@ ORDER BY b.startDate DESC, b.priority ASC
     );
 
 
-    // (FIX) 하루 단위 재정렬 잠금: DATE() 대신 범위 비교로
+    //  하루 단위 재정렬 잠금: DATE() 대신 범위 비교로
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
         SELECT b FROM Banner b
         WHERE b.bannerType.code = :type
           AND b.startDate <= :endOfDay
           AND b.endDate   >= :startOfDay
+          AND b.bannerStatusCode.code = 'ACTIVE'
         ORDER BY b.priority ASC
     """)
     List<Banner> lockByTypeAndDate(@Param("type") String type,
