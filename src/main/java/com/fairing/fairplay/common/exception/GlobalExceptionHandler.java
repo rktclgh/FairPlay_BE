@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @RestControllerAdvice
 @Slf4j
@@ -189,4 +190,22 @@ public class GlobalExceptionHandler {
       return "에러 응답 파싱 실패";
     }
   }
+
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
+    // MySQL은 에러 메시지에 위반된 인덱스명이 포함됨
+    if (containsInCause(ex, "ux_banner_active_hero_one_per_event")) {
+      return buildErrorResponse(HttpStatus.CONFLICT, "해당 행사에 이미 활성 HERO 배너가 있습니다.");
+    }
+    return buildErrorResponse(HttpStatus.BAD_REQUEST, "데이터 제약조건 위반");
+  }
+
+  private boolean containsInCause(Throwable e, String needle) {
+    for (Throwable t = e; t != null; t = t.getCause()) {
+      String m = t.getMessage();
+      if (m != null && m.contains(needle)) return true;
+    }
+    return false;
+  }
+
 }
