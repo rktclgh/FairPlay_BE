@@ -75,6 +75,8 @@ public class SecurityConfig {
                                 "/api/rag/**", // RAG API (개발/테스트용)
                                 "/api/qr-tickets/admin/issue", // QR 티켓 강제 재발급 (테스트용)
                                 "/api/rag/**", // RAG API (개발/테스트용)
+                                "/api/qr-tickets/check-in/*", // 테스트 후 수정 예정
+                                "/api/qr-tickets/check-out/*", // 테스트 후 수정 예정
                                 "/api/events/*/booths/**",
                                 "/api/events/{eventId}/booths/apply",
                                 "/api/booths/cancel/**",
