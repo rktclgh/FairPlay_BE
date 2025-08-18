@@ -23,6 +23,10 @@ public class BoothExternalLink {
     @JoinColumn(name = "booth_id")
     private Booth booth;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "booth_application_id")
+    private BoothApplication boothApplication;
+
     @Column(nullable = false, length = 500)
     private String url;
 

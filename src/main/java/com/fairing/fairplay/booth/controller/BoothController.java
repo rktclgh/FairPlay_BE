@@ -1,6 +1,8 @@
 package com.fairing.fairplay.booth.controller;
 
 import com.fairing.fairplay.booth.dto.*;
+import com.fairing.fairplay.booth.entity.Booth;
+import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.booth.service.BoothService;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.etc.FunctionAuth;
@@ -25,6 +27,7 @@ public class BoothController {
 
     private final BoothService boothService;
     private final EventRepository eventRepository;
+    private final BoothRepository boothRepository;
 
     @GetMapping("/host")
     @PreAuthorize("hasAuthority('EVENT_MANAGER')")
@@ -43,21 +46,30 @@ public class BoothController {
     }
 
     @GetMapping("/{boothId}")
-    public ResponseEntity<BoothDetailResponseDto> getBoothDetails (@PathVariable Long eventId, @PathVariable Long boothId) {
+    public ResponseEntity<BoothDetailResponseDto> getBoothDetails(@PathVariable Long eventId, @PathVariable Long boothId) {
         return ResponseEntity.ok(boothService.getBoothDetails(boothId));
     }
 
     @PatchMapping("/{boothId}")
     @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("updateBooth")
-    public ResponseEntity<BoothDetailResponseDto> updateBooth(@PathVariable Long eventId, @PathVariable Long boothId, @RequestBody BoothUpdateRequestDto dto) {
+    public ResponseEntity<BoothDetailResponseDto> updateBooth(@PathVariable Long eventId, @PathVariable Long boothId, @RequestBody BoothUpdateRequestDto dto, @AuthenticationPrincipal CustomUserDetails auth) {
+        if (auth.getRoleCode().equals("EVENT_MANAGER")) {
+            checkEventManager(eventId, auth);
+        } else if (auth.getRoleCode().equals("BOOTH_MANAGER")) {
+            checkBoothManager(boothId, auth);
+        } else {
+            throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+        }
         return ResponseEntity.ok(boothService.updateBooth(boothId, dto));
     }
 
     @DeleteMapping("/{boothId}")
     @PreAuthorize("hasAuthority('EVENT_MANAGER')")
     @FunctionAuth("deleteBooth")
-    public ResponseEntity<String> deleteBooth(@PathVariable Long eventId, @PathVariable Long boothId) {
+    public ResponseEntity<String> deleteBooth(@PathVariable Long eventId, @PathVariable Long boothId, @AuthenticationPrincipal CustomUserDetails auth) {
+        checkEventManager(eventId, auth);
+
         boothService.deleteBooth(boothId);
         return ResponseEntity.ok("부스 삭제 완료(soft delete)");
     }
@@ -107,6 +119,17 @@ public class BoothController {
         Long managerId = event.getManager().getUserId();
         if (!managerId.equals(user.getUserId())) {
             log.info("담당 행사 관리자가 아님: managerId={}, userId={}",
+                    managerId, user.getUserId());
+            throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+        }
+    }
+
+    private void checkBoothManager(Long boothId, CustomUserDetails user) {
+        Booth booth = boothRepository.findById(boothId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
+        Long managerId = booth.getBoothAdmin().getUserId();
+        if (!managerId.equals(user.getUserId())) {
+            log.info("담당 부스 관리자가 아님: managerId={}, userId={}",
                     managerId, user.getUserId());
             throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
         }
