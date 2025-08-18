@@ -81,7 +81,11 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
             return;
         }
         try {
-            String directory = "booth-apply/" + tempFile.getUsage();
+            String usage = tempFile.getUsage();
+            if (usage == null || usage.isBlank()) {
+                usage = "banner"; // 기본값
+            }
+            String directory = "booth-apply/" + usage;
 
             File savedFile = fileService.uploadFile(S3UploadRequestDto.builder()
                     .s3Key(tempFile.getS3Key())
@@ -89,7 +93,7 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
                     .fileType(tempFile.getFileType())
                     .fileSize(tempFile.getFileSize())
                     .directoryPrefix(directory)
-                    .usage(tempFile.getUsage())
+                    .usage(usage)
                     .build());
 
             fileService.createFileLink(savedFile, "BOOTH_APPLY", boothApply.getId());
@@ -142,7 +146,6 @@ public class BoothApplicationServiceImpl implements BoothApplicationService {
                         newAdmin.setEmail(application.getContactEmail());
                         newAdmin.setManagerName(application.getManagerName());
                         newAdmin.setContactNumber(application.getContactNumber());
-                        newAdmin.setOfficialUrl(application.getOfficialUrl());
 
                         return boothAdminRepository.save(newAdmin);
                     });

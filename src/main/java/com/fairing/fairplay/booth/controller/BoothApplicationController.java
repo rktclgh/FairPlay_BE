@@ -14,7 +14,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/booth/applications")
+@RequestMapping("/api/events/{eventId}/booths/apply")
 @RequiredArgsConstructor
 public class BoothApplicationController {
 

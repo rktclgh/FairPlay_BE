@@ -14,6 +14,7 @@ import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.EventAdminRepository;
 import com.fairing.fairplay.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +26,7 @@ import java.util.*;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class EventDetailModificationRequestService {
 
     private final EventDetailModificationRequestRepository modificationRequestRepository;
@@ -41,23 +43,6 @@ public class EventDetailModificationRequestService {
     private final EventVersionService eventVersionService;
     private final AwsS3Service awsS3Service;
     private final FileService fileService;
-
-    public EventDetailModificationRequestService(EventDetailModificationRequestRepository modificationRequestRepository, UpdateStatusCodeRepository updateStatusCodeRepository, EventRepository eventRepository, EventDetailRepository eventDetailRepository, LocationRepository locationRepository, MainCategoryRepository mainCategoryRepository, SubCategoryRepository subCategoryRepository, RegionCodeRepository regionCodeRepository, EventAdminRepository eventAdminRepository, UserRepository userRepository, ExternalLinkRepository externalLinkRepository, EventVersionService eventVersionService, AwsS3Service awsS3Service, FileService fileService) {
-        this.modificationRequestRepository = modificationRequestRepository;
-        this.updateStatusCodeRepository = updateStatusCodeRepository;
-        this.eventRepository = eventRepository;
-        this.eventDetailRepository = eventDetailRepository;
-        this.locationRepository = locationRepository;
-        this.mainCategoryRepository = mainCategoryRepository;
-        this.subCategoryRepository = subCategoryRepository;
-        this.regionCodeRepository = regionCodeRepository;
-        this.eventAdminRepository = eventAdminRepository;
-        this.userRepository = userRepository;
-        this.externalLinkRepository = externalLinkRepository;
-        this.eventVersionService = eventVersionService;
-        this.awsS3Service = awsS3Service;
-        this.fileService = fileService;
-    }
 
     // 수정 요청
     @Transactional
