@@ -27,7 +27,7 @@ public class SendQrTicketEmailService extends AbstractEmailService {
     String escapedViewingDate = HtmlUtils.htmlEscape(viewingDate);
 
     // 템플릿 파일(qr-ticket.html)에 %s로 인증코드 바인딩
-    String html = String.format(loadTemplate("qr-ticket.html"), escapedName, qrUrl, escapedEventName, escapedEventDate, escapedViewingDate);
+    String html = String.format(loadTemplate("qr-ticket.html"), escapedName, escapedEventName, escapedEventDate, escapedViewingDate, qrUrl);
     return new EmailContent("["+eventName+"] "+"QR 티켓 발송", html, "logo", "etc/logo.png");
   }
 }

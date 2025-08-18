@@ -9,9 +9,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ShareTicketInfoResponseDto {
+public class ShareTicketSaveResponseDto {
 
-  private Long formId;
-  private Long eventId;
-  private String eventName;
+  private Long reservationId;
+  private String token;
 }

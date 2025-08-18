@@ -5,6 +5,7 @@ import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueRequestDto;
@@ -17,7 +18,6 @@ import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.CodeGenerator;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
-import com.fairing.fairplay.reservation.service.ReservationService;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import java.time.LocalDateTime;
@@ -33,13 +33,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class QrTicketService {
 
   private final QrTicketIssueService qrTicketIssueService;
-  private final ReservationService reservationService;
   private final QrTicketRepository qrTicketRepository;
   private final AttendeeRepository attendeeRepository;
   private final EventScheduleRepository eventScheduleRepository;
   private final CodeGenerator codeGenerator;
   private final ReservationRepository reservationRepository;
   private final AttendeeTypeCodeRepository attendeeTypeCodeRepository;
+
+  // 대표자/동반자 QR 티켓 생성
+  public void generateQrTicket(Attendee attendee, Reservation reservation) {
+    qrTicketIssueService.generateQrTicket(attendee, reservation);
+  }
 
   // 회원 QR 티켓 조회 -> 마이페이지에서 조회
   @Transactional
@@ -49,7 +53,7 @@ public class QrTicketService {
 
   // 비회원 QR 티켓 조회 -> QR 티켓 링크 통한 조회
   @Transactional
-  public QrTicketResponseDto issueGuest(String token) {
+  public QrTicketGuestResponseDto issueGuest(String token) {
     return qrTicketIssueService.issueGuestTicket(token);
   }
 

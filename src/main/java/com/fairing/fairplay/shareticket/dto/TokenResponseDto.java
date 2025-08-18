@@ -9,9 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ShareTicketInfoResponseDto {
+public class TokenResponseDto {
 
-  private Long formId;
-  private Long eventId;
-  private String eventName;
+  private String token;
 }

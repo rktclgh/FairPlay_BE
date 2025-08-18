@@ -55,6 +55,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
   Page<PossibleReviewResponseDto> findPossibleReviewReservationsDto(@Param("userId") Long userId,
       Pageable pageable);
 
+
   // 예약자 명단 조회 (페이지네이션 + 필터링)
   @Query(
           value = """
@@ -89,4 +90,46 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
       @Param("phone") String phone,
       @Param("reservationId") Long reservationId,
       Pageable pageable);
-}
+
+
+  //  예매율 계산
+  @Query(value = """
+        SELECT s.event_id,
+               CASE WHEN s.total_stock = 0 THEN 0
+                    ELSE (c.confirmed_qty * 1.0) / s.total_stock
+               END AS booking_rate
+          FROM (
+                SELECT et.event_id, COALESCE(SUM(t.stock), 0) AS total_stock
+                  FROM event_ticket et
+                  JOIN ticket t ON t.ticket_id = et.ticket_id
+                 GROUP BY et.event_id
+               ) s
+          LEFT JOIN (
+                SELECT r.event_id, COALESCE(SUM(r.quantity), 0) AS confirmed_qty
+                  FROM reservation r
+                  JOIN reservation_status_code rsc
+                    ON rsc.reservation_status_code_id = r.reservation_status_code_id
+                 WHERE rsc.code = :confirmedCode
+                 GROUP BY r.event_id
+               ) c ON c.event_id = s.event_id
+         ORDER BY booking_rate DESC
+    """, nativeQuery = true)
+  List<Object[]> findEventBookingRates(@Param("confirmedCode") String confirmedCode);
+
+
+    // 예매 수량 상위 이벤트 (CONFIRMED/PAID 등 코드 문자열로 필터)
+    @Query(value = """
+        SELECT r.event_id            AS eventId,
+               COALESCE(SUM(r.quantity), COUNT(*)) AS bookedQty
+        FROM reservation r
+        JOIN reservation_status_code s
+             ON s.reservation_status_code_id = r.reservation_status_code_id
+        WHERE s.code IN (:statuses)
+          AND r.canceled = 0
+        GROUP BY r.event_id
+        ORDER BY bookedQty DESC
+        """, nativeQuery = true)
+    List<Object[]> findEventBookingQuantities(@Param("statuses") List<String> statuses);
+  }
+
+

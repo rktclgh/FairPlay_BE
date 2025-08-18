@@ -116,4 +116,22 @@ public class BoothExperience {
         }
         return true; // 대기열 허용하고 최대 대기 수 제한 없으면 항상 가능
     }
+
+    // 체험 정보 업데이트 메서드
+    public void updateExperience(String title, String description, LocalDate experienceDate,
+                               LocalTime startTime, LocalTime endTime, Integer durationMinutes,
+                               Integer maxCapacity, Boolean allowWaiting, Integer maxWaitingCount,
+                               Boolean allowDuplicateReservation, Boolean isReservationEnabled) {
+        this.title = title;
+        this.description = description;
+        this.experienceDate = experienceDate;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.durationMinutes = durationMinutes;
+        this.maxCapacity = maxCapacity;
+        this.allowWaiting = allowWaiting;
+        this.maxWaitingCount = maxWaitingCount;
+        this.allowDuplicateReservation = allowDuplicateReservation;
+        this.isReservationEnabled = isReservationEnabled;
+    }
 }
