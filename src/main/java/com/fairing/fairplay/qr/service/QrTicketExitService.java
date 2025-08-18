@@ -107,8 +107,10 @@ public class QrTicketExitService {
         QrCheckStatusCode.EXIT);
     // 코드 스캔 기록
     qrLogService.scannedQrLog(qrTicket, qrActionCode);
-    // 재입장 가능 여부 검토 - 퇴장 기록 자체가 있는지 조회
-    qrEntryValidateService.verifyReEntry(qrTicket);
+//    // 재입장 가능 여부 검토 - 퇴장 기록 자체가 있는지 조회
+//    qrEntryValidateService.verifyReEntry(qrTicket);
+
+
     // 중복 스캔 -> QrLog: invalid, QrChecktLog: duplicate 저장
     qrEntryValidateService.preventDuplicateScan(qrTicket, qrCheckStatusCode.getCode());
     // 코드 비교
