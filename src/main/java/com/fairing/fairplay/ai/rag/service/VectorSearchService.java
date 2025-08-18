@@ -72,8 +72,8 @@ public class VectorSearchService {
                 .build();
         }
         
-        // 질의 임베딩
-        float[] queryEmbedding = embeddingService.embedText(query);
+        // 질의 임베딩 (검색용 최적화)
+        float[] queryEmbedding = embeddingService.embedQuery(query);
         log.debug("질의 임베딩 생성 완료: {} 차원", queryEmbedding.length);
         
         // 모든 청크와 유사도 계산
@@ -147,6 +147,15 @@ public class VectorSearchService {
         chunkCache.clear();
         cacheInitialized = false;
         log.info("청크 캐시 무효화 완료");
+    }
+    
+    /**
+     * 모든 임베딩 데이터 삭제 (차원 변경 시 사용)
+     */
+    public void clearAllEmbeddingData() {
+        repository.clearAllData();
+        invalidateCache();
+        log.info("모든 임베딩 데이터 삭제 완료 - 차원 변경으로 인한 데이터 재생성 필요");
     }
     
     /**

@@ -115,9 +115,16 @@ public class AuthService {
                 user.getEmail()
         );
 
+        // 슬라이딩 세션 구현: 리프레시 토큰 사용 시 TTL 연장
         refreshTokenService.saveRefreshToken(
                 user.getUserId(),
                 newRefreshToken,
+                jwtTokenProvider.getRefreshTokenExpiry()
+        );
+        
+        // 기존 리프레시 토큰의 TTL도 연장 (사용자가 활발히 활동 중이므로)
+        refreshTokenService.extendRefreshTokenTTL(
+                user.getUserId(),
                 jwtTokenProvider.getRefreshTokenExpiry()
         );
 
