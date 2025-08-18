@@ -11,12 +11,14 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 // 행사 정보
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Slf4j
 public class EventDto {
 
   private String title;
@@ -27,15 +29,29 @@ public class EventDto {
   private EventScheduleInfo eventScheduleInfo;
 
   public EventDto(String title, String buildingName, String address, String thumbnail,
-      LocalDate scheduleDate, int weekday, LocalTime startTime,
+      LocalDate scheduleDate, Integer weekday, LocalTime startTime,
       LocalDate startDate, LocalDate endDate) {
+    log.info("EventDto 생성자 title:{}",title);
+    log.info("EventDto 생성자 buildingName:{}",buildingName);
+    log.info("EventDto 생성자 address:{}",address);
+    log.info("EventDto 생성자 thumbnail:{}",thumbnail);
+    log.info("EventDto 생성자 scheduleDate:{}",scheduleDate);
+    log.info("EventDto 생성자 weekday:{}",weekday);
+    log.info("EventDto 생성자 startTime:{}",startTime);
+    log.info("EventDto 생성자 startDate:{}",startDate);
+    log.info("EventDto 생성자 startTime:{}",endDate);
+
+
+
+
+
     this.title = title;
     this.buildingName = buildingName;
     this.address = address;
     this.thumbnail = thumbnail;
     this.viewingScheduleInfo = new ViewingScheduleInfo(
         DateTimeUtils.formatDate(scheduleDate),
-        DateTimeUtils.formatDayOfWeek(weekday),
+        DateTimeUtils.formatDayOfWeek(weekday != null ? weekday : 0),
         DateTimeUtils.formatTime(startTime)
     );
     this.eventScheduleInfo = new EventScheduleInfo(

@@ -20,8 +20,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-        private final JwtTokenProvider jwtTokenProvider;
-        private final UserRepository userRepository;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -31,6 +31,8 @@ public class SecurityConfig {
                         .disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        //.requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                         .requestMatchers(
                                 "/",                // 루트 경로 (index.html)
                                 "/index.html",      // 메인 정적 페이지
@@ -46,23 +48,22 @@ public class SecurityConfig {
                                 "/api/auth/logout",
                                 "/api/auth/refresh",
                                 "/api/events",                     // GET 행사 목록 조회
-                                "/api/events/list",                // GET 행사 목록 (테스트용)
                                 "/api/events/*/details",           // GET 행사 상세 조회 (*/details 패턴)
-                                                                "/api/users/forgot-password",
-                                                                "/swagger-ui/**",
-                                                                "/v3/api-docs/**",
-                                                                "/api/users/check-email",
-                                                                "/api/users/check-nickname",
-                                                                "/api/email/verify-code",
-                                                                "/api/email/send-verification",
-                                                                "/api/auth/kakao",
-                                                                "/auth/kakao/callback",
-                                                                "/api/users/event-admin/*/public",
-                                                                "/api/qr-tickets/*",
-                                                                "/api/qr-tickets/reissue",
-                                                                "/ws/**", // ★ 반드시 필요
-                                                "/ws/*/info", // SockJS info 엔드포인트
-                                                                "/api/chat/rooms/**", // 채팅방 목록 조회만 허용
+                                "/api/users/forgot-password",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/api/users/check-email",
+                                "/api/users/check-nickname",
+                                "/api/email/verify-code",
+                                "/api/email/send-verification",
+                                "/api/auth/kakao",
+                                "/auth/kakao/callback",
+                                "/api/users/event-admin/*/public",
+                                "/api/qr-tickets/*",
+                                "/api/qr-tickets/reissue",
+                                "/ws/**", // ★ 반드시 필요
+                                "/ws/*/info", // SockJS info 엔드포인트
+                                "/api/chat/rooms/**", // 채팅방 목록 조회만 허용
                                 "/api/chat/presence/status/**", // 사용자 온라인 상태 조회 허용
                                 "/api/uploads/**",
                                 "/api/payments/complete",  // PG사에서 호출하는 결제 완료 웹훅
@@ -70,9 +71,23 @@ public class SecurityConfig {
                                 "/api/events/apply/check",
                                 "/api/events/user/role",
                                 "/api/super-admin/**",
-                                "/api/rag/**" // RAG API (개발/테스트용)
+                                "/api/qr-tickets/reissue/guest",
+                                "/api/rag/**", // RAG API (개발/테스트용)
+                                "/api/qr-tickets/admin/issue", // QR 티켓 강제 재발급 (테스트용)
+                                "/api/rag/**", // RAG API (개발/테스트용)
+                                "/api/events/*/booths/**",
+                                "/api/events/{eventId}/booths/apply",
+                                "/api/booths/cancel/**",
+                                "/api/booths/payment/payment-page/**",
+                                "/api/booths/payment/request-from-email",
+                                "/api/booths/payment/complete"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/attendees").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/schedule").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/tickets").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events//schedule/*/tickets").permitAll()
                         .requestMatchers("/api/chat/presence/connect",
                                 "/api/chat/presence/disconnect")
                         .authenticated() // JWT 인증

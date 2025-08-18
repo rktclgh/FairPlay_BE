@@ -21,10 +21,10 @@ public class BoothApplicationMapper {
 
         entity.setEvent(event);
         entity.setBoothTitle(dto.getBoothTitle());
-        entity.setBoothEmail(dto.getEmail());
+        entity.setBoothEmail(dto.getBoothEmail());
         entity.setBoothDescription(dto.getBoothDescription());
         entity.setManagerName(dto.getManagerName());
-        entity.setEmail(dto.getEmail());
+        entity.setContactEmail(dto.getContactEmail());
         entity.setContactNumber(dto.getContactNumber());
         entity.setOfficialUrl(dto.getOfficialUrl());
         entity.setBoothApplicationStatusCode(status);
@@ -60,7 +60,8 @@ public class BoothApplicationMapper {
                 .boothTitle(entity.getBoothTitle())
                 .boothDescription(entity.getBoothDescription())
                 .managerName(entity.getManagerName())
-                .email(entity.getEmail())
+                .boothEmail(entity.getBoothEmail())
+                .contactEmail(entity.getContactEmail())
                 .contactNumber(entity.getContactNumber())
                 .officialUrl(entity.getOfficialUrl())
                 .boothTypeName(entity.getBoothType().getName())

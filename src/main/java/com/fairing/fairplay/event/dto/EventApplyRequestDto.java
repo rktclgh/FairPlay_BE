@@ -1,10 +1,12 @@
 package com.fairing.fairplay.event.dto;
 
+import com.fairing.fairplay.file.dto.TempFileUploadDto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -26,11 +28,19 @@ public class EventApplyRequestDto {
     private String titleEng;
     
     // 파일 업로드 정보
-    private List<FileUploadDto> tempFiles;
+    private List<TempFileUploadDto> tempFiles;
     
     // EventDetail과 비슷한 정보들
     private Long locationId;
     private String locationDetail;
+    
+    // 새로운 장소 정보 (카카오맵에서 받은 데이터)
+    private String address;
+    private String placeName;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private String placeUrl;
+    
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer mainCategoryId;
@@ -40,16 +50,5 @@ public class EventApplyRequestDto {
     // 기존 bannerUrl, thumbnailUrl은 하위 호환성을 위해 유지
     private String bannerUrl;
     private String thumbnailUrl;
-    
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class FileUploadDto {
-        private String s3Key;
-        private String originalFileName;
-        private String fileType;
-        private Long fileSize;
-        private String usage; // "application_file", "banner", "thumbnail" 등
-    }
+
 }

@@ -3,12 +3,13 @@ package com.fairing.fairplay.event.service;
 import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
 import com.fairing.fairplay.event.repository.*;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
-import com.fairing.fairplay.file.dto.S3UploadResponseDto;
+import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.service.FileService;
 import com.fairing.fairplay.payment.entity.Payment;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
@@ -16,6 +17,7 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.user.entity.EventAdmin;
+import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.EventAdminRepository;
 import com.fairing.fairplay.wishlist.repository.WishlistRepository;
 import jakarta.persistence.EntityManager;
@@ -92,118 +94,118 @@ public class EventService {
      */
 
     // 전체 관리자가 행사 생성
-    @Transactional
-    public EventResponseDto createEvent(Long adminId, EventRequestDto eventRequestDto) {
-
-        log.info("행사 관리자 계정 생성 시작");
-        // TODO: 행사 관리자 계정 생성 및 ID 받기
-        Long managerId = 2L;    // NOTE: 임시로 하드코딩
-        log.info("행사 관리자 계정 생성 완료");
-
-        log.info("행사 생성 시작");
-        Event event = new Event();
-
-        // 행사 담당자 설정
-        EventAdmin manager = eventAdminRepository.findById(managerId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사 관리자를 찾을 수 없습니다.", null));
-        event.setManager(manager);
-        log.info("담당자 설정 완료");
-
-        // 행사 상태 UPCOMING으로 설정
-        EventStatusCode status = eventStatusCodeRepository.findById(1)
-                .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "해당 코드 없음", null));
-        event.setStatusCode(status);
-        log.info("행사 상태 설정 완료");
-
-        // 행사 생성 후 행사 ID로 고유 코드 생성하기 위해 임시값 저장
-        event.setEventCode("TEMP");
-        log.info("행사 고유 코드 임시 설정 완료");
-
-        // 행사명 설정
-        event.setTitleKr(eventRequestDto.getTitleKr());
-        event.setTitleEng(eventRequestDto.getTitleEng());
-        log.info("행사명 생성 완료");
-
-        // Hashid로 고유 코드 생성
-        Event savedEvent = eventRepository.save(event);
-        String eventCode = encode(savedEvent.getEventId());
-        savedEvent.setEventCode("EVT-" + eventCode);
-
-        // 첫 번째 버전 생성
-        log.info("첫 번째 버전 생성 for eventId: {}", savedEvent.getEventId());
-        EventVersion firstVersion = eventVersionService.createEventVersion(savedEvent, adminId);
-        log.info("첫 번째 버전 생성 완료");
-
-        return EventResponseDto.builder()
-                .message("행사 생성이 완료되었습니다.")
-                .eventId(savedEvent.getEventId())
-                .managerId(manager.getUser().getUserId())
-                .eventCode(eventCode)
-                .hidden(event.getHidden())
-                .version(firstVersion.getVersionNumber())
-                .build();
-    }
+//    @Transactional
+//    public EventResponseDto createEvent(Long adminId, EventRequestDto eventRequestDto) {
+//
+//        log.info("행사 관리자 계정 생성 시작");
+//        Long managerId = adminId;
+//        log.info("행사 관리자 계정 생성 완료");
+//
+//        log.info("행사 생성 시작");
+//        Event event = new Event();
+//
+//        // 행사 담당자 설정
+//        EventAdmin manager = eventAdminRepository.findById(managerId)
+//                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사 관리자를 찾을 수 없습니다.", null));
+//        event.setManager(manager);
+//        log.info("담당자 설정 완료");
+//
+//        // 행사 상태 UPCOMING으로 설정
+//        EventStatusCode status = eventStatusCodeRepository.findById(1)
+//                .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "해당 코드 없음", null));
+//        event.setStatusCode(status);
+//        log.info("행사 상태 설정 완료");
+//
+//        // 행사 생성 후 행사 ID로 고유 코드 생성하기 위해 임시값 저장
+//        event.setEventCode("TEMP");
+//        log.info("행사 고유 코드 임시 설정 완료");
+//
+//        // 행사명 설정
+//        event.setTitleKr(eventRequestDto.getTitleKr());
+//        event.setTitleEng(eventRequestDto.getTitleEng());
+//        log.info("행사명 생성 완료");
+//
+//        // Hashid로 고유 코드 생성
+//        Event savedEvent = eventRepository.save(event);
+//        String eventCode = encode(savedEvent.getEventId());
+//        savedEvent.setEventCode("EVT-" + eventCode);
+//
+//        // 첫 번째 버전 생성
+//        log.info("첫 번째 버전 생성 for eventId: {}", savedEvent.getEventId());
+//        EventVersion firstVersion = eventVersionService.createEventVersion(savedEvent, adminId);
+//        log.info("첫 번째 버전 생성 완료");
+//
+//        return EventResponseDto.builder()
+//                .message("행사 생성이 완료되었습니다.")
+//                .eventId(savedEvent.getEventId())
+//                .managerId(manager.getUser().getUserId())
+//                .eventCode(eventCode)
+//                .hidden(event.getHidden())
+//                .version(firstVersion.getVersionNumber())
+//                .build();
+//    }
 
     // 행사 상세 생성
-    @Transactional
-    public EventDetailResponseDto createEventDetail(Long managerId, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
-
-        Event event = checkEventAndDetail(eventId, "create");
-
-        // 행사 상세 생성
-        EventDetail eventDetail = new EventDetail();
-        log.info("eventDetail 생성: {}", eventDetail);
-
-        Integer versionNumber = createVersion(event, managerId);
-
-        // 제목 설정
-        setTitles(event, eventDetailRequestDto);
-
-        // 주소 설정
-        Location location = createAndSaveLocation(eventDetail, eventDetailRequestDto, "create");
-        eventDetail.setLocation(location);
-
-        // 지역 코드 추출 및 설정
-        findRegionCode(eventDetail, eventDetailRequestDto);
-
-        // 행사 정보 설정
-        setEventDetailInfo(eventDetail, eventDetailRequestDto);
-
-        // 파일 처리
-        processFiles(eventDetail, eventDetailRequestDto, eventId);
-
-        // 카테고리 설정
-        setCategories(eventDetail, eventDetailRequestDto);
-
-        // 외부 링크 설정
-        setExternalLinks(event, eventDetailRequestDto);
-
-        log.info("연관 관계 설정");
-        eventDetail.setEvent(event);
-        event.setEventDetail(eventDetail);
-        eventDetailRepository.save(eventDetail);
-        eventRepository.saveAndFlush(event);
-        log.info("행사 상세 생성 완료");
-
-        List<ExternalLinkResponseDto> externalLinkResponseDtos = externalLinkRepository.findByEvent(event).stream()
-                .map(link -> ExternalLinkResponseDto.builder()
-                        .url(link.getUrl())
-                        .displayText(link.getDisplayText())
-                        .build())
-                .toList();
-
-        entityManager.flush();
-        entityManager.refresh(event);
-        entityManager.refresh(eventDetail);
-
-        return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, versionNumber, "이벤트 상세 정보가 생성되었습니다.");
-    }
+//    @Transactional
+//    public EventDetailResponseDto createEventDetail(Long managerId, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
+//
+//        Event event = checkEventAndDetail(eventId, "create");
+//
+//        // 행사 상세 생성
+//        EventDetail eventDetail = new EventDetail();
+//        log.info("eventDetail 생성: {}", eventDetail);
+//
+//        Integer versionNumber = createVersion(event, managerId);
+//
+//        // 제목 설정
+//        setTitles(event, eventDetailRequestDto);
+//
+//        // 주소 설정
+//        Location location = createAndSaveLocation(eventDetail, eventDetailRequestDto, "create");
+//        eventDetail.setLocation(location);
+//
+//        // 지역 코드 추출 및 설정
+//        findRegionCode(eventDetail, eventDetailRequestDto);
+//
+//        // 행사 정보 설정
+//        setEventDetailInfo(eventDetail, eventDetailRequestDto);
+//
+//        // 파일 처리
+//        processFiles(eventDetail, eventDetailRequestDto, eventId);
+//
+//        // 카테고리 설정
+//        setCategories(eventDetail, eventDetailRequestDto);
+//
+//        // 외부 링크 설정
+//        setExternalLinks(event, eventDetailRequestDto);
+//
+//        log.info("연관 관계 설정");
+//        eventDetail.setEvent(event);
+//        event.setEventDetail(eventDetail);
+//        eventDetailRepository.save(eventDetail);
+//        eventRepository.saveAndFlush(event);
+//        log.info("행사 상세 생성 완료");
+//
+//        List<ExternalLinkResponseDto> externalLinkResponseDtos = externalLinkRepository.findByEvent(event).stream()
+//                .map(link -> ExternalLinkResponseDto.builder()
+//                        .url(link.getUrl())
+//                        .displayText(link.getDisplayText())
+//                        .build())
+//                .toList();
+//
+//        entityManager.flush();
+//        entityManager.refresh(event);
+//        entityManager.refresh(eventDetail);
+//
+//        return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, versionNumber, "이벤트 상세 정보가 생성되었습니다.");
+//    }
 
     // 행사 목록 조회 (메인페이지, 검색 등) - EventDetail 정보 등록해야 보임
     @Transactional
     public EventSummaryResponseDto getEvents(
             String keyword, Integer mainCategoryId, Integer subCategoryId,
-            String regionName, LocalDate fromDate, LocalDate toDate, Pageable pageable) {
+            String regionName, LocalDate fromDate, LocalDate toDate,
+            CustomUserDetails userDetails, Pageable pageable) {
         log.info("행사 목록 조회 필터");
         log.info("keyword : {}", keyword);
         log.info("mainCategoryId : {}", mainCategoryId);
@@ -211,9 +213,14 @@ public class EventService {
         log.info("regionName : {}", regionName);
         log.info("fromDate : {}", fromDate);
         log.info("toDate : {}", toDate);
+        
+        // 관리자 권한 확인
+        boolean includeHidden = userDetails != null && "ADMIN".equals(userDetails.getRoleCode());
+        log.info("사용자 권한: {}, 숨겨진 행사 포함 여부: {}", 
+                userDetails != null ? userDetails.getRoleCode() : "비로그인", includeHidden);
 
         Page<EventSummaryDto> eventPage = eventQueryRepository.findEventSummariesWithFilters (
-                keyword, mainCategoryId, subCategoryId, regionName, fromDate, toDate, pageable);
+                keyword, mainCategoryId, subCategoryId, regionName, fromDate, toDate, includeHidden, pageable);
 
         log.info("행사 목록 조회 완료: {}", eventPage.getTotalElements());
         return EventSummaryResponseDto.builder()
@@ -240,9 +247,60 @@ public class EventService {
                 .toList();
     }
 
+    // 사용자 담당 이벤트 조회 (한 계정당 하나)
+    public EventResponseDto getUserEvent(CustomUserDetails userDetails) {
+        String roleCode = userDetails.getRoleCode();
+        Long userId = userDetails.getUserId();
+        
+        log.info("사용자 담당 이벤트 조회 - 사용자 ID: {}, 권한: {}", userId, roleCode);
+
+        // 행사 담당자는 자신이 담당하는 이벤트 조회
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            log.info("행사 담당자 권한으로 담당 이벤트 조회");
+            List<Event> userEvents = eventRepository.findByManager_User_UserId(userId);
+            log.info("조회된 담당 이벤트 수: {}", userEvents.size());
+            
+            if (userEvents.isEmpty()) {
+                throw new CustomException(HttpStatus.NOT_FOUND, "담당하는 행사가 없습니다.");
+            }
+            
+            if (userEvents.size() > 1) {
+                log.warn("한 사용자가 여러 이벤트를 담당하고 있습니다. 첫 번째 이벤트를 반환합니다.");
+            }
+            
+            Event event = userEvents.get(0);
+            log.info("담당 이벤트 - ID: {}, 코드: {}, 매니저 ID: {}", 
+                event.getEventId(), 
+                event.getEventCode(),
+                event.getManager() != null ? event.getManager().getUser().getUserId() : "null");
+            
+            return EventResponseDto.builder()
+                    .eventId(event.getEventId())
+                    .managerId(event.getManager().getUser().getUserId())
+                    .eventCode(event.getEventCode())
+                    .hidden(event.getHidden())
+                    .version(event.getEventVersions() != null && !event.getEventVersions().isEmpty() ? 
+                        event.getEventVersions().stream().mapToInt(EventVersion::getVersionNumber).max().orElse(0) : 0)
+                    .build();
+        }
+
+        // 전체 관리자는 첫 번째 이벤트 반환 (테스트용)
+        if ("ADMIN".equals(roleCode)) {
+            log.info("전체 관리자 권한으로 첫 번째 이벤트 조회");
+            List<EventResponseDto> allEvents = getEventList();
+            if (allEvents.isEmpty()) {
+                throw new CustomException(HttpStatus.NOT_FOUND, "등록된 행사가 없습니다.");
+            }
+            return allEvents.get(0);
+        }
+
+        // 기타 권한은 접근 불가
+        throw new CustomException(HttpStatus.FORBIDDEN, "행사 조회 권한이 없습니다.");
+    }
+
     // 행사 상세 조회
     @Transactional
-    public EventDetailResponseDto getEventDetail(Long eventId) {
+    public EventDetailResponseDto getEventDetail(Long eventId, CustomUserDetails userDetails) {
         Event event = checkEventAndDetail(eventId, "read");
         EventDetail eventDetail = event.getEventDetail();
 
@@ -253,8 +311,22 @@ public class EventService {
                         .build())
                 .toList();
 
-        event.incrementViewCount();
-        log.info("행사 조회 성공 및 조회 수 증가: {}", event.getViewCount());
+        boolean shouldIncrement = true;
+        if (userDetails != null) {
+            String roleCode = userDetails.getRoleCode();
+            if ("ADMIN".equals(roleCode)) {
+                shouldIncrement = false;
+            } else if ("EVENT_MANAGER".equals(roleCode)) {
+                if (event.getManager() != null && userDetails.getUserId().equals(event.getManager().getUser().getUserId())) {
+                    shouldIncrement = false;
+                }
+            }
+        }
+
+        if (shouldIncrement) {
+            event.incrementViewCount();
+            log.info("행사 조회 성공 및 조회 수 증가: {}", event.getViewCount());
+        }
 
         int versionNumber = eventVersionRepository.findTopByEventOrderByVersionNumberDesc(event)
                 .map(EventVersion::getVersionNumber)
@@ -282,15 +354,18 @@ public class EventService {
                 }
             }
 
-            S3UploadResponseDto s3UploadResponseDto = fileService.uploadFile(S3UploadRequestDto.builder()
+            File savedFile = fileService.uploadFile(S3UploadRequestDto.builder()
                     .s3Key(fileDto.getS3Key())
-                    .eventId(eventId)
                     .originalFileName(fileDto.getOriginalFileName())
                     .fileType(fileDto.getFileType())
                     .fileSize(fileDto.getFileSize())
                     .directoryPrefix(directoryPrefix)
+                    .usage("thumbnail")
                     .build());
-            eventDetail.setThumbnailUrl(s3UploadResponseDto.getFileUrl());
+
+            fileService.createFileLink(savedFile, "EVENT", eventId);
+
+            eventDetail.setThumbnailUrl(awsS3Service.getCdnUrl(savedFile.getFileUrl()));
             log.info("썸네일 변경 완료");
         }
 
@@ -674,9 +749,12 @@ public class EventService {
     }
 
     private EventDetailResponseDto buildEventDetailResponseDto(Event event, EventDetail detail, List<ExternalLinkResponseDto> links, Integer version, String message) {
+        EventAdmin manager = event.getManager();
+        Users user = (manager != null) ? manager.getUser() : null;
+
         return EventDetailResponseDto.builder()
                 .message(message)
-                .managerId(event.getManager().getUser().getUserId())
+                .managerId(user != null ? user.getUserId() : null)
                 .eventCode(event.getEventCode())
                 .createdAt(detail.getCreatedAt())
                 .updatedAt(detail.getUpdatedAt())
@@ -701,6 +779,10 @@ public class EventService {
                 .hostName(detail.getHostName())
                 .contactInfo(detail.getContactInfo())
                 .officialUrl(detail.getOfficialUrl())
+                .managerName(user != null ? user.getName() : null)
+                .managerPhone(manager != null ? manager.getContactNumber() : null)
+                .managerEmail(manager != null ? manager.getContactEmail() : null)
+                .managerBusinessNumber(manager != null ? manager.getBusinessNumber() : null)
                 .bio(detail.getBio())
                 .content(detail.getContent())
                 .policy(detail.getPolicy())
@@ -709,6 +791,8 @@ public class EventService {
                 .reentryAllowed(detail.getReentryAllowed())
                 .checkInAllowed(detail.getCheckInAllowed())
                 .checkOutAllowed(detail.getCheckOutAllowed())
+                .hostCompany(detail.getHostCompany())
+                .age(detail.getAge())
                 .build();
     }
 
@@ -729,19 +813,21 @@ public class EventService {
         }
 
         for (EventDetailRequestDto.FileUploadDto fileDto : eventDetailRequestDto.getTempFiles()) {
-            String directoryPrefix = "event/" + eventId + "/" + fileDto.getUsage();
+            String directoryPrefix = "events/" + eventId + "/" + fileDto.getUsage();
 
-            S3UploadResponseDto s3UploadResponseDto = fileService.uploadFile(S3UploadRequestDto.builder()
+            File savedFile = fileService.uploadFile(S3UploadRequestDto.builder()
                     .s3Key(fileDto.getS3Key())
-                    .eventId(eventId)
                     .originalFileName(fileDto.getOriginalFileName())
                     .fileType(fileDto.getFileType())
                     .fileSize(fileDto.getFileSize())
                     .directoryPrefix(directoryPrefix)
+                    .usage(fileDto.getUsage())
                     .build());
 
+            fileService.createFileLink(savedFile, "EVENT", eventId);
+
             String tempUrl = "/api/uploads/download?key=" + fileDto.getS3Key();
-            String cdnUrl = s3UploadResponseDto.getFileUrl();
+            String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
 
             switch (fileDto.getUsage()) {
                 case "thumbnail":

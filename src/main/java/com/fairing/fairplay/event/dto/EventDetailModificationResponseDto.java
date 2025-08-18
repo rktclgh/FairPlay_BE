@@ -18,6 +18,7 @@ public class EventDetailModificationResponseDto {
     private Long eventId;
     private String eventTitle;
     private Long requestedBy;
+    private String eventCode;
     private String statusCode;
     private String statusName;
     private Long processedBy;
@@ -34,6 +35,7 @@ public class EventDetailModificationResponseDto {
         dto.setEventId(request.getEvent().getEventId());
         dto.setEventTitle(request.getEvent().getTitleKr());
         dto.setRequestedBy(request.getRequestedBy());
+        dto.setEventCode(request.getEvent().getEventCode());
         dto.setStatusCode(request.getStatus().getCode());
         dto.setStatusName(request.getStatus().getName());
         dto.setProcessedBy(request.getProcessedBy());

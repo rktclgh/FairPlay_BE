@@ -4,40 +4,50 @@ import com.fairing.fairplay.banner.dto.*;
 import com.fairing.fairplay.banner.entity.*;
 import com.fairing.fairplay.banner.repository.*;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
-import com.fairing.fairplay.file.dto.S3UploadResponseDto;
+import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.service.FileService;
 import com.fairing.fairplay.user.entity.Users;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import java.util.ArrayList;
+import java.util.Comparator;
+import com.fairing.fairplay.event.entity.Event;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BannerService {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String ACTION_CREATE = "CREATE";
     private static final String ACTION_UPDATE = "UPDATE";
     private static final String ACTION_PRIORITY_CHANGE = "PRIORITY_CHANGE";
+    private static final String STATUS_INACTIVE = "INACTIVE";
 
     private final BannerRepository bannerRepository;
     private final BannerStatusCodeRepository bannerStatusCodeRepository;
     private final BannerActionCodeRepository bannerActionCodeRepository;
     private final BannerLogRepository bannerLogRepository;
     private final FileService fileService;
+    private final AwsS3Service awsS3Service;
     private final BannerTypeRepository bannerTypeRepository;
     private final EventRepository eventRepository;
+    private final BannerSlotRepository bannerSlotRepository;
 
-    // S3 디렉토리명 설정(기본값 banner)
+
     @Value("${cloud.aws.s3.banner-dir:banner}")
     private String bannerDir;
 
@@ -46,15 +56,20 @@ public class BannerService {
     public BannerResponseDto createBanner(BannerRequestDto dto, Long adminId) {
         validateEvent(dto.getEventId());
 
-        // 통일된 이미지 처리(등록 전용: 반드시 이미지 필요)
-        String finalImageUrl = resolveImageUrlForCreate(dto);
+
+        if (dto.getStartDate() == null || dto.getEndDate() == null) {
+                        throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간(startDate, endDate)은 필수입니다.", null);
+                    }
+                if (dto.getStartDate().isAfter(dto.getEndDate())) {
+                        throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
+                    }
 
         BannerStatusCode statusCode = getStatusCodeOr404(dto.getStatusCode());
         BannerType bannerType = getBannerTypeOr404(dto.getBannerTypeId());
 
         Banner banner = new Banner(
                 dto.getTitle(),
-                finalImageUrl,
+                null, // 이미지 URL은 파일 처리 후 설정
                 dto.getLinkUrl(),
                 dto.getPriority(),
                 dto.getStartDate(),
@@ -62,10 +77,15 @@ public class BannerService {
                 statusCode,
                 bannerType
         );
+
         banner.setEventId(dto.getEventId());
         banner.setCreatedBy(adminId);
 
         Banner saved = bannerRepository.save(banner);
+
+        String finalImageUrl = resolveImageUrlForCreate(dto, saved.getId());
+        saved.setImageUrl(finalImageUrl);
+
         logBannerAction(saved, adminId, ACTION_CREATE);
         return toDto(saved);
     }
@@ -79,13 +99,16 @@ public class BannerService {
             validateEvent(dto.getEventId());
             banner.setEventId(dto.getEventId());
         }
-        if (dto.getStartDate() != null && dto.getEndDate() != null
-                && dto.getStartDate().isAfter(dto.getEndDate())) {
-            throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
-        }
+
+        // 부분 수정 시 기존 값과 병합하여 기간 검증
+                LocalDateTime newStart = dto.getStartDate() != null ? dto.getStartDate() : banner.getStartDate();
+                LocalDateTime newEnd   = dto.getEndDate()   != null ? dto.getEndDate()   : banner.getEndDate();
+                if (newStart.isAfter(newEnd)) {
+                        throw new CustomException(HttpStatus.BAD_REQUEST, "노출 기간이 올바르지 않습니다.", null);
+                    }
 
         // 통일된 이미지 처리(수정 전용: 입력 없으면 기존 유지)
-        String finalImageUrl = resolveImageUrlForUpdate(dto, banner.getImageUrl());
+        String finalImageUrl = resolveImageUrlForUpdate(dto, banner, adminId);
 
         BannerStatusCode statusCode = getStatusCodeOr404(dto.getStatusCode());
         BannerType bannerType = getBannerTypeOr404(dto.getBannerTypeId());
@@ -152,38 +175,51 @@ public class BannerService {
     }
 
     // 등록: s3Key 또는 imageUrl 반드시 필요(없으면 400)
-    private String resolveImageUrlForCreate(BannerRequestDto dto) {
+    private String resolveImageUrlForCreate(BannerRequestDto dto, Long bannerId) {
+        if (!StringUtils.hasText(dto.getS3Key()) && !StringUtils.hasText(dto.getImageUrl())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "이미지 정보가 없습니다. s3Key 또는 imageUrl이 필요합니다.", null);
+        }
         if (StringUtils.hasText(dto.getS3Key())) {
-            return uploadToS3(dto);
+            return uploadToS3(dto, bannerId);
         }
-        if (StringUtils.hasText(dto.getImageUrl())) {
-            return dto.getImageUrl();
-        }
-        throw new CustomException(HttpStatus.BAD_REQUEST, "이미지 정보가 없습니다. s3Key 또는 imageUrl이 필요합니다.", null);
+        return dto.getImageUrl();
     }
 
     // 수정: s3Key가 있으면 업로드, imageUrl이 있으면 교체, 둘 다 없으면 기존 유지
-    private String resolveImageUrlForUpdate(BannerRequestDto dto, String currentUrl) {
+    private String resolveImageUrlForUpdate(BannerRequestDto dto, Banner banner, Long adminId) {
         if (StringUtils.hasText(dto.getS3Key())) {
-            return uploadToS3(dto);
+            // 기존 파일이 있다면 삭제
+            if (StringUtils.hasText(banner.getImageUrl())) {
+                try {
+                    String s3Key = awsS3Service.getS3KeyFromPublicUrl(banner.getImageUrl());
+                    if (s3Key != null) {
+                        fileService.deleteFileByS3Key(s3Key);
+                    }
+                } catch (Exception e) {
+                    log.warn("기존 배너 이미지 S3 삭제 실패 - URL: {}, Error: {}", banner.getImageUrl(), e.getMessage());
+                }
+            }
+            return uploadToS3(dto, banner.getId());
         }
         if (StringUtils.hasText(dto.getImageUrl())) {
             return dto.getImageUrl();
         }
-        return currentUrl;
+        return banner.getImageUrl();
     }
 
-    private String uploadToS3(BannerRequestDto dto) {
-        S3UploadResponseDto uploadResult = fileService.uploadFile(
+    private String uploadToS3(BannerRequestDto dto, Long bannerId) {
+        File savedFile = fileService.uploadFile(
                 S3UploadRequestDto.builder()
                         .s3Key(dto.getS3Key())
                         .originalFileName(dto.getOriginalFileName())
                         .fileType(dto.getFileType())
                         .fileSize(dto.getFileSize())
                         .directoryPrefix(bannerDir)
+                        .usage("banner")
                         .build()
         );
-        return uploadResult.getFileUrl();
+        fileService.createFileLink(savedFile, "BANNER", bannerId);
+        return awsS3Service.getCdnUrl(savedFile.getFileUrl());
     }
 
     private void logBannerAction(Banner banner, Long adminId, String actionCodeStr) {
@@ -199,6 +235,95 @@ public class BannerService {
                 .build();
 
         bannerLogRepository.save(log);
+    }
+
+    // 추가
+    /** 신청 시 슬롯 LOCK (동시성 보장) */
+    @Transactional
+    public LockSlotsResponseDto lockSlots(LockSlotsRequestDto req, Long userId) {
+        if (req == null || req.items() == null || req.items().isEmpty()) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "잠글 슬롯이 없습니다.", null);
+        }
+        var type = bannerTypeRepository.findByCode(req.typeCode())
+                .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "배너 타입(code) 없음: " + req.typeCode(), null));
+
+        int hold = req.holdHours() != null && req.holdHours() > 0 ? req.holdHours() : 48;
+        LocalDateTime until = LocalDateTime.now().plusHours(hold);
+
+        List<Long> lockedIds = new ArrayList<>();
+        int total = 0;
+
+        // 각 (날짜, 우선순위)마다 비관적 락 걸고 AVAILABLE → LOCKED
+        for (var it : req.items()) {
+            var slot = bannerSlotRepository.lockAvailable(type.getId(), it.slotDate(), it.priority())
+                    .orElseThrow(() -> new CustomException(
+                            HttpStatus.CONFLICT,
+                            "이미 선택되었거나 가용하지 않은 슬롯: " + it.slotDate() + " / priority " + it.priority(),
+                            null
+                    ));
+            slot.setStatus(BannerSlotStatus.LOCKED);
+            slot.setLockedBy(userId);
+            slot.setLockedUntil(until);
+            total += slot.getPrice();
+            // JPA 영속 상태라 flush 시 업데이트 됨
+            lockedIds.add(slot.getId());
+        }
+        return new LockSlotsResponseDto(lockedIds, total, until);
+    }
+
+    /** 결제 완료 → SOLD 전환 + banner 레코드 생성 + 슬롯에 sold_banner_id 연결 */
+    @Transactional
+    public FinalizeSoldResponseDto finalizeSold(FinalizeSoldRequestDto req, Long userId) {
+        if (req == null || req.slotIds() == null || req.slotIds().isEmpty()) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "slotIds가 비어 있습니다.", null);
+        }
+        if (req.eventId() == null) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "eventId가 필요합니다.", null);
+        }
+        // LOCKED → SOLD 전환
+        var distinctIds = req.slotIds().stream().distinct().toList();
+        int updated = bannerSlotRepository.updateStatusIfCurrentIn(
+                distinctIds,
+                BannerSlotStatus.SOLD,
+                List.of(BannerSlotStatus.LOCKED)
+        );
+        if (updated != distinctIds.size()) {
+            throw new CustomException(HttpStatus.CONFLICT,
+                    "SOLD 전환 실패: LOCKED 상태가 아닌 슬롯 포함 (요청 " + distinctIds.size() + "건, 성공 " + updated + "건)", null);
+        }
+
+        var slots = bannerSlotRepository.findAllWithType(distinctIds);
+        slots.sort(Comparator.comparing(BannerSlot::getSlotDate).thenComparing(BannerSlot::getPriority));
+
+        Event event = eventRepository.findById(req.eventId())
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "이벤트가 존재하지 않습니다: " + req.eventId(), null));
+        var active = bannerStatusCodeRepository.findByCode("ACTIVE")
+                .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "배너 상태코드(ACTIVE) 누락", null));
+
+        List<Long> bannerIds = new ArrayList<>();
+
+        for (BannerSlot s : slots) {
+            Banner b = new Banner(
+                    req.title() != null ? req.title() : "검색 상단 고정",
+                    req.imageUrl(),
+                    req.linkUrl(),
+                    s.getPriority(),
+                    s.getSlotDate().atStartOfDay(),
+                    s.getSlotDate().atTime(LocalTime.of(23, 59, 59)),
+                    active,                 // BannerStatusCode
+                    s.getBannerType()       // BannerType
+            );
+
+            b.setEventId(req.eventId());
+            b.setCreatedBy(userId);
+
+            bannerRepository.save(b);
+
+            bannerIds.add(b.getId());      // PK getter 일관화
+            bannerSlotRepository.setSoldBanner(s.getId(), b.getId());
+        }
+
+        return new FinalizeSoldResponseDto(bannerIds);
     }
 
     private Banner getBannerOr404(Long id) {
