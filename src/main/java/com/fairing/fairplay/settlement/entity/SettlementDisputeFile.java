@@ -3,6 +3,7 @@ package com.fairing.fairplay.settlement.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 @Entity
 @Table(name = "settlement_dispute_file")
@@ -63,15 +64,21 @@ public class SettlementDisputeFile {
         }
 
         public static DisputeFileType fromContentType(String contentType) {
-            if (contentType == null) return null;
-
-            if (contentType.equals("application/pdf")) {
-                return PDF;
-            } else if (contentType.equals("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") ||
-                    contentType.equals("application/vnd.ms-excel")) {
-                return EXCEL;
-            }
-            return null;
-        }
+            if (contentType == null || contentType.isBlank()) {
+                throw new IllegalArgumentException("Content-Type must not be null or blank");
+                }
+            String type = contentType.toLowerCase(Locale.ROOT).split(";")[0].trim();
+            switch (type) {
+                case "application/pdf":
+                    return PDF;
+                case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                    case "application/vnd.ms-excel":
+                    case "application/vnd.ms-excel.sheet.macroenabled.12":        // xlsm
+                    case "application/vnd.ms-excel.sheet.binary.macroenabled.12": // xlsb
+                    return EXCEL;
+                default:
+                    throw new IllegalArgumentException("Unsupported Content-Type: " + contentType);
+                    }
+                    }
     }
 }

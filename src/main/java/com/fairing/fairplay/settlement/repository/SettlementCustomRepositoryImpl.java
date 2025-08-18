@@ -1,14 +1,20 @@
 package com.fairing.fairplay.settlement.repository;
 
 import com.fairing.fairplay.event.entity.QEvent;
+import com.fairing.fairplay.event.entity.QEventDetail;
 import com.fairing.fairplay.payment.entity.QPayment;
 import com.fairing.fairplay.payment.entity.QPaymentTargetType;
 import com.fairing.fairplay.settlement.dto.SettlementAggregationDto;
 import com.fairing.fairplay.settlement.dto.SettlementAggregationRevenueDto;
 import com.fairing.fairplay.settlement.entity.QSettlement;
 import com.fairing.fairplay.settlement.entity.Settlement;
+import com.fairing.fairplay.statistics.dto.event.EventPopularityStatisticsListDto;
+import com.fairing.fairplay.statistics.entity.event.QEventPopularityStatistics;
 import com.fairing.fairplay.user.entity.QEventAdmin;
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPQLQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -19,6 +25,7 @@ import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Repository
@@ -108,5 +115,7 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
 
         return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
     }
+
+
 
 }

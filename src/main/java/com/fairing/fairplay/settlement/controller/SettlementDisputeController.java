@@ -35,11 +35,11 @@ public class SettlementDisputeController {
      */
     @PostMapping("/files/upload")
     @FunctionAuth("disputeUploadFiles")
-    public ResponseEntity<SettlementDisputeDto.Response> disputeUploadFiles(
+    public ResponseEntity<SettlementDisputeDto.TempUploadResponse> disputeUploadFiles(
             @RequestParam("files") List<MultipartFile> files) {
 
-        SettlementDisputeDto.Response response = disputeService.uploadDisputeFiles(files);
-        return ResponseEntity.ok(response);
+
+        return ResponseEntity.ok(disputeService.uploadDisputeFiles(files));
     }
 
     /**
@@ -52,7 +52,7 @@ public class SettlementDisputeController {
             @RequestHeader("User-Id") Long requesterId,
             @RequestHeader("User-Name") String requesterName) {
 
-        SettlementDisputeDto.Response response = disputeService.submitDispute(request, requesterId, requesterName);
+        SettlementDisputeDto.Response response = disputeService.submitDispute(request, requesterId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

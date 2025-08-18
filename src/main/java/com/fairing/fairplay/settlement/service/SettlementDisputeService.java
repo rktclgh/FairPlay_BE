@@ -32,6 +32,7 @@ import java.util.stream.IntStream;
 @Slf4j
 public class SettlementDisputeService {
 
+    private static final String TEMP_PREFIX = "uploads/temp/";
     private final SettlementDisputeRepository disputeRepository;
     private final SettlementDisputeFileRepository disputeFileRepository;
     private final SettlementRepository settlementRepository;
@@ -40,7 +41,7 @@ public class SettlementDisputeService {
     /**
      * 이의신청용 파일 임시 업로드
      */
-    public SettlementDisputeDto.Response uploadDisputeFiles(List<MultipartFile> files) {
+    public SettlementDisputeDto.TempUploadResponse uploadDisputeFiles(List<MultipartFile> files) {
         if (files == null || files.isEmpty()) {
             throw new CustomException(HttpStatus.BAD_REQUEST, "업로드할 파일이 없습니다.");
         }
@@ -58,13 +59,14 @@ public class SettlementDisputeService {
                 })
                 .toList();
 
-        return SettlementDisputeDto.Response.builder()
+        return SettlementDisputeDto.TempUploadResponse.builder()
                 .files(IntStream.range(0, tempKeys.size())
-                        .mapToObj(i -> SettlementDisputeDto.Response.FileInfo.builder()
+                        .mapToObj(i -> SettlementDisputeDto.TempUploadResponse.TempFileInfo.builder()
                                 .originalFilename(files.get(i).getOriginalFilename())
                                 .fileSize(files.get(i).getSize())
                                 .fileType(SettlementDisputeFile.DisputeFileType.fromContentType(files.get(i).getContentType()))
                                 .uploadOrder(i + 1)
+                                .tempKey(tempKeys.get(i))
                                 .build())
                         .toList())
                 .build();
@@ -75,7 +77,7 @@ public class SettlementDisputeService {
      */
     @Transactional
     public SettlementDisputeDto.Response submitDispute(SettlementDisputeDto.CreateRequest request,
-                                                       Long requesterId, String requesterName) {
+                                                       Long requesterId) {
         // 정산 정보 조회
         Settlement settlement = settlementRepository.findById(request.getSettlementId())
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "정산 정보를 찾을 수 없습니다."));
@@ -88,7 +90,7 @@ public class SettlementDisputeService {
         // 임시 파일들이 실제로 존재하는지 확인
         if (request.getTempFileKeys() != null) {
             for (String key : request.getTempFileKeys()) {
-                if (!awsS3Service.fileExists(key)) {
+                if (!key.startsWith(TEMP_PREFIX) || !awsS3Service.fileExists(key)) {
                     throw new CustomException(HttpStatus.NOT_FOUND, "임시 업로드된 파일을 찾을 수 없습니다: " + key);
                 }
             }
@@ -129,7 +131,7 @@ public class SettlementDisputeService {
             String tempKey = tempKeys.get(i);
             try {
                 // 파일을 영구 경로로 이동
-                String permanentKey = awsS3Service.moveToPermanent(tempKey, destPrefix);
+               String permanentKey = awsS3Service.moveToPermanent(tempKey, destPrefix);
 
                 // 파일 정보를 DB에 저장
                 String originalFilename = extractOriginalFilename(tempKey);
@@ -229,6 +231,7 @@ public class SettlementDisputeService {
         dispute.setStatus(request.getStatus());
         dispute.setAdminResponse(request.getAdminResponse());
         dispute.setReviewedAt(LocalDateTime.now());
+        dispute.setAdminId(adminId);
 
         // Settlement의 dispute 상태도 업데이트
         Settlement settlement = dispute.getSettlement();
@@ -300,7 +303,7 @@ public class SettlementDisputeService {
      */
     public SettlementDisputeController.DisputeStatistics getDisputeStatistics() {
         long submitted = disputeRepository.countByStatus(SettlementDispute.DisputeProcessStatus.RAISED);
-        long underReview = disputeRepository.countByStatus(SettlementDispute.DisputeProcessStatus.RAISED);
+        long underReview = disputeRepository.countByStatus(SettlementDispute.DisputeProcessStatus.UNDER_REVIEW);
         long resolved = disputeRepository.countByStatus(SettlementDispute.DisputeProcessStatus.RESOLVED);
         long rejected = disputeRepository.countByStatus(SettlementDispute.DisputeProcessStatus.REJECTED);
 

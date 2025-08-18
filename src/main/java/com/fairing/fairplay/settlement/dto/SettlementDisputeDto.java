@@ -8,12 +8,15 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.List;
-
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 public class SettlementDisputeDto {
 
     @Getter
     @Setter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CreateRequest {
         private Long settlementId;
         private String disputeReason;
@@ -23,6 +26,8 @@ public class SettlementDisputeDto {
     @Getter
     @Setter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Response {
         private Long disputeId;
         private Long settlementId;
@@ -39,6 +44,8 @@ public class SettlementDisputeDto {
         @Getter
         @Setter
         @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class FileInfo {
             private Long fileId;
             private String originalFilename;
@@ -53,6 +60,8 @@ public class SettlementDisputeDto {
     @Getter
     @Setter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class AdminReviewRequest {
         private Long disputeId;
         private SettlementDispute.DisputeProcessStatus status;
@@ -62,6 +71,8 @@ public class SettlementDisputeDto {
     @Getter
     @Setter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ListResponse {
         private Long disputeId;
         private Long settlementId;
@@ -71,4 +82,29 @@ public class SettlementDisputeDto {
         private Integer fileCount;
         private LocalDateTime submittedAt;
     }
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TempUploadResponse {
+        private List<TempFileInfo> files;
+
+        @Getter
+        @Setter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class TempFileInfo {
+            private String tempKey;
+            private String originalFilename;
+            private Long fileSize;
+            private SettlementDisputeFile.DisputeFileType fileType;
+            private Integer uploadOrder;
+        }
+
+    }
+
+
 }
