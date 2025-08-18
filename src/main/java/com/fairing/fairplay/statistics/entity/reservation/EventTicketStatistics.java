@@ -35,8 +35,6 @@ public class EventTicketStatistics {
     @Column(name = "reservations")
     private Integer reservations;
 
-    @Column(name = "checkins")
-    private Integer checkins;
 
     private Integer stock;
 
