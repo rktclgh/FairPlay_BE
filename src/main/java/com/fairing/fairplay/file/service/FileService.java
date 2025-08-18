@@ -179,8 +179,8 @@ public class FileService {
         // 새 File 엔티티 저장
         File savedNewFile = fileRepository.save(newFile);
 
-        // 새로운 FileLink 생성 (Event 연결)
-        createFileLink(savedNewFile, "BOOTH", eventId);
+        // 새로운 FileLink 생성 (BOOTH 연결)
+        createFileLink(savedNewFile, "BOOTH", boothId);
 
         log.info("파일 이동 완료 - 기존 Key: {}, 새 Key: {}", currentS3Key, newS3Key);
         return awsS3Service.getCdnUrl(newS3Key);

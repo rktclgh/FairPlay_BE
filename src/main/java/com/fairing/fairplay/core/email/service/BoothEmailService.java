@@ -3,6 +3,7 @@ package com.fairing.fairplay.core.email.service;
 import com.fairing.fairplay.core.util.EmailSender;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 @Service
 @Slf4j
@@ -27,26 +28,27 @@ public class BoothEmailService extends AbstractEmailService {
     @Override
     protected EmailContent createEmailContent(Object... params) {
         String type = (String) params[0];
-        String eventTitle = (String) params[1];
-        String boothTitle = (String) params[2];
+        String eventTitle = HtmlUtils.htmlEscape((String) params[1]);
+        String boothTitle = HtmlUtils.htmlEscape((String) params[2]);
         String subject;
         String htmlContent;
 
         if ("rejection".equals(type)) {
-            String reason = (String) params[2];
+            String reason = HtmlUtils.htmlEscape((String) params[3]);
             subject = "[FairPlay] 부스 등록 신청이 반려되었습니다.";
             htmlContent = buildHtmlContent("booth-rejection.html", "logo", eventTitle, boothTitle, reason);
         } else if ("approval".equals(type)) {
-            String boothEmail = (String) params[3];
-            String tempPassword = (String) params[4];
-            String boothTypeName = (String) params[5];
-            String boothSize = (String) params[6];
+            String boothEmail = HtmlUtils.htmlEscape((String) params[3]);
+            String tempPassword = HtmlUtils.htmlEscape((String) params[4]);
+            String boothTypeName = HtmlUtils.htmlEscape((String) params[5]);
+            String boothSize = HtmlUtils.htmlEscape((String) params[6]);
             Integer price = (Integer) params[7];
             Long applicationId = (Long) params[8];
             subject = "[FairPlay] 부스 등록 신청이 승인되었습니다! 계정 안내 및 결제 요청";
+            // 참고: applicationId가 마지막에 두 번 전달되고 있습니다. 템플릿 확인이 필요합니다.
             htmlContent = buildHtmlContent("booth-approval.html", "logo", eventTitle, boothTitle, boothEmail, tempPassword, boothTypeName, boothSize, price, applicationId, applicationId);
         } else if ("cancel".equals(type)) {
-            String cancelReason = (String) params[3];
+            String cancelReason = HtmlUtils.htmlEscape((String) params[3]);
             subject = "[FairPlay] 부스 취소 확인";
             htmlContent = buildHtmlContent("booth-cancel.html", "logo", eventTitle, boothTitle, cancelReason);
         } else {
