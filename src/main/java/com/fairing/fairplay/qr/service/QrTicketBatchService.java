@@ -22,6 +22,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.util.Arrays;
@@ -56,13 +57,14 @@ public class QrTicketBatchService {
   }
 
   // 비회원 QR 티켓 링크 발급
+  @Transactional(readOnly = true)
   public void generateQrLink(List<Tuple> reservations) {
     QReservation qreservation = QReservation.reservation;
     QAttendee attendee = QAttendee.attendee;
     QEventSchedule eventSchedule = QEventSchedule.eventSchedule;
     QEvent qevent = QEvent.event;
 
-    LocalDate today = LocalDate.now();
+    LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
 
     for (Tuple tuple : reservations) {
       Reservation reservation = tuple.get(qreservation); // 예약 ID
@@ -142,8 +144,8 @@ public class QrTicketBatchService {
    * */
   private List<QrTicket> scheduleCreateQrTicket() {
     // 현재 날짜 기준 다음날 시작하는 행사 데이터 추출
-    LocalDate today = LocalDate.now();
-    LocalDate tomorrow = LocalDate.now().plusDays(1);
+    LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    LocalDate tomorrow = today.plusDays(1);
 
     // 오늘과 내일 시작하는 행사 모두 조회
     List<Tuple> results = qrTicketRepositoryCustom.findAllByEventDate(Arrays.asList(today, tomorrow));

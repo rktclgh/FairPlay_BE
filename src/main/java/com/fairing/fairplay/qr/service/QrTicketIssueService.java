@@ -108,7 +108,7 @@ public class QrTicketIssueService {
       throw new CustomException(HttpStatus.FORBIDDEN, "본인의 예약만 조회할 수 있습니다.");
     }
 
-    if (!reservation.getSchedule().getDate().equals(LocalDate.now())) {
+    if (!reservation.getSchedule().getDate().equals(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
       throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
     }
 
