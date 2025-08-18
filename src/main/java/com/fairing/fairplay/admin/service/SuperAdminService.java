@@ -1,7 +1,13 @@
 package com.fairing.fairplay.admin.service;
 
+import java.io.IOError;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -171,6 +177,26 @@ public class SuperAdminService {
             functionNameDtos.add(dto);
         }
         return functionNameDtos;
+    }
+
+    public List<String> getTemplateList() throws IOException {
+        Path userTemplateDir = Paths.get("user-templates/email");
+        return Files.list(userTemplateDir)
+                .filter(path -> path.toString().endsWith(".html"))
+                .map(path -> path.getFileName().toString())
+                .toList();
+    }
+
+    public String getTemplate(String name) throws IOException {
+        Path userTemplateDir = Paths.get("user-templates/email");
+        Path templatePath = userTemplateDir.resolve(name);
+        return new String(Files.readString(templatePath, StandardCharsets.UTF_8));
+    }
+
+    public void saveTemplate(String name, String content) throws IOException {
+        Path userTemplateDir = Paths.get("user-templates/email");
+        Path templatePath = userTemplateDir.resolve(name);
+        Files.writeString(templatePath, content, StandardCharsets.UTF_8);
     }
 
     // public void setAuth(Long userId, BigInteger functionLevel) {
