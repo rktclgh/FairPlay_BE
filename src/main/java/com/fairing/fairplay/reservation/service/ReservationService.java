@@ -4,6 +4,8 @@ import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.notification.dto.NotificationRequestDto;
 import com.fairing.fairplay.notification.service.NotificationService;
+import com.fairing.fairplay.payment.dto.PaymentRequestDto;
+import com.fairing.fairplay.payment.service.PaymentService;
 import com.fairing.fairplay.reservation.dto.ReservationAttendeeDto;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
 import com.fairing.fairplay.reservation.entity.Reservation;
@@ -24,11 +26,15 @@ import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -46,6 +52,7 @@ public class ReservationService {
     private final EventScheduleRepository eventScheduleRepository;
     private final TicketRepository ticketRepository;
     private final ScheduleTicketRepository scheduleTicketRepository;
+    private final PaymentService paymentService;
 
     // 예약 신청
     @Transactional
@@ -95,6 +102,75 @@ public class ReservationService {
             }
         }
 
+        // 예약 상태를 CONFIRMED로 설정 (완료 상태)
+        ReservationStatusCode confirmedStatus = new ReservationStatusCode(ReservationStatusCodeEnum.CONFIRMED.getId());
+        
+        // 예약 생성
+        Reservation reservation = new Reservation(event, schedule, ticket, user, requestDto.getQuantity(), requestDto.getPrice());
+        reservation.setReservationStatusCode(confirmedStatus);
+
+        return reservationRepository.save(reservation);
+    }
+
+    // 결제가 있는 예약 생성 (결제 우선 플로우)
+    @Transactional
+    private Reservation createReservationWithPayment(ReservationRequestDto requestDto, Long userId, 
+                                                   Event event, EventSchedule schedule, Ticket ticket, Users user) {
+        try {
+            // 1단계: 결제 요청 정보 먼저 저장 (PENDING 상태)
+            PaymentRequestDto paymentRequest = new PaymentRequestDto();
+            paymentRequest.setEventId(requestDto.getEventId());
+            paymentRequest.setAmount(BigDecimal.valueOf(requestDto.getPrice()));
+            paymentRequest.setQuantity(requestDto.getQuantity());
+            paymentRequest.setPrice(BigDecimal.valueOf(requestDto.getPrice() / requestDto.getQuantity())); // 단가
+            paymentRequest.setPaymentTargetType("RESERVATION");
+            paymentRequest.setMerchantUid(requestDto.getPaymentData().getMerchant_uid());
+            
+            // 임시로 targetId를 0으로 설정 (예약 생성 후 업데이트 예정)
+            paymentRequest.setTargetId(0L);
+            paymentService.savePayment(paymentRequest, userId);
+            
+            // 2단계: 예약 생성 (초기 상태는 PENDING)
+            ReservationStatusCode pendingStatus = new ReservationStatusCode(ReservationStatusCodeEnum.PENDING.getId());
+            
+            Reservation reservationParam = new Reservation(event, schedule, ticket, user, requestDto.getQuantity(), requestDto.getPrice());
+            reservationParam.setReservationStatusCode(pendingStatus);
+            reservationParam.setCreatedAt(LocalDateTime.now());
+            reservationParam.setUpdatedAt(LocalDateTime.now());
+            
+            Reservation reservation = reservationRepository.save(reservationParam);
+            
+            // 3단계: 결제의 targetId를 실제 예약 ID로 업데이트
+            updatePaymentTargetId(requestDto.getPaymentData().getMerchant_uid(), reservation.getReservationId());
+            
+            // 4단계: PG 결제 완료 정보로 상태 업데이트
+            paymentRequest.setTargetId(reservation.getReservationId());
+            paymentRequest.setImpUid(requestDto.getPaymentData().getImp_uid());
+            paymentService.completePayment(paymentRequest);
+            
+            // 5단계: 예약 상태를 CONFIRMED로 변경
+            ReservationStatusCode confirmedStatus = new ReservationStatusCode(ReservationStatusCodeEnum.CONFIRMED.getId());
+            reservation.setReservationStatusCode(confirmedStatus);
+            reservationRepository.save(reservation);
+            
+            // 예약 상태 로깅 (CONFIRMED)
+            createReservationLog(reservation, ReservationStatusCodeEnum.CONFIRMED, userId);
+            
+            // 알림 생성
+            createReservationNotification(reservation, user, event);
+            
+            return reservation;
+            
+        } catch (Exception e) {
+            // 결제 처리 실패 시 예외를 다시 던져서 전체 트랜잭션 롤백
+            throw new RuntimeException("결제 처리 중 오류가 발생했습니다: " + e.getMessage(), e);
+        }
+    }
+
+    // 결제가 없는 예약 생성 (무료 이벤트)
+    @Transactional  
+    private Reservation createReservationWithoutPayment(ReservationRequestDto requestDto, Long userId,
+                                                       Event event, EventSchedule schedule, Ticket ticket, Users user) {
         // 예약 생성 (초기 상태는 PENDING)
         ReservationStatusCode pendingStatus = new ReservationStatusCode(ReservationStatusCodeEnum.PENDING.getId());
         
@@ -105,12 +181,25 @@ public class ReservationService {
         
         Reservation reservation = reservationRepository.save(reservationParam);
 
-        // 예약 상태 로깅
+        // 결제 정보가 없는 경우 PENDING 상태로 로깅
         createReservationLog(reservation, ReservationStatusCodeEnum.PENDING, userId);
-
+        
         // 알림 생성
+        createReservationNotification(reservation, user, event);
+        
+        return reservation;
+    }
+
+    // 결제의 targetId 업데이트 (헬퍼 메서드)
+    private void updatePaymentTargetId(String merchantUid, Long reservationId) {
+        // PaymentService를 통해 targetId 업데이트
+        paymentService.updatePaymentTargetId(merchantUid, reservationId);
+    }
+
+    // 예약 알림 생성 (헬퍼 메서드)
+    private void createReservationNotification(Reservation reservation, Users user, Event event) {
         NotificationRequestDto notificationDto = NotificationRequestDto.builder()
-                .userId(userId)
+                .userId(user.getUserId())
                 .typeCode("RESERVATION")
                 .methodCode("WEB")
                 .title(event.getTitleKr() + " 예약 완료!")
@@ -119,8 +208,6 @@ public class ReservationService {
                 .build();
         
         notificationService.createNotification(notificationDto);
-
-        return reservation;
     }
 
     // 예약 수정
@@ -288,7 +375,20 @@ public class ReservationService {
         return reservationRepository.findByUser_userId(userId);
     }
 
-    // 예약자 명단 조회 (행사 관리자용)
+    // 예약자 명단 조회 (행사 관리자용) - 페이지네이션 지원
+    @Transactional(readOnly = true)
+    public Page<ReservationAttendeeDto> getReservationAttendees(
+            Long eventId, String status, String name, String phone, Long reservationId, Pageable pageable) {
+        
+        // Repository에서 페이지네이션과 필터링을 지원하는 메서드 호출
+        Page<Reservation> reservationPage = reservationRepository.findReservationsWithFilters(
+                eventId, status, name, phone, reservationId, pageable);
+        
+        // Reservation을 ReservationAttendeeDto로 변환
+        return reservationPage.map(ReservationAttendeeDto::from);
+    }
+
+    // 기존 메서드 유지 (엑셀 다운로드용)
     @Transactional(readOnly = true)
     public List<ReservationAttendeeDto> getReservationAttendees(Long eventId, String status) {
         List<Reservation> reservations;

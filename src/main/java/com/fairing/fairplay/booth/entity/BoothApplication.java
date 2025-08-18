@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import com.fairing.fairplay.booth.entity.BoothType;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -37,8 +37,8 @@ public class BoothApplication {
     @Column(name = "manager_name", nullable = false, length = 20)
     private String managerName;
 
-    @Column(nullable = false, length = 100)
-    private String email;
+    @Column(name = "email", nullable = false, length = 100)
+    private String contactEmail;
 
     @Column(name = "contact_number", nullable = false, length = 20)
     private String contactNumber;
@@ -73,5 +73,6 @@ public class BoothApplication {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
-
+    @Column(name = "booth_banner_url", length = 512)
+    private String boothBannerUrl;
 }

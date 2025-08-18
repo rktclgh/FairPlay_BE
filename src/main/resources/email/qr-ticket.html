@@ -71,16 +71,36 @@
     }
 
     .qr-link-button {
-      background-color: #3b82f6;
-      color: #ffffff;
+      background-color: #ffffff;
+      color: black;
       padding: 16px 24px;
-      border: none;
+      border: 1px solid #cae4fe;
       border-radius: 8px;
       font-size: 16px;
       text-decoration: none;
       font-weight: 600;
       display: inline-block;
       margin-top: 12px;
+    }
+
+    .info-box {
+      background: #f2f8fe;
+      border: 1px solid #cae4fe;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+    }
+
+    .info-box ul {
+      font-size: 13px;
+      color: #4b5563;
+      margin: 0;
+      line-height: 1.5;
+      padding-left: 20px;
+    }
+
+    .info-box li {
+      margin-bottom: 6px;
     }
 
     .warning-box {
@@ -148,8 +168,12 @@
     </p>
   </div>
 
-  <div class="qr-link-box">
-    <a href="%s" class="qr-link-button" target="_blank">QR 티켓 확인하기</a>
+  <div class="info-box">
+    <ul>
+      <li>행사명:  <strong>%s</strong></li>
+      <li>행사 일자:  <strong>%s</strong></li>
+      <li>관람일:  <strong>%s</strong></li>
+    </ul>
   </div>
 
   <div class="warning-box">
@@ -163,6 +187,10 @@
         >
       </li>
     </ul>
+  </div>
+
+  <div class="qr-link-box">
+    <a href="%s" class="qr-link-button" target="_blank">QR 티켓 확인하기</a>
   </div>
 
   <div class="footer">

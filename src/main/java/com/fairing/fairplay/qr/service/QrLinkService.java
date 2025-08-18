@@ -5,6 +5,7 @@ import com.fairing.fairplay.qr.util.CodeGenerator;
 import com.fairing.fairplay.qr.util.CodeValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 // QR 링크 서비스
@@ -15,9 +16,12 @@ public class QrLinkService {
   private final CodeGenerator codeGenerator;
   private final CodeValidator codeValidator;
 
+  @Value("${qr.url}")
+  private String url;
+
   public String generateQrLink(QrTicketRequestDto dto){
     String token = codeGenerator.generateQrUrlToken(dto);
-    return "https://your-site.com/qr-tickets/" + token; // 수정 예정
+    return url + token;
   }
 
   public QrTicketRequestDto decodeToDto(String token){

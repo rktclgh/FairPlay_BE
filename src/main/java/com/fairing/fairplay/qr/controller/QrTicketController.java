@@ -2,6 +2,7 @@ package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
 import com.fairing.fairplay.qr.dto.scan.AdminForceCheckRequestDto;
@@ -14,6 +15,7 @@ import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
 import com.fairing.fairplay.qr.dto.scan.QrCheckRequestDto;
 import com.fairing.fairplay.qr.service.EntryExitService;
+import com.fairing.fairplay.qr.service.QrTicketBatchService;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -42,7 +44,7 @@ public class QrTicketController {
 
   // 비회원 QR 티켓 조회 (참석자)
   @GetMapping("/{token}")
-  public ResponseEntity<QrTicketResponseDto> issueGuest(@PathVariable String token) {
+  public ResponseEntity<QrTicketGuestResponseDto> issueGuest(@PathVariable String token) {
     return ResponseEntity.ok(qrTicketService.issueGuest(token));
   }
 
@@ -114,5 +116,10 @@ public class QrTicketController {
   public ResponseEntity<CheckResponseDto> adminForceCheck(
       @RequestBody AdminForceCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.adminForceCheck(dto));
+  }
+
+  @PostMapping("/admin/issue")
+  public void adminForceIssue(){
+    qrTicketService.adminForceIssue();
   }
 }

@@ -31,6 +31,8 @@ public class SecurityConfig {
                         .disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        //.requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                         .requestMatchers(
                                 "/",                // 루트 경로 (index.html)
                                 "/index.html",      // 메인 정적 페이지
@@ -46,7 +48,6 @@ public class SecurityConfig {
                                 "/api/auth/logout",
                                 "/api/auth/refresh",
                                 "/api/events",                     // GET 행사 목록 조회
-                                "/api/events/list",                // GET 행사 목록 (테스트용)
                                 "/api/events/*/details",           // GET 행사 상세 조회 (*/details 패턴)
                                                                 "/api/users/forgot-password",
                                                                 "/swagger-ui/**",
@@ -70,11 +71,16 @@ public class SecurityConfig {
                                 "/api/events/apply/check",
                                 "/api/events/user/role",
                                 "/api/super-admin/**",
-                                "/api/rag/**" // RAG API (개발/테스트용)
+                                "/api/qr-tickets/reissue/guest",
+                                "/api/rag/**", // RAG API (개발/테스트용)
+                                "/api/qr-tickets/admin/issue" // QR 티켓 강제 재발급 (테스트용)
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/attendees").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/schedule").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/tickets").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events//schedule/*/tickets").permitAll()
                         .requestMatchers("/api/chat/presence/connect",
                                 "/api/chat/presence/disconnect")
                         .authenticated() // JWT 인증

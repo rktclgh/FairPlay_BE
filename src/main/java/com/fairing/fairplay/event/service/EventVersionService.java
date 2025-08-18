@@ -1,8 +1,10 @@
 package com.fairing.fairplay.event.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.event.dto.EventDetailResponseDto;
 import com.fairing.fairplay.event.dto.EventSnapshotDto;
 import com.fairing.fairplay.event.dto.EventVersionComparisonDto;
+import com.fairing.fairplay.event.dto.ExternalLinkResponseDto;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.entity.EventDetail;
 import com.fairing.fairplay.event.entity.EventVersion;
@@ -108,9 +110,22 @@ public class EventVersionService {
                     .reentryAllowed(detail.getReentryAllowed())
                     .checkInAllowed(detail.getCheckInAllowed())
                     .checkOutAllowed(detail.getCheckOutAllowed())
+                    .hostCompany(detail.getHostCompany())
+                    .age(detail.getAge())
                     .mainCategoryId(Optional.ofNullable(detail.getMainCategory()).map(mc -> mc.getGroupId()).orElse(null))
+                    .mainCategoryName(Optional.ofNullable(detail.getMainCategory()).map(mc -> mc.getGroupName()).orElse(null))
                     .subCategoryId(Optional.ofNullable(detail.getSubCategory()).map(sc -> sc.getCategoryId()).orElse(null))
+                    .subCategoryName(Optional.ofNullable(detail.getSubCategory()).map(sc -> sc.getCategoryName()).orElse(null))
                     .regionCodeId(Optional.ofNullable(detail.getRegionCode()).map(rc -> rc.getRegionCodeId()).orElse(null));
+
+            // from Location
+            Optional.ofNullable(detail.getLocation()).ifPresent(location -> {
+                builder.placeName(location.getPlaceName());
+                builder.latitude(location.getLatitude());
+                builder.longitude(location.getLongitude());
+                builder.address(location.getAddress());
+                builder.placeUrl(location.getPlaceUrl());
+            });
 
             // external links from EventDetail
             Hibernate.initialize(event.getExternalLinks());
@@ -121,6 +136,16 @@ public class EventVersionService {
         } else {
             builder.externalLinks(Collections.emptyList());
         }
+
+        // from Manager
+        Optional.ofNullable(event.getManager()).ifPresent(manager -> {
+            builder.businessNumber(manager.getBusinessNumber());
+            builder.managerEmail(manager.getContactEmail()); // EventAdmin의 contactEmail 사용
+            builder.managerPhone(manager.getContactNumber()); // EventAdmin의 contactNumber 사용
+            Optional.ofNullable(manager.getUser()).ifPresent(user -> {
+                builder.managerName(user.getName());
+            });
+        });
 
         return builder.build();
     }
@@ -243,6 +268,8 @@ public class EventVersionService {
             eventDetail.setReentryAllowed(snapshot.getReentryAllowed());
             eventDetail.setCheckInAllowed(snapshot.getCheckInAllowed());
             eventDetail.setCheckOutAllowed(snapshot.getCheckOutAllowed());
+            eventDetail.setHostCompany(snapshot.getHostCompany());
+            eventDetail.setAge(snapshot.getAge());
 
             // Location 설정
             if (snapshot.getLocationId() != null) {
@@ -294,7 +321,10 @@ public class EventVersionService {
         addFieldIfChanged(jsonDiff, "thumbnailUrl", "썸네일", snapshot1.getThumbnailUrl(), snapshot2.getThumbnailUrl());
         addFieldIfChanged(jsonDiff, "bannerUrl", "배너", snapshot1.getBannerUrl(), snapshot2.getBannerUrl());
         addFieldIfChanged(jsonDiff, "locationDetail", "상세 주소", snapshot1.getLocationDetail(), snapshot2.getLocationDetail());
+        addFieldIfChanged(jsonDiff, "hostCompany", "주최 회사", snapshot1.getHostCompany(), snapshot2.getHostCompany());
+        addFieldIfChanged(jsonDiff, "age", "연령 제한", snapshot1.getAge(), snapshot2.getAge());
         addFieldIfChanged(jsonDiff, "reentryAllowed", "재입장 허용", snapshot1.getReentryAllowed(), snapshot2.getReentryAllowed());
+        addFieldIfChanged(jsonDiff, "checkInAllowed", "체크인 허용", snapshot1.getCheckInAllowed(), snapshot2.getCheckInAllowed());
         addFieldIfChanged(jsonDiff, "checkOutAllowed", "중간 퇴장 허용", snapshot1.getCheckOutAllowed(), snapshot2.getCheckOutAllowed());
         
         return jsonDiff;
@@ -309,5 +339,69 @@ public class EventVersionService {
             fieldChange.put("changeType", oldValue == null ? "added" : newValue == null ? "removed" : "modified");
             jsonDiff.put(fieldName, fieldChange);
         }
+    }
+
+    // 특정 버전을 EventDetailResponseDto 형태로 반환
+    @Transactional(readOnly = true)
+    public EventDetailResponseDto getEventVersionAsDetailResponse(Long eventId, Integer versionNumber) {
+        EventVersion eventVersion = getEventVersion(eventId, versionNumber);
+        EventSnapshotDto snapshot = eventVersion.getSnapshotAsDto();
+        Event event = eventVersion.getEvent();
+        
+        // region 정보 조회
+        String regionCode = null;
+        if (snapshot.getRegionCodeId() != null) {
+            regionCode = regionCodeRepository.findById(snapshot.getRegionCodeId())
+                    .map(rc -> rc.getCode())
+                    .orElse("");
+        }
+        
+        return EventDetailResponseDto.builder()
+                .message("버전 " + versionNumber + " 상세 정보 조회가 완료되었습니다.")
+                .managerId(snapshot.getManagerId())
+                .eventCode(snapshot.getEventCode())
+                .createdAt(eventVersion.getUpdatedAt()) // 버전 생성 시간 사용
+                .updatedAt(eventVersion.getUpdatedAt()) // 버전 생성 시간 사용
+                .version(versionNumber)
+                .viewCount(event.getViewCount()) // 현재 행사의 조회수 사용
+                .titleKr(snapshot.getTitleKr())
+                .titleEng(snapshot.getTitleEng())
+                .hidden(snapshot.isHidden())
+                .eventStatusCode("ACTIVE") // Default status for version display
+                .mainCategory(snapshot.getMainCategoryName())
+                .subCategory(snapshot.getSubCategoryName())
+                .address(snapshot.getAddress())
+                .placeName(snapshot.getPlaceName())
+                .latitude(snapshot.getLatitude())
+                .longitude(snapshot.getLongitude())
+                .placeUrl(snapshot.getPlaceUrl())
+                .locationDetail(snapshot.getLocationDetail())
+                .region(regionCode != null ? regionCode : "")
+                .startDate(snapshot.getStartDate())
+                .endDate(snapshot.getEndDate())
+                .thumbnailUrl(snapshot.getThumbnailUrl())
+                .hostName(snapshot.getHostName())
+                .hostCompany(snapshot.getHostCompany())
+                .contactInfo(snapshot.getContactInfo())
+                .officialUrl(snapshot.getOfficialUrl())
+                .managerName(snapshot.getManagerName())
+                .managerPhone(snapshot.getManagerPhone())
+                .managerEmail(snapshot.getManagerEmail())
+                .managerBusinessNumber(snapshot.getBusinessNumber())
+                .bio(snapshot.getBio())
+                .content(snapshot.getContent())
+                .policy(snapshot.getPolicy())
+                .eventTime(snapshot.getEventTime())
+                .checkInAllowed(snapshot.getCheckInAllowed())
+                .checkOutAllowed(snapshot.getCheckOutAllowed())
+                .reentryAllowed(snapshot.getReentryAllowed())
+                .age(snapshot.getAge())
+                .externalLinks(snapshot.getExternalLinks().stream()
+                        .map(link -> ExternalLinkResponseDto.builder()
+                                .url(link.getUrl())
+                                .displayText(link.getDisplayText())
+                                .build())
+                        .toList())
+                .build();
     }
 }

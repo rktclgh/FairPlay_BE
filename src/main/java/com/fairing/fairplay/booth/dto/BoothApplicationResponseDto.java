@@ -16,7 +16,8 @@ public class BoothApplicationResponseDto {
     private String boothDescription;
 
     private String managerName;
-    private String email;
+    private String boothEmail;
+    private String contactEmail;
     private String contactNumber;
     private String officialUrl;
 

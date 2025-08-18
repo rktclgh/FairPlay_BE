@@ -12,4 +12,5 @@ import lombok.NoArgsConstructor;
 public class ReviewWithOwnerDto {
   private ReviewDto review;
   private boolean owner;
+  private boolean liked;
 }

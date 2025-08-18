@@ -12,7 +12,7 @@ import java.util.List;
 public interface EventPopularityStatsCustomRepository {
     List<EventPopularityStatistics> calculate(LocalDate targetDate);
 
-    Page<EventPopularityStatisticsListDto> aggregatedPopularity(
+    Page<EventPopularityStatisticsListDto> paymentCountPopularity(
             LocalDate startDate,
             LocalDate endDate,
             String mainCategory,

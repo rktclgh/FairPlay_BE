@@ -59,6 +59,12 @@ public class EventDetailResponseDto {
     private String contactInfo;
     private String officialUrl;
 
+    /* 담당자 정보 */
+    private String managerName;
+    private String managerPhone;
+    private String managerEmail;
+    private String managerBusinessNumber;
+
     /* 행사 정보 */
     private String bio;
     private String content;
@@ -76,4 +82,10 @@ public class EventDetailResponseDto {
 
     /* 퇴장 스캔 여부 */
     private Boolean checkOutAllowed;
+
+    /* 주최/기획사 */
+    private String hostCompany;
+
+    /* 관람등급 (true: 청소년불가, false: 전체이용가) */
+    private Boolean age;
 }

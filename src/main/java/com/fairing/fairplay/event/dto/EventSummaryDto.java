@@ -5,10 +5,12 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class EventSummaryDto {  // 메인페이지, 검색 등에서 표시될 행사 정보
     private Long id;                            // 행사 ID
@@ -24,6 +26,16 @@ public class EventSummaryDto {  // 메인페이지, 검색 등에서 표시될 �
     private LocalDate endDate;                  // 행사 종료일
     private String thumbnailUrl;                // 썸네일 URL
     private String region;                  // 지역명
+    private List<FileDto> files;
+
+    @Getter
+    @Setter
+    @Builder
+    public static class FileDto {
+        private Long id;
+        private String fileUrl;
+        private String originalFileName;
+    }
 
     @QueryProjection
     public EventSummaryDto(Long id, String eventCode, Boolean hidden, String title,

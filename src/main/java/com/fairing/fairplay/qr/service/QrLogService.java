@@ -27,10 +27,15 @@ public class QrLogService {
   private final QrLogRepository qrLogRepository;
   private final QrCheckLogRepository qrCheckLogRepository;
 
-  // QR 코드 발급
+  // QR 코드 다건 발급
   @Transactional
-  public void issuedQrLog(List<QrTicket> qrTickets, QrActionCode qrActionCode) {
+  public void issuedQrLogs(List<QrTicket> qrTickets, QrActionCode qrActionCode) {
     saveQrLog(qrTickets, qrActionCode);
+  }
+
+  @Transactional
+  public void issuedQrLog(QrTicket qrTicket, QrActionCode qrActionCode) {
+    saveQrLog(qrTicket, qrActionCode);
   }
 
   // QR 코드 스캔
@@ -48,6 +53,9 @@ public class QrLogService {
     LocalDateTime entryTime = saveQrLog(qrTicket, qrActionCode);
     // qrCheckLog: ENTRY or REENTRY 저장
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    log.info("입장 저장 완료");
+    log.info("entryTime: {}", entryTime);
+    log.info("qrCheckStatusCode: {}", qrCheckStatusCode);
     return entryTime;
   }
 

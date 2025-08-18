@@ -3,6 +3,7 @@ package com.fairing.fairplay.statistics.scheduler;
 import com.fairing.fairplay.statistics.service.event.EventBatchService;
 import com.fairing.fairplay.statistics.service.kpi.AdminKpiBatchService;
 import com.fairing.fairplay.statistics.service.reservation.StatisticsService;
+import com.fairing.fairplay.statistics.service.sales.AdminSalesStatisticsBatchService;
 import com.fairing.fairplay.statistics.service.sales.SalesStatisticsBatchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,6 +22,7 @@ public class StatisticsScheduler {
     private final SalesStatisticsBatchService salesBatchService;
     private final EventBatchService eventbatchService;
     private final AdminKpiBatchService adminKpiBatchService;
+    private final AdminSalesStatisticsBatchService adminSalesStatisticsBatchService;
 
     @Scheduled(cron = "0 5 0 * * *") // 매일 00:05
     public void runDailyBatch() {
@@ -66,6 +68,18 @@ public class StatisticsScheduler {
             log.info("Completed Admin Kpi  statistics batch for date: {}", yesterday);
         } catch (Exception e) {
             log.error("Failed to run Admin Kpi statistics batch", e);
+        }
+    }
+
+    @Scheduled(cron = "0 45 0 * * *")
+    public void adminSalesAggregation() {
+        try {
+            LocalDate yesterday = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
+            log.info("Starting Admin sales statistics batch for date: {}", yesterday);
+            adminSalesStatisticsBatchService.runBatch(yesterday);
+            log.info("Completed Admin sales  statistics batch for date: {}", yesterday);
+        } catch (Exception e) {
+            log.error("Failed to run Admin sales statistics batch", e);
         }
     }
 
