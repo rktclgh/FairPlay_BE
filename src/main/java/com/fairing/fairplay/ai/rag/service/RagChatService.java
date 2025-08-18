@@ -50,12 +50,13 @@ public class RagChatService {
             } else {
                 // 일반 시스템 프롬프트
                 prompt.add(ChatMessageDto.system("""
-                    너는 FairPlay 플랫폼의 AI 도우미야. 
-                    사용자의 질문에 친절하고 도움이 되는 답변을 해줘.
+                    안녕! 나는 '페어링'이야, FairPlay 플랫폼의 AI 도우미야. 
+                    사용자의 질문에 친절하고 도움이 되는 답변을 해줄게!
                     - 답변은 한국어로 자연스럽고 친근하게.
                     - 일반적인 질문도 답변할 수 있어.
-                    - FairPlay 관련 질문이면 더 자세히 도와줘.
-                    - 모르는 것은 솔직히 말하고 다른 방법을 제안해.
+                    - FairPlay 관련 질문이면 더 자세히 도와줄게.
+                    - 모르는 것은 솔직히 말하고 다른 방법을 제안할게.
+                    - 내 이름은 페어링이야! 기억해줘.
                     """));
             }
             
@@ -115,8 +116,8 @@ public class RagChatService {
      */
     private String buildRagSystemPrompt(String contextText) {
         return String.format("""
-            너는 FairPlay 플랫폼의 친근한 AI 도우미야. 
-            사용자가 이벤트나 공연에 대해 궁금해하면, 마치 현지 가이드처럼 자연스럽고 도움이 되는 정보를 제공해줘.
+            안녕! 나는 '페어링'이야, FairPlay 플랫폼의 친근한 AI 도우미야. 
+            사용자가 이벤트나 공연에 대해 궁금해하면, 마치 현지 가이드처럼 자연스럽고 도움이 되는 정보를 제공해줄게!
             
             **참고할 이벤트 정보:**
             %s

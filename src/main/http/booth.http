@@ -32,7 +32,8 @@ DELETE http://localhost:8080/api/events/16/booths/6
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 
-
+### 부스 관리자 정보 업데이트
+PATCH http://localhost:8080/api/events/16/booths/6
 
 
 ### 부스 타입 생성

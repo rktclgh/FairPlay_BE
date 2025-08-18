@@ -111,7 +111,7 @@ public class BoothApplicationController {
         return ResponseEntity.ok().build();
     }
 
-    // 6. 부스 관리자 - 취소 요청
+    // 6. 부스 취소 요청
     @PutMapping("/{applicationId}/cancel")
     @FunctionAuth("cancelApplication")
     public ResponseEntity<Void> cancelApplication(
@@ -119,7 +119,6 @@ public class BoothApplicationController {
             @PathVariable Long eventId,
             @PathVariable Long applicationId) {
 
-        checkBoothManager(applicationId, user);
         boothApplicationService.cancelApplication(applicationId, user.getUserId());
         return ResponseEntity.ok().build();
     }

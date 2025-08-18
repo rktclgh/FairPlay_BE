@@ -9,6 +9,8 @@ import com.fairing.fairplay.booth.repository.BoothExperienceRepository;
 import com.fairing.fairplay.booth.repository.BoothExperienceReservationRepository;
 import com.fairing.fairplay.booth.repository.BoothExperienceStatusCodeRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
+import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -437,6 +440,32 @@ public class BoothExperienceService {
         log.info("예약 상태 변경 완료 - 예약 ID: {}, 상태: {}", reservationId, newStatus.getCode());
 
         return BoothExperienceReservationResponseDto.fromEntity(updatedReservation);
+    }
+
+    // 부스 입장 시 예약 조회 및 상태 검증
+    public  BoothExperienceReservation validateReservation(BoothEntryRequestDto dto) {
+        BoothExperienceReservation boothExperienceReservation = reservationRepository.findById(
+            dto.getBoothReservationId()).orElseThrow(
+            () -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스 예약 내역이 존재하지 않습니다.")
+        );
+        String status = boothExperienceReservation.getExperienceStatusCode().getCode();
+        if ("CANCELLED".equals(status)) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "이미 취소된 부스 체험 예약입니다.");
+        }
+        if (!"READY".equals(status)) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "아직 입장 순서가 아닙니다. 잠시만 기다려주세요.");
+        }
+        BoothExperience boothExperience = boothExperienceReservation.getBoothExperience();
+        Event event = boothExperience.getBooth().getEvent();
+        Booth booth = boothExperience.getBooth();
+
+        if (!event.getEventId().equals(dto.getEventId())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "선택한 행사 정보가 일치하지 않습니다.");
+        }
+        if (!booth.getId().equals(dto.getBoothId())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "선택한 부스 정보가 일치하지 않습니다.");
+        }
+        return boothExperienceReservation;
     }
 
     // 예약 요청 유효성 검증

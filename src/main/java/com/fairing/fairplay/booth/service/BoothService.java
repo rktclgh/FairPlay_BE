@@ -4,6 +4,7 @@ import com.fairing.fairplay.booth.dto.*;
 import com.fairing.fairplay.booth.entity.Booth;
 import com.fairing.fairplay.booth.entity.BoothExternalLink;
 import com.fairing.fairplay.booth.entity.BoothType;
+import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothExternalLinkRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.booth.repository.BoothTypeRepository;
@@ -14,6 +15,10 @@ import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
 import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.service.FileService;
+import com.fairing.fairplay.user.dto.BoothAdminRequestDto;
+import com.fairing.fairplay.user.dto.BoothAdminResponseDto;
+import com.fairing.fairplay.user.entity.BoothAdmin;
+import com.fairing.fairplay.user.repository.BoothAdminRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,9 +40,11 @@ public class BoothService {
     private final BoothRepository boothRepository;
     private final EventRepository eventRepository;
     private final BoothTypeRepository boothTypeRepository;
+    private final BoothApplicationRepository boothApplicationRepository;
     private final FileService fileService;
     private final AwsS3Service awsS3Service;
     private final BoothExternalLinkRepository boothExternalLinkRepository;
+    private final BoothAdminRepository boothAdminRepository;
 
     // 부스 목록 조회 (관리자용 - 삭제된 부스 포함 조회)
     @Transactional(readOnly = true)
@@ -46,12 +55,34 @@ public class BoothService {
         return boothsDto;
     }
 
-    // 삭제된 부스 제외 부스 목록 조회
+            // 삭제된 부스 제외하고 결제 완료된 부스 목록 조회
     @Transactional(readOnly = true)
-    public List<BoothSummaryResponseDto> getBooths (Long eventId) {
-        List<Booth> booths = boothRepository.findByEventAndIsDeletedFalse(getEvent(eventId));
+    public List<BoothSummaryResponseDto> getBooths(Long eventId) {
+        Event event = getEvent(eventId);
+
+        // 1. 이벤트 ID로 모든 부스 신청서를 가져옵니다.
+        List<com.fairing.fairplay.booth.entity.BoothApplication> applications = boothApplicationRepository.findByEvent_EventId(eventId);
+
+        // 2. 결제가 완료된 신청서들의 고유 식별자(제목+타입+시작일)를 만듭니다.
+        Set<String> paidBoothKeys = applications.stream()
+                .filter(app -> app.getBoothPaymentStatusCode() != null && "PAID".equals(app.getBoothPaymentStatusCode().getCode()))
+                .map(app -> app.getBoothTitle() + "|" + app.getBoothType().getId() + "|" + app.getStartDate())
+                .collect(Collectors.toSet());
+
+        // 3. 삭제되지 않은 모든 부스를 가져옵니다.
+        List<Booth> booths = boothRepository.findByEventAndIsDeletedFalse(event);
+
+        // 4. 부스의 고유 식별자가 결제 완료된 식별자 목록에 포함된 부스만 필터링합니다.
+        List<Booth> paidBooths = booths.stream()
+                .filter(booth -> {
+                    String boothKey = booth.getBoothTitle() + "|" + booth.getBoothType().getId() + "|" + booth.getStartDate();
+                    return paidBoothKeys.contains(boothKey);
+                })
+                .toList();
+
         List<BoothSummaryResponseDto> boothsDto = new ArrayList<>();
-        booths.forEach(booth -> boothsDto.add(BoothSummaryResponseDto.from(booth)));
+        paidBooths.forEach(booth -> boothsDto.add(BoothSummaryResponseDto.from(booth)));
+
         return boothsDto;
     }
 
@@ -192,6 +223,34 @@ public class BoothService {
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
         booth.setIsDeleted(true);
         boothRepository.save(booth);
+    }
+
+    // 부스 관리자 정보 변경
+    @Transactional
+    public BoothAdminResponseDto updateBoothAdmin (Long boothId, BoothAdminRequestDto dto) {
+        Booth booth = boothRepository.findById(boothId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
+        BoothAdmin boothAdmin = booth.getBoothAdmin();
+
+        if (dto.getManagerName() != null) {
+            boothAdmin.setManagerName(dto.getManagerName());
+        }
+
+        if (dto.getContactEmail() != null) {
+            boothAdmin.setEmail(dto.getContactEmail());
+        }
+
+        if (dto.getContactNumber() != null) {
+            boothAdmin.setContactNumber(dto.getContactNumber());
+        }
+
+        boothAdminRepository.saveAndFlush(boothAdmin);
+
+        return BoothAdminResponseDto.builder()
+                .boothId(booth.getId())
+                .contactNumber(boothAdmin.getContactNumber())
+                .contactEmail(boothAdmin.getEmail())
+                .build();
     }
 
 

@@ -89,20 +89,20 @@ public class BoothApplicationService {
 
         BoothType boothType = boothTypeRepository.findById(dto.getBoothTypeId())
                 .orElseThrow(() -> new EntityNotFoundException("선택한 부스 타입을 찾을 수 없습니다."));
-        
+
         // 동시성 처리를 위한 부스 타입 생성된 부스 수 체크
         synchronized (this) {
             BoothType currentBoothType = boothTypeRepository.findById(dto.getBoothTypeId())
                     .orElseThrow(() -> new EntityNotFoundException("선택한 부스 타입을 찾을 수 없습니다."));
-            
+
             if (currentBoothType.getMaxApplicants() != null) {
                 long existingBoothCount = boothRepository.countByBoothTypeAndIsDeletedFalse(currentBoothType);
-                
+
                 if (existingBoothCount >= currentBoothType.getMaxApplicants()) {
                     throw new CustomException(HttpStatus.BAD_REQUEST, "해당 부스 타입의 생성 가능 부스 수가 초과되었습니다.");
                 }
             }
-            
+
             boothType = currentBoothType;
         }
 
@@ -127,7 +127,10 @@ public class BoothApplicationService {
         BoothApplication saved = boothApplicationRepository.save(boothApplication);
 
         // 저장된 BoothApplication으로 외부 링크 처리
-        for (BoothExternalLinkDto linkDto : dto.getBoothExternalLinks()) {
+        List<BoothExternalLinkDto> links = dto.getBoothExternalLinks() != null
+                ? dto.getBoothExternalLinks()
+                : List.of();
+        for (BoothExternalLinkDto linkDto : links) {
             if (linkDto.getUrl() != null && !linkDto.getUrl().isBlank() &&
                     linkDto.getDisplayText() != null && !linkDto.getDisplayText().isBlank()) {
                 BoothExternalLink link = new BoothExternalLink();
@@ -238,8 +241,10 @@ public class BoothApplicationService {
             booth.setLocation("위치 미정");
             booth.setBoothType(boothType);
             booth.setBoothAdmin(boothAdmin);
+            booth.setCreatedAt(LocalDateTime.now());
 
             Booth savedBooth = boothRepository.save(booth);
+            // moveFilesToBooth에서 파일을 이동하고 배너 URL을 설정함
             moveFilesToBooth(application, savedBooth.getEvent().getEventId(), savedBooth.getId());
 
             application.updateStatus(newStatus, dto.getAdminComment());
@@ -372,11 +377,15 @@ public class BoothApplicationService {
         try {
             Booth booth = boothRepository.findById(boothId)
                     .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당하는 부스를 찾을 수 없습니다."));
-            List<File> boothApplyFile = fileRepository.findByTargetTypeAndTargetId("BOOTH_APPLY", boothApply.getId());
+            List<File> boothApplyFile = fileRepository.findByTargetTypeAndTargetId("BOOTH_APPLICATION", boothApply.getId());
+
+            log.info("부스 파일 이동 시작 - BoothApplication ID: {}, 찾은 파일 수: {}", boothApply.getId(), boothApplyFile.size());
 
             for (File file : boothApplyFile) {
                 try {
                     String usage = determineFileUsage(file);
+                    log.info("파일 처리 - FileId: {}, Directory: {}, Usage: {}", file.getId(), file.getDirectory(), usage);
+
                     String newCdnUrl = fileService.moveFileToBooth(file.getFileUrl(), eventId, boothId, usage);
 
                     // URL 업데이트
@@ -384,11 +393,12 @@ public class BoothApplicationService {
                         case "banners":
                         case "banner":
                             booth.setBoothBannerUrl(newCdnUrl);
+                            log.info("배너 URL 업데이트 - BoothId: {}, URL: {}", boothId, newCdnUrl);
                             break;
                     }
 
-                    log.info("파일 이동 성공 - EventApply: {}, File: {}, Usage: {}",
-                            boothApply.getId(), file.getId(), usage);
+                    log.info("파일 이동 성공 - EventApply: {}, File: {}, Usage: {}, NewURL: {}",
+                            boothApply.getId(), file.getId(), usage, newCdnUrl);
 
                 } catch (Exception e) {
                     log.error("개별 파일 이동 실패 - EventApply: {}, File: {}, 오류: {}",
@@ -446,14 +456,20 @@ public class BoothApplicationService {
     @Transactional
     public void cancelApplication(Long id, Long userId) {
         BoothApplication application = boothApplicationRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("부스 신청 정보를 찾을 수 없습니다."));
-
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다."));
         String requesterEmail = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."))
                 .getEmail();
 
         if (!application.getContactEmail().equalsIgnoreCase(requesterEmail)) {
-            throw new SecurityException("해당 신청을 취소할 권한이 없습니다.");
+            throw new CustomException(HttpStatus.FORBIDDEN, "해당 신청을 취소할 권한이 없습니다.");
+        }
+
+        if (!"APPROVED".equals(application.getBoothApplicationStatusCode().getCode())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "승인되지 않은 부스 신청입니다.");
+        }
+        if ("PAID".equals(application.getBoothPaymentStatusCode().getCode())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "이미 결제가 완료된 부스입니다.");
         }
 
         BoothPaymentStatusCode cancelled = paymentCodeRepository.findByCode("CANCELLED")

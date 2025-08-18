@@ -1,16 +1,21 @@
 package com.fairing.fairplay.chat.service;
 
+import com.fairing.fairplay.chat.dto.ChatMessagePageResponseDto;
 import com.fairing.fairplay.chat.dto.ChatMessageResponseDto;
 import com.fairing.fairplay.chat.entity.ChatMessage;
 import com.fairing.fairplay.chat.entity.ChatRoom;
 import com.fairing.fairplay.chat.repository.ChatMessageRepository;
 import com.fairing.fairplay.chat.repository.ChatRoomRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.fairing.fairplay.chat.event.ChatMessageCreatedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -92,6 +97,100 @@ public class ChatMessageService {
         }
         
         return messages;
+    }
+
+    /**
+     * 페이징된 메시지 조회 (최신 메시지부터, 20개 단위)
+     * @param chatRoomId 채팅방 ID
+     * @param page 페이지 번호 (0부터 시작)
+     * @param size 페이지 크기 (기본 20)
+     * @return 페이징된 메시지 응답
+     */
+    public ChatMessagePageResponseDto getMessagesPaged(Long chatRoomId, int page, int size) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ChatMessage> messagePage = chatMessageRepository.findByChatRoomOrderBySentAtDesc(chatRoom, pageable);
+        
+        // 메시지를 시간순으로 정렬 (최신 메시지가 아래로)
+        List<ChatMessageResponseDto> messages = messagePage.getContent().stream()
+                .map(msg -> ChatMessageResponseDto.builder()
+                        .chatMessageId(msg.getChatMessageId())
+                        .chatRoomId(chatRoomId)
+                        .senderId(msg.getSenderId())
+                        .content(msg.getContent())
+                        .sentAt(msg.getSentAt())
+                        .isRead(msg.getIsRead())
+                        .build())
+                .collect(Collectors.toList());
+        
+        // 시간순으로 다시 정렬 (채팅창에서는 오래된 메시지가 위로)
+        Collections.reverse(messages);
+        
+        // 다음 페이지를 위한 커서 (현재 페이지의 가장 오래된 메시지 ID)
+        Long nextCursor = messages.isEmpty() ? null : 
+                messages.get(0).getChatMessageId();
+        
+        return ChatMessagePageResponseDto.builder()
+                .messages(messages)
+                .nextCursor(nextCursor)
+                .hasNext(messagePage.hasNext())
+                .currentPage(page)
+                .pageSize(size)
+                .totalElements(messagePage.getTotalElements())
+                .build();
+    }
+
+    /**
+     * 커서 기반 무한스크롤 메시지 조회
+     * @param chatRoomId 채팅방 ID
+     * @param lastMessageId 마지막으로 로드된 메시지 ID (null이면 최신부터)
+     * @param size 가져올 메시지 수 (기본 20)
+     * @return 페이징된 메시지 응답
+     */
+    public ChatMessagePageResponseDto getMessagesWithCursor(Long chatRoomId, Long lastMessageId, int size) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+        
+        Pageable pageable = PageRequest.of(0, size);
+        Page<ChatMessage> messagePage;
+        
+        if (lastMessageId == null) {
+            // 첫 번째 로드: 최신 메시지부터
+            messagePage = chatMessageRepository.findByChatRoomOrderBySentAtDesc(chatRoom, pageable);
+        } else {
+            // 다음 페이지: lastMessageId보다 이전 메시지들
+            messagePage = chatMessageRepository.findByChatRoomAndMessageIdLessThanOrderBySentAtDesc(
+                    chatRoom, lastMessageId, pageable);
+        }
+        
+        List<ChatMessageResponseDto> messages = messagePage.getContent().stream()
+                .map(msg -> ChatMessageResponseDto.builder()
+                        .chatMessageId(msg.getChatMessageId())
+                        .chatRoomId(chatRoomId)
+                        .senderId(msg.getSenderId())
+                        .content(msg.getContent())
+                        .sentAt(msg.getSentAt())
+                        .isRead(msg.getIsRead())
+                        .build())
+                .collect(Collectors.toList());
+        
+        // 시간순으로 정렬 (채팅창에서는 오래된 메시지가 위로)
+        Collections.reverse(messages);
+        
+        // 다음 페이지를 위한 커서 (현재 페이지의 가장 오래된 메시지 ID)
+        Long nextCursor = messages.isEmpty() ? null : 
+                messages.get(0).getChatMessageId();
+        
+        return ChatMessagePageResponseDto.builder()
+                .messages(messages)
+                .nextCursor(nextCursor)
+                .hasNext(messagePage.hasNext())
+                .currentPage(0) // 커서 기반에서는 의미없음
+                .pageSize(size)
+                .totalElements(messagePage.getTotalElements())
+                .build();
     }
 
     @Transactional

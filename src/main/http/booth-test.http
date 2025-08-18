@@ -3,8 +3,8 @@
 ### 변수 설정
 @baseUrl = http://localhost:8080
 @eventId = 16
-@applicationId = 14
-@authToken = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMDAwIiwiZW1haWwiOiJmaW5kLXJhYmJpdEBmYWlyLXBsYXkuaW5rIiwicm9sZSI6Iu2WieyCrCDri7Tri7nsnpAiLCJyb2xlSWQiOjIsImlhdCI6MTc1NTUwMjEzNCwiZXhwIjoxNzU1NTAyNDM0fQ.NlmwUgmqGdA_ss-gIXYUe4QL1T_R3s1sBaeROrZ9gYk
+@applicationId = 16
+@authToken = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMDAwIiwiZW1haWwiOiJmaW5kLXJhYmJpdEBmYWlyLXBsYXkuaW5rIiwicm9sZSI6Iu2WieyCrCDri7Tri7nsnpAiLCJyb2xlSWQiOjIsImlhdCI6MTc1NTUwNzg3MiwiZXhwIjoxNzU1NTA4MTcyfQ.DMxzoEfDTjwFtcETKxD_PtySaGFx0SQov3-Aqpaw6Fc
 
 ### 행사 관리자 로그인
 POST http://localhost:8080/api/auth/login
@@ -380,15 +380,15 @@ Content-Type: application/json
  {
    "boothTitle": "G-DRAGON 월드투어 굿즈 부스",
    "boothDescription": "G-DRAGON 2025 WORLD TOUR 공식 굿즈 판매 부스",
-   "boothEmail": "gd-tour3@fair-play.ink",
+   "boothEmail": "gd-tour5@fair-play.ink",
    "managerName": "권지용",
    "contactNumber": "010-1234-5678",
    "contactEmail": "lye0713@gmail.com",
-   "boothTypeId": 5,
+   "boothTypeId": 4,
    "startDate": "2025-05-10",
    "endDate": "2025-05-26",
    "tempBannerUrl": {
-     "s3Key": "uploads/tmp2025-08-18/e3c19bb9-eb42-4ba8-acc0-c3b1c017b3fa.png",
+     "s3Key": "uploads/tmp2025-08-18/62fd1ec0-bc4c-44ed-a148-d54ea5e69dd2.png",
      "originalFileName": "gd_tour_banner.png",
      "fileType": "image/png",
      "fileSize": 245000,

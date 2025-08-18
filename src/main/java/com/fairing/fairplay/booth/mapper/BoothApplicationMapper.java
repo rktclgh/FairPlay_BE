@@ -62,7 +62,7 @@ public class BoothApplicationMapper {
                 .contactEmail(entity.getContactEmail())
                 .applyAt(entity.getApplyAt())
                 .statusCode(entity.getBoothApplicationStatusCode().getCode())
-                .paymentStatus(entity.getBoothPaymentStatusCode().getCode())
+                .paymentStatus(entity.getBoothPaymentStatusCode().getName())
                 .paymentStatusCode(entity.getBoothPaymentStatusCode().getCode())
                 .build();
     }
