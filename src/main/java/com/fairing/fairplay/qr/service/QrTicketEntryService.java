@@ -237,22 +237,29 @@ public class QrTicketEntryService {
     messagingTemplate.convertAndSend("/topic/check-in/"+qrTicket.getId(),"체크인 처리가 완료되었습니다.");
   }
 
+  public void boothCheckIn(QrTicket qrTicket){
+    messagingTemplate.convertAndSend("/topic/booth/qr/"+qrTicket.getId(),"체크인 처리가 완료되었습니다.");
+  }
+
   private CheckResponseDto processBoothCheck(QrTicket qrTicket) {
     // 1. 현재 정책에서 필요한 이전 QR 체크 상태
     QrCheckStatusCode requiredPreviousStatus = qrEntryValidateService.determineRequiredQrStatusForBoothEntry(
         qrTicket);
+    CheckResponseDto checkResponseDto;
     if(requiredPreviousStatus == null) {
-      return CheckResponseDto.builder()
+      checkResponseDto = CheckResponseDto.builder()
           .message("이전 기록이 저장되어 있거나 저장할 필요가 없으므로 추가 저장 안함")
           .checkInTime(null)
           .build();
     } else{
       // 3. 부스 입장 로그 생성
       LocalDateTime checkInTime = qrLogService.boothQrLog(qrTicket, requiredPreviousStatus);
-      return CheckResponseDto.builder()
+      checkResponseDto = CheckResponseDto.builder()
           .message("이전 로그 저장 완료")
           .checkInTime(checkInTime)
           .build();
     }
+    boothCheckIn(qrTicket);
+    return checkResponseDto;
   }
 }
