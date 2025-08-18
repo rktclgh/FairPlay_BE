@@ -3,6 +3,7 @@ package com.fairing.fairplay.booth.repository;
 import com.fairing.fairplay.booth.entity.Booth;
 import com.fairing.fairplay.booth.entity.BoothType;
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.entity.Event;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+@Repository
 public interface BoothRepository extends JpaRepository<Booth, Long> {
     List<Booth> findAllByEvent(Event event);
     List<Booth> findByEventAndIsDeletedFalse(Event event);
