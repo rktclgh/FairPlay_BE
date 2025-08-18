@@ -67,6 +67,10 @@ jwt:
   refresh-token-validity-ms: 7200000 # 2시간(7,200,000 ms)
   refresh-token-prefix: "refresh_token:"
 
+# Google Gemini API
+gemini:
+  api-key: ${GEMINI_API_KEY}
+
 kakao:
   client-id: ${KAKAO_CLIENT_ID}
   redirect-uri: ${KAKAO_REDIRECT_URI}
