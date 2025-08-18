@@ -2,6 +2,7 @@ package com.fairing.fairplay.banner.controller;
 
 import com.fairing.fairplay.banner.dto.SlotResponseDto;
 import com.fairing.fairplay.banner.entity.BannerSlotType;
+import com.fairing.fairplay.banner.service.BannerService;
 import com.fairing.fairplay.banner.service.BannerSlotService;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import jakarta.validation.constraints.NotNull;
@@ -11,6 +12,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import com.fairing.fairplay.banner.dto.LockSlotsRequestDto;
+import com.fairing.fairplay.banner.dto.LockSlotsResponseDto;
+import com.fairing.fairplay.banner.dto.FinalizeSoldRequestDto;
+import com.fairing.fairplay.banner.dto.FinalizeSoldResponseDto;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Validated
 public class BannerSlotController {
     private final BannerSlotService slotService;
+    private final BannerService bannerService;
 
     private void requireLogin(CustomUserDetails user) {
         if (user == null) {
@@ -50,4 +56,25 @@ public class BannerSlotController {
         }
         return ResponseEntity.ok(slotService.getSlots(type, from, to));
 
-    }}
+
+
+    }
+    @PostMapping("/slots/lock")
+    public ResponseEntity<LockSlotsResponseDto> lockSlots(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestBody LockSlotsRequestDto req
+    ) {
+        requireLogin(user);
+        return ResponseEntity.ok(bannerService.lockSlots(req, user.getUserId()));
+    }
+
+    @PostMapping("/slots/sold")
+    public ResponseEntity<FinalizeSoldResponseDto> finalizeSold(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestBody FinalizeSoldRequestDto req
+    ) {
+        requireLogin(user);
+        return ResponseEntity.ok(bannerService.finalizeSold(req, user.getUserId()));
+    }
+
+}
