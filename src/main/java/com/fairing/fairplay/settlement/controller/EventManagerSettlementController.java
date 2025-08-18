@@ -36,9 +36,10 @@ public class EventManagerSettlementController {
     @GetMapping("/{settlementId}")
     @FunctionAuth("getDetailEventManagerSettlementList")
     public EventManagerDetailSettlementDto getDetailEventManagerSettlementList(
-            @PathVariable Long settlementId)
+            @PathVariable Long settlementId,
+            @AuthenticationPrincipal(expression = "userId") Long userId)
     {
-        return eventManagerSettlementService.getDetailSettlement(settlementId);
+        return eventManagerSettlementService.getDetailSettlement(settlementId, userId);
     }
 
     @PostMapping("/{settlementId}/approve")

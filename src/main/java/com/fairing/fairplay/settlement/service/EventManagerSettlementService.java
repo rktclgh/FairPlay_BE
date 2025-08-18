@@ -43,11 +43,16 @@ public class EventManagerSettlementService {
         return settlementPageList;
     }
 
-    public EventManagerDetailSettlementDto getDetailSettlement(Long settlementId) {
+    public EventManagerDetailSettlementDto getDetailSettlement(Long settlementId, Long userId) {
 
         Settlement settlement = settlementRepository.findById(settlementId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 정산 정보를 찾을 수 없습니다."));
         Optional<SettlementAccount> accountInfo = settlementAccountRepository.findBySettlement_SettlementId(settlementId).or(() -> Optional.of(new SettlementAccount()));
+
+        // 소유자 검증
+        if (!settlement.getEvent().getManager().getUserId().equals(userId)) {
+            throw new AccessDeniedException("권한이 없습니다.");
+        }
 
         List<SettlementAggregationRevenueDto> revenueDatail = settlement.getRevenueDetails().stream().map(r->SettlementAggregationRevenueDto.builder()
                 .revenueTypeAmount(r.getAmount())
@@ -114,7 +119,7 @@ public class EventManagerSettlementService {
         settlementRepository.save(settlement);
 
         return  ApproveEventManagerSettlementDto.builder()
-                .SettlementId(settlementId)
+                .settlementId(settlementId)
                 .settlementRequestStatus(SettlementRequestStatus.REQUESTED)
                 .build();
     }

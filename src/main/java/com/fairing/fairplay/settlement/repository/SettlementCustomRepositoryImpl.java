@@ -40,7 +40,8 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
         BigDecimal totalAmount = queryFactory
                 .select(netAmount.sum().coalesce(BigDecimal.ZERO))
                 .from(payment)
-                .where(payment.event.eventId.eq(eventId))
+                .where(payment.event.eventId.eq(eventId),
+                        payment.paymentStatusCode.code.eq("COMPLETED"))
                 .fetchOne();
 
         return SettlementAggregationDto.builder()

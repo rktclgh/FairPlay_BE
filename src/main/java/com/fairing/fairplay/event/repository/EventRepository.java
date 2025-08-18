@@ -29,10 +29,11 @@ public interface EventRepository extends JpaRepository<Event, Long>, EventQueryR
     Optional<Event> findByEventCode(String eventCode);
 
     // 종료일이 특정 날짜와 동일한 이벤트 조회
-    List<Event> findAllByEventDetail_EndDate(LocalDate date);
+    List<Event> findAllByEventDetail_EndDateLessThanEqual(LocalDate targetDate);
 
     // 생성일 기준 최신순 상위 N개
     List<Event> findAllByOrderByEventDetail_CreatedAtDesc(Pageable pageable);
     List<Event> findByEventDetailIsNotNullOrderByEventDetail_CreatedAtDesc(Pageable pageable);
+
 
 }

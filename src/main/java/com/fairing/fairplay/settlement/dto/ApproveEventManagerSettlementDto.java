@@ -10,6 +10,6 @@ import lombok.Setter;
 @Setter
 @Builder
 public class ApproveEventManagerSettlementDto {
-    private Long SettlementId;
+    private Long settlementId;
     private SettlementRequestStatus settlementRequestStatus;
 }
