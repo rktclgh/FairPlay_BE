@@ -1,24 +1,30 @@
 package com.fairing.fairplay.user.service;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.entity.EmailServiceFactory;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
-import com.fairing.fairplay.user.dto.*;
+import com.fairing.fairplay.user.dto.EventAdminRequestDto;
+import com.fairing.fairplay.user.dto.EventAdminResponseDto;
+import com.fairing.fairplay.user.dto.UserRegisterRequestDto;
+import com.fairing.fairplay.user.dto.UserResponseDto;
+import com.fairing.fairplay.user.dto.UserUpdateRequestDto;
 import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.entity.UserRoleCode;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.EventAdminRepository;
 import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -47,9 +53,11 @@ public class UserService {
         UserRoleCode role = userRoleCodeRepository.findByCode("COMMON")
                 .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "기본 역할코드를 찾을 수 없습니다."));
 
+        String password = passwordEncoder.encode(dto.getPassword());
+        System.out.println("password   " + password);
         Users user = Users.builder()
                 .email(dto.getEmail())
-                .password(passwordEncoder.encode(dto.getPassword()))
+                .password(password)
                 .name(dto.getName())
                 .roleCode(role)
                 .phone(dto.getPhone())
@@ -70,15 +78,23 @@ public class UserService {
                 .name(user.getName())
                 .role(user.getRoleCode().getCode())
                 .nickname(user.getNickname())
+                .birthday(user.getBirthday())
                 .build();
     }
 
     @Transactional
-    public UserResponseDto updateMyInfo(Long userId, UserUpdateRequestDto dto) {
+    public UserResponseDto updateMyInfo(Long userId,
+            UserUpdateRequestDto dto) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("사용자 정보를 찾을 수 없습니다."));
-        if (dto.getPhone() != null) user.setPhone(dto.getPhone());
-        if (dto.getNickname() != null) user.setNickname(dto.getNickname());
+        if (dto.getPhone() != null)
+            user.setPhone(dto.getPhone());
+        if (dto.getNickname() != null)
+            user.setNickname(dto.getNickname());
+        if (dto.getBirthday() != null)
+            user.setBirthday(dto.getBirthday());
+        if (dto.getGender() != null)
+            user.setGender(dto.getGender());
         userRepository.save(user);
         return UserResponseDto.builder()
                 .userId(user.getUserId())
@@ -87,6 +103,8 @@ public class UserService {
                 .name(user.getName())
                 .role(user.getRoleCode().getCode())
                 .nickname(user.getNickname())
+                .birthday(user.getBirthday())
+                .gender(user.getGender())
                 .build();
     }
 
@@ -160,8 +178,10 @@ public class UserService {
 
         EventAdmin eventAdmin = findEventAdmin(eventId);
 
-        if (dto.getContactNumber() != null) eventAdmin.setContactNumber(dto.getContactNumber());
-        if (dto.getContactEmail() != null) eventAdmin.setContactEmail(dto.getContactEmail());
+        if (dto.getContactNumber() != null)
+            eventAdmin.setContactNumber(dto.getContactNumber());
+        if (dto.getContactEmail() != null)
+            eventAdmin.setContactEmail(dto.getContactEmail());
 
         eventAdminRepository.save(eventAdmin);
         log.info("행사 관리자 정보 수정 완료");
