@@ -20,8 +20,7 @@ public class ShareTicketQrScheduler {
   private final QrTicketBatchService qrTicketBatchService;
 
   // 공유 폼 링크 만료
-  /*
-  @Scheduled(cron = "0 0 0 * * *")  //매일 자정 실행
+//  @Scheduled(cron = "0 0 2 * * *")  //매일 자정 실행
   public void runDailyTasks() {
     int batchSize = 100; //
     int page = 0;
@@ -52,5 +51,5 @@ public class ShareTicketQrScheduler {
     }
     // 2. 만료 완료 후 QR 티켓 세팅
     qrTicketBatchService.createQrTicket();
-  }*/
+  }
 }

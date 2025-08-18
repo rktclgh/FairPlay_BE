@@ -128,15 +128,19 @@ public class QrTicketEntryService {
     qrLogService.scannedQrLog(qrTicket, qrActionCode);
     log.info("qrActionCode : {}", qrActionCode);
     log.info("QrLog SCANNED 저장 qrTicket: {}",qrTicket.getId());
-    // 재입장 가능 여부 검토 - 입장 기록 자체가 있는지 조회
-    qrEntryValidateService.verifyReEntry(qrTicket);
-    log.info("재입장 가능 여부 통과");
+    // 체크인이 가능한가 -> 규칙상 (체크인 스캔 자체가 가능한지 판단)
+    qrEntryValidateService.checkEntryExitPolicy(qrTicket, QrCheckStatusCode.ENTRY);
+    // 현재 입장이 최초입장인가 재입장인가
     // 현재 입장이 최초입장인지 재입장인지 판단 QrCheckStatusCode.ENTRY, rCheckStatusCode.REENTRY
     String entryType = qrLogService.determineEntryOrReEntry(qrTicket);
     log.info("현재 입장 상태:{}",entryType);
+    // 재입장 가능 여부 판단
+    qrEntryValidateService.verifyCheckInReEntry(qrTicket);
+    // 중복 스캔?
     // 중복 스캔 -> QrLog: invalid, QrChecktLog: duplicate 저장
     qrEntryValidateService.preventDuplicateScan(qrTicket, entryType);
     log.info("중복 스캔 여부 통과");
+    // 스캔 동작 순서 맞는지
     // 코드 비교
     if (QR.equals(dto.getCodeType())) {
       log.info("체크인 타입:QR");

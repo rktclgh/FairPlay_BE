@@ -100,7 +100,7 @@ Authorization: Bearer {{access_token}}
 }
 
 ### ===============================
-### 2. 특정 부스의 체험 목록 조회 (부스 담당자용)
+### 2. 특정 부스의 체험 목록 조회 (권한 기반)
 ### ===============================
 GET {{baseUrl}}/api/booth-experiences/booths/{{boothId}}
 Content-Type: application/json
@@ -111,6 +111,102 @@ Authorization: Bearer {{access_token}}
 ### ===============================
 GET {{baseUrl}}/api/booth-experiences/available
 Content-Type: application/json
+
+### ===============================
+### 3-1. 필터링된 부스 체험 목록 조회 - 부스명으로 검색
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/available?boothName=VR&sortBy=startTime&sortDirection=asc
+Content-Type: application/json
+
+### ===============================
+### 3-2. 필터링된 부스 체험 목록 조회 - 특정 날짜
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/available?date=2025-08-20&isAvailable=true
+Content-Type: application/json
+
+### ===============================
+### 3-3. 필터링된 부스 체험 목록 조회 - 체험명으로 검색
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/available?boothName=AI&sortBy=congestionRate&sortDirection=desc
+Content-Type: application/json
+
+### ===============================
+### 3-4. 필터링된 부스 체험 목록 조회 - 모든 체험 (예약 가능/불가능 포함)
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/available
+Content-Type: application/json
+
+### ===============================
+### 3-4-1. 예약 가능한 것만 보기 체크된 경우
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/available?isAvailable=true
+Content-Type: application/json
+
+### ===============================
+### 3-4-2. 예약 가능한 것만 보기 체크 해제된 경우 (모든 체험)
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/available?isAvailable=
+Content-Type: application/json
+
+### ===============================
+### 3-5. 예약 비활성화된 체험 등록 (테스트용)
+### ===============================
+POST {{baseUrl}}/api/booth-experiences/booths/{{boothId}}
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "title": "점검중인 체험",
+  "description": "현재 점검 중이므로 예약이 불가능합니다",
+  "experienceDate": "2025-08-21",
+  "startTime": "09:00:00",
+  "endTime": "18:00:00",
+  "durationMinutes": 10,
+  "maxCapacity": 4,
+  "allowWaiting": true,
+  "maxWaitingCount": 20,
+  "allowDuplicateReservation": false,
+  "isReservationEnabled": false
+}
+
+### ===============================
+### 3-6. 디버그용 - 모든 체험 조회 (예약 활성화 여부 포함)
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/debug/all
+Content-Type: application/json
+
+### ===============================
+### 3-7. 실제 프론트엔드와 동일한 요청 - 체크박스 체크된 경우
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/available?isAvailable=true&sortBy=startTime&sortDirection=asc
+Content-Type: application/json
+
+### ===============================
+### 3-8. 실제 프론트엔드와 동일한 요청 - 체크박스 해제된 경우  
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/available?sortBy=startTime&sortDirection=asc
+Content-Type: application/json
+
+### ===============================
+### DEBUG: 부스와 이벤트 연결 상태 확인
+### ===============================
+GET {{baseUrl}}/api/booths/1
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+### ===============================
+### 권한별 관리 가능한 부스 목록 조회 (체험 등록용)
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/manageable-booths
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+### ===============================
+### 권한별 관리 가능한 체험 목록 조회 (체험 관리용)
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/manageable-experiences
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
 
 ### ===============================
 ### 4. 부스 체험 예약 신청 (참여자)
@@ -183,6 +279,40 @@ Authorization: Bearer {{access_token}}
 ### ===============================
 GET {{baseUrl}}/api/booth-experiences/{{experienceId}}/queue-status
 Content-Type: application/json
+
+### ===============================
+### 12. 부스 체험 상세 조회
+### ===============================
+GET {{baseUrl}}/api/booth-experiences/{{experienceId}}
+Content-Type: application/json
+
+### ===============================
+### 13. 부스 체험 수정 (부스 담당자)
+### ===============================
+PUT {{baseUrl}}/api/booth-experiences/{{experienceId}}
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "title": "VR 체험존 (업데이트)",
+  "description": "최신 VR 기술을 이용한 가상현실 체험 - 새로운 콘텐츠 추가",
+  "experienceDate": "2025-08-20",
+  "startTime": "10:00:00",
+  "endTime": "17:00:00",
+  "durationMinutes": 15,
+  "maxCapacity": 6,
+  "allowWaiting": true,
+  "maxWaitingCount": 30,
+  "allowDuplicateReservation": false,
+  "isReservationEnabled": true
+}
+
+### ===============================
+### 14. 부스 체험 삭제 (부스 담당자)
+### ===============================
+DELETE {{baseUrl}}/api/booth-experiences/{{experienceId}}
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
 
 
 

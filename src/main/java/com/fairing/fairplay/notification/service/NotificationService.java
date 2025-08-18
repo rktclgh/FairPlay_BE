@@ -75,10 +75,10 @@ public class NotificationService {
         return responseDto;
     }
 
-    // 내 알림 리스트
+    // 내 알림 리스트 (삭제되지 않은 것만)
     @Transactional(readOnly = true)
     public List<NotificationResponseDto> getNotifications(Long userId) {
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId)
+        return notificationRepository.findByUserIdAndNotDeletedOrderByCreatedAtDesc(userId)
                 .stream()
                 .map(this::toResponseDto)
                 .collect(Collectors.toList());
@@ -98,11 +98,15 @@ public class NotificationService {
         return toResponseDto(getMyNotification(notificationId, userId));
     }
 
-    // 내 알림만 삭제
+    // 내 알림만 soft delete
     @Transactional
     public void deleteNotificationByUser(Long notificationId, Long userId) {
         Notification notification = getMyNotification(notificationId, userId);
-        notificationRepository.deleteById(notificationId);
+        if (notification.isDeleted()) {
+            throw new IllegalArgumentException("이미 삭제된 알림입니다.");
+        }
+        notification.softDelete();
+        notificationRepository.save(notification);
     }
 
     // 내 알림 여러개 일괄 삭제
@@ -137,15 +141,16 @@ public class NotificationService {
 
     // ========== 내부 공용 메서드 ==========
 
-    // userId 검증 후 알림 리턴(내 알림만 접근 가능)
+    // userId 검증 후 알림 리턴(내 알림만 접근 가능, 삭제되지 않은 것만)
     private Notification getMyNotification(Long notificationId, Long userId) {
-        Notification notification = notificationRepository.findById(notificationId)
+        Notification notification = notificationRepository.findByIdAndNotDeleted(notificationId)
                 .orElseThrow(() -> new IllegalArgumentException("알림이 존재하지 않습니다."));
         if (!notification.getUserId().equals(userId)) {
             throw new SecurityException("본인 알림만 접근/삭제 가능합니다.");
         }
         return notification;
     }
+
 
     // 변환
     private NotificationResponseDto toResponseDto(Notification n) {

@@ -22,8 +22,8 @@ public interface BannerSlotRepository extends JpaRepository<BannerSlot, Long> {
            where s.bannerType.id = :typeId
              and s.slotDate = :slotDate
              and s.priority = :priority
-             and s.status = 'AVAILABLE'
-           """)
+             and s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.AVAILABLE
+            """)
     Optional<BannerSlot> lockAvailable(@Param("typeId") Long typeId,
                                        @Param("slotDate") LocalDate slotDate,
                                        @Param("priority") Integer priority);
@@ -45,14 +45,39 @@ public interface BannerSlotRepository extends JpaRepository<BannerSlot, Long> {
     // 만료 락 해제 배치
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-           update BannerSlot s
-              set s.status = 'AVAILABLE',
-                  s.lockedBy = null,
-                  s.lockedUntil = null
-            where s.status = 'LOCKED'
-              and s.lockedUntil < CURRENT_TIMESTAMP
+            update BannerSlot s
+                  set s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.AVAILABLE,
+                          s.lockedBy = null,
+                          s.lockedUntil = null
+                  where s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.LOCKED
+                        and s.lockedUntil < CURRENT_TIMESTAMP
            """)
     int releaseExpiredLocks();
+
+    // 슬롯에서 SOLD된(=결제완료) 노출 2칸 조회용
+    @Query("""
+       select b.eventId as eventId, s.priority as priority
+         from BannerSlot s
+         join s.soldBanner b
+        where s.bannerType.code = :typeCode
+          and s.slotDate = :slotDate
+          and s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.SOLD
+        order by s.priority asc
+    """)
+    List<FixedRow> findSoldFixedRows(@Param("typeCode") String typeCode,
+                                     @Param("slotDate") java.time.LocalDate slotDate);
+
+    interface FixedRow {
+        Long getEventId();
+        Integer getPriority();
+    }
+
+    @Query("""
+       select s from BannerSlot s
+       join fetch s.bannerType bt
+       where s.id in :ids
+    """)
+    List<BannerSlot> findAllWithType(@Param("ids") List<Long> ids);
 
     // 결제 후 생성된 배너 id 연결 (native가 깔끔)
     @Modifying(clearAutomatically = true, flushAutomatically = true)

@@ -19,14 +19,16 @@ public interface AttendeeRepository extends JpaRepository<Attendee, Long> {
 
   Optional<Attendee> findByIdAndReservation_ReservationId(Long attendeeId, Long reservationId);
 
-  Optional<Attendee> findByReservation_ReservationIdAndAttendeeTypeCode_Code(Long reservationId, String attendeeTypeCode);
+  Optional<Attendee> findByReservation_ReservationIdAndAttendeeTypeCode_Code(Long reservationId,
+      String attendeeTypeCode);
+
   // 행사별 예약자 명단 조회 (행사 관리자)
   @Query("""
-        SELECT a FROM Attendee a
-        JOIN a.reservation r
-        JOIN r.event e
-        WHERE e.eventId = :eventId
-        ORDER BY a.createdAt ASC
-    """)
+          SELECT a FROM Attendee a
+          JOIN a.reservation r
+          JOIN r.event e
+          WHERE e.eventId = :eventId
+          ORDER BY a.createdAt ASC
+      """)
   List<Attendee> findByEventId(Long eventId);
 }
