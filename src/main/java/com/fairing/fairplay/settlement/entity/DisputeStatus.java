@@ -1,4 +1,4 @@
-package com.fairing.fairplay.settlement.entitiy;
+package com.fairing.fairplay.settlement.entity;
 
 public enum DisputeStatus {
     NONE,       // 이의 없음

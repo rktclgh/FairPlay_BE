@@ -1,4 +1,4 @@
-package com.fairing.fairplay.settlement.entitiy;
+package com.fairing.fairplay.settlement.entity;
 
 public enum TransferStatus {
     PENDING,    // 송금 대기
