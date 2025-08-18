@@ -71,6 +71,7 @@ public class SecurityConfig {
                                 "/api/events/apply/check",
                                 "/api/events/user/role",
                                 "/api/super-admin/**",
+                                "/api/qr-tickets/reissue/guest",
                                 "/api/rag/**", // RAG API (개발/테스트용)
                                 "/api/qr-tickets/admin/issue" // QR 티켓 강제 재발급 (테스트용)
                         ).permitAll()

@@ -3,6 +3,7 @@ package com.fairing.fairplay.reservation.repository;
 import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.entity.QAttendee;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
+import com.fairing.fairplay.event.entity.QEvent;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.ticket.entity.QEventSchedule;
 import com.fairing.fairplay.ticket.entity.QScheduleTicket;
@@ -24,9 +25,10 @@ public class ReservationRepositoryCustom {
   private final JPAQueryFactory queryFactory;
   private final AttendeeTypeCodeRepository attendeeTypeCodeRepository;
 
-  // 내일 일정이고, 확정된 예약이며, 취소되지 않았고, 게스트 참석자가 있는 예약 정보
+  // 오늘/내일 일정이고, 확정된 예약이며, 취소되지 않았고, 게스트 참석자가 있는 예약 정보
   public List<Tuple> findReservationsOneDayBeforeEventWithoutRepresentatives() {
-    LocalDate tomorrow = LocalDate.now().plusDays(1);
+    LocalDate today = LocalDate.now();
+    LocalDate tomorrow = today.plusDays(1);
     log.info(
         "[ReservationRepositoryCustom] findReservationsOneDayBeforeEventWithoutRepresentatives = {}",
         tomorrow);
@@ -39,28 +41,29 @@ public class ReservationRepositoryCustom {
     QEventSchedule schedule = QEventSchedule.eventSchedule;
     QScheduleTicket scheduleTicket = QScheduleTicket.scheduleTicket;
     QAttendee attendee = QAttendee.attendee;
+    QEvent event = QEvent.event;
 
     List<Tuple> results = queryFactory
         .select(
-            reservation.reservationId,
-            reservation.ticket.ticketId,
+            reservation,
             attendee.id,
             attendee.name,
             attendee.email,
-            reservation.event.eventId,
+            event,
             schedule)
         .from(reservation)
-        .join(schedule).on(schedule.scheduleId.eq(reservation.schedule.scheduleId))
+        .join(reservation.schedule, schedule)
         .join(scheduleTicket).on(
             scheduleTicket.id.scheduleId.eq(schedule.scheduleId)
                 .and(scheduleTicket.id.ticketId.eq(reservation.ticket.ticketId))
         )
+        .join(event).on(reservation.event.eventId.eq(event.eventId))
         .join(attendee).on(
             attendee.reservation.eq(reservation)
                 .and(attendee.attendeeTypeCode.id.eq(attendeeTypeCode.getId()))
         )
         .where(
-            schedule.date.eq(tomorrow),
+            schedule.date.in(today, tomorrow),
             reservation.canceled.isFalse(),
             reservation.reservationStatusCode.code.eq(RESERVATION_STATUS_CONFIRMED)
         )

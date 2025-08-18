@@ -2,9 +2,13 @@ package com.fairing.fairplay.shareticket.service;
 
 import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeSaveRequestDto;
+import com.fairing.fairplay.attendee.entity.Attendee;
+import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.service.AttendeeService;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+
+import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.dto.ShareTicketSaveRequestDto;
@@ -19,17 +23,20 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ShareTicketAttendeeService {
   private final UserRepository userRepository;
   private final AttendeeService attendeeService;
   private final ShareTicketRepository shareTicketRepository;
   private final ReservationRepository reservationRepository;
+  private final QrTicketService qrTicketService;
 
   // 대표자 저장 및 참석자 폼 링크 생성해 반환
   @Transactional
@@ -64,13 +71,19 @@ public class ShareTicketAttendeeService {
     // 2. shareTicket 저장 -> 단건 예매면 token은 Null
     String token = dto.getTotalAllowed() > 1 ? generateToken(dto) : null;
 
+    // 3. QR 티켓 생성
+    Attendee attendee = attendeeService.findById(attendeeInfoResponseDto.getAttendeeId());
+    qrTicketService.generateQrTicket(attendee, reservation);
+
+    log.info("[ShareTicketAttendeeService] qr티켓 생성 완료");
+
     return ShareTicketSaveResponseDto.builder()
         .reservationId(dto.getReservationId())
         .token(token)
         .build();
   }
 
-  // 공유 폼 링크 생성 -> 예약 성공 시 예약 서비스 단계에서 사용
+  // 공유 폼 링크 생성
   private String generateToken(ShareTicketSaveRequestDto dto) {
     if (dto == null) {
       throw new CustomException(HttpStatus.NOT_FOUND,"유효하지 않은 요청입니다.");
