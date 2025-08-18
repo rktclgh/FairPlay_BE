@@ -33,7 +33,7 @@ public class SettlementScheduler {
 
         try {
             // 7일 전에 종료된 행사 조회
-            List<Event> events = eventRepository.findEventsEndedAt(targetDate);
+            List<Event> events = eventRepository.findByEventDetail_EndDate(targetDate);
 
             for (Event event : events) {
                 // 이미 정산된 행사인지 확인
