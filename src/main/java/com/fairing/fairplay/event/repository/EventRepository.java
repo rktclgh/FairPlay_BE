@@ -28,7 +28,7 @@ public interface EventRepository extends JpaRepository<Event, Long>, EventQueryR
 
     Optional<Event> findByEventCode(String eventCode);
 
-    // 종료된 이벤트 조회
+    // 종료된 이벤트 조회 메소드
     List<Event> findEventsEndedAt(LocalDate targetDate);
 
     // 생성일 기준 최신순 상위 N개
