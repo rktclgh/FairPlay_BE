@@ -93,7 +93,7 @@ public class AccessAspect {
         ChangeHistory changeHistory = ChangeHistory.builder()
                 .user(executor)
                 .targetId(target.getUserId())
-                .targetType("행사 정보 수정")
+                .targetType("배너 정보 수정")
                 .content(changeString)
                 .modifyTime(LocalDateTime.now())
                 .build();

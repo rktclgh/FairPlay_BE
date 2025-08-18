@@ -1,11 +1,14 @@
 package com.fairing.fairplay.core.email.service;
 
-import com.fairing.fairplay.core.util.EmailSender;
-import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.ClassPathResource;
-
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import com.fairing.fairplay.core.util.EmailSender;
+
+import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public abstract class AbstractEmailService {
@@ -22,17 +25,26 @@ public abstract class AbstractEmailService {
 
     // 템플릿 로더
     protected String loadTemplate(String filename) {
-        // 파일명 검증: 상위 디렉토리 접근 방지
-        if (filename == null || filename.contains("..") || filename.contains("/") || filename.contains("\\") ) {
-            throw new IllegalArgumentException("잘못된 템플릿 파일명: " + filename);
-        }
-        try (InputStream is = new ClassPathResource("email/" + filename).getInputStream()) {
+        Path userTemplateDir = Paths.get("user-templates/email");
+        Path templatePath = userTemplateDir.resolve(filename);
+        try (InputStream is = Files.newInputStream(templatePath)) {
             return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new RuntimeException("이메일 템플릿 파일 로딩 실패: " + filename, e);
         }
-    }
 
+        // 파일명 검증: 상위 디렉토리 접근 방지
+        // if (filename == null || filename.contains("..") || filename.contains("/") ||
+        // filename.contains("\\") ) {
+        // throw new IllegalArgumentException("잘못된 템플릿 파일명: " + filename);
+        // }
+        // try (InputStream is = new ClassPathResource("email/" +
+        // filename).getInputStream()) {
+        // return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        // } catch (Exception e) {
+        // throw new RuntimeException("이메일 템플릿 파일 로딩 실패: " + filename, e);
+        // }
+    }
 
     // 컨텐츠 구조체
     public static class EmailContent {
@@ -48,9 +60,20 @@ public abstract class AbstractEmailService {
             this.logoPath = logoPath;
         }
 
-        public String getSubject() { return subject; }
-        public String getHtml() { return html; }
-        public String getLogoCid() { return logoCid; }
-        public String getLogoPath() { return logoPath; }
+        public String getSubject() {
+            return subject;
+        }
+
+        public String getHtml() {
+            return html;
+        }
+
+        public String getLogoCid() {
+            return logoCid;
+        }
+
+        public String getLogoPath() {
+            return logoPath;
+        }
     }
 }
