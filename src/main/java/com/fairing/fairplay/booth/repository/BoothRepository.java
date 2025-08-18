@@ -40,4 +40,17 @@ public interface BoothRepository extends JpaRepository<Booth, Long> {
            "WHERE e.eventId = :eventId " +
            "ORDER BY b.boothTitle ASC")
     List<Booth> findByEventId(@Param("eventId") Long eventId);
+
+    // 결제 완료된 부스만 조회 (부스 신청의 결제 상태가 PAID인 부스)
+    @Query("SELECT DISTINCT b FROM Booth b " +
+           "JOIN FETCH b.event e " +
+           "LEFT JOIN FETCH b.boothAdmin ba " +
+           "WHERE e = :event " +
+           "AND b.isDeleted = false " +
+           "AND EXISTS (SELECT 1 FROM BoothApplication ba2 " +
+           "           WHERE ba2.event = e " +
+           "           AND ba2.boothTitle = b.boothTitle " +
+           "           AND ba2.boothPaymentStatusCode.code = 'PAID') " +
+           "ORDER BY b.boothTitle ASC")
+    List<Booth> findByEventAndIsDeletedFalseAndPaymentStatusPaid(@Param("event") Event event);
 }

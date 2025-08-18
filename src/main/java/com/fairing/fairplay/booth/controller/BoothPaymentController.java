@@ -1,7 +1,9 @@
 package com.fairing.fairplay.booth.controller;
 
-import com.fairing.fairplay.booth.dto.BoothPaymentStatusUpdateDto;
 import com.fairing.fairplay.booth.dto.BoothPaymentPageDto;
+import com.fairing.fairplay.booth.dto.BoothPaymentStatusUpdateDto;
+import com.fairing.fairplay.booth.entity.Booth;
+import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.booth.service.BoothApplicationService;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.etc.FunctionAuth;
@@ -30,6 +32,7 @@ public class BoothPaymentController {
     private final BoothApplicationService boothApplicationService;
     private final NotificationService notificationService;
     private final PaymentStatusCodeRepository paymentStatusCodeRepository;
+    private final BoothRepository boothRepository;
 
     // 부스 결제 요청
     @PostMapping("/request")
@@ -68,7 +71,11 @@ public class BoothPaymentController {
                 notificationDto.setMethodCode("WEB");
                 notificationDto.setTitle("부스 결제 완료");
                 notificationDto.setMessage(String.format("부스 신청 ID: %d - 결제가 완료되었습니다.", completedPayment.getTargetId()));
-                
+
+                Booth booth = boothRepository.findById(completedPayment.getTargetId())
+                        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
+                notificationDto.setUserId(booth.getBoothAdmin().getUserId());
+
                 notificationService.createNotification(notificationDto);
                 
                 log.info("부스 결제 완료 처리 및 알림 발송 완료 - ApplicationId: {}, PaymentId: {}", 
@@ -95,7 +102,7 @@ public class BoothPaymentController {
     @PostMapping("/request-from-email")
     public ResponseEntity<PaymentResponseDto> requestBoothPaymentFromEmail(
             @RequestBody PaymentRequestDto paymentRequestDto) {
-        
+
         paymentRequestDto.setPaymentTargetType("BOOTH_APPLICATION");
         // 이메일에서 접근하는 경우 userId는 부스 신청자 정보에서 가져와야 함
         PaymentResponseDto savedPayment = paymentService.savePaymentFromEmail(paymentRequestDto);

@@ -9,6 +9,8 @@ import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.user.dto.BoothAdminRequestDto;
+import com.fairing.fairplay.user.dto.BoothAdminResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -72,6 +74,27 @@ public class BoothController {
 
         boothService.deleteBooth(boothId);
         return ResponseEntity.ok("부스 삭제 완료(soft delete)");
+    }
+
+    @PatchMapping("/{boothId}/manager")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
+    @FunctionAuth("updateBoothAdminInfo")
+    public ResponseEntity<BoothAdminResponseDto> updateBoothAdminInfo (
+            @PathVariable Long eventId,
+            @PathVariable Long boothId,
+            @AuthenticationPrincipal CustomUserDetails auth,
+            @RequestBody BoothAdminRequestDto dto
+            ) {
+        if (auth.getRoleCode().equals("EVENT_MANAGER")) {
+            checkEventManager(eventId, auth);
+        } else if (auth.getRoleCode().equals("BOOTH_MANAGER")) {
+            checkBoothManager(boothId, auth);
+        } else {
+            throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+        }
+
+        BoothAdminResponseDto responseDto = boothService.updateBoothAdmin(boothId, dto);
+        return ResponseEntity.ok(responseDto);
     }
 
     /********************** 부스 타입 관리 **********************/
