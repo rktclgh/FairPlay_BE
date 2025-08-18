@@ -31,7 +31,8 @@ public class QrEntryValidateService {
   // 정책 따른 체크인 가능 자체 판단
   public void checkEntryExitPolicy(QrTicket qrTicket, String entryType) {
     EntryPolicyDto entryPolicy = buildEntryPolicy(qrTicket);
-    log.info("reentry:{} checkIn:{} checkOut:{}",entryPolicy.isReentryAllowed(),entryPolicy.isCheckInAllowed(),entryPolicy.isCheckOutAllowed());
+    log.info("reentry:{} checkIn:{} checkOut:{}", entryPolicy.isReentryAllowed(),
+        entryPolicy.isCheckInAllowed(), entryPolicy.isCheckOutAllowed());
 
     if (!entryPolicy.isCheckInAllowed() && entryType.equals(QrCheckStatusCode.ENTRY)) {
       // 입장 스캔 허용 안하는데 입장 스캔 하는 경우
@@ -42,6 +43,55 @@ public class QrEntryValidateService {
     }
   }
 
+  // 정책 따른 이전 상태 확인
+  public QrCheckStatusCode determineRequiredQrStatusForBoothEntry(QrTicket qrTicket) {
+    EntryPolicyDto entryPolicy = buildEntryPolicy(qrTicket);
+
+    QrCheckStatusCode entryCheckStatus = qrCheckStatusCodeRepository.findByCode(
+        QrCheckStatusCode.ENTRY).orElseThrow(
+        () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "상태 코드가 올바르지 않습니다.")
+    );
+    QrCheckStatusCode reEntryCheckStatus = qrCheckStatusCodeRepository.findByCode(
+        QrCheckStatusCode.REENTRY).orElseThrow(
+        () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "상태 코드가 올바르지 않습니다.")
+    );
+
+    QrCheckLog prevQrCheckLog = qrCheckLogRepository.findTop1ByQrTicketOrderByCreatedAtDesc(
+        qrTicket).orElse(null);
+
+    if (entryPolicy.isReentryAllowed()) {
+      // 재입장 가능 행사
+      if (entryPolicy.isCheckInAllowed() && entryPolicy.isCheckOutAllowed()) {
+        // 입퇴장 모두 스캔
+        if (prevQrCheckLog == null) {
+          // 이전 스캔 기록이 없을 경우 입장 기록 저장
+          return entryCheckStatus;
+        } else if (prevQrCheckLog.getCheckStatusCode().getCode().equals(QrCheckStatusCode.EXIT)) {
+          // 이전 기록이 EXIT면 재입장 기록 저장
+          return reEntryCheckStatus;
+        }
+      } else if (entryPolicy.isCheckInAllowed()) {
+        // 입장만 스캔
+        if (prevQrCheckLog == null) {
+          // 이전 스캔 기록이 없을 경우 입장 기록 저장
+          return entryCheckStatus;
+        }
+      }
+    } else {
+      // 재입장 불가능 행사
+      if (entryPolicy.isCheckInAllowed() && entryPolicy.isCheckOutAllowed()) {
+        // 입퇴장 모두 스캔
+        // 이전 기록 없으면 입장 기록, 있으면 null
+        return prevQrCheckLog == null ? entryCheckStatus : null;
+      } else if (entryPolicy.isCheckInAllowed()) {
+        // 입장만 스캔
+        // 이전 기록 없으면 입장. 있으면 null
+        return prevQrCheckLog == null ? entryCheckStatus : null;
+      }
+    }
+
+    return null;
+  }
 
   // 체크인 재입장 가능 여부
   public void verifyCheckInReEntry(QrTicket qrTicket) {
@@ -199,10 +249,11 @@ public class QrEntryValidateService {
       }
 
       // checkin은 사용하지 않지만 checkout은 사용하는 경우
-      boolean isExitAllowedInitially = !entryPolicy.isCheckInAllowed() && entryPolicy.isCheckOutAllowed();
+      boolean isExitAllowedInitially =
+          !entryPolicy.isCheckInAllowed() && entryPolicy.isCheckOutAllowed();
 
-      if(QrCheckStatusCode.EXIT.equals(checkStatus)) {
-        if(!isExitAllowedInitially){
+      if (QrCheckStatusCode.EXIT.equals(checkStatus)) {
+        if (!isExitAllowedInitially) {
           log.info("퇴장하려는데 퇴장스캔만 허용하는 행사가 아님에도 이전 로그가 없음");
           qrLogService.invalidQrLog(qrTicket, qrActionCode, qrCheckStatusCode);
           throw new CustomException(HttpStatus.BAD_REQUEST, "이전 기록이 없으므로 퇴장 처리가 되지 않습니다.");
@@ -213,7 +264,8 @@ public class QrEntryValidateService {
 
     // 상태 전이 + 이벤트 정책(입장,퇴장,재입장 허용)을 같이 검사
     QrCheckLog qrCheckLog = lastLogOpt.get();
-    QrCheckStatusCode lastStatus = qrCheckLog.getCheckStatusCode();;
+    QrCheckStatusCode lastStatus = qrCheckLog.getCheckStatusCode();
+    ;
 
     boolean invalidTransition = switch (lastStatus.getCode()) {
       case "ENTRY" -> QrCheckStatusCode.ENTRY.equals(checkStatus); // ENTRY 후 ENTRY 불가
@@ -227,7 +279,7 @@ public class QrEntryValidateService {
       default -> false;
     };
 
-    if(invalidTransition){
+    if (invalidTransition) {
       qrLogService.invalidQrLog(qrTicket,
           validateQrActionCode(QrActionCode.INVALID),
           validateQrCheckStatusCode(QrCheckStatusCode.INVALID));

@@ -64,11 +64,21 @@ public class QrLogService {
   public LocalDateTime exitQrLog(QrTicket qrTicket, QrCheckStatusCode qrCheckStatusCode) {
     // qrCheckLog: EXIT 저장
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    log.info("부스 입장 완료");
+    log.info("qrCheckStatusCode: {}", qrCheckStatusCode);
+    return null;
+  }
+
+  // 부스 입장 시 이전 상태가 저장되지 않았을 경우 로그 저장
+  @Transactional
+  public LocalDateTime boothQrLog(QrTicket qrTicket, QrCheckStatusCode prevCheckStatusCode) {
+    saveQrCheckLog(qrTicket, prevCheckStatusCode);
     return null;
   }
 
   @Transactional
-  public LocalDateTime forceCheckQrLog(QrTicket qrTicket, QrActionCode qrActionCode, QrCheckStatusCode qrCheckStatusCode) {
+  public LocalDateTime forceCheckQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
+      QrCheckStatusCode qrCheckStatusCode) {
     saveQrLog(qrTicket, qrActionCode);
     saveQrCheckLog(qrTicket, qrCheckStatusCode);
     return null;
