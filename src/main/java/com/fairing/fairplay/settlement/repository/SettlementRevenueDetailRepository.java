@@ -1,6 +1,6 @@
 package com.fairing.fairplay.settlement.repository;
 
-import com.fairing.fairplay.settlement.entitiy.SettlementRevenueDetail;
+import com.fairing.fairplay.settlement.entity.SettlementRevenueDetail;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SettlementRevenueDetailRepository extends JpaRepository<SettlementRevenueDetail, Long> {

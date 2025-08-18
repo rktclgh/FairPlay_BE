@@ -1,6 +1,6 @@
 package com.fairing.fairplay.settlement.repository;
 
-import com.fairing.fairplay.settlement.entitiy.Settlement;
+import com.fairing.fairplay.settlement.entity.Settlement;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
