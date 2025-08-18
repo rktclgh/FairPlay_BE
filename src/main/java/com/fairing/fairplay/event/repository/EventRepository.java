@@ -27,4 +27,7 @@ public interface EventRepository extends JpaRepository<Event, Long>, EventQueryR
     List<Event> findByManager_User_UserId(Long userId);
 
     Optional<Event> findByEventCode(String eventCode);
+
+    // 종료된 이벤트 조회
+    List<Event> findEventsEndedAt(LocalDate targetDate);
 }
