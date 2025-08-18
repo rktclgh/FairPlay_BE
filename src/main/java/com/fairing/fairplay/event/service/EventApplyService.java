@@ -445,23 +445,6 @@ public class EventApplyService {
         return "documents";
     }
 
-    private void sendAccountCreationEmail(EventApply eventApply, String tempPassword, String adminComment) {
-        try {
-            temporaryPasswordEmailService.send(
-                    eventApply.getEmail(),
-                    eventApply.getTitleKr(),
-                    eventApply.getEventEmail(),
-                    tempPassword);
-            log.info("계정 생성 이메일 전송 완료 - 받는 사람: {}", eventApply.getEmail());
-            if (adminComment != null && !adminComment.trim().isEmpty()) {
-                log.info("관리자 메모: {}", adminComment);
-            }
-        } catch (Exception e) {
-            log.error("계정 생성 이메일 전송 실패 - 받는 사람: {}, 오류: {}",
-                    eventApply.getEmail(), e.getMessage());
-        }
-    }
-
     private void setRegionCodeFromLocation(EventDetail eventDetail, EventApply eventApply) {
         if (eventApply.getLocation() != null && eventApply.getLocation().getAddress() != null) {
             try {
