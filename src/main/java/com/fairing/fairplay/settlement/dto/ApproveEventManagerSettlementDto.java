@@ -1,6 +1,6 @@
 package com.fairing.fairplay.settlement.dto;
 
-import com.fairing.fairplay.settlement.entitiy.SettlementRequestStatus;
+import com.fairing.fairplay.settlement.entity.SettlementRequestStatus;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;

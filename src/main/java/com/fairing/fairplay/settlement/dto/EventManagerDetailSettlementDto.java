@@ -1,9 +1,8 @@
 package com.fairing.fairplay.settlement.dto;
 
-import com.fairing.fairplay.settlement.entitiy.AdminApprovalStatus;
-import com.fairing.fairplay.settlement.entitiy.DisputeStatus;
-import com.fairing.fairplay.settlement.entitiy.TransferStatus;
-import jakarta.persistence.Column;
+import com.fairing.fairplay.settlement.entity.AdminApprovalStatus;
+import com.fairing.fairplay.settlement.entity.DisputeStatus;
+import com.fairing.fairplay.settlement.entity.TransferStatus;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
