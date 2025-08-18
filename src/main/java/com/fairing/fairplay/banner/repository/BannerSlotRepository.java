@@ -83,4 +83,26 @@ public interface BannerSlotRepository extends JpaRepository<BannerSlot, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = "UPDATE banner_slot SET sold_banner_id = :bannerId WHERE slot_id = :slotId", nativeQuery = true)
     int setSoldBanner(@Param("slotId") Long slotId, @Param("bannerId") Long bannerId);
+
+    // HERO 매출(슬롯 SOLD 합계) — JPQL 버전(권장: null은 서비스에서 처리)
+    @Query("""
+select SUM(s.price)
+from BannerSlot s
+where s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.SOLD
+  and s.bannerType.code = :typeCode
+""")
+    Long sumSoldAmountByType(@Param("typeCode") String typeCode);
+
+    // (옵션) 기간 필터 버전
+    @Query("""
+select SUM(s.price)
+from BannerSlot s
+where s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.SOLD
+  and s.bannerType.code = :typeCode
+  and s.slotDate between :from and :to
+""")
+    Long sumSoldAmountByTypeBetween(@Param("typeCode") String typeCode,
+                                    @Param("from") LocalDate from,
+                                    @Param("to") LocalDate to);
+
 }
