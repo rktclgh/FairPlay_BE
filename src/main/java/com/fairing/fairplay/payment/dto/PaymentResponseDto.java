@@ -4,6 +4,7 @@ import com.fairing.fairplay.payment.entity.Payment;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,9 @@ public class PaymentResponseDto {
 
     private Long paymentId;
     private Long eventId;
+    private String eventName;           // 이벤트명
+    private LocalDate eventStartDate; // 이벤트 시작일
+    private LocalDate eventEndDate;   // 이벤트 종료일
     private Long userId;
     
     // 결제 대상 관련 필드
@@ -40,7 +44,10 @@ public class PaymentResponseDto {
     public static PaymentResponseDto fromEntity(Payment payment) {
         return PaymentResponseDto.builder()
                 .paymentId(payment.getPaymentId())
-                .eventId(payment.getEvent().getEventId())
+                .eventId(payment.getEvent() != null ? payment.getEvent().getEventId() : null)
+                .eventName(payment.getEvent() != null ? payment.getEvent().getTitleKr() : null)
+                .eventStartDate(payment.getEvent() != null ? payment.getEvent().getEventDetail().getStartDate() : null)
+                .eventEndDate(payment.getEvent() != null ? payment.getEvent().getEventDetail().getEndDate() : null)
                 .userId(payment.getUser().getUserId())
                 .targetType(payment.getPaymentTargetType().getPaymentTargetCode())
                 .targetTypeName(payment.getPaymentTargetType().getPaymentTargetName())

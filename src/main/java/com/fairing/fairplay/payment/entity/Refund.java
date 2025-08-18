@@ -1,5 +1,6 @@
 package com.fairing.fairplay.payment.entity;
 
+import com.fairing.fairplay.user.entity.Users;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -39,4 +40,17 @@ public class Refund {
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private Users approvedBy; // 승인한 관리자
+
+    @Column(name = "admin_comment", length = 1000)
+    private String adminComment; // 관리자 코멘트
+
+    @Column(name = "processed_at")
+    private LocalDateTime processedAt; // PG사 환불 처리 완료 시간
+
+    @Column(name = "failure_reason", length = 500)
+    private String failureReason; // 환불 실패 사유
 }
