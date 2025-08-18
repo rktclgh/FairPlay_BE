@@ -21,7 +21,7 @@ public class QrLinkService {
 
   public String generateQrLink(QrTicketRequestDto dto){
     String token = codeGenerator.generateQrUrlToken(dto);
-    return url + token; // 수정 예정
+    return url + token;
   }
 
   public QrTicketRequestDto decodeToDto(String token){

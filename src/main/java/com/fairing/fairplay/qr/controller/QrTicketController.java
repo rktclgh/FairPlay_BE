@@ -2,6 +2,7 @@ package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
 import com.fairing.fairplay.qr.dto.scan.AdminForceCheckRequestDto;
@@ -33,7 +34,6 @@ public class QrTicketController {
 
   private final QrTicketService qrTicketService;
   private final EntryExitService entryExitService;
-  private final QrTicketBatchService qrTicketBatchService;
 
   // 마이페이지에서 QR 티켓 조회
   @PostMapping
@@ -44,7 +44,7 @@ public class QrTicketController {
 
   // 비회원 QR 티켓 조회 (참석자)
   @GetMapping("/{token}")
-  public ResponseEntity<QrTicketResponseDto> issueGuest(@PathVariable String token) {
+  public ResponseEntity<QrTicketGuestResponseDto> issueGuest(@PathVariable String token) {
     return ResponseEntity.ok(qrTicketService.issueGuest(token));
   }
 

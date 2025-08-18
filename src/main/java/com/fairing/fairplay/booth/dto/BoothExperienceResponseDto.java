@@ -20,6 +20,10 @@ public class BoothExperienceResponseDto {
 
     private String boothName; // 부스명
 
+    private Long eventId; // 행사 ID
+
+    private String eventName; // 행사명
+
     private String title; // 체험 제목
 
     private String description; // 체험 설명
@@ -60,6 +64,8 @@ public class BoothExperienceResponseDto {
                 .experienceId(entity.getExperienceId())
                 .boothId(entity.getBooth().getId())
                 .boothName(entity.getBooth().getBoothTitle())
+                .eventId(entity.getBooth().getEvent().getEventId())
+                .eventName(entity.getBooth().getEvent().getTitleKr())
                 .title(entity.getTitle())
                 .description(entity.getDescription())
                 .experienceDate(entity.getExperienceDate())

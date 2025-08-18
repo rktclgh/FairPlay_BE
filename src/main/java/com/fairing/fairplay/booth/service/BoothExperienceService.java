@@ -13,6 +13,10 @@ import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,10 +67,27 @@ public class BoothExperienceService {
         return BoothExperienceResponseDto.fromEntity(savedExperience);
     }
 
-    // 2. 부스 체험 목록 조회 (부스 담당자용)
+    // 2. 부스 체험 목록 조회 (권한 기반)
     @Transactional(readOnly = true)
-    public List<BoothExperienceResponseDto> getBoothExperiences(Long boothId) {
-        List<BoothExperience> experiences = boothExperienceRepository.findByBooth_Id(boothId);
+    public List<BoothExperienceResponseDto> getBoothExperiences(Long boothId, Long userId, String roleCode) {
+        log.info("권한 기반 체험 목록 조회 - 부스 ID: {}, 사용자 ID: {}, 권한: {}", boothId, userId, roleCode);
+        
+        List<BoothExperience> experiences;
+        
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            // 행사 담당자: 해당 사용자가 관리하는 행사의 모든 부스 체험 조회
+            experiences = boothExperienceRepository.findByEventManagerId(userId);
+            log.info("EVENT_MANAGER - 관리 행사의 모든 체험 조회: {}개", experiences.size());
+        } else if ("BOOTH_MANAGER".equals(roleCode)) {
+            // 부스 담당자: 해당 사용자가 관리하는 부스의 체험만 조회
+            experiences = boothExperienceRepository.findByBoothAdminId(userId);
+            log.info("BOOTH_MANAGER - 관리 부스의 체험만 조회: {}개", experiences.size());
+        } else {
+            // 기타 권한: 빈 목록 반환
+            log.warn("권한 없음 - 빈 목록 반환, 권한: {}", roleCode);
+            experiences = List.of();
+        }
+        
         return experiences.stream()
                 .map(BoothExperienceResponseDto::fromEntity)
                 .collect(Collectors.toList());
@@ -80,6 +101,254 @@ public class BoothExperienceService {
         return experiences.stream()
                 .map(BoothExperienceResponseDto::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    // 3-1. 체험 가능한 부스 체험 목록 조회 (필터링 지원)
+    @Transactional(readOnly = true)
+    public List<BoothExperienceResponseDto> getAvailableExperiences(
+            Long eventId, String startDate, String endDate, String boothName, Boolean isAvailable, 
+            Long categoryId, String sortBy, String sortDirection) {
+        
+        log.info("필터링된 체험 목록 조회 시작 - eventId: {}, startDate: {}, endDate: {}, boothName: {}, isAvailable: {}, sortBy: {}", 
+                eventId, startDate, endDate, boothName, isAvailable, sortBy);
+
+        LocalDate today = LocalDate.now();
+        
+        // 날짜 파싱 - final 변수로 선언
+        final LocalDate filterStartDate;
+        final LocalDate filterEndDate;
+        
+        LocalDate startDateTemp;
+        if (startDate != null && !startDate.trim().isEmpty()) {
+            try {
+                startDateTemp = LocalDate.parse(startDate);
+            } catch (Exception e) {
+                log.warn("잘못된 시작 날짜 형식: {}", startDate);
+                startDateTemp = null;
+            }
+        } else {
+            startDateTemp = null;
+        }
+        
+        LocalDate endDateTemp;
+        if (endDate != null && !endDate.trim().isEmpty()) {
+            try {
+                endDateTemp = LocalDate.parse(endDate);
+            } catch (Exception e) {
+                log.warn("잘못된 종료 날짜 형식: {}", endDate);
+                endDateTemp = null;
+            }
+        } else {
+            endDateTemp = null;
+        }
+
+        // 기본 조회 (체크박스 상태에 따라 쿼리 결정)
+        filterStartDate = startDateTemp;
+        filterEndDate = endDateTemp;
+        
+        List<BoothExperience> experiences;
+        if (isAvailable != null && isAvailable) {
+            // "예약 가능한 것만 보기" 체크된 경우: 예약 활성화된 것만 조회
+            log.info("예약 활성화된 체험만 조회 - isAvailable: {}", isAvailable);
+            experiences = boothExperienceRepository.findAvailableExperiences(today);
+        } else {
+            // 체크 해제되거나 null인 경우: 모든 체험 조회
+            log.info("모든 체험 조회 - isAvailable: {}", isAvailable);
+            experiences = boothExperienceRepository.findAllExperiences(today);
+        }
+        
+        log.info("기본 쿼리 결과 - 조회된 체험 수: {} (활성화: {}, 비활성화: {})", 
+            experiences.size(),
+            experiences.stream().mapToLong(exp -> exp.getIsReservationEnabled() ? 1 : 0).sum(),
+            experiences.stream().mapToLong(exp -> exp.getIsReservationEnabled() ? 0 : 1).sum());
+
+        // 필터링 적용
+        List<BoothExperience> filteredExperiences = experiences.stream()
+                .filter(exp -> {
+                    // 이벤트 ID 필터
+                    if (eventId != null && !exp.getBooth().getEvent().getEventId().equals(eventId)) {
+                        return false;
+                    }
+
+                    // 날짜 기간 필터
+                    if (filterStartDate != null && exp.getExperienceDate().isBefore(filterStartDate)) {
+                        return false;
+                    }
+                    if (filterEndDate != null && exp.getExperienceDate().isAfter(filterEndDate)) {
+                        return false;
+                    }
+                    
+                    // 부스명/체험명 검색
+                    if (boothName != null && !boothName.trim().isEmpty()) {
+                        String searchTerm = boothName.toLowerCase();
+                        boolean matches = exp.getTitle().toLowerCase().contains(searchTerm) ||
+                                        (exp.getDescription() != null && exp.getDescription().toLowerCase().contains(searchTerm)) ||
+                                        exp.getBooth().getBoothTitle().toLowerCase().contains(searchTerm);
+                        if (!matches) {
+                            return false;
+                        }
+                    }
+                    
+                    // 예약 활성화 여부 필터는 이미 쿼리 단계에서 처리됨
+                    
+                    return true;
+                })
+                .collect(Collectors.toList());
+
+        // 정렬 적용
+        sortExperiences(filteredExperiences, sortBy, sortDirection);
+
+        List<BoothExperienceResponseDto> result = filteredExperiences.stream()
+                .map(BoothExperienceResponseDto::fromEntity)
+                .collect(Collectors.toList());
+                
+        log.info("필터링된 체험 목록 조회 완료 - 총 {}개 (활성화: {}, 비활성화: {})", 
+            result.size(),
+            result.stream().mapToLong(dto -> dto.getIsReservationEnabled() ? 1 : 0).sum(),
+            result.stream().mapToLong(dto -> dto.getIsReservationEnabled() ? 0 : 1).sum());
+        
+        return result;
+    }
+
+    // 정렬 로직
+    private void sortExperiences(List<BoothExperience> experiences, String sortBy, String sortDirection) {
+        boolean ascending = "asc".equalsIgnoreCase(sortDirection);
+        
+        switch (sortBy.toLowerCase()) {
+            case "starttime":
+                experiences.sort((a, b) -> {
+                    int result = a.getStartTime().compareTo(b.getStartTime());
+                    return ascending ? result : -result;
+                });
+                break;
+            case "congestionrate":
+                experiences.sort((a, b) -> {
+                    int result = Double.compare(a.getCongestionRate(), b.getCongestionRate());
+                    return ascending ? result : -result;
+                });
+                break;
+            case "createdat":
+                experiences.sort((a, b) -> {
+                    int result = a.getCreatedAt().compareTo(b.getCreatedAt());
+                    return ascending ? result : -result;
+                });
+                break;
+            case "experiencedate":
+                experiences.sort((a, b) -> {
+                    int result = a.getExperienceDate().compareTo(b.getExperienceDate());
+                    return ascending ? result : -result;
+                });
+                break;
+            default:
+                // 기본 정렬: 체험 날짜 -> 시작 시간 순
+                experiences.sort((a, b) -> {
+                    int dateResult = a.getExperienceDate().compareTo(b.getExperienceDate());
+                    if (dateResult != 0) {
+                        return ascending ? dateResult : -dateResult;
+                    }
+                    int timeResult = a.getStartTime().compareTo(b.getStartTime());
+                    return ascending ? timeResult : -timeResult;
+                });
+                break;
+        }
+    }
+
+    // 3-1. 부스 체험 상세 조회
+    @Transactional(readOnly = true)
+    public BoothExperienceResponseDto getBoothExperience(Long experienceId) {
+        log.info("부스 체험 상세 조회 - 체험 ID: {}", experienceId);
+
+        BoothExperience experience = boothExperienceRepository.findById(experienceId)
+                .orElseThrow(() -> new IllegalArgumentException("체험을 찾을 수 없습니다: " + experienceId));
+
+        return BoothExperienceResponseDto.fromEntity(experience);
+    }
+
+    // 3-2. 부스 체험 수정 (부스 담당자)
+    @Transactional
+    public BoothExperienceResponseDto updateBoothExperience(Long experienceId, BoothExperienceRequestDto requestDto) {
+        log.info("부스 체험 수정 시작 - 체험 ID: {}", experienceId);
+
+        BoothExperience experience = boothExperienceRepository.findById(experienceId)
+                .orElseThrow(() -> new IllegalArgumentException("체험을 찾을 수 없습니다: " + experienceId));
+
+        // 기존 예약이 있는 경우 수정 제한 검증
+        validateExperienceModification(experience);
+
+        // 체험 정보 업데이트
+        experience.updateExperience(
+                requestDto.getTitle(),
+                requestDto.getDescription(),
+                requestDto.getExperienceDate(),
+                requestDto.getStartTime(),
+                requestDto.getEndTime(),
+                requestDto.getDurationMinutes(),
+                requestDto.getMaxCapacity(),
+                requestDto.getAllowWaiting() != null ? requestDto.getAllowWaiting() : experience.getAllowWaiting(),
+                requestDto.getMaxWaitingCount(),
+                requestDto.getAllowDuplicateReservation() != null ? 
+                        requestDto.getAllowDuplicateReservation() : experience.getAllowDuplicateReservation(),
+                requestDto.getIsReservationEnabled() != null ? 
+                        requestDto.getIsReservationEnabled() : experience.getIsReservationEnabled()
+        );
+
+        BoothExperience updatedExperience = boothExperienceRepository.save(experience);
+        log.info("부스 체험 수정 완료 - 체험 ID: {}", experienceId);
+
+        return BoothExperienceResponseDto.fromEntity(updatedExperience);
+    }
+
+    // 3-3. 부스 체험 삭제 (부스 담당자)
+    @Transactional
+    public void deleteBoothExperience(Long experienceId) {
+        log.info("부스 체험 삭제 시작 - 체험 ID: {}", experienceId);
+
+        BoothExperience experience = boothExperienceRepository.findById(experienceId)
+                .orElseThrow(() -> new IllegalArgumentException("체험을 찾을 수 없습니다: " + experienceId));
+
+        // 활성 예약이 있는지 확인
+        List<BoothExperienceReservation> activeReservations = 
+                reservationRepository.findActiveReservationsByExperience(experience);
+
+        if (!activeReservations.isEmpty()) {
+            throw new IllegalStateException("활성 예약이 있는 체험은 삭제할 수 없습니다. 예약을 먼저 처리해주세요.");
+        }
+
+        // 관련된 모든 예약 삭제 (히스토리 보존을 위해 soft delete 고려 가능)
+        List<BoothExperienceReservation> allReservations = 
+                reservationRepository.findByBoothExperienceOrderByReservedAt(experience);
+        
+        if (!allReservations.isEmpty()) {
+            reservationRepository.deleteAll(allReservations);
+            log.info("체험 관련 예약 삭제 완료 - 예약 수: {}", allReservations.size());
+        }
+
+        // 체험 삭제
+        boothExperienceRepository.delete(experience);
+        log.info("부스 체험 삭제 완료 - 체험 ID: {}", experienceId);
+    }
+
+    // 체험 수정 가능 여부 검증
+    private void validateExperienceModification(BoothExperience experience) {
+        // 현재 진행중인 체험인지 확인
+        LocalDate today = LocalDate.now();
+        if (experience.getExperienceDate().equals(today)) {
+            // 당일 체험은 기본 정보만 수정 가능하도록 제한할 수 있음
+            log.warn("당일 체험 수정 요청 - 체험 ID: {}", experience.getExperienceId());
+        }
+
+        // 과거 체험은 수정 불가
+        if (experience.getExperienceDate().isBefore(today)) {
+            throw new IllegalStateException("과거 체험은 수정할 수 없습니다.");
+        }
+
+        // 진행중인 예약이 있는 경우 특정 필드 수정 제한
+        List<BoothExperienceReservation> inProgressReservations = 
+                reservationRepository.findInProgressReservationsByExperience(experience);
+
+        if (!inProgressReservations.isEmpty()) {
+            throw new IllegalStateException("현재 진행중인 예약이 있어 수정할 수 없습니다.");
+        }
     }
 
     // 4. 부스 체험 예약 신청 (참여자) - 동시성 처리
@@ -336,5 +605,192 @@ public class BoothExperienceService {
         reservationRepository.save(reservation);
 
         log.info("사용자 예약 취소 완료 - 예약 ID: {}", reservationId);
+    }
+
+    // 권한별 관리 가능한 부스 목록 조회 (체험 등록용)
+    @Transactional(readOnly = true)
+    public List<BoothResponseDto> getManageableBooths(Long userId, String roleCode) {
+        log.info("권한별 관리 가능한 부스 목록 조회 - 사용자 ID: {}, 권한: {}", userId, roleCode);
+        
+        List<Booth> booths;
+        
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            // 행사 담당자: 해당 사용자가 관리하는 행사의 모든 부스 조회
+            booths = boothRepository.findByEventManagerId(userId);
+            log.info("EVENT_MANAGER - 관리 행사의 모든 부스 조회: {}개", booths.size());
+        } else if ("BOOTH_MANAGER".equals(roleCode)) {
+            // 부스 담당자: 해당 사용자가 관리하는 부스만 조회
+            booths = boothRepository.findByBoothAdminId(userId);
+            log.info("BOOTH_MANAGER - 관리 부스만 조회: {}개", booths.size());
+        } else {
+            // 기타 권한: 빈 목록 반환
+            log.warn("권한 없음 - 빈 목록 반환, 권한: {}", roleCode);
+            booths = List.of();
+        }
+        
+        return booths.stream()
+                .map(BoothResponseDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // 권한별 관리 가능한 체험 목록 조회 (체험 관리용)
+    @Transactional(readOnly = true)
+    public List<BoothExperienceResponseDto> getManageableExperiences(Long userId, String roleCode) {
+        log.info("권한별 관리 가능한 체험 목록 조회 - 사용자 ID: {}, 권한: {}", userId, roleCode);
+        
+        List<BoothExperience> experiences;
+        
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            // 행사 담당자: 해당 사용자가 관리하는 행사의 모든 부스 체험 조회
+            experiences = boothExperienceRepository.findByEventManagerId(userId);
+            log.info("EVENT_MANAGER - 관리 행사의 모든 체험 조회: {}개", experiences.size());
+        } else if ("BOOTH_MANAGER".equals(roleCode)) {
+            // 부스 담당자: 해당 사용자가 관리하는 부스의 체험만 조회
+            experiences = boothExperienceRepository.findByBoothAdminId(userId);
+            log.info("BOOTH_MANAGER - 관리 부스의 체험만 조회: {}개", experiences.size());
+        } else {
+            // 기타 권한: 빈 목록 반환
+            log.warn("권한 없음 - 빈 목록 반환, 권한: {}", roleCode);
+            experiences = List.of();
+        }
+        
+        return experiences.stream()
+                .map(BoothExperienceResponseDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // 예약자 관리용 목록 조회 (필터링 지원)
+    @Transactional(readOnly = true)
+    public Page<ReservationManagementResponseDto> getReservationsForManagement(
+            Long userId, String roleCode, ReservationManagementRequestDto requestDto) {
+        log.info("예약자 관리 목록 조회 - 사용자 ID: {}, 권한: {}", userId, roleCode);
+
+        // 정렬 설정
+        Sort sort = requestDto.getSortDirection().equalsIgnoreCase("desc") 
+            ? Sort.by(requestDto.getSortBy()).descending()
+            : Sort.by(requestDto.getSortBy()).ascending();
+        
+        Pageable pageable = PageRequest.of(requestDto.getPage(), requestDto.getSize(), sort);
+
+        Page<BoothExperienceReservation> reservations;
+
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            // 행사 담당자: 관리하는 행사의 모든 예약 조회
+            reservations = reservationRepository.findReservationsForEventManager(
+                userId, requestDto.getBoothId(), requestDto.getReserverName(), 
+                requestDto.getReserverPhone(), requestDto.getExperienceDate(), 
+                requestDto.getStatusCode(), pageable);
+        } else if ("BOOTH_MANAGER".equals(roleCode)) {
+            // 부스 담당자: 관리하는 부스의 예약만 조회
+            reservations = reservationRepository.findReservationsForBoothManager(
+                userId, requestDto.getBoothId(), requestDto.getReserverName(), 
+                requestDto.getReserverPhone(), requestDto.getExperienceDate(), 
+                requestDto.getStatusCode(), pageable);
+        } else {
+            throw new IllegalArgumentException("권한이 없습니다.");
+        }
+
+        return reservations.map(ReservationManagementResponseDto::fromEntity);
+    }
+
+    // 부스 체험 현황 요약 조회
+    @Transactional(readOnly = true)
+    public BoothExperienceSummaryDto getExperienceSummary(Long experienceId) {
+        log.info("부스 체험 현황 요약 조회 - 체험 ID: {}", experienceId);
+
+        BoothExperience experience = boothExperienceRepository.findById(experienceId)
+            .orElseThrow(() -> new IllegalArgumentException("체험을 찾을 수 없습니다: " + experienceId));
+
+        // 현재 체험중인 인원 조회
+        List<BoothExperienceReservation> currentParticipants = 
+            reservationRepository.findByBoothExperienceAndStatusCode(experience, "IN_PROGRESS");
+
+        // 대기중인 인원 조회 (WAITING + READY)
+        List<BoothExperienceReservation> waitingParticipants = 
+            reservationRepository.findWaitingAndReadyReservations(experience);
+
+        // 다음 입장 예약자 (대기열 첫 번째)
+        String nextParticipantName = null;
+        if (!waitingParticipants.isEmpty()) {
+            BoothExperienceReservation nextReservation = waitingParticipants.stream()
+                .filter(r -> "WAITING".equals(r.getExperienceStatusCode().getCode()) || 
+                           "READY".equals(r.getExperienceStatusCode().getCode()))
+                .min((r1, r2) -> Integer.compare(r1.getQueuePosition(), r2.getQueuePosition()))
+                .orElse(null);
+            
+            if (nextReservation != null) {
+                nextParticipantName = nextReservation.getUser().getName();
+            }
+        }
+
+        // 현재 체험중인 인원 이름 목록
+        List<String> currentParticipantNames = currentParticipants.stream()
+            .map(r -> r.getUser().getName())
+            .collect(Collectors.toList());
+
+        return BoothExperienceSummaryDto.builder()
+            .experienceId(experience.getExperienceId())
+            .experienceTitle(experience.getTitle())
+            .boothName(experience.getBooth().getBoothTitle())
+            .maxCapacity(experience.getMaxCapacity())
+            .currentParticipants(currentParticipants.size())
+            .waitingCount(waitingParticipants.size())
+            .currentParticipantNames(currentParticipantNames)
+            .nextParticipantName(nextParticipantName)
+            .congestionRate(experience.getCongestionRate())
+            .isReservationAvailable(experience.isReservationAvailable())
+            .build();
+    }
+
+    // 예약 관리용 부스 목록 조회 (간소화된 버전)
+    @Transactional(readOnly = true)
+    public List<BoothResponseDto> getManageableBoothsForReservationManagement(Long userId, String roleCode) {
+        log.info("예약 관리용 부스 목록 조회 - 사용자 ID: {}, 권한: {}", userId, roleCode);
+
+        List<Booth> booths = List.of();
+
+        try {
+            if ("EVENT_MANAGER".equals(roleCode)) {
+                // 행사 담당자: 자신이 관리하는 행사의 모든 부스 조회
+                booths = boothRepository.findByEventManagerId(userId);
+                log.info("EVENT_MANAGER - 조회된 부스 수: {}", booths.size());
+                
+            } else if ("BOOTH_MANAGER".equals(roleCode)) {
+                // 부스 담당자: 자신이 관리하는 부스만 조회
+                booths = boothRepository.findByBoothAdminId(userId);
+                log.info("BOOTH_MANAGER - 조회된 부스 수: {}", booths.size());
+                
+            } else {
+                log.warn("지원되지 않는 권한: {}", roleCode);
+                return List.of();
+            }
+
+            if (booths.isEmpty()) {
+                log.warn("조회된 부스가 없습니다. 사용자 ID: {}, 권한: {}", userId, roleCode);
+                return List.of();
+            }
+
+            // 조회된 부스 정보 로깅
+            log.info("조회된 부스 목록:");
+            for (Booth booth : booths) {
+                log.info("- 부스 ID: {}, 제목: {}, 행사: {}", 
+                    booth.getId(), 
+                    booth.getBoothTitle(),
+                    booth.getEvent() != null ? booth.getEvent().getTitleKr() : "N/A");
+            }
+
+            // DTO 변환
+            List<BoothResponseDto> result = booths.stream()
+                .map(BoothResponseDto::fromEntity)
+                .collect(Collectors.toList());
+            
+            log.info("변환된 DTO 수: {}", result.size());
+            return result;
+            
+        } catch (Exception e) {
+            log.error("부스 목록 조회 중 오류 발생 - 사용자 ID: {}, 권한: {}, 오류: {}", 
+                userId, roleCode, e.getMessage(), e);
+            return List.of();
+        }
     }
 }
