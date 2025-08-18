@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 /*
@@ -43,6 +44,7 @@ public class QrTicketEntryService {
   private final QrLogService qrLogService;
   private final QrTicketAttendeeService qrTicketAttendeeService;
   private final QrEntryValidateService qrEntryValidateService;
+  private final SimpMessagingTemplate messagingTemplate;
 
   private static final String QR = "QR";
   private static final String MANUAL = "MANUAL";
@@ -153,6 +155,7 @@ public class QrTicketEntryService {
     // QR 티켓 처리
     LocalDateTime checkInTime = processCheckIn(qrTicket, dto.getQrActionCode(), entryType);
     log.info("QR 티켓 처리 완료");
+    checkInQrTicket(qrTicket);
     return CheckResponseDto.builder()
         .message("체크인 완료되었습니다.")
         .checkInTime(checkInTime)
@@ -206,5 +209,9 @@ public class QrTicketEntryService {
         .message("관리자 강제 " + adminCheckRequestDto.getQrCheckStatusCode().getCode() + " 완료")
         .checkInTime(checkInTime)
         .build();
+  }
+
+  public void checkInQrTicket(QrTicket qrTicket){
+    messagingTemplate.convertAndSend("/topic/check-in/"+qrTicket.getId(),"체크인 처리가 완료되었습니다.");
   }
 }

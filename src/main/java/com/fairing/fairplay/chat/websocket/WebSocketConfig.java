@@ -47,6 +47,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setHeartbeatTime(25000)
                 .setDisconnectDelay(30000)
                 .setSuppressCors(false);
+
+        // 체크인/체크아웃 전용 SockJS fallback 엔드포인트
+        registry.addEndpoint("/ws/qr-sockjs")
+            .setAllowedOriginPatterns("*")
+            .withSockJS()
+            .setSessionCookieNeeded(false)
+            .setHeartbeatTime(25000)
+            .setDisconnectDelay(30000)
+            .setSuppressCors(false);
     }
 
     @Override
