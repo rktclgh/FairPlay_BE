@@ -147,4 +147,7 @@ ORDER BY b.startDate DESC, b.priority ASC
     """)
     long countRecentByType(@Param("cut") LocalDateTime cut,
                            @Param("typeCode") String typeCode);
+
+    boolean existsByBannerType_CodeAndEventIdAndBannerStatusCode_CodeAndIdNot(
+            String typeCode, Long eventId, String statusCode, Long idNot);
 }

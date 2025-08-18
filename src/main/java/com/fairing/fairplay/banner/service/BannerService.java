@@ -121,6 +121,16 @@ public class BannerService {
                 : banner.getBannerType();
         String typeCode = newType.getCode();
 
+        // HERO 변경/유지 시 중복 ACTIVE 검사 (자기 자신 제외)
+               if (TYPE_HERO.equals(typeCode) && STATUS_ACTIVE.equals(banner.getBannerStatusCode().getCode())) {
+                       boolean dupOther = bannerRepository
+                                      .existsByBannerType_CodeAndEventIdAndBannerStatusCode_CodeAndIdNot(
+                                              TYPE_HERO, banner.getEventId(), STATUS_ACTIVE, banner.getId());
+                       if (dupOther) {
+                               throw new CustomException(HttpStatus.CONFLICT, "해당 행사에 이미 활성 HERO 배너가 있습니다.", null);
+                           }
+                   }
+
         // HERO는 우선순위 무시(또는 금지)
         Integer priorityToApply = banner.getPriority(); // 기본은 기존 값 유지
         if (!"HERO".equals(typeCode) && dto.getPriority() != null) {
