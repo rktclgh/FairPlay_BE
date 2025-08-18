@@ -250,7 +250,7 @@ public class PaymentService {
     // 나의 티켓 결제 목록 조회
     @Transactional(readOnly = true)
     public List<PaymentResponseDto> getMyPayments(Long userId) {
-        List<Payment> payments = paymentRepository.findByUser_UserId(userId);
+        List<Payment> payments = paymentRepository.findByUserIdWithEventInfo(userId);
         return PaymentResponseDto.fromEntityList(payments);
     }
 
