@@ -70,7 +70,12 @@ public class SecurityConfig {
                                 "/api/events/user/role",
                                 "/api/super-admin/**",
                                 "/api/rag/**", // RAG API (개발/테스트용)
-                                "api/events/*/booths/**"
+                                "/api/events/*/booths/**",
+                                "/api/events/{eventId}/booths/apply",
+                                "/api/booths/cancel/**",
+                                "/api/booths/payment/payment-page/**",
+                                "/api/booths/payment/request-from-email",
+                                "/api/booths/payment/complete"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
