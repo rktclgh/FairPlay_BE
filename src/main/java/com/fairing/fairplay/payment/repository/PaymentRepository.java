@@ -23,4 +23,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     
     // 특정 target_id와 payment_target_type으로 결제 정보 조회
     Optional<Payment> findByTargetIdAndPaymentTargetType_PaymentTargetCode(Long targetId, String paymentTargetCode);
+    
+    // 특정 target_id와 payment_target_type으로 모든 결제 정보 조회 (부스 취소 시 사용)
+    List<Payment> findByPaymentTargetType_PaymentTargetCodeAndTargetId(String paymentTargetCode, Long targetId);
 }
