@@ -238,8 +238,10 @@ public class BoothApplicationService {
             booth.setLocation("위치 미정");
             booth.setBoothType(boothType);
             booth.setBoothAdmin(boothAdmin);
+            booth.setCreatedAt(LocalDateTime.now());
 
             Booth savedBooth = boothRepository.save(booth);
+            // moveFilesToBooth에서 파일을 이동하고 배너 URL을 설정함
             moveFilesToBooth(application, savedBooth.getEvent().getEventId(), savedBooth.getId());
 
             application.updateStatus(newStatus, dto.getAdminComment());
@@ -372,11 +374,15 @@ public class BoothApplicationService {
         try {
             Booth booth = boothRepository.findById(boothId)
                     .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당하는 부스를 찾을 수 없습니다."));
-            List<File> boothApplyFile = fileRepository.findByTargetTypeAndTargetId("BOOTH_APPLY", boothApply.getId());
+            List<File> boothApplyFile = fileRepository.findByTargetTypeAndTargetId("BOOTH_APPLICATION", boothApply.getId());
+
+            log.info("부스 파일 이동 시작 - BoothApplication ID: {}, 찾은 파일 수: {}", boothApply.getId(), boothApplyFile.size());
 
             for (File file : boothApplyFile) {
                 try {
                     String usage = determineFileUsage(file);
+                    log.info("파일 처리 - FileId: {}, Directory: {}, Usage: {}", file.getId(), file.getDirectory(), usage);
+                    
                     String newCdnUrl = fileService.moveFileToBooth(file.getFileUrl(), eventId, boothId, usage);
 
                     // URL 업데이트
@@ -384,11 +390,12 @@ public class BoothApplicationService {
                         case "banners":
                         case "banner":
                             booth.setBoothBannerUrl(newCdnUrl);
+                            log.info("배너 URL 업데이트 - BoothId: {}, URL: {}", boothId, newCdnUrl);
                             break;
                     }
 
-                    log.info("파일 이동 성공 - EventApply: {}, File: {}, Usage: {}",
-                            boothApply.getId(), file.getId(), usage);
+                    log.info("파일 이동 성공 - EventApply: {}, File: {}, Usage: {}, NewURL: {}",
+                            boothApply.getId(), file.getId(), usage, newCdnUrl);
 
                 } catch (Exception e) {
                     log.error("개별 파일 이동 실패 - EventApply: {}, File: {}, 오류: {}",
