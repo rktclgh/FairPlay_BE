@@ -20,6 +20,15 @@ public class RefreshTokenService {
         String key = prefix + userId;
         redisTemplate.opsForValue().set(key, refreshToken, expiryMs, TimeUnit.MILLISECONDS);
     }
+    
+    // 슬라이딩 세션: 기존 리프레시 토큰의 TTL을 연장
+    public void extendRefreshTokenTTL(Long userId, long expiryMs) {
+        String key = prefix + userId;
+        String existingToken = redisTemplate.opsForValue().get(key);
+        if (existingToken != null) {
+            redisTemplate.opsForValue().set(key, existingToken, expiryMs, TimeUnit.MILLISECONDS);
+        }
+    }
 
     public String getRefreshToken(Long userId) {
         String key = prefix + userId;

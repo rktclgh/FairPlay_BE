@@ -1,5 +1,6 @@
 package com.fairing.fairplay.chat.controller;
 
+import com.fairing.fairplay.chat.dto.ChatMessagePageResponseDto;
 import com.fairing.fairplay.chat.dto.ChatMessageRequestDto;
 import com.fairing.fairplay.chat.dto.ChatMessageResponseDto;
 import com.fairing.fairplay.chat.dto.ChatRoomResponseDto;
@@ -200,6 +201,26 @@ public class ChatRestController {
     @GetMapping("/messages")
     public List<ChatMessageResponseDto> getMessages(@RequestParam Long chatRoomId) {
         return chatMessageService.getMessages(chatRoomId);
+    }
+
+    // 페이징된 메시지 조회 (페이지 기반)
+    @GetMapping("/messages/paged")
+    public ChatMessagePageResponseDto getMessagesPaged(
+            @RequestParam Long chatRoomId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return chatMessageService.getMessagesPaged(chatRoomId, page, size);
+    }
+
+    // 커서 기반 무한스크롤 메시지 조회
+    @GetMapping("/messages/cursor")
+    public ChatMessagePageResponseDto getMessagesWithCursor(
+            @RequestParam Long chatRoomId,
+            @RequestParam(required = false) Long lastMessageId,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return chatMessageService.getMessagesWithCursor(chatRoomId, lastMessageId, size);
     }
 
     // 메시지 전송
