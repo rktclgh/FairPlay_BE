@@ -48,36 +48,36 @@ public class EventController {
     private static final String COMMON_ROLE = "COMMON"; // 일반 사용자
 
     /*********************** CREATE ***********************/
-    // 행사 등록
-    @PostMapping
-    @FunctionAuth("createEvent")
-    public ResponseEntity<EventResponseDto> createEvent(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestBody EventRequestDto eventRequestDto) {
-        // 전체 관리자 권한
-        checkAuth(userDetails, ADMIN);
+    // 행사 등록 -> EventApply 에서 처리
+//    @PostMapping
+//    @FunctionAuth("createEvent")
+//    public ResponseEntity<EventResponseDto> createEvent(
+//            @AuthenticationPrincipal CustomUserDetails userDetails,
+//            @RequestBody EventRequestDto eventRequestDto) {
+//        // 전체 관리자 권한
+//        checkAuth(userDetails, ADMIN);
+//
+//        EventResponseDto responseDto = eventService.createEvent(userDetails.getUserId(), eventRequestDto);
+//        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
+//    }
 
-        EventResponseDto responseDto = eventService.createEvent(userDetails.getUserId(), eventRequestDto);
-        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
-    }
-
-    // 행사 상세 생성
-    @PostMapping("/{eventId}/details")
-    @FunctionAuth("createEventDetail")
-    public ResponseEntity<EventDetailResponseDto> createEventDetail(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
-
-        // 전체 관리자 OR 행사 관리자 권한
-        checkAuth(userDetails, EVENT);
-        Long loginUserId = userDetails.getUserId();
-
-        checkEventManager(userDetails, eventId);
-
-        EventDetailResponseDto responseDto = eventService.createEventDetail(loginUserId, eventDetailRequestDto,
-                eventId);
-        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
-    }
+    // 행사 상세 생성 -> EventApply 에서 처리
+//    @PostMapping("/{eventId}/details")
+//    @FunctionAuth("createEventDetail")
+//    public ResponseEntity<EventDetailResponseDto> createEventDetail(
+//            @AuthenticationPrincipal CustomUserDetails userDetails,
+//            @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
+//
+//        // 전체 관리자 OR 행사 관리자 권한
+//        checkAuth(userDetails, EVENT);
+//        Long loginUserId = userDetails.getUserId();
+//
+//        checkEventManager(userDetails, eventId);
+//
+//        EventDetailResponseDto responseDto = eventService.createEventDetail(loginUserId, eventDetailRequestDto,
+//                eventId);
+//        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
+//    }
 
     /*********************** READ ***********************/
 

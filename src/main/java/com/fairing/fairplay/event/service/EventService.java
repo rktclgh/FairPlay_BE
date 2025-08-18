@@ -94,112 +94,111 @@ public class EventService {
      */
 
     // 전체 관리자가 행사 생성
-    @Transactional
-    public EventResponseDto createEvent(Long adminId, EventRequestDto eventRequestDto) {
-
-        log.info("행사 관리자 계정 생성 시작");
-        // TODO: 행사 관리자 계정 생성 및 ID 받기
-        Long managerId = 2L;    // NOTE: 임시로 하드코딩
-        log.info("행사 관리자 계정 생성 완료");
-
-        log.info("행사 생성 시작");
-        Event event = new Event();
-
-        // 행사 담당자 설정
-        EventAdmin manager = eventAdminRepository.findById(managerId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사 관리자를 찾을 수 없습니다.", null));
-        event.setManager(manager);
-        log.info("담당자 설정 완료");
-
-        // 행사 상태 UPCOMING으로 설정
-        EventStatusCode status = eventStatusCodeRepository.findById(1)
-                .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "해당 코드 없음", null));
-        event.setStatusCode(status);
-        log.info("행사 상태 설정 완료");
-
-        // 행사 생성 후 행사 ID로 고유 코드 생성하기 위해 임시값 저장
-        event.setEventCode("TEMP");
-        log.info("행사 고유 코드 임시 설정 완료");
-
-        // 행사명 설정
-        event.setTitleKr(eventRequestDto.getTitleKr());
-        event.setTitleEng(eventRequestDto.getTitleEng());
-        log.info("행사명 생성 완료");
-
-        // Hashid로 고유 코드 생성
-        Event savedEvent = eventRepository.save(event);
-        String eventCode = encode(savedEvent.getEventId());
-        savedEvent.setEventCode("EVT-" + eventCode);
-
-        // 첫 번째 버전 생성
-        log.info("첫 번째 버전 생성 for eventId: {}", savedEvent.getEventId());
-        EventVersion firstVersion = eventVersionService.createEventVersion(savedEvent, adminId);
-        log.info("첫 번째 버전 생성 완료");
-
-        return EventResponseDto.builder()
-                .message("행사 생성이 완료되었습니다.")
-                .eventId(savedEvent.getEventId())
-                .managerId(manager.getUser().getUserId())
-                .eventCode(eventCode)
-                .hidden(event.getHidden())
-                .version(firstVersion.getVersionNumber())
-                .build();
-    }
+//    @Transactional
+//    public EventResponseDto createEvent(Long adminId, EventRequestDto eventRequestDto) {
+//
+//        log.info("행사 관리자 계정 생성 시작");
+//        Long managerId = adminId;
+//        log.info("행사 관리자 계정 생성 완료");
+//
+//        log.info("행사 생성 시작");
+//        Event event = new Event();
+//
+//        // 행사 담당자 설정
+//        EventAdmin manager = eventAdminRepository.findById(managerId)
+//                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사 관리자를 찾을 수 없습니다.", null));
+//        event.setManager(manager);
+//        log.info("담당자 설정 완료");
+//
+//        // 행사 상태 UPCOMING으로 설정
+//        EventStatusCode status = eventStatusCodeRepository.findById(1)
+//                .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "해당 코드 없음", null));
+//        event.setStatusCode(status);
+//        log.info("행사 상태 설정 완료");
+//
+//        // 행사 생성 후 행사 ID로 고유 코드 생성하기 위해 임시값 저장
+//        event.setEventCode("TEMP");
+//        log.info("행사 고유 코드 임시 설정 완료");
+//
+//        // 행사명 설정
+//        event.setTitleKr(eventRequestDto.getTitleKr());
+//        event.setTitleEng(eventRequestDto.getTitleEng());
+//        log.info("행사명 생성 완료");
+//
+//        // Hashid로 고유 코드 생성
+//        Event savedEvent = eventRepository.save(event);
+//        String eventCode = encode(savedEvent.getEventId());
+//        savedEvent.setEventCode("EVT-" + eventCode);
+//
+//        // 첫 번째 버전 생성
+//        log.info("첫 번째 버전 생성 for eventId: {}", savedEvent.getEventId());
+//        EventVersion firstVersion = eventVersionService.createEventVersion(savedEvent, adminId);
+//        log.info("첫 번째 버전 생성 완료");
+//
+//        return EventResponseDto.builder()
+//                .message("행사 생성이 완료되었습니다.")
+//                .eventId(savedEvent.getEventId())
+//                .managerId(manager.getUser().getUserId())
+//                .eventCode(eventCode)
+//                .hidden(event.getHidden())
+//                .version(firstVersion.getVersionNumber())
+//                .build();
+//    }
 
     // 행사 상세 생성
-    @Transactional
-    public EventDetailResponseDto createEventDetail(Long managerId, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
-
-        Event event = checkEventAndDetail(eventId, "create");
-
-        // 행사 상세 생성
-        EventDetail eventDetail = new EventDetail();
-        log.info("eventDetail 생성: {}", eventDetail);
-
-        Integer versionNumber = createVersion(event, managerId);
-
-        // 제목 설정
-        setTitles(event, eventDetailRequestDto);
-
-        // 주소 설정
-        Location location = createAndSaveLocation(eventDetail, eventDetailRequestDto, "create");
-        eventDetail.setLocation(location);
-
-        // 지역 코드 추출 및 설정
-        findRegionCode(eventDetail, eventDetailRequestDto);
-
-        // 행사 정보 설정
-        setEventDetailInfo(eventDetail, eventDetailRequestDto);
-
-        // 파일 처리
-        processFiles(eventDetail, eventDetailRequestDto, eventId);
-
-        // 카테고리 설정
-        setCategories(eventDetail, eventDetailRequestDto);
-
-        // 외부 링크 설정
-        setExternalLinks(event, eventDetailRequestDto);
-
-        log.info("연관 관계 설정");
-        eventDetail.setEvent(event);
-        event.setEventDetail(eventDetail);
-        eventDetailRepository.save(eventDetail);
-        eventRepository.saveAndFlush(event);
-        log.info("행사 상세 생성 완료");
-
-        List<ExternalLinkResponseDto> externalLinkResponseDtos = externalLinkRepository.findByEvent(event).stream()
-                .map(link -> ExternalLinkResponseDto.builder()
-                        .url(link.getUrl())
-                        .displayText(link.getDisplayText())
-                        .build())
-                .toList();
-
-        entityManager.flush();
-        entityManager.refresh(event);
-        entityManager.refresh(eventDetail);
-
-        return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, versionNumber, "이벤트 상세 정보가 생성되었습니다.");
-    }
+//    @Transactional
+//    public EventDetailResponseDto createEventDetail(Long managerId, EventDetailRequestDto eventDetailRequestDto, Long eventId) {
+//
+//        Event event = checkEventAndDetail(eventId, "create");
+//
+//        // 행사 상세 생성
+//        EventDetail eventDetail = new EventDetail();
+//        log.info("eventDetail 생성: {}", eventDetail);
+//
+//        Integer versionNumber = createVersion(event, managerId);
+//
+//        // 제목 설정
+//        setTitles(event, eventDetailRequestDto);
+//
+//        // 주소 설정
+//        Location location = createAndSaveLocation(eventDetail, eventDetailRequestDto, "create");
+//        eventDetail.setLocation(location);
+//
+//        // 지역 코드 추출 및 설정
+//        findRegionCode(eventDetail, eventDetailRequestDto);
+//
+//        // 행사 정보 설정
+//        setEventDetailInfo(eventDetail, eventDetailRequestDto);
+//
+//        // 파일 처리
+//        processFiles(eventDetail, eventDetailRequestDto, eventId);
+//
+//        // 카테고리 설정
+//        setCategories(eventDetail, eventDetailRequestDto);
+//
+//        // 외부 링크 설정
+//        setExternalLinks(event, eventDetailRequestDto);
+//
+//        log.info("연관 관계 설정");
+//        eventDetail.setEvent(event);
+//        event.setEventDetail(eventDetail);
+//        eventDetailRepository.save(eventDetail);
+//        eventRepository.saveAndFlush(event);
+//        log.info("행사 상세 생성 완료");
+//
+//        List<ExternalLinkResponseDto> externalLinkResponseDtos = externalLinkRepository.findByEvent(event).stream()
+//                .map(link -> ExternalLinkResponseDto.builder()
+//                        .url(link.getUrl())
+//                        .displayText(link.getDisplayText())
+//                        .build())
+//                .toList();
+//
+//        entityManager.flush();
+//        entityManager.refresh(event);
+//        entityManager.refresh(eventDetail);
+//
+//        return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, versionNumber, "이벤트 상세 정보가 생성되었습니다.");
+//    }
 
     // 행사 목록 조회 (메인페이지, 검색 등) - EventDetail 정보 등록해야 보임
     @Transactional

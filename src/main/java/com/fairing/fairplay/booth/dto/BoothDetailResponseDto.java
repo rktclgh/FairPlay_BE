@@ -1,8 +1,7 @@
 package com.fairing.fairplay.booth.dto;
 
-import com.fairing.fairplay.file.dto.TempFileUploadDto;
+import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
@@ -10,16 +9,20 @@ import java.util.List;
 
 @Getter
 @Setter
-@NoArgsConstructor
-public class BoothUpdateRequestDto {
+@Builder
+public class BoothDetailResponseDto {
+
+    private Long boothId;
     private String boothTitle;
+    private String boothBannerUrl;
     private String boothDescription;
+    private String boothTypeName;
+    private String location;
     private LocalDate startDate;
     private LocalDate endDate;
-    private String location;
+    private String managerName;
+    private String contactEmail;
+    private String contactNumber;
 
     private List<BoothExternalLinkDto> boothExternalLinks;
-
-    private List<TempFileUploadDto> tempFiles;
-    private List<Long> deletedFileIds;
 }
