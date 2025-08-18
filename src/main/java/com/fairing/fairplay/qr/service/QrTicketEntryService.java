@@ -129,15 +129,18 @@ public class QrTicketEntryService {
         ) : qrTicketRepository.findByManualCode(dto.getManualCode()).orElseThrow(
             () -> new CustomException(HttpStatus.NOT_FOUND, "유효하지 않은 수동 코드입니다.")
         );
+    QrActionCode qrActionCode = qrActionCodeRepository.findByCode(QrActionCode.SCANNED).orElseThrow(
+        () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "유효하지 않은 QR ACTION CODE입니다.")
+    );
+    qrLogService.scannedQrLog(qrTicket, qrActionCode);
     Attendee attendee = qrTicket.getAttendee();
     Reservation eventReservation = attendee.getReservation();
     if (!reservation.getUser().getUserId().equals(user.getUserId())) {
       throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓 소유자의 예약과 로그인 사용자가 일치하지 않습니다.");
     }
-    QrActionCode qrActionCode = qrActionCodeRepository.findByCode(QrActionCode.SCANNED).orElseThrow(
-        () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "유효하지 않은 QR ACTION CODE입니다.")
-    );
-    qrLogService.scannedQrLog(qrTicket, qrActionCode);
+    if(eventReservation.getEvent().getEventId().equals(dto.getEventId())) {
+      throw new CustomException(HttpStatus.BAD_REQUEST,"요청한 행사와 QR 티켓의 행사가 일치하지 않습니다");
+    }
     log.info("부스 입장 시 QR 티켓 검증 완료. scan log 저장");
     return qrTicket;
   }
