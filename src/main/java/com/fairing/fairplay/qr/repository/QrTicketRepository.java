@@ -56,7 +56,9 @@ public interface QrTicketRepository extends JpaRepository<QrTicket, Long> {
 
   Optional<QrTicket> findByTicketNo(String ticketNo);
 
-  @Query("SELECT t FROM QrTicket t WHERE t.attendee.id IN :attendeeIds AND t.attendee.reservation.reservationId IN :reservationIds")
+  @Query("""
+         SELECT t FROM QrTicket t JOIN FETCH t.attendee a JOIN FETCH a.reservation r WHERE t.attendee.id IN :attendeeIds AND a.reservation.reservationId IN :reservationIds
+      """)
   List<QrTicket> findByAttendeeIdsAndReservationIds(
       @Param("attendeeIds") Set<Long> attendeeIds,
       @Param("reservationIds") Set<Long> reservationIds
