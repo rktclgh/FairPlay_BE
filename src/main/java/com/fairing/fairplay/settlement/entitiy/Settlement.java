@@ -39,23 +39,28 @@ public class Settlement {
     private BigDecimal finalAmount; // 최종 송금 금액
 
     @OneToMany(mappedBy = "settlement", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<SettlementRevenueDetail> revenueDetails = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
-    private TransferStatus transStatus; // PENDING, COMPLETED
+    @Builder.Default
+    private TransferStatus transStatus = TransferStatus.PENDING; // PENDING, COMPLETED
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
-    private SettlementRequestStatus settlementRequestStatus; // PENDING, COMPLETED
+    @Builder.Default
+    private SettlementRequestStatus settlementRequestStatus = SettlementRequestStatus.PENDING; // PENDING, COMPLETED
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
-    private AdminApprovalStatus adminApprovalStatus; // PENDING, COMPLETED
+    @Builder.Default
+    private AdminApprovalStatus adminApprovalStatus = AdminApprovalStatus.PENDING; // PENDING, COMPLETED
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
-    private DisputeStatus disputeStatus; // PENDING, COMPLETED
+    @Builder.Default
+    private DisputeStatus disputeStatus = DisputeStatus.NONE; // PENDING, COMPLETED
 
     private LocalDate scheduledDate; // 송금 예정일
     private LocalDate completedDate; // 송금 완료일
@@ -67,6 +72,10 @@ public class Settlement {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = createdAt;
+        if (transStatus == null)           transStatus = TransferStatus.PENDING;
+        if (settlementRequestStatus == null) settlementRequestStatus = SettlementRequestStatus.PENDING;
+        if (adminApprovalStatus == null)    adminApprovalStatus = AdminApprovalStatus.PENDING;
+        if (disputeStatus == null)          disputeStatus = DisputeStatus.NONE;
     }
 
     @PreUpdate

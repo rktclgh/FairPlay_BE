@@ -31,18 +31,20 @@ public class SettlementScheduler {
     public void processAutomaticSettlement() {
         LocalDate targetDate = LocalDate.now().minusDays(7);
 
-        try {
+
             // 7일 전에 종료된 행사 조회
-            List<Event> events = eventRepository.findByEventDetail_EndDate(targetDate);
+            List<Event> events = eventRepository.findAllByEventDetail_EndDate(targetDate);
 
             for (Event event : events) {
-                // 이미 정산된 행사인지 확인
+               try{ // 이미 정산된 행사인지 확인
                 boolean alreadySettled = settlementRepository.findByEvent_EventId(event.getEventId()).isPresent();
                 if (alreadySettled) continue;
 
                 // 👉 여기서 실제 수익 집계 로직을 넣어야 함 (예매, 광고 등)
                 BigDecimal totalAmount = settlementCustomRepository.aggregatedCalculate(event.getEventId()).getTotalAmount();
-                BigDecimal feeAmount = totalAmount.multiply(new BigDecimal("0.05")); // 수수료 5%
+                   BigDecimal feeAmount = totalAmount
+                                                   .multiply(new BigDecimal("0.05")) // 수수료 5%
+                                                   .setScale(2, java.math.RoundingMode.HALF_UP);// 수수료 5%
 
 
                 // 수익 상세
@@ -57,7 +59,10 @@ public class SettlementScheduler {
 
 
                 // 최종 정산 금액
-                BigDecimal finalAmount = totalAmount.subtract(feeAmount).subtract(boothRevenue);
+                   BigDecimal finalAmount = totalAmount
+                           .subtract(feeAmount)
+                           .subtract(boothRevenue)
+                           .setScale(2, java.math.RoundingMode.HALF_UP);
 
                 Settlement settlement = Settlement.builder()
                         .event(event)
@@ -70,7 +75,7 @@ public class SettlementScheduler {
                         .settlementRequestStatus(SettlementRequestStatus.PENDING)
                         .transStatus(TransferStatus.PENDING)
                         .scheduledDate(LocalDate.now())
-                        .completedDate(LocalDate.now())
+                        .completedDate(null)
                         .build();
 
                 SettlementRevenueDetail d1 = SettlementRevenueDetail.builder()
@@ -94,9 +99,9 @@ public class SettlementScheduler {
 
                 log.info("자동 정산 완료: {}", event.getEventId());
 
-            }
-        } catch (RuntimeException e) {
+            } catch (RuntimeException e) {
             log.error("자동 정산 실패", e);
+            }
         }
     }
 }

@@ -58,11 +58,12 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
         // (amount - refundedAmount) 계산
         NumberExpression<BigDecimal> netAmount =
                 payment.amount.subtract(payment.refundedAmount.coalesce(BigDecimal.ZERO));
+        NumberExpression<BigDecimal> netSum = netAmount.sum().coalesce(BigDecimal.ZERO);
 
         List<Tuple> results = queryFactory
                 .select(
                         paymentTargetType.paymentTargetCode,
-                        netAmount.sum().coalesce(BigDecimal.ZERO)
+                        netSum
                 )
                 .from(payment)
                 .join(payment.paymentTargetType, paymentTargetType)
@@ -74,7 +75,7 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
         return results.stream()
                 .map(tuple -> SettlementAggregationRevenueDto.builder()
                                 .revenueType(tuple.get(paymentTargetType.paymentTargetCode))
-                                .revenueTypeAmount(tuple.get(netAmount.sum().coalesce(BigDecimal.ZERO)))
+                                .revenueTypeAmount(tuple.get(netSum))
                                 .build())
                 .toList();
 

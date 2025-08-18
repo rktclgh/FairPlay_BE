@@ -7,10 +7,12 @@ import com.fairing.fairplay.settlement.dto.ApproveEventManagerSettlementDto;
 import com.fairing.fairplay.settlement.dto.EventManagerDetailSettlementDto;
 import com.fairing.fairplay.settlement.dto.EventManagerSettlementListDto;
 import com.fairing.fairplay.settlement.service.EventManagerSettlementService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -42,18 +44,20 @@ public class EventManagerSettlementController {
     @PostMapping("/{settlementId}/approve")
     @FunctionAuth("getApproveEventManagerSettlement")
     public ApproveEventManagerSettlementDto getApproveEventManagerSettlement(
-            @PathVariable Long settlementId)
+            @PathVariable Long settlementId,
+            @AuthenticationPrincipal(expression = "userId") Long userId)
     {
-        return eventManagerSettlementService.approveEventManagerSettlement(settlementId);
+        return eventManagerSettlementService.approveEventManagerSettlement(settlementId,userId);
     }
 
     @PostMapping("/{settlementId}/registerAccount")
     @FunctionAuth("registerAccount")
     public ResponseEntity<Long> registerAccount(
-            @RequestBody AccountRequestDto accountRequestDto,
-            @PathVariable Long settlementId)
+            @Valid @RequestBody AccountRequestDto accountRequestDto,
+            @PathVariable Long settlementId,
+            @AuthenticationPrincipal(expression = "userId") Long userId)
     {
-        Long id = eventManagerSettlementService.registerAccount(settlementId,accountRequestDto);
-        return ResponseEntity.ok(id);
+        Long id = eventManagerSettlementService.registerAccount(settlementId,accountRequestDto, userId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(id);
     }
 }

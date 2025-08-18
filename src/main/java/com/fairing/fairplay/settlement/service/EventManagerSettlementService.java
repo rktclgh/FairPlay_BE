@@ -10,7 +10,10 @@ import com.fairing.fairplay.settlement.repository.SettlementRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -31,7 +34,7 @@ public class EventManagerSettlementService {
                         .settlementId(r.getSettlementId())
                         .eventId(r.getEvent().getEventId())
                         .eventTitle(r.getEventTitle())
-                        .finalAmount(r.getTotalAmount())
+                        .finalAmount(r.getFinalAmount())
                         .disputeStatus(r.getDisputeStatus())
                         .adminApprovalStatus(r.getAdminApprovalStatus())
                         .transferStatus(r.getTransStatus())
@@ -72,30 +75,41 @@ public class EventManagerSettlementService {
                 .build();
     }
 
-
-    public Long registerAccount(Long settlementId, AccountRequestDto accountRequestDto) {
+    @Transactional
+    public Long registerAccount(Long settlementId, AccountRequestDto accountRequestDto, Long userId) {
 
         Settlement settlement = settlementRepository.findById(settlementId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 정산 정보를 찾을 수 없습니다."));
 
-        SettlementAccount settlementAccount = SettlementAccount.builder()
-                .accountNumber(accountRequestDto.getAccountNumber())
-                .holderName(accountRequestDto.getHolderName())
-                .bankName(accountRequestDto.getBankName())
-                .settlement(settlement)
-                .build();
+        // 소유자 검증
+        if (!settlement.getEvent().getManager().getUserId().equals(userId)) {
+            throw new AccessDeniedException("권한이 없습니다.");
+            }
+        SettlementAccount settlementAccount = settlementAccountRepository
+                .findBySettlement_SettlementId(settlementId)
+                .orElseGet(() -> SettlementAccount.builder().settlement(settlement).build());
 
-        settlementAccountRepository.save(settlementAccount);
+        settlementAccount.setAccountNumber(accountRequestDto.getAccountNumber());
+        settlementAccount.setHolderName(accountRequestDto.getHolderName());
+        settlementAccount.setBankName(accountRequestDto.getBankName());
+        SettlementAccount saved = settlementAccountRepository.save(settlementAccount);
 
-        return settlementAccount.getAccountId();
+        return saved.getAccountId();
     }
-
-    public ApproveEventManagerSettlementDto approveEventManagerSettlement (Long settlementId) {
+    @Transactional
+    public ApproveEventManagerSettlementDto approveEventManagerSettlement (Long settlementId, Long userId) {
 
         Settlement settlement = settlementRepository.findById(settlementId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 정산 정보를 찾을 수 없습니다."));
 
+        if (!settlement.getEvent().getManager().getUserId().equals(userId)) {
+            throw new AccessDeniedException("권한이 없습니다.");
+        }
 
+        // 상태 전이 검증
+        if (settlement.getSettlementRequestStatus() != SettlementRequestStatus.PENDING) {
+            throw new IllegalStateException("잘못된 상태 전이: " + settlement.getSettlementRequestStatus());
+                }
         settlement.setSettlementRequestStatus(SettlementRequestStatus.REQUESTED);
         settlementRepository.save(settlement);
 

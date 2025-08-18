@@ -21,7 +21,7 @@ public class SettlementAccount {
     private Long accountId;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "settlement_id", nullable = false)
+    @JoinColumn(name = "settlement_id", nullable = false,unique = true)
     private Settlement settlement; // 정산과 1:1 관계
 
     @Column(nullable = false, length = 100)
