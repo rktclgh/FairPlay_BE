@@ -17,8 +17,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import java.util.ArrayList;
+import java.util.Comparator;
+import com.fairing.fairplay.event.entity.Event;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,7 +35,6 @@ public class BannerService {
     private static final String ACTION_CREATE = "CREATE";
     private static final String ACTION_UPDATE = "UPDATE";
     private static final String ACTION_PRIORITY_CHANGE = "PRIORITY_CHANGE";
-    private static final String TYPE_MD_PICK = "MD_PICK";
     private static final String STATUS_INACTIVE = "INACTIVE";
 
     private final BannerRepository bannerRepository;
@@ -42,6 +45,8 @@ public class BannerService {
     private final AwsS3Service awsS3Service;
     private final BannerTypeRepository bannerTypeRepository;
     private final EventRepository eventRepository;
+    private final BannerSlotRepository bannerSlotRepository;
+
 
     @Value("${cloud.aws.s3.banner-dir:banner}")
     private String bannerDir;
@@ -77,11 +82,6 @@ public class BannerService {
         banner.setCreatedBy(adminId);
 
         Banner saved = bannerRepository.save(banner);
-
-        if (TYPE_MD_PICK.equals(bannerType.getCode()) && STATUS_ACTIVE.equals(statusCode.getCode())) {
-            BannerStatusCode inactive = getStatusCodeOr404(STATUS_INACTIVE);
-            bannerRepository.deactivateOthersActiveByType(TYPE_MD_PICK, STATUS_ACTIVE, inactive, saved.getId());
-        }
 
         String finalImageUrl = resolveImageUrlForCreate(dto, saved.getId());
         saved.setImageUrl(finalImageUrl);
@@ -124,15 +124,6 @@ public class BannerService {
         );
         banner.updateStatus(statusCode);
 
-// MD_PICK 하나만 유지: 결과가 MD_PICK + ACTIVE면 자기 자신 제외 모두 INACTIVE
-        if (TYPE_MD_PICK.equals(banner.getBannerType().getCode())
-                && STATUS_ACTIVE.equals(banner.getBannerStatusCode().getCode())) {
-            BannerStatusCode inactive = getStatusCodeOr404(STATUS_INACTIVE);
-            bannerRepository.deactivateOthersActiveByType(
-                    TYPE_MD_PICK, STATUS_ACTIVE, inactive, banner.getId()
-            );
-        }
-
         logBannerAction(banner, adminId, ACTION_UPDATE);
         return toDto(banner);
     }
@@ -144,15 +135,6 @@ public class BannerService {
         BannerStatusCode statusCode = getStatusCodeOr404(dto.getStatusCode());
         banner.updateStatus(statusCode);
         logBannerAction(banner, adminId, ACTION_UPDATE);
-
-        //  MD_PICK을 ACTIVE로 바꾸면, 자신 제외 모두 INACTIVE
-        if (TYPE_MD_PICK.equals(banner.getBannerType().getCode())
-                && STATUS_ACTIVE.equals(statusCode.getCode())) {
-            BannerStatusCode inactive = getStatusCodeOr404(STATUS_INACTIVE);
-            bannerRepository.deactivateOthersActiveByType(
-                    TYPE_MD_PICK, STATUS_ACTIVE, inactive, banner.getId()
-            );
-        }
     }
 
     @Transactional
@@ -253,6 +235,95 @@ public class BannerService {
                 .build();
 
         bannerLogRepository.save(log);
+    }
+
+    // 추가
+    /** 신청 시 슬롯 LOCK (동시성 보장) */
+    @Transactional
+    public LockSlotsResponseDto lockSlots(LockSlotsRequestDto req, Long userId) {
+        if (req == null || req.items() == null || req.items().isEmpty()) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "잠글 슬롯이 없습니다.", null);
+        }
+        var type = bannerTypeRepository.findByCode(req.typeCode())
+                .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST, "배너 타입(code) 없음: " + req.typeCode(), null));
+
+        int hold = req.holdHours() != null && req.holdHours() > 0 ? req.holdHours() : 48;
+        LocalDateTime until = LocalDateTime.now().plusHours(hold);
+
+        List<Long> lockedIds = new ArrayList<>();
+        int total = 0;
+
+        // 각 (날짜, 우선순위)마다 비관적 락 걸고 AVAILABLE → LOCKED
+        for (var it : req.items()) {
+            var slot = bannerSlotRepository.lockAvailable(type.getId(), it.slotDate(), it.priority())
+                    .orElseThrow(() -> new CustomException(
+                            HttpStatus.CONFLICT,
+                            "이미 선택되었거나 가용하지 않은 슬롯: " + it.slotDate() + " / priority " + it.priority(),
+                            null
+                    ));
+            slot.setStatus(BannerSlotStatus.LOCKED);
+            slot.setLockedBy(userId);
+            slot.setLockedUntil(until);
+            total += slot.getPrice();
+            // JPA 영속 상태라 flush 시 업데이트 됨
+            lockedIds.add(slot.getId());
+        }
+        return new LockSlotsResponseDto(lockedIds, total, until);
+    }
+
+    /** 결제 완료 → SOLD 전환 + banner 레코드 생성 + 슬롯에 sold_banner_id 연결 */
+    @Transactional
+    public FinalizeSoldResponseDto finalizeSold(FinalizeSoldRequestDto req, Long userId) {
+        if (req == null || req.slotIds() == null || req.slotIds().isEmpty()) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "slotIds가 비어 있습니다.", null);
+        }
+        if (req.eventId() == null) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "eventId가 필요합니다.", null);
+        }
+        // LOCKED → SOLD 전환
+        var distinctIds = req.slotIds().stream().distinct().toList();
+        int updated = bannerSlotRepository.updateStatusIfCurrentIn(
+                distinctIds,
+                BannerSlotStatus.SOLD,
+                List.of(BannerSlotStatus.LOCKED)
+        );
+        if (updated != distinctIds.size()) {
+            throw new CustomException(HttpStatus.CONFLICT,
+                    "SOLD 전환 실패: LOCKED 상태가 아닌 슬롯 포함 (요청 " + distinctIds.size() + "건, 성공 " + updated + "건)", null);
+        }
+
+        var slots = bannerSlotRepository.findAllWithType(distinctIds);
+        slots.sort(Comparator.comparing(BannerSlot::getSlotDate).thenComparing(BannerSlot::getPriority));
+
+        Event event = eventRepository.findById(req.eventId())
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "이벤트가 존재하지 않습니다: " + req.eventId(), null));
+        var active = bannerStatusCodeRepository.findByCode("ACTIVE")
+                .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "배너 상태코드(ACTIVE) 누락", null));
+
+        List<Long> bannerIds = new ArrayList<>();
+
+        for (BannerSlot s : slots) {
+            Banner b = new Banner(
+                    req.title() != null ? req.title() : "검색 상단 고정",
+                    req.imageUrl(),
+                    req.linkUrl(),
+                    s.getPriority(),
+                    s.getSlotDate().atStartOfDay(),
+                    s.getSlotDate().atTime(LocalTime.of(23, 59, 59)),
+                    active,                 // BannerStatusCode
+                    s.getBannerType()       // BannerType
+            );
+
+            b.setEventId(req.eventId());
+            b.setCreatedBy(userId);
+
+            bannerRepository.save(b);
+
+            bannerIds.add(b.getId());      // PK getter 일관화
+            bannerSlotRepository.setSoldBanner(s.getId(), b.getId());
+        }
+
+        return new FinalizeSoldResponseDto(bannerIds);
     }
 
     private Banner getBannerOr404(Long id) {
