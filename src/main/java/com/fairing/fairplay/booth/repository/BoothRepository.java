@@ -3,7 +3,6 @@ package com.fairing.fairplay.booth.repository;
 import com.fairing.fairplay.booth.entity.Booth;
 import com.fairing.fairplay.booth.entity.BoothType;
 import com.fairing.fairplay.event.entity.Event;
-import com.fairing.fairplay.event.entity.Event;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

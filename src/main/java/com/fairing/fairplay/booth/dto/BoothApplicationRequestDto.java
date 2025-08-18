@@ -4,16 +4,13 @@ import com.fairing.fairplay.file.dto.TempFileUploadDto;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.validator.constraints.URL;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
 public class BoothApplicationRequestDto {
-
-    @NotNull
-    private Long eventId;
 
     @NotNull
     private Long boothTypeId;
@@ -40,14 +37,10 @@ public class BoothApplicationRequestDto {
     private String boothEmail;
 
     @NotBlank
-    @Pattern(regexp = "^[0-9\\-\\s]+$", message = "숫자, 하이픈(-), 공백만 허용됩니다.")
     @Size(max = 20)
     private String contactNumber;
 
-    @NotBlank
-    @URL
-    @Size(max = 512)
-    private String officialUrl;
+    private List<BoothExternalLinkDto> boothExternalLinks;
 
     @NotNull
     @Future(message = "시작일은 현재보다 이후여야 합니다.")

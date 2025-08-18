@@ -1,0 +1,440 @@
+### 부스 관리 시스템 테스트 HTTP 파일
+
+### 변수 설정
+@baseUrl = http://localhost:8080
+@eventId = 16
+@applicationId = 14
+@authToken = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMDAwIiwiZW1haWwiOiJmaW5kLXJhYmJpdEBmYWlyLXBsYXkuaW5rIiwicm9sZSI6Iu2WieyCrCDri7Tri7nsnpAiLCJyb2xlSWQiOjIsImlhdCI6MTc1NTUwMjEzNCwiZXhwIjoxNzU1NTAyNDM0fQ.NlmwUgmqGdA_ss-gIXYUe4QL1T_R3s1sBaeROrZ9gYk
+
+### 행사 관리자 로그인
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "find-rabbit@fair-play.ink",
+  "password": "HaJFYoxLLxWF"
+}
+
+### 1. 부스 신청
+POST {{baseUrl}}/api/events/{{eventId}}/booths/apply
+Content-Type: application/json
+
+{
+  "boothTitle": "테스트 부스",
+  "boothDescription": "테스트용 부스입니다",
+  "boothEmail": "booth-test@fair-play.ink",
+  "managerName": "홍길동",
+  "contactNumber": "010-1234-5678",
+  "contactEmail": "lye0713@gmail.com",
+  "boothTypeId": 1,
+  "startDate": "2025-02-01",
+  "endDate": "2025-02-03",
+  "boothExternalLinks": [
+    {
+      "url": "https://example.com",
+      "displayText": "공식 홈페이지"
+    }
+  ]
+}
+
+### 2. 부스 신청 목록 조회 (관리자)
+GET {{baseUrl}}/api/events/{{eventId}}/booths/apply
+Authorization: Bearer {{authToken}}
+
+### 3. 부스 신청 상세 조회
+GET {{baseUrl}}/api/events/{{eventId}}/booths/apply/{{applicationId}}
+Authorization: Bearer {{authToken}}
+
+### 4. 부스 신청 승인 (관리자)
+PUT {{baseUrl}}/api/events/{{eventId}}/booths/apply/{{applicationId}}/status
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "statusCode": "APPROVED",
+  "adminComment": "승인되었습니다. 결제를 진행해주세요."
+}
+
+### 5. 부스 신청 반려 (관리자)
+PUT {{baseUrl}}/api/events/{{eventId}}/booths/apply/{{applicationId}}/status
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "statusCode": "REJECTED",
+  "adminComment": "신청 요건을 충족하지 않아 반려됩니다."
+}
+
+### 6. 부스 결제 페이지 정보 조회 (이메일 링크에서 접근)
+GET {{baseUrl}}/api/booths/payment/payment-page/{{applicationId}}
+
+### 7. 부스 결제 요청 (이메일에서 접근)
+POST {{baseUrl}}/api/booths/payment/request-from-email
+Content-Type: application/json
+
+{
+  "targetId": {{applicationId}},
+  "paymentTargetType": "BOOTH_APPLICATION",
+  "price": 100000,
+  "quantity": 1,
+  "merchantUid": "booth_{{$timestamp}}",
+  "pgProvider": "html5_inicis",
+  "contactEmail": "lye0713@gmail.com"
+}
+
+### 8. 부스 결제 완료 처리
+POST {{baseUrl}}/api/booths/payment/complete
+Content-Type: application/json
+
+{
+  "merchantUid": "booth_1640995200000",
+  "impUid": "imp_123456789",
+  "status": "PAID"
+}
+
+### 9. 부스 결제 상태 변경 (관리자)
+PUT {{baseUrl}}/api/events/{{eventId}}/booth/applications/{{applicationId}}/payment-status
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "paymentStatusCode": "PAID",
+  "adminComment": "관리자 확인 완료"
+}
+
+### 10. 부스 취소 페이지 정보 조회
+GET {{baseUrl}}/api/booths/cancel/{{applicationId}}
+
+### 11. 부스 취소 요청
+POST {{baseUrl}}/api/booths/cancel/{{applicationId}}
+Content-Type: application/json
+
+{
+  "cancelReason": "일정 변경으로 인한 취소",
+  "contactEmail": "lye0713@gmail.com"
+}
+
+### 12. 부스 신청 취소 (신청자)
+DELETE {{baseUrl}}/api/events/{{eventId}}/booth/applications/{{applicationId}}/cancel
+Authorization: Bearer {{authToken}}
+
+### ===== 결제 시스템 통합 테스트 =====
+
+### 13. 결제 내역 조회 (내 결제)
+GET {{baseUrl}}/api/payments/me
+Authorization: Bearer {{authToken}}
+
+### 14. 특정 이벤트 결제 내역 조회 (관리자)
+GET {{baseUrl}}/api/payments?eventId={{eventId}}
+Authorization: Bearer {{authToken}}
+
+### 15. 환불 요청
+POST {{baseUrl}}/api/refunds/request
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "paymentId": 1,
+  "refundReason": "부스 취소로 인한 환불 요청",
+  "refundAmount": 100000
+}
+
+### 16. 환불 승인 (관리자)
+PUT {{baseUrl}}/api/refunds/1/approve
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "adminComment": "부스 취소 확인하여 환불 승인"
+}
+
+### ===== 부스 타입 관리 =====
+
+### 17. 부스 타입 목록 조회
+GET {{baseUrl}}/api/events/{{eventId}}/booth-types
+
+### 18. 부스 타입 생성 (관리자)
+POST {{baseUrl}}/api/events/{{eventId}}/booth-types
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "테스트타입",
+  "size": "3m x 3m",
+  "price": 0,
+  "maxApplicants": 10
+}
+
+### ===== 알림 테스트 =====
+
+### 19. 내 알림 조회
+GET {{baseUrl}}/api/notifications/me
+Authorization: Bearer {{authToken}}
+
+### 20. 알림 읽음 처리
+PUT {{baseUrl}}/api/notifications/1/read
+Authorization: Bearer {{authToken}}
+
+### ===== 파일 업로드 테스트 =====
+
+### 21. 실제 이미지 파일 업로드 (부스 배너) - small_hor.png 사용
+POST {{baseUrl}}/api/files/temp/upload
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="small_hor.png"
+Content-Type: image/png
+
+< D:\myWork\FairPlay\FairPlay_BE\src\main\files\small_hor.png
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="usage"
+
+banner
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 21-1. 실제 이미지 파일 업로드 (로컬 테스트용)
+# POST {{baseUrl}}/api/files/temp/upload
+# Authorization: Bearer {{authToken}}
+# Content-Type: multipart/form-data
+# 
+# 실제 사용 시에는 HTTP 클라이언트의 파일 업로드 기능을 사용하세요.
+# 파일 경로: C:\path\to\your\booth-banner.jpg
+# 필드명: file, usage=banner
+
+### 21-2. 부스 신청 시 이미지 파일 포함 테스트
+POST {{baseUrl}}/api/events/{{eventId}}/booths/apply
+Content-Type: application/json
+
+{
+  "boothTitle": "이미지 포함 테스트 부스",
+  "boothDescription": "실제 이미지 파일을 포함한 부스 신청 테스트 - G-DRAGON 콘서트 포스터",
+  "boothEmail": "booth-image-test@fair-play.ink",
+  "managerName": "김이미지",
+  "contactNumber": "010-9876-5432",
+  "contactEmail": "lye0713@gmail.com",
+  "boothTypeId": 5,
+  "startDate": "2025-03-01",
+  "endDate": "2025-03-03",
+  "tempBannerUrl": {
+    "s3Key": "temp/small_hor.png",
+    "originalFileName": "small_hor.png",
+    "fileType": "image/png",
+    "fileSize": 245000,
+    "usage": "banner"
+  },
+  "boothExternalLinks": [
+    {
+      "url": "https://gdragon-tour.com",
+      "displayText": "G-DRAGON 공식 사이트"
+    }
+  ]
+}
+
+### ===== 이메일 발송 테스트 =====
+
+### 22. 부스 승인 이메일 발송 테스트 (내부 테스트용)
+POST {{baseUrl}}/api/test/booth/approval-email
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "applicationId": {{applicationId}},
+  "toEmail": "test@example.com"
+}
+
+### 23. 부스 취소 이메일 발송 테스트 (내부 테스트용)
+POST {{baseUrl}}/api/test/booth/cancel-email
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "applicationId": {{applicationId}},
+  "toEmail": "test@example.com",
+  "cancelReason": "테스트 취소"
+}
+
+### ===== 통계 및 대시보드 =====
+
+### 24. 부스 신청 통계 (관리자)
+GET {{baseUrl}}/api/events/{{eventId}}/booth/statistics
+Authorization: Bearer {{authToken}}
+
+### 25. 부스 결제 현황 (관리자)
+GET {{baseUrl}}/api/events/{{eventId}}/booth/payment-dashboard
+Authorization: Bearer {{authToken}}
+
+### ===== 부스 관리 (승인 후) =====
+
+### 26. 부스 목록 조회
+GET {{baseUrl}}/api/events/{{eventId}}/booths
+
+### 27. 부스 상세 조회
+GET {{baseUrl}}/api/events/{{eventId}}/booths/1
+
+### 28. 부스 정보 수정 (부스 관리자)
+PUT {{baseUrl}}/api/events/{{eventId}}/booths/1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "boothTitle": "수정된 부스 이름",
+  "boothDescription": "수정된 부스 설명",
+  "location": "A-01"
+}
+
+### ===== 에러 케이스 테스트 =====
+
+### 29. 존재하지 않는 부스 신청 조회
+GET {{baseUrl}}/api/events/{{eventId}}/booth/applications/99999
+Authorization: Bearer {{authToken}}
+
+### 30. 권한 없는 사용자의 관리자 기능 접근
+PUT {{baseUrl}}/api/events/{{eventId}}/booth/applications/{{applicationId}}/status
+Content-Type: application/json
+
+{
+  "statusCode": "APPROVED",
+  "adminComment": "무권한 승인 시도"
+}
+
+### 31. 잘못된 이메일로 취소 요청
+POST {{baseUrl}}/api/booths/cancel/{{applicationId}}
+Content-Type: application/json
+
+{
+  "cancelReason": "잘못된 이메일 테스트",
+  "contactEmail": "wrong@example.com"
+}
+
+### 32. 이미 취소된 부스 재취소 시도
+POST {{baseUrl}}/api/booths/cancel/{{applicationId}}
+Content-Type: application/json
+
+{
+  "cancelReason": "이미 취소된 부스 재취소",
+  "contactEmail": "lye0713@gmail.com"
+}
+
+### ===== 파일 관련 추가 테스트 =====
+
+### 33. 파일 목록 조회
+GET {{baseUrl}}/api/files?targetType=BOOTH_APPLICATION&targetId={{applicationId}}
+Authorization: Bearer {{authToken}}
+
+### 34. 특정 파일 정보 조회
+GET {{baseUrl}}/api/files/1
+Authorization: Bearer {{authToken}}
+
+### 35. 파일 다운로드 테스트
+GET {{baseUrl}}/api/files/1/download
+Authorization: Bearer {{authToken}}
+
+### 36. 파일 삭제 테스트
+DELETE {{baseUrl}}/api/files/1
+Authorization: Bearer {{authToken}}
+
+### 38. 잘못된 파일 형식 업로드 테스트
+POST {{baseUrl}}/api/files/temp/upload
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="malicious-file.exe"
+Content-Type: application/x-executable
+
+FAKE_EXECUTABLE_CONTENT
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="usage"
+
+banner
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 39. CDN URL 생성 테스트
+GET {{baseUrl}}/api/files/cdn-url?s3Key=booth-apply/banner/booth-banner-test.txt
+Authorization: Bearer {{authToken}}
+
+### 40. 이미지 파일 업로드 후 부스 신청 연동 전체 플로우
+# 1단계: 이미지 파일 업로드
+POST {{baseUrl}}/api/uploads/temp
+Content-Type: multipart/form-data; boundary=boundary
+Origin: http://localhost:5173
+
+--boundary
+# 아래 "file.png"를 실제 업로드할 파일의 경로로 변경하세요. (예: C:/Users/test/image.png)
+Content-Disposition: form-data; name="file"; filename="gd_tour_banner.png";
+Content-Type: image/png
+
+< D:\myWork\FairPlay\FairPlay_BE\src\main\files\small_hor.png
+
+--boundary
+Content-Disposition: form-data; name="usage"
+
+banner
+--boundary--
+
+### 40-1. 업로드된 파일로 부스 신청 (위 응답의 s3Key 사용)
+POST {{baseUrl}}/api/events/{{eventId}}/booths/apply
+Content-Type: application/json
+
+ {
+   "boothTitle": "G-DRAGON 월드투어 굿즈 부스",
+   "boothDescription": "G-DRAGON 2025 WORLD TOUR 공식 굿즈 판매 부스",
+   "boothEmail": "gd-tour3@fair-play.ink",
+   "managerName": "권지용",
+   "contactNumber": "010-1234-5678",
+   "contactEmail": "lye0713@gmail.com",
+   "boothTypeId": 5,
+   "startDate": "2025-05-10",
+   "endDate": "2025-05-26",
+   "tempBannerUrl": {
+     "s3Key": "uploads/tmp2025-08-18/e3c19bb9-eb42-4ba8-acc0-c3b1c017b3fa.png",
+     "originalFileName": "gd_tour_banner.png",
+     "fileType": "image/png",
+     "fileSize": 245000,
+     "usage": "banner"
+   },
+   "boothExternalLinks": [
+     {
+       "url": "https://gdragon.com",
+       "displayText": "G-DRAGON 공식 홈페이지"
+     }
+   ]
+ }
+
+### 41. CDN URL로 이미지 확인 테스트
+GET {{baseUrl}}/api/files/cdn-url?s3Key=booth-apply/banner/small_hor.png
+Authorization: Bearer {{authToken}}
+
+### 42. 업로드된 이미지 파일로 다중 부스 신청 테스트
+POST {{baseUrl}}/api/events/{{eventId}}/booths/apply
+Content-Type: application/json
+
+{
+  "boothTitle": "Übermensch 콘서트 티켓 부스",
+  "boothDescription": "G-DRAGON Übermensch 콘서트 티켓 판매 및 안내 부스",
+  "boothEmail": "ubermensch-ticket@fair-play.ink",
+  "managerName": "이티켓",
+  "contactNumber": "010-8888-9999",
+  "contactEmail": "lye0713@gmail.com",
+  "boothTypeId": 1,
+  "startDate": "2025-05-10",
+  "endDate": "2025-05-11",
+  "tempBannerUrl": {
+    "s3Key": "temp/small_hor.png",
+    "originalFileName": "small_hor.png",
+    "fileType": "image/png",
+    "fileSize": 245000,
+    "usage": "banner"
+  },
+  "boothExternalLinks": [
+    {
+      "url": "https://ticketlink.co.kr",
+      "displayText": "티켓 예매 사이트"
+    },
+    {
+      "url": "https://instagram.com/xxxibgdrgn",
+      "displayText": "G-DRAGON 인스타그램"
+    }
+  ]
+}
