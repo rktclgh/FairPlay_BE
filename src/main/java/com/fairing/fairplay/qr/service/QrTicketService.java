@@ -5,6 +5,7 @@ import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
@@ -75,8 +76,9 @@ public class QrTicketService {
 
   // QR 티켓 재발급 1-2
   @Transactional
-  public QrTicketUpdateResponseDto reissueQrTicketByMember(QrTicketReissueMemberRequestDto dto, CustomUserDetails userDetails) {
-    return qrTicketIssueService.reissueQrTicketByMember(dto,userDetails);
+  public QrTicketUpdateResponseDto reissueQrTicketByMember(QrTicketReissueMemberRequestDto dto,
+      CustomUserDetails userDetails) {
+    return qrTicketIssueService.reissueQrTicketByMember(dto, userDetails);
   }
 
   // QR 티켓 재발급 2
@@ -91,16 +93,23 @@ public class QrTicketService {
     return qrTicketIssueService.reissueAdminQrTicket(dto);
   }
 
+  // QR 티켓 당일 발송
+  @Transactional
+  public void sendEmailGuest(QrTicketEmailTodayRequestDto dto) {
+    qrTicketIssueService.sendEmailGuest(dto);
+  }
+
   // 테스트 강제 QR 티켓 발급
   @Transactional
-  public void adminForceIssue(Long eventScheduleId, Long reservationId){
+  public void adminForceIssue(Long eventScheduleId, Long reservationId) {
 
     EventSchedule es = eventScheduleRepository.findById(eventScheduleId).orElse(null);
     Reservation re = reservationRepository.findById(reservationId).orElse(null);
 
-    AttendeeTypeCode typeCode = attendeeTypeCodeRepository.findByCode(AttendeeTypeCode.PRIMARY).orElse(null);
+    AttendeeTypeCode typeCode = attendeeTypeCodeRepository.findByCode(AttendeeTypeCode.PRIMARY)
+        .orElse(null);
 
-    Attendee a = attendeeRepository.findByEmailAndReservation("happylotus145@gmail.com",re);
+    Attendee a = attendeeRepository.findByEmailAndReservation("happylotus145@gmail.com", re);
 
     String eventCode = es.getEvent().getEventCode();
     LocalDateTime expiredAt = LocalDateTime.of(es.getDate(), es.getEndTime()); //만료날짜+시간 설정
@@ -134,7 +143,8 @@ public class QrTicketService {
             + es.getStartTime();
 
     String qrUrl = qrLinkService.generateQrLink(dto);
-    qrEmailService.sendQrEmail(qrUrl, es.getEvent().getTitleKr(), eventDate, viewingDate, a.getEmail(), a.getName());
+    qrEmailService.sendQrEmail(qrUrl, es.getEvent().getTitleKr(), eventDate, viewingDate,
+        a.getEmail(), a.getName());
     log.info("이메일 전송 완료:{}", a.getEmail());
   }
 }

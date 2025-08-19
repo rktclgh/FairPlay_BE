@@ -2,6 +2,7 @@ package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
@@ -118,6 +119,13 @@ public class QrTicketController {
   public ResponseEntity<CheckResponseDto> adminForceCheck(
       @RequestBody AdminForceCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.adminForceCheck(dto));
+  }
+
+  // 당일 예약 + 동반자 정보 저장 시 QR 티켓 발송
+  @PostMapping("/send-email/guest")
+  public ResponseEntity<Void> sendEmailGuest(@RequestBody QrTicketEmailTodayRequestDto dto){
+    qrTicketService.sendEmailGuest(dto);
+    return ResponseEntity.ok().build();
   }
 
   @PostMapping("/admin/issue")
