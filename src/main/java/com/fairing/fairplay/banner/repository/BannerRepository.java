@@ -163,4 +163,19 @@ ORDER BY b.startDate DESC, b.priority ASC
             org.springframework.data.domain.Pageable pageable
     );
 
+    // (전체 타입) ACTIVE 이고 종료일이 now~until 사이인 배너 수
+    long countByBannerStatusCode_CodeAndEndDateBetween(
+            String status, LocalDateTime from, LocalDateTime to);
+
+    // (특정 타입) 위와 동일, 타입코드까지 필터
+    @Query("""
+       select count(b) from Banner b
+        where b.bannerStatusCode.code = :status
+          and b.bannerType.code = :type
+          and b.endDate between :from and :to
+    """)
+    long countExpiringByType(@Param("status") String status,
+                             @Param("type") String typeCode,
+                             @Param("from") LocalDateTime from,
+                             @Param("to") LocalDateTime to);
 }
