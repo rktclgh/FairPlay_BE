@@ -116,12 +116,22 @@ public class AdminBannerController {
     }
 
     @GetMapping("/summary")
-    public ResponseEntity<Map<String, Object>> summary(@AuthenticationPrincipal CustomUserDetails user) {
+    public ResponseEntity<Map<String, Object>> summary(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestParam(defaultValue = "7") int expiringDays,                 // 옵션: 기본 7일
+            @RequestParam(required = false) String expiringType                 // 옵션: 타입별 계산 원하면 전달 (HERO/MD_PICK/...)
+    ) {
         requireAdmin(user);
         Map<String, Object> result = new HashMap<>();
-        result.put("totalSales", bannerService.sumBannerSales()); // HERO SOLD 합계
-        result.put("activeCount", bannerService.countActiveBannersNow()); // HERO 현재 노출
-        result.put("recentCount", bannerService.countRecentBanners(7));   // HERO 최근 7일 신규
+        result.put("totalSales", bannerService.sumBannerSales());       // 기존
+        result.put("activeCount", bannerService.countActiveBannersNow());
+        result.put("recentCount", bannerService.countRecentBanners(7));
+
+        long expiring = (expiringType == null || expiringType.isBlank())
+                ? bannerService.countExpiringAll(expiringDays)          // 전체 타입
+                : bannerService.countExpiringByType(expiringDays, expiringType);
+
+        result.put("expiringCount", expiring);                          // 추가
         return ResponseEntity.ok(result);
     }
 
