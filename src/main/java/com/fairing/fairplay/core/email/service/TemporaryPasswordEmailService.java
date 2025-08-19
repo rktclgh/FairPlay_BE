@@ -2,10 +2,13 @@ package com.fairing.fairplay.core.email.service;
 
 import org.springframework.stereotype.Service;
 
+import com.fairing.fairplay.admin.repository.EmailTemplatesRepository;
+
 @Service
 public class TemporaryPasswordEmailService extends AbstractEmailService {
-    public TemporaryPasswordEmailService(com.fairing.fairplay.core.util.EmailSender emailSender) {
-        super(emailSender);
+    public TemporaryPasswordEmailService(com.fairing.fairplay.core.util.EmailSender emailSender,
+            EmailTemplatesRepository emailTemplatesRepository) {
+        super(emailSender, emailTemplatesRepository);
     }
 
     @Override

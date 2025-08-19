@@ -1,15 +1,18 @@
 package com.fairing.fairplay.core.email.service;
 
-import com.fairing.fairplay.core.util.EmailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
+
+import com.fairing.fairplay.admin.repository.EmailTemplatesRepository;
+import com.fairing.fairplay.core.util.EmailSender;
 
 // QR 티켓 링크 발급 완료 이메일
 @Service
 public class SuccessQrTicketEmailService extends AbstractEmailService {
 
-  public SuccessQrTicketEmailService(EmailSender emailSender) {
-    super(emailSender);
+  public SuccessQrTicketEmailService(EmailSender emailSender,
+      EmailTemplatesRepository emailTemplatesRepository) {
+    super(emailSender, emailTemplatesRepository);
   }
 
   @Override

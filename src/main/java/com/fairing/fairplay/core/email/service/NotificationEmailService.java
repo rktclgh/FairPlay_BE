@@ -1,5 +1,6 @@
 package com.fairing.fairplay.core.email.service;
 
+import com.fairing.fairplay.admin.repository.EmailTemplatesRepository;
 import com.fairing.fairplay.core.email.service.AbstractEmailService;
 import com.fairing.fairplay.core.util.EmailSender;
 import com.fairing.fairplay.notification.entity.Notification;
@@ -28,9 +29,10 @@ public class NotificationEmailService extends AbstractEmailService {
             EmailSender emailSender,
             NotificationRepository notificationRepository,
             NotificationMethodCodeRepository methodCodeRepository,
-            NotificationLogRepository notificationLogRepository
-    ) {
-        super(emailSender);
+            NotificationLogRepository notificationLogRepository,
+            EmailTemplatesRepository emailTemplatesRepository) {
+        super(emailSender,
+                emailTemplatesRepository);
         this.notificationRepository = notificationRepository;
         this.methodCodeRepository = methodCodeRepository;
         this.notificationLogRepository = notificationLogRepository;
@@ -39,11 +41,11 @@ public class NotificationEmailService extends AbstractEmailService {
     /**
      * 알림(일반용) 이메일 전송
      *
-     * @param notificationId  알림 엔티티 PK
-     * @param to              수신자 이메일
-     * @param title           알림 제목 (이메일 subject 및 템플릿에 노출)
-     * @param message         알림 본문 (이메일 템플릿에 노출)
-     * @param url             상세 보기 버튼 등 (null 가능)
+     * @param notificationId 알림 엔티티 PK
+     * @param to             수신자 이메일
+     * @param title          알림 제목 (이메일 subject 및 템플릿에 노출)
+     * @param message        알림 본문 (이메일 템플릿에 노출)
+     * @param url            상세 보기 버튼 등 (null 가능)
      */
     @Transactional
     public void sendEmailNotification(Long notificationId, String to, String title, String message, String url) {
@@ -80,6 +82,7 @@ public class NotificationEmailService extends AbstractEmailService {
 
     /**
      * 알림(일반) 이메일 템플릿 읽기 및 동적 치환
+     * 
      * @param title   알림 제목
      * @param message 알림 본문
      * @param url     상세 보기 링크 (null/blank이면 버튼 미노출)
@@ -89,7 +92,9 @@ public class NotificationEmailService extends AbstractEmailService {
         try (InputStream is = new ClassPathResource("email/notification.html").getInputStream()) {
             String template = new String(is.readAllBytes(), StandardCharsets.UTF_8);
             String buttonHtml = (url != null && !url.isBlank())
-                    ? String.format("<div style=\"text-align:center; margin-top:16px;\"><a href=\"%s\" class=\"link-btn\">상세보기</a></div>", url)
+                    ? String.format(
+                            "<div style=\"text-align:center; margin-top:16px;\"><a href=\"%s\" class=\"link-btn\">상세보기</a></div>",
+                            url)
                     : "";
             return String.format(template, title, message, buttonHtml);
         } catch (Exception e) {

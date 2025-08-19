@@ -2,10 +2,13 @@ package com.fairing.fairplay.core.email.service;
 
 import org.springframework.stereotype.Service;
 
+import com.fairing.fairplay.admin.repository.EmailTemplatesRepository;
+
 @Service
 public class VerificationEmailService extends AbstractEmailService {
-    public VerificationEmailService(com.fairing.fairplay.core.util.EmailSender emailSender) {
-        super(emailSender);
+    public VerificationEmailService(com.fairing.fairplay.core.util.EmailSender emailSender,
+            EmailTemplatesRepository emailTemplatesRepository) {
+        super(emailSender, emailTemplatesRepository);
     }
 
     @Override

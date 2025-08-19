@@ -1,11 +1,7 @@
 package com.fairing.fairplay.core.email.service;
 
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
+import com.fairing.fairplay.admin.entity.EmailTemplates;
+import com.fairing.fairplay.admin.repository.EmailTemplatesRepository;
 import com.fairing.fairplay.core.util.EmailSender;
 
 import lombok.RequiredArgsConstructor;
@@ -13,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public abstract class AbstractEmailService {
     protected final EmailSender emailSender;
+
+    private final EmailTemplatesRepository emailTemplatesRepository;
 
     // 공통 메일 전송
     public void send(String to, Object... params) {
@@ -25,13 +23,8 @@ public abstract class AbstractEmailService {
 
     // 템플릿 로더
     protected String loadTemplate(String filename) {
-        Path userTemplateDir = Paths.get("user-templates/email");
-        Path templatePath = userTemplateDir.resolve(filename);
-        try (InputStream is = Files.newInputStream(templatePath)) {
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new RuntimeException("이메일 템플릿 파일 로딩 실패: " + filename, e);
-        }
+        EmailTemplates template = emailTemplatesRepository.findByName(filename);
+        return template.getContent();
 
         // 파일명 검증: 상위 디렉토리 접근 방지
         // if (filename == null || filename.contains("..") || filename.contains("/") ||
