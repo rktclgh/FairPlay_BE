@@ -137,9 +137,10 @@ public class GlobalExceptionHandler {
         "code", 410,
         "error", "Gone",
         "message", ex.getMessage(),
-        "timestamp", LocalDateTime.now(),
-        "redirectUrl", ex.getRedirectUrl()
+        "timestamp", LocalDateTime.now()
     );
+
+    log.info(body.toString());
     return ResponseEntity.status(410).body(body);
   }
 
