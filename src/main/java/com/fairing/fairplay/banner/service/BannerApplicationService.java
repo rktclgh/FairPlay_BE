@@ -333,47 +333,57 @@ public class BannerApplicationService {
         }
 
         // 3) 신청 상태 승인 처리
-        jdbc.update("""
-                UPDATE banner_application
-                SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code=?),
-                    approved_by=?, approved_at=NOW()
-                WHERE banner_application_id=?
-                """, STATUS_APPROVED, adminId, appId);
+        int updated = jdbc.update("""
+                  UPDATE banner_application
+                     SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='APPROVED'),
+                         approved_by=?, approved_at=NOW()
+                   WHERE banner_application_id=? 
+                     AND status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='PENDING')
+                """, adminId, appId);
+        if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 승인 처리에 실패했습니다.");
     }
 
-    // com.fairing.fairplay.banner.service.BannerApplicationService
-    @Transactional
-    public void reject(Long appId, Long adminId, String reason) {
-        // 현재 신청 상태 확인 (PENDING 인지 등)
-        Map<String, Object> app = jdbc.queryForMap(
-                "SELECT status_code_id FROM banner_application WHERE banner_application_id=?",
-                appId
-        );
-        Integer pendingId = statusId(STATUS_PENDING);
-        if (!Objects.equals(((Number)app.get("status_code_id")).intValue(), pendingId)) {
-            throw new IllegalStateException("반려할 수 없는 상태입니다.");
+        // com.fairing.fairplay.banner.service.BannerApplicationService
+        @Transactional
+        public void reject (Long appId, Long adminId, String reason){
+            // 현재 신청 상태 확인 (PENDING 인지 등)
+            Integer pendingId = statusId(STATUS_PENDING);
+            Integer currentStatus;
+            try {
+                currentStatus = jdbc.queryForObject(
+                        "SELECT status_code_id FROM banner_application WHERE banner_application_id=? FOR UPDATE",
+                        Integer.class, appId
+                );
+            } catch (EmptyResultDataAccessException e) {
+                throw new IllegalArgumentException("존재하지 않는 신청입니다: " + appId);
+            }
+            if (!Objects.equals(currentStatus, pendingId)) {
+                throw new IllegalStateException("반려할 수 없는 상태입니다.");
+            }
+
+            // 잠금 슬롯 되돌리기 (LOCKED → AVAILABLE, 본인 소유자 여부는 묻지 않음: 관리자 권한)
+            List<Long> slotIds = jdbc.queryForList("""
+                        SELECT slot_id FROM banner_application_slot WHERE banner_application_id=?
+                    """, Long.class, appId);
+
+            if (!slotIds.isEmpty()) {
+                namedJdbc.update("""
+                            UPDATE banner_slot
+                               SET status='AVAILABLE', locked_by=NULL, locked_until=NULL
+                             WHERE slot_id IN (:slotIds) AND status='LOCKED'
+                        """, new MapSqlParameterSource().addValue("slotIds", slotIds));
+            }
+
+            // 신청 상태 REJECTED + 사유 기록
+            int updated = jdbc.update("""
+                      UPDATE banner_application
+                         SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='REJECTED'),
+                             admin_comment = ?, approved_by=?, approved_at=NOW()
+                       WHERE banner_application_id=? 
+                         AND status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='PENDING')
+                    """, reason, adminId, appId);
+            if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 반려 처리에 실패했습니다.");
+
+
         }
-
-        // 잠금 슬롯 되돌리기 (LOCKED → AVAILABLE, 본인 소유자 여부는 묻지 않음: 관리자 권한)
-        List<Long> slotIds = jdbc.queryForList("""
-        SELECT slot_id FROM banner_application_slot WHERE banner_application_id=?
-    """, Long.class, appId);
-
-        if (!slotIds.isEmpty()) {
-            namedJdbc.update("""
-            UPDATE banner_slot
-               SET status='AVAILABLE', locked_by=NULL, locked_until=NULL
-             WHERE slot_id IN (:slotIds) AND status='LOCKED'
-        """, new MapSqlParameterSource().addValue("slotIds", slotIds));
-        }
-
-        // 신청 상태 REJECTED + 사유 기록
-        jdbc.update("""
-        UPDATE banner_application
-           SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='REJECTED'),
-               admin_comment = ?, approved_by=?, approved_at=NOW()
-         WHERE banner_application_id=?
-    """, reason, adminId, appId);
     }
-
-}
