@@ -157,4 +157,28 @@ public class AdminBannerController {
         requireAdmin(user);
         return ResponseEntity.ok(bannerService.getOne(id));
     }
+
+    /** 승인(결제 확인 완료) → SOLD & banner 생성 */
+    @PostMapping("/applications/{id}/approve")
+    public ResponseEntity<Void> approve(
+            @AuthenticationPrincipal CustomUserDetails admin,
+            @PathVariable Long id
+    ) {
+        requireAdmin(admin);
+        appService.markPaid(id, admin.getUserId());   // 이미 구현됨
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 반려 → 신청 상태 REJECTED, 잠금 슬롯 원복 */
+    @PostMapping("/applications/{id}/reject")
+    public ResponseEntity<Void> reject(
+            @AuthenticationPrincipal CustomUserDetails admin,
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> body
+    ) {
+        requireAdmin(admin);
+        String reason = body != null ? body.getOrDefault("reason", null) : null;
+        appService.reject(id, admin.getUserId(), reason);
+        return ResponseEntity.noContent().build();
+    }
 }
