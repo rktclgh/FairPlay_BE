@@ -82,7 +82,10 @@ public class QrTicketBatchService {
       if (reservationDate.isEqual(scheduleDate.minusDays(1))) {
         // 예매일이 행사 전날 → 행사 당일 0시 발송
         sendToday = scheduleDate.isEqual(today);
-      } else {
+      } else if(reservationDate.isEqual(scheduleDate)){
+        // 예매일이 행사 당일 -> 행사 당일 발송
+        sendToday = scheduleDate.isEqual(today);
+      }else{
         // 그 외 → 행사 전날 0시 발송
         sendToday = scheduleDate.minusDays(1).isEqual(today);
       }
@@ -120,6 +123,7 @@ public class QrTicketBatchService {
 
     // 발급할 티켓이 없을 경우
     if (qrTickets == null || qrTickets.isEmpty()) {
+      log.info("발급할 티켓 없음");
       return;
     }
     log.info("qrTickets size: {}",qrTickets.size());
@@ -143,7 +147,7 @@ public class QrTicketBatchService {
    * 각 참석자에 대한 QR티켓을 발급 ( QR코드, 수동코드는 생성 안함 )
    * */
   private List<QrTicket> scheduleCreateQrTicket() {
-    // 현재 날짜 기준 다음날 시작하는 행사 데이터 추출
+    // 현재 날짜 기준 오늘, 내일 시작하는 행사 데이터 추출
     LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
     LocalDate tomorrow = today.plusDays(1);
 
@@ -156,12 +160,12 @@ public class QrTicketBatchService {
     Set<String> issuedTicketKeys = qrTicketRepository
         .findByAttendeeIdsAndReservationIds(
             results.stream().map(t -> t.get(0, Attendee.class).getId()).collect(Collectors.toSet()),
-            results.stream().map(t -> t.get(2, Reservation.class).getReservationId()).collect(Collectors.toSet())
+            results.stream().map(t -> t.get(0, Attendee.class).getReservation().getReservationId()).collect(Collectors.toSet())
         )
         .stream()
         .map(this::makeTicketKey) // 별도 메서드로 분리
         .collect(Collectors.toSet());
-
+    log.info("scheduleCreateQrTicket issuedTicketKeys 완료");
     return results.stream()
         .filter(tuple -> !issuedTicketKeys.contains(makeTicketKey(tuple.get(0, Attendee.class), tuple.get(2, Reservation.class))))
         .map(tuple -> {

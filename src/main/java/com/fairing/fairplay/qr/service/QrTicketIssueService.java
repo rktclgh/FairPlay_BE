@@ -7,6 +7,7 @@ import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
@@ -23,7 +24,6 @@ import com.fairing.fairplay.qr.util.CodeGenerator;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
-import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 
 import java.time.DayOfWeek;
@@ -108,10 +108,9 @@ public class QrTicketIssueService {
       throw new CustomException(HttpStatus.FORBIDDEN, "본인의 예약만 조회할 수 있습니다.");
     }
 
-    //테스트 위한 검사 생략 - 추후 수정 예정
-//    if (!reservation.getSchedule().getDate().equals(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
-//      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
-//    }
+    if (!reservation.getSchedule().getDate().equals(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
+    }
 
     AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
 
@@ -128,9 +127,9 @@ public class QrTicketIssueService {
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
     //테스트 위한 검사 생략 - 추후 수정 예정
-//    if (!reservation.getSchedule().getDate().equals(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
-//      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
-//    }
+    if (!reservation.getSchedule().getDate().equals(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
+    }
 
     AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findGuestTypeCode();
 
@@ -240,6 +239,61 @@ public class QrTicketIssueService {
     qrEmailService.reissueQrEmail(qrUrl, attendee.getEmail(), attendee.getName());
 
     return buildQrTicketReissueResponse(resetQrTicket.getTicketNo(), attendee.getEmail());
+  }
+
+  // 당일 예약 동반자 QR 티켓 발급
+  public void sendEmailGuest(QrTicketEmailTodayRequestDto dto){
+
+    Reservation reservation = reservationRepository.findById(dto.getReservationId()).orElseThrow(
+        () -> new CustomException(HttpStatus.BAD_REQUEST,"참석자의 예약을 조회하지 못했습니다.")
+    );
+    EventSchedule es = reservation.getSchedule();
+
+    Attendee attendee = attendeeRepository.findByIdAndReservation_ReservationId(dto.getAttendeeId(), reservation.getReservationId()).orElseThrow(
+        () -> new CustomException(HttpStatus.BAD_REQUEST,"참석자 저장이 되지 않았습니다.")
+    );
+
+    AttendeeTypeCode typeCode = attendee.getAttendeeTypeCode();
+
+    if(typeCode.getCode().equals(AttendeeTypeCode.PRIMARY)){
+      throw new CustomException(HttpStatus.BAD_REQUEST,"예약자의 QR 티켓은 마이페이지를 확인해주세요");
+    }
+
+    String eventCode = es.getEvent().getEventCode();
+    LocalDateTime expiredAt = LocalDateTime.of(es.getDate(), es.getEndTime()); //만료날짜+시간 설정
+    String ticketNo = codeGenerator.generateTicketNo(eventCode); // 티켓번호 설정
+
+    QrTicket qrTicket = QrTicket.builder()
+        .attendee(attendee)
+        .eventSchedule(es)
+        .reentryAllowed(false)
+        .expiredAt(expiredAt)
+        .issuedAt(LocalDateTime.now())
+        .active(true)
+        .ticketNo(ticketNo)
+        .qrCode(null)
+        .manualCode(null)
+        .build();
+    qrTicketRepository.save(qrTicket);
+
+    QrTicketRequestDto qrTicketRequestDto = QrTicketRequestDto.builder()
+        .attendeeId(attendee.getId())
+        .reservationId(reservation.getReservationId())
+        .eventId(es.getEvent().getEventId())
+        .ticketId(reservation.getTicket().getTicketId())
+        .build();
+
+    String eventDate =
+        es.getEvent().getEventDetail().getStartDate() + " ~ " + es.getEvent().getEventDetail()
+            .getEndDate();
+    String viewingDate =
+        es.getDate().toString() + " (" + es.getWeekday() + ") "
+            + es.getStartTime();
+
+    String qrUrl = qrLinkService.generateQrLink(qrTicketRequestDto);
+    qrEmailService.sendQrEmail(qrUrl, es.getEvent().getTitleKr(), eventDate, viewingDate,
+        attendee.getEmail(), attendee.getName());
+    log.info("이메일 전송 완료:{}", attendee.getEmail());
   }
 
   // 행사일이 오늘보다 전날 또는 행사일이 오늘인데 종료 시간이 현재 시간보다 더 늦은 경우 예외 처리
