@@ -1,6 +1,7 @@
 package com.fairing.fairplay.statistics.repository.dailystats;
 
 import com.fairing.fairplay.event.entity.QEventDetail;
+import com.fairing.fairplay.qr.entity.QQrTicket;
 import com.fairing.fairplay.statistics.dto.event.EventPopularityStatisticsListDto;
 import com.fairing.fairplay.statistics.dto.reservation.AdminReservationStatsByCategoryDto;
 import com.fairing.fairplay.statistics.dto.reservation.AdminReservationStatsListDto;
@@ -39,6 +40,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
         QReservationStatusCode statusCode = QReservationStatusCode.reservationStatusCode;
         QAttendee a = QAttendee.attendee;
         QQrCheckLog q = QQrCheckLog.qrCheckLog;
+        QQrTicket qrt = QQrTicket.qrTicket;
 
         LocalDateTime start = targetDate.atStartOfDay();
         LocalDateTime end = targetDate.plusDays(1).atStartOfDay();
@@ -58,6 +60,8 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
                 .select(r.event.eventId, a.count())
                 .from(a)
                 .join(r).on(a.reservation.eq(r))
+                .join(qrt).on(qrt.attendee.eq(a))           // QrTicket 조인 추가
+                .join(q).on(q.qrTicket.eq(qrt))
                 .where(a.checkedIn.isTrue()
                         .and(q.createdAt.between(start, end)))
                 .groupBy(r.event.eventId)

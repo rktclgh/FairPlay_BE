@@ -6,6 +6,7 @@ import com.fairing.fairplay.payment.entity.QPaymentTargetType;
 import com.fairing.fairplay.statistics.entity.sales.AdminSalesStatistics;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.DateExpression;
+import com.querydsl.core.types.dsl.DatePath;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -104,9 +105,11 @@ public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCusto
                         payment.amount
                 );
 
+        DatePath<LocalDate> statLocalDate = Expressions.datePath(LocalDate.class, "statDate");
+
         Tuple result = queryFactory
                 .select(
-                        statDate,
+                        statLocalDate,
                         totalRevenue,
                         reservationRevenue,
                         advertisingRevenue,
@@ -136,8 +139,10 @@ public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCusto
                     .createdAt(LocalDateTime.now())
                     .build();
         }
+
+        LocalDate localDate = result.get(statLocalDate);
         return AdminSalesStatistics.builder()
-                .statDate(result.get(statDate))
+                .statDate(localDate)
                 .totalSales(result.get(totalRevenue))
                 .reservationRevenue(result.get(reservationRevenue))
                 .advertisingRevenue(result.get(advertisingRevenue))
