@@ -38,6 +38,7 @@ public class EventManagerSettlementService {
                         .disputeStatus(r.getDisputeStatus())
                         .adminApprovalStatus(r.getAdminApprovalStatus())
                         .transferStatus(r.getTransStatus())
+                        .createdAt(r.getCreatedAt().toLocalDate())
                         .build());
 
         return settlementPageList;

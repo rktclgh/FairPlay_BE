@@ -1,15 +1,14 @@
 package com.fairing.fairplay.settlement.repository;
 
 import com.fairing.fairplay.event.entity.QEvent;
-import com.fairing.fairplay.event.entity.QEventDetail;
 import com.fairing.fairplay.payment.entity.QPayment;
 import com.fairing.fairplay.payment.entity.QPaymentTargetType;
+import com.fairing.fairplay.settlement.dto.EventManagerSettlementListDto;
 import com.fairing.fairplay.settlement.dto.SettlementAggregationDto;
 import com.fairing.fairplay.settlement.dto.SettlementAggregationRevenueDto;
 import com.fairing.fairplay.settlement.entity.QSettlement;
 import com.fairing.fairplay.settlement.entity.Settlement;
-import com.fairing.fairplay.statistics.dto.event.EventPopularityStatisticsListDto;
-import com.fairing.fairplay.statistics.entity.event.QEventPopularityStatistics;
+import com.fairing.fairplay.settlement.entity.SettlementRequestStatus;
 import com.fairing.fairplay.user.entity.QEventAdmin;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
@@ -20,12 +19,14 @@ import com.querydsl.jpa.JPQLQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Date;
 import java.util.List;
 
 @Repository
@@ -117,5 +118,90 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
     }
 
 
+    @Override
+    public Page<EventManagerSettlementListDto> searchSettlement(LocalDate startDate, LocalDate endDate, String keyword, String settlementStatus, String disputeStatus, Pageable pageable) {
+        QSettlement settlement = QSettlement.settlement;
+
+        BooleanBuilder builder = new BooleanBuilder();
+        builder.and(
+                settlement.createdAt.goe(startDate.atStartOfDay())
+                        .and(settlement.createdAt.lt(endDate.plusDays(1).atStartOfDay()))
+        );
+
+        if (keyword != null && !keyword.isBlank()) {
+            builder.and(settlement.eventTitle.containsIgnoreCase(keyword));
+        }
+        if (settlementStatus != null && !settlementStatus.isBlank()) {
+            builder.and(settlement.adminApprovalStatus.stringValue().eq(settlementStatus));
+        }
+        if (disputeStatus != null && !disputeStatus.isBlank()) {
+            builder.and(settlement.disputeStatus.stringValue().eq(disputeStatus));
+        }
+        var createdDateExpr = Expressions.dateTemplate(Date.class, "function('date', {0})", settlement.createdAt);
+        List<EventManagerSettlementListDto> results =  queryFactory
+                .select(Projections.bean(
+                EventManagerSettlementListDto.class,
+                settlement.settlementId.as("settlementId"),
+                settlement.event.eventId.as("eventId"),
+                settlement.eventTitle.as("eventTitle"),
+                settlement.finalAmount.as("finalAmount"),
+                settlement.disputeStatus.as("disputeStatus"),
+                settlement.adminApprovalStatus.as("adminApprovalStatus"),
+                settlement.transStatus.as("transferStatus"),
+                        Expressions.dateTemplate(java.sql.Date.class, "function('date', {0})", settlement.createdAt)
+                                .as("createdAt")))
+                .from(settlement)
+                .where(builder)
+                .orderBy(settlement.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(settlement.count())
+                .from(settlement)
+                .where(builder)
+                .fetchOne();
+
+        return new PageImpl<>(results, pageable, total != null ? total : 0);
+    }
+
+
+
+    @Override
+    public Page<EventManagerSettlementListDto> getAllApproveSettlement(Pageable pageable) {
+        QSettlement settlement = QSettlement.settlement;
+
+        BooleanBuilder builder = new BooleanBuilder();
+        builder.and(settlement.settlementRequestStatus.eq(SettlementRequestStatus.REQUESTED));
+
+
+        List<EventManagerSettlementListDto> results =  queryFactory
+                .select(Projections.bean(
+                        EventManagerSettlementListDto.class,
+                        settlement.settlementId.as("settlementId"),
+                        settlement.event.eventId.as("eventId"),
+                        settlement.eventTitle.as("eventTitle"),
+                        settlement.finalAmount.as("finalAmount"),
+                        settlement.disputeStatus.as("disputeStatus"),
+                        settlement.adminApprovalStatus.as("adminApprovalStatus"),
+                        settlement.transStatus.as("transferStatus"),
+                        Expressions.dateTemplate(java.sql.Date.class, "function('date', {0})", settlement.createdAt)
+                                .as("createdAt")))
+                .from(settlement)
+                .where(builder)
+                .orderBy(settlement.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(settlement.count())
+                .from(settlement)
+                .where(builder)
+                .fetchOne();
+
+        return new PageImpl<>(results, pageable, total != null ? total : 0);
+    }
 
 }

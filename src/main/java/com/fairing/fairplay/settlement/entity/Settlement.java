@@ -61,7 +61,8 @@ public class Settlement {
     @Column(length = 20, nullable = false)
     @Builder.Default
     private DisputeStatus disputeStatus = DisputeStatus.NONE; // PENDING, COMPLETED
-
+    private Long approvedBy;
+    private LocalDateTime approvedAt;
     private LocalDate scheduledDate; // 송금 예정일
     private LocalDate completedDate; // 송금 완료일
 
