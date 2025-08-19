@@ -32,6 +32,7 @@ public class EventTicketStatistics {
 
     @Column(name = "reservations")
     private Integer reservations;
+
     private Integer stock;
 
     @Column(name = "created_at")

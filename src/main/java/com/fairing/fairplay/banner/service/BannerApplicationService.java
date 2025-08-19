@@ -1,5 +1,7 @@
 package com.fairing.fairplay.banner.service;
 
+import com.fairing.fairplay.banner.dto.AdminApplicationListItemDto;
+import com.fairing.fairplay.banner.dto.AdminApplicationSlotDto;
 import com.fairing.fairplay.banner.dto.CreateApplicationRequestDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -232,6 +234,16 @@ public class BannerApplicationService {
     /** 결제 성공 처리 → SOLD + 배너 생성 */
     @Transactional
     public void markPaid(Long appId, Long adminId) {
+        // markPaid 시작부에 추가
+        Integer pendingId = statusId(STATUS_PENDING);
+        Integer appStatus = jdbc.queryForObject(
+                "SELECT status_code_id FROM banner_application WHERE banner_application_id=? FOR UPDATE",
+                Integer.class, appId
+        );
+        if (!Objects.equals(appStatus, pendingId)) {
+            throw new IllegalStateException("승인할 수 없는 상태입니다.");
+        }
+
         // 슬롯 잠그기
         var slots = jdbc.query("""
                 SELECT s.slot_id, s.banner_type_id, s.slot_date, s.priority, s.status
@@ -333,11 +345,204 @@ public class BannerApplicationService {
         }
 
         // 3) 신청 상태 승인 처리
-        jdbc.update("""
-                UPDATE banner_application
-                SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code=?),
-                    approved_by=?, approved_at=NOW()
-                WHERE banner_application_id=?
-                """, STATUS_APPROVED, adminId, appId);
-    }
+        int updated = jdbc.update("""
+                  UPDATE banner_application
+                     SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='APPROVED'),
+                         approved_by=?, approved_at=NOW()
+                   WHERE banner_application_id=? 
+                     AND status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='PENDING')
+                """, adminId, appId);
+        if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 승인 처리에 실패했습니다.");
 }
+
+        // com.fairing.fairplay.banner.service.BannerApplicationService
+        @Transactional
+        public void reject (Long appId, Long adminId, String reason){
+            // 현재 신청 상태 확인 (PENDING 인지 등)
+            Integer pendingId = statusId(STATUS_PENDING);
+            Integer currentStatus;
+            try {
+                currentStatus = jdbc.queryForObject(
+                        "SELECT status_code_id FROM banner_application WHERE banner_application_id=? FOR UPDATE",
+                        Integer.class, appId
+                );
+            } catch (EmptyResultDataAccessException e) {
+                throw new IllegalArgumentException("존재하지 않는 신청입니다: " + appId);
+            }
+            if (!Objects.equals(currentStatus, pendingId)) {
+                throw new IllegalStateException("반려할 수 없는 상태입니다.");
+            }
+
+            // 잠금 슬롯 되돌리기 (LOCKED → AVAILABLE, 본인 소유자 여부는 묻지 않음: 관리자 권한)
+            List<Long> slotIds = jdbc.queryForList("""
+                        SELECT slot_id FROM banner_application_slot WHERE banner_application_id=?
+                    """, Long.class, appId);
+
+            if (!slotIds.isEmpty()) {
+                namedJdbc.update("""
+                            UPDATE banner_slot
+                               SET status='AVAILABLE', locked_by=NULL, locked_until=NULL
+                             WHERE slot_id IN (:slotIds) AND status='LOCKED'
+                        """, new MapSqlParameterSource().addValue("slotIds", slotIds));
+            }
+
+            // 신청 상태 REJECTED + 사유 기록
+            int updated = jdbc.update("""
+                      UPDATE banner_application
+                         SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='REJECTED'),
+                             admin_comment = ?, approved_by=?, approved_at=NOW()
+                       WHERE banner_application_id=? 
+                         AND status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='PENDING')
+                    """, reason, adminId, appId);
+            if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 반려 처리에 실패했습니다.");
+
+
+        }
+    /* ===== 관리자 조회용: 목록 ===== */
+    public List<AdminApplicationListItemDto> listAdminApplications(String status, String type, int page, int size) {
+                var params = new MapSqlParameterSource()
+                                .addValue("status", status)
+                                .addValue("type", type)
+                                .addValue("limit", size)
+                                .addValue("offset", page * size);
+
+                        // 1) 신청서 기본 정보
+                                var rows = namedJdbc.query("""
+                SELECT
+                  ba.banner_application_id   AS application_id,
+                  ba.event_id                AS event_id,
+                  ba.title                   AS event_name,
+                  bt.code                    AS banner_type,
+                  ba.created_at              AS applied_at,
+                  asc2.code                  AS apply_status,
+                  ba.image_url               AS image_url,
+                  ba.total_amount            AS total_amount
+                FROM banner_application ba
+                JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id
+                JOIN apply_status_code asc2 ON asc2.apply_status_code_id = ba.status_code_id
+                WHERE (:status IS NULL OR asc2.code = :status)
+                  AND (:type   IS NULL OR bt.code   = :type)
+                ORDER BY ba.banner_application_id DESC
+                LIMIT :limit OFFSET :offset
+                """, params,
+                                (rs, i) -> Map.of(
+                                                "applicationId", rs.getLong("application_id"),
+                                                "eventId", rs.getLong("event_id"),
+                                                "eventName", rs.getString("event_name"),
+                                                "bannerType", rs.getString("banner_type"),
+                                                "appliedAt", rs.getTimestamp("applied_at").toLocalDateTime(),
+                                                "applyStatus", rs.getString("apply_status"),
+                                                "imageUrl", rs.getString("image_url"),
+                                                "totalAmount", rs.getInt("total_amount")
+                                                ));
+
+                        if (rows.isEmpty()) return List.of();
+
+                        // 2) 슬롯 일괄 조회
+                                var appIds = rows.stream().map(m -> (Long) m.get("applicationId")).toList();
+                var slotMap = fetchSlotsByApplicationIds(appIds);
+
+                        // 3) DTO 매핑
+                                List<AdminApplicationListItemDto> result = new ArrayList<>();
+                for (var m : rows) {
+                        Long appId = (Long) m.get("applicationId");
+                        result.add(new AdminApplicationListItemDto(
+                                        appId,
+                                        "", // hostName: 별도 user/org 조인 없으면 빈값
+                                        (Long) m.get("eventId"),
+                                        (String) m.get("eventName"),
+                                        (String) m.get("bannerType"),
+                                        (LocalDateTime) m.get("appliedAt"),
+                                        (String) m.get("applyStatus"),
+                                        mapPaymentStatus((String) m.get("applyStatus")), // 간단 매핑
+                                        (String) m.get("imageUrl"),
+                                        (Integer) m.get("totalAmount"),
+                                        slotMap.getOrDefault(appId, List.of())
+                                        ));
+                    }
+                return result;
+            }
+
+            /* ===== 관리자 조회용: 단건 뷰 ===== */
+            public AdminApplicationListItemDto getAdminApplicationView(Long appId) {
+                Map<String, Object> m = namedJdbc.queryForObject("""
+                SELECT
+                  ba.banner_application_id   AS application_id,
+                  ba.event_id                AS event_id,
+                  ba.title                   AS event_name,
+                  bt.code                    AS banner_type,
+                  ba.created_at              AS applied_at,
+                  asc2.code                  AS apply_status,
+                  ba.image_url               AS image_url,
+                  ba.total_amount            AS total_amount
+                FROM banner_application ba
+                JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id
+                JOIN apply_status_code asc2 ON asc2.apply_status_code_id = ba.status_code_id
+                WHERE ba.banner_application_id = :id
+                """, new MapSqlParameterSource("id", appId),
+                                (rs, i) -> Map.of(
+                                                "applicationId", rs.getLong("application_id"),
+                                                "eventId", rs.getLong("event_id"),
+                                                "eventName", rs.getString("event_name"),
+                                                "bannerType", rs.getString("banner_type"),
+                                                "appliedAt", rs.getTimestamp("applied_at").toLocalDateTime(),
+                                                "applyStatus", rs.getString("apply_status"),
+                                                "imageUrl", rs.getString("image_url"),
+                                                "totalAmount", rs.getInt("total_amount")
+                                                ));
+
+                        var slotMap = fetchSlotsByApplicationIds(List.of(appId));
+                return new AdminApplicationListItemDto(
+                                (Long) m.get("applicationId"),
+                                "",
+                                (Long) m.get("eventId"),
+                                (String) m.get("eventName"),
+                                (String) m.get("bannerType"),
+                                (LocalDateTime) m.get("appliedAt"),
+                                (String) m.get("applyStatus"),
+                                mapPaymentStatus((String) m.get("applyStatus")),
+                                (String) m.get("imageUrl"),
+                                (Integer) m.get("totalAmount"),
+                                slotMap.getOrDefault(appId, List.of())
+                               );
+            }
+
+            private Map<Long, List<AdminApplicationSlotDto>> fetchSlotsByApplicationIds(List<Long> appIds) {
+                if (appIds.isEmpty()) return Map.of();
+                var rows = namedJdbc.query("""
+                SELECT bas.banner_application_id AS application_id,
+                       s.slot_date                AS slot_date,
+                       s.priority                 AS priority,
+                       bas.item_price             AS price
+                FROM banner_application_slot bas
+                JOIN banner_slot s ON s.slot_id = bas.slot_id
+                WHERE bas.banner_application_id IN (:ids)
+                ORDER BY s.slot_date, s.priority
+                """, new MapSqlParameterSource("ids", appIds),
+                                (rs, i) -> Map.of(
+                                               "applicationId", rs.getLong("application_id"),
+                                               "slotDate", rs.getDate("slot_date").toLocalDate(),
+                                               "priority", rs.getInt("priority"),
+                                               "price", rs.getInt("price")
+                                               ));
+                Map<Long, List<AdminApplicationSlotDto>> map = new HashMap<>();
+                for (var r : rows) {
+                        Long appId = (Long) r.get("applicationId");
+                        map.computeIfAbsent(appId, k -> new ArrayList<>())
+                                   .add(new AdminApplicationSlotDto(
+                                           (LocalDate) r.get("slotDate"),
+                                           (Integer) r.get("priority"),
+                                           (Integer) r.get("price")));
+                    }
+                return map;
+            }
+
+            // 간단한 결제상태 표기: 실제 결제 테이블 연동 전 임시
+            private String mapPaymentStatus(String applyStatus) {
+                return switch (applyStatus) {
+                        case "APPROVED" -> "PAID";
+                        case "REJECTED" -> "N/A";
+                        default -> "WAITING";
+                    };
+            }
+    }

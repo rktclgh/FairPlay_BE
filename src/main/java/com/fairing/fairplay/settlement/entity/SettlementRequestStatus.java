@@ -1,4 +1,4 @@
-package com.fairing.fairplay.settlement.entitiy;
+package com.fairing.fairplay.settlement.entity;
 
 public enum SettlementRequestStatus {
     PENDING,       // 신청 대기

@@ -1,4 +1,4 @@
-package com.fairing.fairplay.settlement.entitiy;
+package com.fairing.fairplay.settlement.entity;
 
 public enum AdminApprovalStatus {
     PENDING,    // 승인 대기

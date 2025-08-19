@@ -3,7 +3,7 @@ package com.fairing.fairplay.scheduler;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.settlement.dto.SettlementAggregationRevenueDto;
-import com.fairing.fairplay.settlement.entitiy.*;
+import com.fairing.fairplay.settlement.entity.*;
 import com.fairing.fairplay.settlement.repository.SettlementCustomRepository;
 import com.fairing.fairplay.settlement.repository.SettlementRepository;
 import lombok.RequiredArgsConstructor;

@@ -1,9 +1,9 @@
 package com.fairing.fairplay.settlement.service;
 
 import com.fairing.fairplay.settlement.dto.*;
-import com.fairing.fairplay.settlement.entitiy.Settlement;
-import com.fairing.fairplay.settlement.entitiy.SettlementAccount;
-import com.fairing.fairplay.settlement.entitiy.SettlementRequestStatus;
+import com.fairing.fairplay.settlement.entity.Settlement;
+import com.fairing.fairplay.settlement.entity.SettlementAccount;
+import com.fairing.fairplay.settlement.entity.SettlementRequestStatus;
 import com.fairing.fairplay.settlement.repository.SettlementAccountRepository;
 import com.fairing.fairplay.settlement.repository.SettlementCustomRepository;
 import com.fairing.fairplay.settlement.repository.SettlementRepository;
