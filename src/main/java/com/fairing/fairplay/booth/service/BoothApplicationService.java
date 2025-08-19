@@ -247,6 +247,11 @@ public class BoothApplicationService {
             // moveFilesToBooth에서 파일을 이동하고 배너 URL을 설정함
             moveFilesToBooth(application, savedBooth.getEvent().getEventId(), savedBooth.getId());
 
+            List<BoothExternalLink> boothExternalLinks = boothExternalLinkRepository.findByBoothApplication(application);
+            boothExternalLinks.forEach(boothExternalLink -> {
+                boothExternalLink.setBooth(savedBooth);
+            });
+
             application.updateStatus(newStatus, dto.getAdminComment());
             boothApplicationRepository.save(application);
 
