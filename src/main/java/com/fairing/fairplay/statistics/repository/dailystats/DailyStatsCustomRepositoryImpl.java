@@ -57,13 +57,13 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
 
         // 2. 체크인 수
         List<Tuple> checkinResults = queryFactory
-                .select(r.event.eventId, a.count())
+                .select(r.event.eventId, a.id.countDistinct())
                 .from(a)
                 .join(r).on(a.reservation.eq(r))
                 .join(qrt).on(qrt.attendee.eq(a))           // QrTicket 조인 추가
                 .join(q).on(q.qrTicket.eq(qrt))
                 .where(a.checkedIn.isTrue()
-                        .and(q.createdAt.between(start, end)))
+                        .and(q.createdAt.goe(start).and(q.createdAt.lt(end))))
                 .groupBy(r.event.eventId)
                 .fetch();
 
@@ -96,7 +96,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
         // 체크인 수 반영
         for (Tuple t : checkinResults) {
             Long eventId = t.get(r.event.eventId);
-            Long checkins = t.get(a.count());
+            Long checkins = t.get(a.id.countDistinct());
 
             EventDailyStatistics stat = map.computeIfAbsent(eventId, id ->
                     EventDailyStatistics.builder()

@@ -17,9 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class AdminSettlementService {
     private final SettlementRepository settlementRepository;
     private final SettlementCustomRepository settlementCustomRepository;
@@ -47,25 +49,45 @@ public class AdminSettlementService {
         return settlementCustomRepository.searchSettlement(startDate,  endDate,  keyword, settlementStatus,  disputeStatus, pageable);
     }
 
-
+    @Transactional
     public Settlement approveSettlement(Long settlementId, Long adminId) {
         Settlement settlement = settlementRepository.findById(settlementId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "정산 내역을 찾을 수 없습니다."));
+        if (settlement.getAdminApprovalStatus() != AdminApprovalStatus.PENDING) {
+            throw new CustomException(HttpStatus.CONFLICT, "이미 처리된 정산입니다.");
+            }
         settlement.setAdminApprovalStatus(AdminApprovalStatus.APPROVED);
+        settlement.setApprovedBy(adminId);
+        settlement.setApprovedAt(LocalDateTime.now());
         settlementRepository.save(settlement);
         return settlement;
     }
 
-
+    @Transactional
     public Settlement  rejectSettlement(Long settlementId, Long adminId) {
         Settlement settlement = settlementRepository.findById(settlementId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "정산 내역을 찾을 수 없습니다."));
+
+        if (settlement.getAdminApprovalStatus() != AdminApprovalStatus.PENDING) {
+            throw new CustomException(HttpStatus.CONFLICT, "이미 처리된 정산입니다.");
+        }
         settlement.setAdminApprovalStatus(AdminApprovalStatus.REJECTED);
+        settlement.setApprovedBy(adminId);
+        settlement.setApprovedAt(LocalDateTime.now());
         settlementRepository.save(settlement);
         return settlement;
     }
 
     public byte[] exportSettlements(LocalDate startDate, LocalDate endDate, String keyword, String settlementStatus, String disputeStatus) throws IOException {
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("시작일이 종료일보다 늦을 수 없습니다.");
+            }
+        if (settlementStatus != null && "all".equalsIgnoreCase(settlementStatus)) {
+            settlementStatus = "";
+            }
+        if (disputeStatus != null && "all".equalsIgnoreCase(disputeStatus)) {
+            disputeStatus = "";
+            }
         Pageable pageable = Pageable.unpaged(); // 전체 조회
         Page<EventManagerSettlementListDto> page = settlementCustomRepository.searchSettlement(
                 startDate, endDate, keyword, settlementStatus, disputeStatus, pageable

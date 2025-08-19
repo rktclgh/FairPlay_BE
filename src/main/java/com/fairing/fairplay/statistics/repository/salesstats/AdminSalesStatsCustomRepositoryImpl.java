@@ -13,6 +13,7 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -105,11 +106,10 @@ public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCusto
                         payment.amount
                 );
 
-        DatePath<LocalDate> statLocalDate = Expressions.datePath(LocalDate.class, "statDate");
 
         Tuple result = queryFactory
                 .select(
-                        statLocalDate,
+                        statDate,
                         totalRevenue,
                         reservationRevenue,
                         advertisingRevenue,
@@ -140,19 +140,24 @@ public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCusto
                     .build();
         }
 
-        LocalDate localDate = result.get(statLocalDate);
-        return AdminSalesStatistics.builder()
-                .statDate(localDate)
-                .totalSales(result.get(totalRevenue))
-                .reservationRevenue(result.get(reservationRevenue))
-                .advertisingRevenue(result.get(advertisingRevenue))
-                .boothRevenue(result.get(boothRevenue))
-                .otherRevenue(result.get(otherRevenue))
-                .paymentCount(result.get(paymentCount))
-                .averagePaymentAmount(result.get(avgPaymentAmount))
-                .createdAt(LocalDateTime.now())
-                .build();
-    }
+
+
+            // java.sql.Date를 LocalDate로 변환
+            java.sql.Date sqlDate = Date.valueOf(result.get(statDate));
+            LocalDate localDate = sqlDate != null ? sqlDate.toLocalDate() : targetDate;
+
+            return AdminSalesStatistics.builder()
+                    .statDate(localDate)
+                    .totalSales(result.get(totalRevenue))
+                    .reservationRevenue(result.get(reservationRevenue))
+                    .advertisingRevenue(result.get(advertisingRevenue))
+                    .boothRevenue(result.get(boothRevenue))
+                    .otherRevenue(result.get(otherRevenue))
+                    .paymentCount(result.get(paymentCount))
+                    .averagePaymentAmount(result.get(avgPaymentAmount))
+                    .createdAt(LocalDateTime.now())
+                    .build();
+        }
 
 
 

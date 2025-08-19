@@ -47,7 +47,7 @@ public class AdminSettlementController {
         return adminSettlementService.getSettlementList(pageable);
     }
 
-    @GetMapping("/approve/{settlementId}")
+    @PostMapping("/approve/{settlementId}")
     @FunctionAuth("approveSettlement")
     public Settlement approveSettlement(
             @PathVariable Long settlementId,
@@ -56,7 +56,7 @@ public class AdminSettlementController {
     }
 
 
-    @GetMapping("/reject/{settlementId}")
+    @PostMapping("/reject/{settlementId}")
     @FunctionAuth("rejectSettlement")
     public Settlement rejectSettlement(
             @PathVariable Long settlementId,

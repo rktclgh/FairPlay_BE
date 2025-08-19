@@ -138,17 +138,17 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
         }
 
         List<EventManagerSettlementListDto> results =  queryFactory
-                .select(Projections.constructor(
-                        EventManagerSettlementListDto.class,
-                                settlement.settlementId,
-                                settlement.event.eventId,
-                                settlement.eventTitle,
-                                settlement.finalAmount,
-                                settlement.adminApprovalStatus,
-                                settlement.disputeStatus,
-                                settlement.transStatus,
-                                Expressions.dateTemplate(LocalDate.class, "function('date', {0})", settlement.createdAt)
-                                ))
+                .select(Projections.bean(
+                EventManagerSettlementListDto.class,
+                settlement.settlementId.as("settlementId"),
+                settlement.event.eventId.as("eventId"),
+                settlement.eventTitle.as("eventTitle"),
+                settlement.finalAmount.as("finalAmount"),
+                settlement.disputeStatus.as("disputeStatus"),
+                settlement.adminApprovalStatus.as("adminApprovalStatus"),
+                settlement.transStatus.as("transferStatus"),
+                Expressions.dateTemplate(LocalDate.class, "function('date', {0})", settlement.createdAt).as("createdAt")
+                        ))
                 .from(settlement)
                 .where(builder)
                 .orderBy(settlement.createdAt.desc())
@@ -176,17 +176,17 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
 
 
         List<EventManagerSettlementListDto> results =  queryFactory
-                .select(Projections.constructor(
+                .select(Projections.bean(
                         EventManagerSettlementListDto.class,
-                        settlement.settlementId,
-                        settlement.event.eventId,
-                        settlement.eventTitle,
-                        settlement.finalAmount,
-                        settlement.adminApprovalStatus,
-                        settlement.disputeStatus,
-                        settlement.transStatus,
-                        Expressions.dateTemplate(LocalDate.class, "function('date', {0})", settlement.createdAt)
-                ))
+                        settlement.settlementId.as("settlementId"),
+                        settlement.event.eventId.as("eventId"),
+                        settlement.eventTitle.as("eventTitle"),
+                        settlement.finalAmount.as("finalAmount"),
+                        settlement.disputeStatus.as("disputeStatus"),
+                        settlement.adminApprovalStatus.as("adminApprovalStatus"),
+                        settlement.transStatus.as("transferStatus"),
+                        Expressions.dateTemplate(LocalDate.class, "function('date', {0})", settlement.createdAt).as("createdAt")
+                                ))
                 .from(settlement)
                 .where(builder)
                 .orderBy(settlement.createdAt.desc())
