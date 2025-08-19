@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 public class AttendeeScheduler {
   private final AttendeeService attendeeService;
 
-//  @Scheduled(cron = "0 0 4 * * *")
+  @Scheduled(cron = "0 0 4 * * *")
   public void deleteOldAttendees() {
     attendeeService.deleteOldAttendees();
   }

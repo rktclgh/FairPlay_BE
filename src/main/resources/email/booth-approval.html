@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>FairPlay 부스 등록 승인 및 계정 안내</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border: 1px solid #dddddd; padding: 40px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header img { width: 150px; }
+        .content { font-size: 16px; line-height: 1.6; color: #333333; }
+        .content h1 { color: #6b4dd3; }
+        .content p { margin: 0 0 20px; color: #333333; }
+        .account-box { background-color: #f9f9f9; border: 1px solid #eeeeee; padding: 20px; margin-top: 20px; border-radius: 10px; }
+        .footer { text-align: center; margin-top: 40px; font-size: 12px; color: #888888; }
+        .login-btn { display: inline-block; padding: 10px 20px; margin-top: 20px; background-color: #8e7bd1; color: #ffffff; text-decoration: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <img src="cid:%s" alt="FairPlay Logo">
+    </div>
+    <div class="content">
+        <h1>부스 등록 신청이 승인되었습니다!</h1>
+        <p>안녕하세요.</p>
+        <p>요청하신 행사 '%s'의 '%s' 부스 등록 신청이 최종 승인되었음을 알려드립니다.</p>
+        <p>부스 관리를 위한 전용 관리자 계정이 생성되었습니다. 아래 정보를 사용하여 로그인 후, 즉시 비밀번호를 변경해 주시기 바랍니다.</p>
+        <div class="account-box">
+            <p><strong>아이디 (이메일):</strong> %s</p>
+            <p><strong>임시 비밀번호:</strong> %s</p>
+        </div>
+        <div style="text-align: center;">
+            <a href="https://fair-play.ink/" class="login-btn" style="color: #ffffff">로그인 페이지로 이동</a>
+        </div>
+        
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; margin-top: 30px; border-radius: 10px;">
+            <h3 style="color: #856404; margin: 0 0 15px 0;">📋 결제 요청 안내</h3>
+            <p style="color: #856404; margin: 0 0 10px 0;"><strong>부스 타입:</strong> %s</p>
+            <p style="color: #856404; margin: 0 0 10px 0;"><strong>부스 크기:</strong> %s</p>
+            <p style="color: #856404; margin: 0 0 15px 0;"><strong>결제 금액:</strong> %,d원</p>
+            <div style="text-align: center; margin-top: 20px;">
+            <!-- TODO: 배포 서버로 변경 -->
+                <a href="http://localhost:5173/booth/payment?applicationId=%d" style="display: inline-block; padding: 12px 24px; background-color: #28a745; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">💳 결제하기</a>
+            </div>
+            <p style="color: #856404; margin: 15px 0 0 0; font-size: 14px;">승인된 부스 운영을 위해서는 위 금액의 결제가 필요합니다.</p>
+        </div>
+        
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; margin-top: 30px; border-radius: 5px;">
+            <p style="color: #6c757d; margin: 0; font-size: 14px;">
+                <!-- TODO: 배포 서버로 변경 -->
+                ⚠️ <strong>부스 운영을 취소하시려면</strong><br>
+                <a href="http://localhost:5173/booth/cancel?applicationId=%d" style="color: #dc3545; text-decoration: underline;">여기를 클릭하여 취소 요청</a>을 해주시기 바랍니다.
+            </p>
+        </div>
+        
+        <p style="margin-top: 30px;">FairPlay와 함께 성공적인 부스를 만들어보세요!</p>
+        <p>감사합니다.<br>FairPlay 팀 드림</p>
+    </div>
+    <div class="footer">
+        <p>&copy; 2025 FairPlay. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

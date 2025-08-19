@@ -71,17 +71,19 @@ public enum FunctionLevelEnum {
     PROCESS_MODIFICATION_REQUEST("processModificationRequest", BigInteger.ONE.shiftLeft(115)),
     REQUEST_PAYMENT("requestPayment", BigInteger.ONE.shiftLeft(116)),
     COMPLETE_PAYMENT("completePayment", BigInteger.ONE.shiftLeft(117)),
-    APPROVE_REFUND("approveRefund", BigInteger.ONE.shiftLeft(118)),
-    REJECT_REFUND("rejectRefund", BigInteger.ONE.shiftLeft(119)),
-    GET_ALL_REFUNDS("getAllRefunds", BigInteger.ONE.shiftLeft(120)),
-    GET_PENDING_REFUNDS("getPendingRefunds", BigInteger.ONE.shiftLeft(121)),
-    ADMIN_FORCE_CHECK("adminForceCheck", BigInteger.ONE.shiftLeft(122)),
-    GET_AGGREGATED_POPULARITY("getAggregatedPopularity", BigInteger.ONE.shiftLeft(123)),
-    GET_MONTH_TREND("getMonthTrend", BigInteger.ONE.shiftLeft(124)),
-    GET_DAILY_TREND("getDailyTrend", BigInteger.ONE.shiftLeft(125)),
-    GET_SEARCH_RESERVATION("getSearchReservation", BigInteger.ONE.shiftLeft(126)),
-    GET_REPORT_POPULARITY("getReportPopularity", BigInteger.ONE.shiftLeft(127)),
-    GET_EVENT_ADMIN("getEventAdmin", BigInteger.ONE.shiftLeft(128));
+    REQUEST_BOOTH_PAYMENT("requestBoothPayment", BigInteger.ONE.shiftLeft(118)),
+    COMPLETE_BOOTH_PAYMENT("completeBoothPayment", BigInteger.ONE.shiftLeft(119)),
+    APPROVE_REFUND("approveRefund", BigInteger.ONE.shiftLeft(120)),
+    REJECT_REFUND("rejectRefund", BigInteger.ONE.shiftLeft(121)),
+    GET_ALL_REFUNDS("getAllRefunds", BigInteger.ONE.shiftLeft(122)),
+    GET_PENDING_REFUNDS("getPendingRefunds", BigInteger.ONE.shiftLeft(123)),
+    ADMIN_FORCE_CHECK("adminForceCheck", BigInteger.ONE.shiftLeft(124)),
+    GET_AGGREGATED_POPULARITY("getAggregatedPopularity", BigInteger.ONE.shiftLeft(125)),
+    GET_MONTH_TREND("getMonthTrend", BigInteger.ONE.shiftLeft(126)),
+    GET_DAILY_TREND("getDailyTrend", BigInteger.ONE.shiftLeft(127)),
+    GET_SEARCH_RESERVATION("getSearchReservation", BigInteger.ONE.shiftLeft(128)),
+    GET_REPORT_POPULARITY("getReportPopularity", BigInteger.ONE.shiftLeft(129)),
+    GET_EVENT_ADMIN("getEventAdmin", BigInteger.ONE.shiftLeft(130));
 
     private final String functionName;
     private final BigInteger bit;

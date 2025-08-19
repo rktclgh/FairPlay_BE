@@ -17,6 +17,9 @@ public class BoothUpdateRequestDto {
     private LocalDate startDate;
     private LocalDate endDate;
     private String location;
+
+    private List<BoothExternalLinkDto> boothExternalLinks;
+
     private List<TempFileUploadDto> tempFiles;
     private List<Long> deletedFileIds;
 }

@@ -7,6 +7,11 @@ spring:
   profiles:
     active: local
 
+  servlet:
+    multipart:
+      max-file-size: 20MB      # 단일 파일 최대 크기
+      max-request-size: 100MB  # 전체 요청 최대 크기 (다중 파일 업로드 고려)
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -63,9 +68,13 @@ server:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-token-validity-ms: 300000 # 5분(300,000 ms)
-  refresh-token-validity-ms: 600000 # 10분
+  access-token-validity-ms: 1800000 # 30분(1,800,000 ms)
+  refresh-token-validity-ms: 7200000 # 2시간(7,200,000 ms)
   refresh-token-prefix: "refresh_token:"
+
+# Google Gemini API
+gemini:
+  api-key: ${GEMINI_API_KEY}
 
 kakao:
   client-id: ${KAKAO_CLIENT_ID}

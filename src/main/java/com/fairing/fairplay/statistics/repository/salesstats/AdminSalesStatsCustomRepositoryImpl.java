@@ -6,12 +6,14 @@ import com.fairing.fairplay.payment.entity.QPaymentTargetType;
 import com.fairing.fairplay.statistics.entity.sales.AdminSalesStatistics;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.DateExpression;
+import com.querydsl.core.types.dsl.DatePath;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -104,6 +106,7 @@ public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCusto
                         payment.amount
                 );
 
+
         Tuple result = queryFactory
                 .select(
                         statDate,
@@ -136,18 +139,25 @@ public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCusto
                     .createdAt(LocalDateTime.now())
                     .build();
         }
-        return AdminSalesStatistics.builder()
-                .statDate(result.get(statDate))
-                .totalSales(result.get(totalRevenue))
-                .reservationRevenue(result.get(reservationRevenue))
-                .advertisingRevenue(result.get(advertisingRevenue))
-                .boothRevenue(result.get(boothRevenue))
-                .otherRevenue(result.get(otherRevenue))
-                .paymentCount(result.get(paymentCount))
-                .averagePaymentAmount(result.get(avgPaymentAmount))
-                .createdAt(LocalDateTime.now())
-                .build();
-    }
+
+
+
+            // java.sql.Date를 LocalDate로 변환
+            java.sql.Date sqlDate = Date.valueOf(result.get(statDate));
+            LocalDate localDate = sqlDate != null ? sqlDate.toLocalDate() : targetDate;
+
+            return AdminSalesStatistics.builder()
+                    .statDate(localDate)
+                    .totalSales(result.get(totalRevenue))
+                    .reservationRevenue(result.get(reservationRevenue))
+                    .advertisingRevenue(result.get(advertisingRevenue))
+                    .boothRevenue(result.get(boothRevenue))
+                    .otherRevenue(result.get(otherRevenue))
+                    .paymentCount(result.get(paymentCount))
+                    .averagePaymentAmount(result.get(avgPaymentAmount))
+                    .createdAt(LocalDateTime.now())
+                    .build();
+        }
 
 
 

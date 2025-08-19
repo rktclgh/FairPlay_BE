@@ -21,16 +21,11 @@ public class AdminKpiBatchService {
 
     @Transactional(rollbackFor = Exception.class)
     public void runBatch(LocalDate date) {
-                // 입력값 검증
+        // 입력값 검증
         org.springframework.util.Assert.notNull(date, "date must not be null");
-
-                AdminKpiStatistics computed = adminKpiStatsCustomRepository.calculate(date);
-                adminKpiStatisticsRepository.findByStatDate(date)
-                        .ifPresent(existing -> {
-                            log.warn("기존 KPI 데이터 발견, 재계산합니다: {}", date);
-                            adminKpiStatisticsRepository.delete((AdminKpiStatistics) existing);
-                            });
-                adminKpiStatisticsRepository.save(computed);
+        AdminKpiStatistics computed = adminKpiStatsCustomRepository.calculate(date);
+        // upsert 방식으로 통일 (권장)
+        adminKpiStatisticsRepository.upsertAdminKpiStatistics(computed);
                 log.info("관리자 KPI 통계 배치 처리 완료: {}", date);
             }
 }

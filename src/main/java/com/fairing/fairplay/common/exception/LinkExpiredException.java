@@ -4,10 +4,7 @@ import lombok.Getter;
 
 @Getter
 public class LinkExpiredException extends RuntimeException {
-    private final String redirectUrl;
-
-    public LinkExpiredException(String message, String redirectUrl) {
+    public LinkExpiredException(String message) {
         super(message);
-        this.redirectUrl = redirectUrl;
     }
 }

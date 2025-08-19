@@ -3,6 +3,8 @@ package com.fairing.fairplay.qr.service;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.util.CodeGenerator;
 import com.fairing.fairplay.qr.util.CodeValidator;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,7 +23,8 @@ public class QrLinkService {
 
   public String generateQrLink(QrTicketRequestDto dto){
     String token = codeGenerator.generateQrUrlToken(dto);
-    return url + token;
+    String qrParam = URLEncoder.encode(token, StandardCharsets.UTF_8);
+    return url + qrParam;
   }
 
   public QrTicketRequestDto decodeToDto(String token){

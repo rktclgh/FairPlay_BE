@@ -16,11 +16,14 @@ import com.fairing.fairplay.qr.util.CodeValidator;
 import com.fairing.fairplay.user.entity.Users;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class QrTicketExitService {
 
   private final QrTicketRepository qrTicketRepository;
@@ -29,6 +32,7 @@ public class QrTicketExitService {
   private final QrTicketAttendeeService qrTicketAttendeeService;
   private final QrEntryValidateService qrEntryValidateService;
   private final CodeValidator codeValidator;
+  private final SimpMessagingTemplate messagingTemplate;
 
   private static final String QR = "QR";
   private static final String MANUAL = "MANUAL";
@@ -42,6 +46,11 @@ public class QrTicketExitService {
     QrTicket qrTicket = qrTicketRepository.findById(qrCodeDecodeDto.getQrTicketId()).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 QR 코드입니다.")
     );
+
+    LocalDateTime now = LocalDateTime.now(); // 현재일시
+    if(now.isAfter(qrTicket.getExpiredAt())){
+      throw new CustomException(HttpStatus.BAD_REQUEST, "행사가 종료되었습니다.");
+    }
 
     // QR 티켓 참석자 조회
     Attendee attendee = qrTicket.getAttendee();
@@ -79,6 +88,11 @@ public class QrTicketExitService {
         () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 수동 코드입니다.")
     );
 
+    LocalDateTime now = LocalDateTime.now(); // 현재일시
+    if(now.isAfter(qrTicket.getExpiredAt())){
+      throw new CustomException(HttpStatus.BAD_REQUEST, "행사가 종료되었습니다.");
+    }
+
     // QR 티켓에 저장된 참석자 조회
     Attendee attendee = qrTicket.getAttendee();
     AttendeeTypeCode primaryTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
@@ -103,22 +117,29 @@ public class QrTicketExitService {
   private CheckResponseDto processCheckOutCommon(QrTicket qrTicket, CheckOutRequestDto dto) {
     // QrActionCode 검토
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.SCANNED);
-    QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(
-        QrCheckStatusCode.EXIT);
     // 코드 스캔 기록
     qrLogService.scannedQrLog(qrTicket, qrActionCode);
-    // 재입장 가능 여부 검토 - 퇴장 기록 자체가 있는지 조회
-    qrEntryValidateService.verifyReEntry(qrTicket);
+    log.info("qrActionCode : {}", qrActionCode);
+    log.info("QrLog SCANNED 저장 qrTicket: {}",qrTicket.getId());
+    // 체크아웃이 가능한가 -> 규칙상 (체크아웃 스캔 자체가 가능한지 판단)
+    qrEntryValidateService.checkEntryExitPolicy(qrTicket, QrCheckStatusCode.EXIT);
+    QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(
+        QrCheckStatusCode.EXIT);
+    // 재입장 가능 여부 검토
+    qrEntryValidateService.verifyCheckOutReEntry(qrTicket);
     // 중복 스캔 -> QrLog: invalid, QrChecktLog: duplicate 저장
     qrEntryValidateService.preventDuplicateScan(qrTicket, qrCheckStatusCode.getCode());
     // 코드 비교
     if (QR.equals(dto.getCodeType())) {
+      log.info("체크아웃 타입:QR");
       qrTicketVerificationService.verifyQrCode(qrTicket, dto.getCodeValue());
     } else {
+      log.info("체크아웃 타입:MANUAL");
       qrTicketVerificationService.verifyManualCode(qrTicket, dto.getCodeValue());
     }
     // QR 티켓 처리
     LocalDateTime checkInTime = processCheckOut(qrTicket, qrCheckStatusCode.getCode());
+    checkOutQrTicket(qrTicket);
     return CheckResponseDto.builder()
         .message("체크아웃 완료되었습니다.")
         .checkInTime(checkInTime)
@@ -127,11 +148,15 @@ public class QrTicketExitService {
 
   // 검증 완료 후 디비 데이터 저장
   private LocalDateTime processCheckOut(QrTicket qrTicket, String entryType) {
+    log.info("qrTicket : {} DB 저장 시작",qrTicket.getId());
     // checkStatusCode = EXIT
     QrCheckStatusCode qrCheckStatusCode = qrEntryValidateService.validateQrCheckStatusCode(
         entryType);
     // 잘못된 입퇴장 스캔 -> EXIT
     qrEntryValidateService.preventInvalidScan(qrTicket, qrCheckStatusCode.getCode());
     return qrLogService.exitQrLog(qrTicket, qrCheckStatusCode);
+  }
+  public void checkOutQrTicket(QrTicket qrTicket){
+    messagingTemplate.convertAndSend("/topic/check-out/"+qrTicket.getId(),"체크아웃 처리가 완료되었습니다.");
   }
 }

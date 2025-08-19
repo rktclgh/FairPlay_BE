@@ -33,6 +33,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -64,6 +65,9 @@ public class EventApplyService {
     private final NotificationService notificationService;
     private final RegionCodeRepository regionCodeRepository;
     private final SuperAdminService superAdminService;
+    private final EventStatusCodeRepository statusCodeRepository;
+
+    private static final String NOT_FOUND_STATUS = "해당 상태 코드 없음";
 
     @Transactional
     public EventApply submitEventApplication(EventApplyRequestDto requestDto) {
@@ -191,7 +195,20 @@ public class EventApplyService {
         EventAdmin eventAdmin = createEventAdminAccount(eventApply, tempPassword);
         Event event = createEventFromApplication(eventApply, eventAdmin);
         EventDetail eventDetail = createEventDetailFromApplication(eventApply, event);
+
+        EventStatusCode upcoming = statusCodeRepository.findByCode("UPCOMING")
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, NOT_FOUND_STATUS));
+        EventStatusCode ongoing = statusCodeRepository.findByCode("ONGOING")
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, NOT_FOUND_STATUS));
+        EventStatusCode ended = statusCodeRepository.findByCode("ENDED")
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, NOT_FOUND_STATUS));
+
+
+        LocalDate today = LocalDate.now();
+        EventStatusCode newStatus = determineStatus(today, event.getEventDetail(), upcoming, ongoing, ended);
+        event.setStatusCode(newStatus);
         moveFilesToEvent(eventApply, event.getEventId(), eventDetail);
+
         eventVersionService.createEventVersion(event, adminId);
 
         ApplyStatusCode approvedStatus = applyStatusCodeRepository.findByCode("APPROVED")
@@ -366,6 +383,25 @@ public class EventApplyService {
         return eventRepository.save(savedEvent);
     }
 
+    private EventStatusCode determineStatus(LocalDate today, EventDetail eventDetail,
+                                            EventStatusCode upcoming,
+                                            EventStatusCode ongoing,
+                                            EventStatusCode ended) {
+
+        if (eventDetail == null) {
+            // EventDetail이 없는 경우
+            throw new CustomException(HttpStatus.NOT_FOUND, "행사 상세 정보가 존재하지 않습니다. 먼저 상세 정보를 등록하세요.");
+        }
+
+        if (today.isBefore(eventDetail.getStartDate())) {
+            return upcoming;
+        } else if (!today.isAfter(eventDetail.getEndDate())) {
+            return ongoing;
+        } else {
+            return ended;
+        }
+    }
+
     private EventDetail createEventDetailFromApplication(EventApply eventApply, Event event) {
         EventDetail eventDetail = new EventDetail();
         eventDetail.setEvent(event);
@@ -443,23 +479,6 @@ public class EventApplyService {
         }
 
         return "documents";
-    }
-
-    private void sendAccountCreationEmail(EventApply eventApply, String tempPassword, String adminComment) {
-        try {
-            temporaryPasswordEmailService.send(
-                    eventApply.getEmail(),
-                    eventApply.getTitleKr(),
-                    eventApply.getEventEmail(),
-                    tempPassword);
-            log.info("계정 생성 이메일 전송 완료 - 받는 사람: {}", eventApply.getEmail());
-            if (adminComment != null && !adminComment.trim().isEmpty()) {
-                log.info("관리자 메모: {}", adminComment);
-            }
-        } catch (Exception e) {
-            log.error("계정 생성 이메일 전송 실패 - 받는 사람: {}, 오류: {}",
-                    eventApply.getEmail(), e.getMessage());
-        }
     }
 
     private void setRegionCodeFromLocation(EventDetail eventDetail, EventApply eventApply) {

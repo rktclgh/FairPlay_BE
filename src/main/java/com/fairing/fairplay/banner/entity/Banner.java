@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -65,6 +66,8 @@ public class Banner {
     @JoinColumn(name = "banner_type_id", nullable = false)
     private BannerType bannerType;
 
+    @Column(name = "booking_rate", precision = 5, scale = 2, nullable = false)
+    private BigDecimal bookingRate;  // 0.00 ~ 100.00
 
 
     public void updateStatus(BannerStatusCode newStatus) {

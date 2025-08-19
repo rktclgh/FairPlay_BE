@@ -1,6 +1,7 @@
 package com.fairing.fairplay.attendee.repository;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
+import com.fairing.fairplay.reservation.entity.Reservation;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -31,4 +32,6 @@ public interface AttendeeRepository extends JpaRepository<Attendee, Long> {
           ORDER BY a.createdAt ASC
       """)
   List<Attendee> findByEventId(Long eventId);
+
+  Attendee findByEmailAndReservation(String email, Reservation reservation);
 }

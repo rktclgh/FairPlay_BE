@@ -33,5 +33,8 @@ public class PaymentRequestDto {
     
     // 예매 생성을 위한 추가 정보
     private Long scheduleId;            // 이벤트 스케줄 ID
+    
+    // 이메일에서 접근하는 경우 사용자 식별을 위한 필드
+    private String contactEmail;        // 연락처 이메일 (부스 신청자 이메일)
 
 }

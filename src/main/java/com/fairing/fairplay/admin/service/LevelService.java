@@ -1,14 +1,23 @@
 package com.fairing.fairplay.admin.service;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.fairing.fairplay.admin.entity.AccountLevel;
 import com.fairing.fairplay.admin.entity.FunctionLevel;
 import com.fairing.fairplay.admin.etc.InitializeLevel;
 import com.fairing.fairplay.admin.repository.AccountLevelRepository;
 import com.fairing.fairplay.admin.repository.FunctionLevelRepository;
+import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
+import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
 
 import jakarta.annotation.PostConstruct;
 
@@ -16,11 +25,18 @@ import jakarta.annotation.PostConstruct;
 public class LevelService {
     private final AccountLevelRepository accountLevelRepository;
     private final FunctionLevelRepository functionLevelRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final UserRoleCodeRepository userRoleCodeRepository;
 
     public LevelService(AccountLevelRepository accountLevelRepository,
-            FunctionLevelRepository functionLevelRepository) {
+            FunctionLevelRepository functionLevelRepository, UserRepository userRepository,
+            PasswordEncoder passwordEncoder, UserRoleCodeRepository userRoleCodeRepository) {
         this.accountLevelRepository = accountLevelRepository;
         this.functionLevelRepository = functionLevelRepository;
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.userRoleCodeRepository = userRoleCodeRepository;
     }
 
     public BigInteger getAccountLevel(Long userId) {
@@ -39,4 +55,26 @@ public class LevelService {
         functionLevelRepository.saveAll(functionLevels);
     }
 
+    @PostConstruct
+    @Transactional
+    public void createDefaultAdmin() {
+        if (userRepository.findById(1L).isEmpty()) {
+            Users admin = new Users();
+            admin.setEmail("admin@fair-play.ink");
+            admin.setNickname("admin");
+            admin.setName("admin");
+            admin.setPhone("010-0000-0000");
+            admin.setPassword(passwordEncoder.encode("fairplay"));
+            admin.setRoleCode(userRoleCodeRepository.findByCode("ADMIN")
+                    .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "기본 역할코드를 찾을 수 없습니다.")));
+            Users savedAdmin = userRepository.saveAndFlush(admin);
+
+            // AccountLevel 생성 시 userId를 직접 설정
+            AccountLevel accountLevel = new AccountLevel();
+            accountLevel.setUserId(savedAdmin.getUserId());
+            accountLevel.setUser(savedAdmin);
+            accountLevel.setLevel(new BigDecimal("1606938044258990275541962092341162602522202993782792835301375"));
+            accountLevelRepository.save(accountLevel);
+        }
+    }
 }

@@ -40,6 +40,10 @@ public class QrTicketService {
   private final ReservationRepository reservationRepository;
   private final AttendeeTypeCodeRepository attendeeTypeCodeRepository;
 
+  // 테스트 종료 후 삭제 예정
+  private final QrLinkService qrLinkService;
+  private final QrEmailService qrEmailService;
+
   // 대표자/동반자 QR 티켓 생성
   public void generateQrTicket(Attendee attendee, Reservation reservation) {
     qrTicketIssueService.generateQrTicket(attendee, reservation);
@@ -89,22 +93,14 @@ public class QrTicketService {
 
   // 테스트 강제 QR 티켓 발급
   @Transactional
-  public void adminForceIssue(){
+  public void adminForceIssue(Long eventScheduleId, Long reservationId){
 
-    EventSchedule es = eventScheduleRepository.findById(35L).orElse(null);
-    Reservation re = reservationRepository.findById(23L).orElse(null);
+    EventSchedule es = eventScheduleRepository.findById(eventScheduleId).orElse(null);
+    Reservation re = reservationRepository.findById(reservationId).orElse(null);
 
     AttendeeTypeCode typeCode = attendeeTypeCodeRepository.findByCode(AttendeeTypeCode.PRIMARY).orElse(null);
 
-    Attendee attendee = Attendee.builder()
-        .name("김희연")
-        .attendeeTypeCode(typeCode)
-        .phone("01000000000")
-        .email("khy3851@hanmail.net")
-        .agreeToTerms(true)
-        .reservation(re)
-        .build();
-    Attendee a = attendeeRepository.saveAndFlush(attendee);
+    Attendee a = attendeeRepository.findByEmailAndReservation("happylotus145@gmail.com",re);
 
     String eventCode = es.getEvent().getEventCode();
     LocalDateTime expiredAt = LocalDateTime.of(es.getDate(), es.getEndTime()); //만료날짜+시간 설정
@@ -123,5 +119,22 @@ public class QrTicketService {
         .build();
     qrTicketRepository.save(qrTicket);
 
+    QrTicketRequestDto dto = QrTicketRequestDto.builder()
+        .attendeeId(a.getId())
+        .reservationId(re.getReservationId())
+        .eventId(es.getEvent().getEventId())
+        .ticketId(re.getTicket().getTicketId())
+        .build();
+
+    String eventDate =
+        es.getEvent().getEventDetail().getStartDate() + " ~ " + es.getEvent().getEventDetail()
+            .getEndDate();
+    String viewingDate =
+        es.getDate().toString() + " (" + es.getWeekday() + ") "
+            + es.getStartTime();
+
+    String qrUrl = qrLinkService.generateQrLink(dto);
+    qrEmailService.sendQrEmail(qrUrl, es.getEvent().getTitleKr(), eventDate, viewingDate, a.getEmail(), a.getName());
+    log.info("이메일 전송 완료:{}", a.getEmail());
   }
 }

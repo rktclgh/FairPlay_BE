@@ -1,5 +1,7 @@
 package com.fairing.fairplay.user.dto;
 
+import java.time.LocalDate;
+
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -10,5 +12,7 @@ public class UserUpdateRequestDto {
     private String phone;
     @Size(min = 2, max = 50, message = "닉네임은 2-50자 사이여야 합니다")
     private String nickname;
+    private LocalDate birthday;
+    private String gender;
     // nickname 필요시 추가
 }

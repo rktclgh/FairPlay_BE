@@ -52,7 +52,8 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         detail.startDate,
                         detail.endDate,
                         detail.thumbnailUrl,
-                        detail.regionCode.name
+                        detail.regionCode.name,
+                        event.statusCode.code
                 ))
                 .from(event)
                 .join(event.eventDetail, detail)
@@ -145,7 +146,8 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         detail.startDate,
                         detail.endDate,
                         detail.thumbnailUrl,
-                        detail.regionCode.name
+                        detail.regionCode.name,
+                        event.statusCode.code
                 ))
                 .from(event)
                 .join(event.eventDetail, detail)
@@ -195,10 +197,8 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                             .build())
                     .collect(Collectors.toList()));
 
-            files.stream()
-                    .filter(file -> file.getDirectory() != null && file.getDirectory().contains("thumbnail"))
-                    .findFirst()
-                    .ifPresent(thumbFile -> dto.setThumbnailUrl(awsS3Service.getCdnUrl(thumbFile.getFileUrl())));
+            // File 테이블에서 썸네일을 가져오는 대신 EventDetail의 thumbnailUrl 사용 (이미 최신 버전임)
+            // 기존 QueryDSL에서 이미 detail.thumbnailUrl을 가져오므로 추가 처리 불필요
         });
     }
 }

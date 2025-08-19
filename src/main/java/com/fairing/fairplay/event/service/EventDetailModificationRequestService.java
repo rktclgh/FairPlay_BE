@@ -14,6 +14,7 @@ import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.EventAdminRepository;
 import com.fairing.fairplay.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,10 +22,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.*;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class EventDetailModificationRequestService {
 
     private final EventDetailModificationRequestRepository modificationRequestRepository;
@@ -38,26 +41,12 @@ public class EventDetailModificationRequestService {
     private final EventAdminRepository eventAdminRepository;
     private final UserRepository userRepository;
     private final ExternalLinkRepository externalLinkRepository;
+    private final EventStatusCodeRepository statusCodeRepository;
     private final EventVersionService eventVersionService;
     private final AwsS3Service awsS3Service;
     private final FileService fileService;
 
-    public EventDetailModificationRequestService(EventDetailModificationRequestRepository modificationRequestRepository, UpdateStatusCodeRepository updateStatusCodeRepository, EventRepository eventRepository, EventDetailRepository eventDetailRepository, LocationRepository locationRepository, MainCategoryRepository mainCategoryRepository, SubCategoryRepository subCategoryRepository, RegionCodeRepository regionCodeRepository, EventAdminRepository eventAdminRepository, UserRepository userRepository, ExternalLinkRepository externalLinkRepository, EventVersionService eventVersionService, AwsS3Service awsS3Service, FileService fileService) {
-        this.modificationRequestRepository = modificationRequestRepository;
-        this.updateStatusCodeRepository = updateStatusCodeRepository;
-        this.eventRepository = eventRepository;
-        this.eventDetailRepository = eventDetailRepository;
-        this.locationRepository = locationRepository;
-        this.mainCategoryRepository = mainCategoryRepository;
-        this.subCategoryRepository = subCategoryRepository;
-        this.regionCodeRepository = regionCodeRepository;
-        this.eventAdminRepository = eventAdminRepository;
-        this.userRepository = userRepository;
-        this.externalLinkRepository = externalLinkRepository;
-        this.eventVersionService = eventVersionService;
-        this.awsS3Service = awsS3Service;
-        this.fileService = fileService;
-    }
+    private static final String NOT_FOUND_STATUS = "해당 상태 코드 없음";
 
     // 수정 요청
     @Transactional
@@ -281,6 +270,13 @@ public class EventDetailModificationRequestService {
         EventAdmin eventAdmin = event.getManager();
         Users eventAdminUser = event.getManager().getUser();
         EventDetailModificationDto modifiedData = request.getModifiedDataAsDto();
+        EventStatusCode upcoming = statusCodeRepository.findByCode("UPCOMING")
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, NOT_FOUND_STATUS));
+        EventStatusCode ongoing = statusCodeRepository.findByCode("ONGOING")
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, NOT_FOUND_STATUS));
+        EventStatusCode ended = statusCodeRepository.findByCode("ENDED")
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, NOT_FOUND_STATUS));
+
 
         // Event 엔티티의 제목 필드 업데이트
         if (modifiedData.getTitleKr() != null) event.setTitleKr(modifiedData.getTitleKr());
@@ -398,6 +394,13 @@ public class EventDetailModificationRequestService {
         }
         if (modifiedData.getStartDate() != null) eventDetail.setStartDate(modifiedData.getStartDate());
         if (modifiedData.getEndDate() != null) eventDetail.setEndDate(modifiedData.getEndDate());
+
+        if (modifiedData.getStartDate() != null || modifiedData.getEndDate() != null) {
+            LocalDate today = LocalDate.now();
+            EventStatusCode newStatus = determineStatus(today, event.getEventDetail(), upcoming, ongoing, ended);
+            event.setStatusCode(newStatus);
+        }
+
         if (modifiedData.getReentryAllowed() != null) eventDetail.setReentryAllowed(modifiedData.getReentryAllowed());
         if (modifiedData.getCheckInAllowed() != null) eventDetail.setCheckInAllowed(modifiedData.getCheckInAllowed());
         if (modifiedData.getCheckOutAllowed() != null) eventDetail.setCheckOutAllowed(modifiedData.getCheckOutAllowed());
@@ -416,6 +419,25 @@ public class EventDetailModificationRequestService {
         if (eventAdminUser != null) {
             userRepository.save(eventAdminUser);
             log.info("Users 엔티티 저장 완료");
+        }
+    }
+
+    private EventStatusCode determineStatus(LocalDate today, EventDetail eventDetail,
+                                            EventStatusCode upcoming,
+                                            EventStatusCode ongoing,
+                                            EventStatusCode ended) {
+
+        if (eventDetail == null) {
+            // EventDetail이 없는 경우
+            throw new CustomException(HttpStatus.NOT_FOUND, "행사 상세 정보가 존재하지 않습니다. 먼저 상세 정보를 등록하세요.");
+        }
+
+        if (today.isBefore(eventDetail.getStartDate())) {
+            return upcoming;
+        } else if (!today.isAfter(eventDetail.getEndDate())) {
+            return ongoing;
+        } else {
+            return ended;
         }
     }
 

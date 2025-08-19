@@ -13,6 +13,8 @@ import com.fairing.fairplay.payment.repository.*;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.reservation.repository.ReservationStatusCodeRepository;
+import com.fairing.fairplay.booth.entity.BoothApplication;
+import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
@@ -62,6 +64,9 @@ public class PaymentService {
     
     // 알림 서비스
     private final NotificationService notificationService;
+    
+    // 부스 신청 정보 조회를 위한 레포지토리
+    private final BoothApplicationRepository boothApplicationRepository;
     
     // 아임포트 API 설정
     @Value("${iamport.api-key}")
@@ -245,7 +250,7 @@ public class PaymentService {
     // 나의 티켓 결제 목록 조회
     @Transactional(readOnly = true)
     public List<PaymentResponseDto> getMyPayments(Long userId) {
-        List<Payment> payments = paymentRepository.findByUser_UserId(userId);
+        List<Payment> payments = paymentRepository.findByUserIdWithEventInfo(userId);
         return PaymentResponseDto.fromEntityList(payments);
     }
 
@@ -680,6 +685,35 @@ public class PaymentService {
             reservationId != null ? reservationId.toString() : "처리중",
             payment.getMerchantUid()
         );
+    }
+
+    // 이메일에서 부스 결제 요청 처리 (인증 없이)
+    @Transactional
+    public PaymentResponseDto savePaymentFromEmail(PaymentRequestDto paymentRequestDto) {
+        // 1. 요청 데이터 유효성 검증
+        validatePaymentRequest(paymentRequestDto);
+
+        // 2. 부스 신청 정보에서 사용자 정보 가져오기
+        if (!"BOOTH_APPLICATION".equals(paymentRequestDto.getPaymentTargetType())) {
+            throw new IllegalArgumentException("이메일 결제는 부스 신청에만 사용 가능합니다.");
+        }
+
+        if (paymentRequestDto.getTargetId() == null) {
+            throw new IllegalArgumentException("부스 신청 ID가 필요합니다.");
+        }
+
+        // 3. 부스 신청 정보에서 부스 이메일로 사용자 찾기
+        BoothApplication boothApplication = boothApplicationRepository.findById(paymentRequestDto.getTargetId())
+                .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다."));
+        
+        Users user = userRepository.findByEmail(boothApplication.getBoothEmail())
+                .orElseThrow(() -> new IllegalArgumentException("부스 관리자 계정을 찾을 수 없습니다: " + boothApplication.getBoothEmail()));
+
+        // 4. 이벤트 정보 설정 (부스 신청에서 가져오기)
+        paymentRequestDto.setEventId(boothApplication.getEvent().getEventId());
+
+        // 5. 기존 savePayment 메서드 활용
+        return savePayment(paymentRequestDto, user.getUserId());
     }
 
 }

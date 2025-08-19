@@ -17,6 +17,7 @@ import com.fairing.fairplay.qr.dto.scan.QrCheckRequestDto;
 import com.fairing.fairplay.qr.service.EntryExitService;
 import com.fairing.fairplay.qr.service.QrTicketBatchService;
 import com.fairing.fairplay.qr.service.QrTicketService;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,6 +35,7 @@ public class QrTicketController {
 
   private final QrTicketService qrTicketService;
   private final EntryExitService entryExitService;
+  private final QrTicketBatchService qrTicketBatchService;
 
   // 마이페이지에서 QR 티켓 조회
   @PostMapping
@@ -119,7 +121,15 @@ public class QrTicketController {
   }
 
   @PostMapping("/admin/issue")
-  public void adminForceIssue(){
-    qrTicketService.adminForceIssue();
+  public void adminForceIssue(@RequestBody Map<String, Object> request){
+    Long scheduleId = ((Number) request.get("scheduleId")).longValue();
+    Long reservationId = ((Number) request.get("reservationId")).longValue();
+    qrTicketService.adminForceIssue(scheduleId,reservationId);
+  }
+
+  // 참석자 자동 저장 테스트용 개발 코드
+  @PostMapping("/test/schedule")
+  public void scheduleTestAttendee(){
+    qrTicketBatchService.createQrTicket();
   }
 }

@@ -58,6 +58,22 @@ public class AccessAspect {
     public void disableUser() {
     }
 
+    @Around("@annotation(com.fairing.fairplay.history.etc.ChangeTemplate)")
+    public Object aroundChangeTemplate(ProceedingJoinPoint joinPoint) throws Throwable {
+        joinPoint.getArgs();
+        Long userId = getCurrentUserId(); // 테스트용 하드코딩, getCurrentId 사용 예정
+        String targetHtml = joinPoint.getArgs()[0].toString(); // Assuming the first argument is the template name
+        Users executor = userRepository.findById(userId).orElseThrow();
+        ChangeHistory changeHistory = ChangeHistory.builder()
+                .user(executor)
+                .targetType("템플릿 수정")
+                .content(targetHtml)
+                .modifyTime(LocalDateTime.now())
+                .build();
+        changeHistoryRepository.save(changeHistory);
+        return joinPoint.proceed();
+    }
+
     @Around("@annotation(com.fairing.fairplay.history.etc.ChangeAccount)")
     public Object aroundChangeAccount(ProceedingJoinPoint joinPoint) throws Throwable {
         MethodSignature sig = (MethodSignature) joinPoint.getSignature();
@@ -93,7 +109,7 @@ public class AccessAspect {
         ChangeHistory changeHistory = ChangeHistory.builder()
                 .user(executor)
                 .targetId(target.getUserId())
-                .targetType("행사 정보 수정")
+                .targetType("배너 정보 수정")
                 .content(changeString)
                 .modifyTime(LocalDateTime.now())
                 .build();

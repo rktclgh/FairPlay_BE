@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FairPlay QR 티켓</title>
+  <style>
+    body {
+      font-family: "Segoe UI", "Apple SD Gothic Neo", Arial, sans-serif;
+      background: #f1f5f9;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 400px;
+      margin: 0 auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+      padding: 40px 24px 32px 24px;
+      background: #ffffff;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .logo-icon {
+      width: 64px;
+      height: 64px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      color: #1f2937;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .brand {
+      color: #3b82f6;
+      font-weight: 700;
+    }
+
+    .message-box {
+      margin: 24px 0;
+      padding: 20px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      border: 1px solid #e2e8f0;
+    }
+
+    .message-box p {
+      font-size: 15px;
+      color: #475569;
+      text-align: center;
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    .qr-link-box {
+      text-align: center;
+      margin: 24px 0;
+    }
+
+    .qr-link-button {
+      background-color: #ffffff;
+      color: black;
+      padding: 16px 24px;
+      border: 1px solid #cae4fe;
+      border-radius: 8px;
+      font-size: 16px;
+      text-decoration: none;
+      font-weight: 600;
+      display: inline-block;
+      margin-top: 12px;
+    }
+
+    .info-box {
+      background: #f2f8fe;
+      border: 1px solid #cae4fe;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+    }
+
+    .info-box ul {
+      font-size: 13px;
+      color: #4b5563;
+      margin: 0;
+      line-height: 1.5;
+      padding-left: 20px;
+    }
+
+    .info-box li {
+      margin-bottom: 6px;
+    }
+
+    .warning-box {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+    }
+
+    .warning-box ul {
+      font-size: 13px;
+      color: #4b5563;
+      margin: 0;
+      line-height: 1.5;
+      padding-left: 20px;
+    }
+
+    .warning-box li {
+      margin-bottom: 6px;
+    }
+
+    .warning-highlight {
+      color: #dc2626;
+    }
+
+    .contact-link {
+      color: #3b82f6;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .footer {
+      margin-top: 32px;
+      text-align: center;
+      padding-top: 20px;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .footer span {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">
+    <div class="logo-icon">
+      <img
+          src="cid:logo"
+          alt="FairPlay Logo"
+          style="width: 64px; height: 64px; object-fit: contain"
+      />
+    </div>
+    <h2><span class="brand">FairPlay</span> QR 티켓 도착</h2>
+  </div>
+
+  <div class="message-box">
+    <p>
+      안녕하세요 <strong class="brand">%s님!</strong><br/>
+      <strong class="brand">FairPlay</strong>에서 예약하신<br/>
+      티켓의 <strong class="highlight">QR 링크</strong>가 발급되었습니다.<br/>
+      아래 버튼을 눌러 QR 티켓을 확인해 주세요.
+    </p>
+  </div>
+
+  <div class="info-box">
+    <ul>
+      <li>행사명:  <strong>%s</strong></li>
+      <li>행사 일자:  <strong>%s</strong></li>
+      <li>관람일:  <strong>%s</strong></li>
+    </ul>
+  </div>
+
+  <div class="warning-box">
+    <ul>
+      <li>🎟 <strong>QR 티켓은 행사 입장 시 필요합니다</strong></li>
+      <li>🔒 <strong>타인에게 링크를 공유하지 마세요</strong></li>
+      <li>
+        📞 문의:
+        <a href="mailto:support@fair-play.ink" class="contact-link"
+        >support@fair-play.ink</a
+        >
+      </li>
+    </ul>
+  </div>
+
+  <div class="qr-link-box">
+    <a href="%s" class="qr-link-button" target="_blank">QR 티켓 확인하기</a>
+  </div>
+
+  <div class="footer">
+    <span>© 2025 FairPlay</span>
+  </div>
+</div>
+</body>
+</html>
