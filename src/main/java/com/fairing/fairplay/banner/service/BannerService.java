@@ -498,11 +498,10 @@ public class BannerService {
         final int limit = Math.max(1, Math.min(size, 20));
         final LocalDateTime now = LocalDateTime.now();
 
-        // 1) 현재 시간에 노출 중인 HOT_PICK만, priority 오름차순
-        final List<Banner> banners = bannerRepository
-                .findAllByBannerType_CodeAndBannerStatusCode_CodeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByPriorityAsc(
-                        "HOT_PICK", "ACTIVE", now, now
-                );
+        //  예매율 → priority 순으로 가져오기
+        final var banners = bannerRepository.findActiveHotPicksOrderByRate(
+                now, org.springframework.data.domain.PageRequest.of(0, limit)
+        );
 
         // 2) eventId 없는 건 제외 + 개수 제한
         final List<Banner> limited = banners.stream()
