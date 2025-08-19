@@ -26,6 +26,7 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Date;
 import java.util.List;
 
 @Repository
@@ -136,7 +137,7 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
         if (disputeStatus != null && !disputeStatus.isBlank()) {
             builder.and(settlement.disputeStatus.stringValue().eq(disputeStatus));
         }
-
+        var createdDateExpr = Expressions.dateTemplate(Date.class, "function('date', {0})", settlement.createdAt);
         List<EventManagerSettlementListDto> results =  queryFactory
                 .select(Projections.bean(
                 EventManagerSettlementListDto.class,
@@ -147,8 +148,8 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
                 settlement.disputeStatus.as("disputeStatus"),
                 settlement.adminApprovalStatus.as("adminApprovalStatus"),
                 settlement.transStatus.as("transferStatus"),
-                Expressions.dateTemplate(LocalDate.class, "function('date', {0})", settlement.createdAt).as("createdAt")
-                        ))
+                        Expressions.dateTemplate(java.sql.Date.class, "function('date', {0})", settlement.createdAt)
+                                .as("createdAt")))
                 .from(settlement)
                 .where(builder)
                 .orderBy(settlement.createdAt.desc())
@@ -185,8 +186,8 @@ public class SettlementCustomRepositoryImpl implements SettlementCustomRepositor
                         settlement.disputeStatus.as("disputeStatus"),
                         settlement.adminApprovalStatus.as("adminApprovalStatus"),
                         settlement.transStatus.as("transferStatus"),
-                        Expressions.dateTemplate(LocalDate.class, "function('date', {0})", settlement.createdAt).as("createdAt")
-                                ))
+                        Expressions.dateTemplate(java.sql.Date.class, "function('date', {0})", settlement.createdAt)
+                                .as("createdAt")))
                 .from(settlement)
                 .where(builder)
                 .orderBy(settlement.createdAt.desc())
