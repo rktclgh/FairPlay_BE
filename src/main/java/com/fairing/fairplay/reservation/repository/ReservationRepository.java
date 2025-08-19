@@ -31,7 +31,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
                     e.eventDetail.location.address,
                     e.eventDetail.thumbnailUrl,
                     r.schedule.date,
-                    COALESCE(r.schedule.weekday, 0),
+                    r.schedule.weekday,
                     r.schedule.startTime,
                     e.eventDetail.startDate,
                     e.eventDetail.endDate
@@ -42,7 +42,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
               JOIN r.event e
               LEFT JOIN r.ticket t
               WHERE r.user.userId = :userId
-                AND r.schedule.date < CURRENT_DATE
+                AND r.schedule.date <= CURRENT_DATE
+                AND r.canceled = false
               ORDER BY r.createdAt DESC
           """,
   countQuery = """
@@ -50,7 +51,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
       FROM Reservation r
       JOIN r.event e
       WHERE r.user.userId = :userId
-      AND r.schedule.date < CURRENT_DATE
+      AND r.schedule.date <= CURRENT_DATE
+      AND r.canceled = false
       """)
   Page<PossibleReviewResponseDto> findPossibleReviewReservationsDto(@Param("userId") Long userId,
       Pageable pageable);
