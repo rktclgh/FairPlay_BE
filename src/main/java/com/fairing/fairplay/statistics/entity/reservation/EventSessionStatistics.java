@@ -8,10 +8,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
-@Table(
-        name = "event_session_statistics",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "schedule_id", "stat_date"})
-)
+@Table(name = "event_session_statistics", uniqueConstraints = @UniqueConstraint(columnNames = { "event_id",
+        "schedule_id", "stat_date" }))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -46,8 +44,9 @@ public class EventSessionStatistics {
     @Builder.Default
     private Integer reservations = 0;
 
-    @Column(name = "cancellation")
-    private Integer cancellation = 0;
+    @Column(name = "cancellations")
+    @Builder.Default
+    private Integer cancellations = 0;
 
     @Column(name = "checkins", nullable = false)
     @Builder.Default

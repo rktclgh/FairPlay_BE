@@ -7,11 +7,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fairing.fairplay.core.etc.FunctionAuth;
+import com.fairing.fairplay.statistics.dto.event.EventAgePopularityDto;
+import com.fairing.fairplay.statistics.dto.event.EventGenderPopularityDto;
 import com.fairing.fairplay.statistics.dto.event.EventPopularityPageResponseDto;
 import com.fairing.fairplay.statistics.dto.event.EventPopularityStatisticsListDto;
 import com.fairing.fairplay.statistics.service.event.EventPopularityService;
@@ -63,6 +66,21 @@ public class EventPopularityController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return eventPopularityService.getPopularityPageData(startDate, endDate);
+    }
+
+    @GetMapping("/male")
+    public List<EventGenderPopularityDto> getMaleEventPopularity() {
+        return eventPopularityService.topMalesPick();
+    }
+
+    @GetMapping("/female")
+    public List<EventGenderPopularityDto> getFemaleEventPopularity() {
+        return eventPopularityService.topFemalesPick();
+    }
+
+    @GetMapping("/age/{ageGroup}")
+    public List<EventAgePopularityDto> getAgeEventPopularity(@PathVariable int ageGroup) {
+        return eventPopularityService.topAgePick(ageGroup);
     }
 
 }

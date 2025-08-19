@@ -7,10 +7,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-        name = "event_ticket_statistics",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "stat_date", "ticket_type"})
-)
+@Table(name = "event_ticket_statistics", uniqueConstraints = @UniqueConstraint(columnNames = { "event_id", "stat_date",
+        "ticket_type" }))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -35,11 +33,14 @@ public class EventTicketStatistics {
     @Column(name = "reservations")
     private Integer reservations;
 
-
     private Integer stock;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "cancellations")
+    @Builder.Default
+    private Integer cancellations = 0;
 
     @PrePersist
     public void prePersist() {
