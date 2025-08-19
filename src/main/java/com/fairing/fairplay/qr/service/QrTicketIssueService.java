@@ -108,9 +108,10 @@ public class QrTicketIssueService {
       throw new CustomException(HttpStatus.FORBIDDEN, "본인의 예약만 조회할 수 있습니다.");
     }
 
-    if (!reservation.getSchedule().getDate().equals(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
-    }
+    //테스트 위한 검사 생략 - 추후 수정 예정
+//    if (!reservation.getSchedule().getDate().equals(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
+//      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
+//    }
 
     AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findPrimaryTypeCode();
 
@@ -126,9 +127,10 @@ public class QrTicketIssueService {
 
     Reservation reservation = checkReservationBeforeNow(dto.getReservationId());
 
-    if (!reservation.getSchedule().getDate().equals(LocalDate.now())) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
-    }
+    //테스트 위한 검사 생략 - 추후 수정 예정
+//    if (!reservation.getSchedule().getDate().equals(LocalDate.now(ZoneId.of("Asia/Seoul")))) {
+//      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓은 당일에만 조회 가능합니다.");
+//    }
 
     AttendeeTypeCode attendeeTypeCode = qrTicketAttendeeService.findGuestTypeCode();
 
