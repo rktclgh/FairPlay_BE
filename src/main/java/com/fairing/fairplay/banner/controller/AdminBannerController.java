@@ -158,20 +158,34 @@ public class AdminBannerController {
         return ResponseEntity.ok(bannerService.getOne(id));
     }
 
+    // 관리자용 신청서 목록 조회
+    @GetMapping(value = "/applications", params = "!id")
+    public ResponseEntity<?> listApplications(
+            @AuthenticationPrincipal CustomUserDetails admin,
+            @RequestParam(required = false) String status,     // PENDING | APPROVED | REJECTED
+            @RequestParam(required = false) String type,       // HERO | SEARCH_TOP
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size
+    ) {
+                requireAdmin(admin);
+                return ResponseEntity.ok(appService.listAdminApplications(status, type, page, size));
+            }
+
     /** 승인(결제 확인 완료) → SOLD & banner 생성 */
     @PostMapping("/applications/{id}/approve")
-    public ResponseEntity<Void> approve(
+    public ResponseEntity<AdminApplicationListItemDto> approve(
             @AuthenticationPrincipal CustomUserDetails admin,
             @PathVariable Long id
     ) {
         requireAdmin(admin);
         appService.markPaid(id, admin.getUserId());   // 이미 구현됨
-        return ResponseEntity.noContent().build();
+                // 프론트가 바로 갱신할 수 있게 최신 상태 리턴
+                return ResponseEntity.ok(appService.getAdminApplicationView(id));
     }
 
     /** 반려 → 신청 상태 REJECTED, 잠금 슬롯 원복 */
     @PostMapping("/applications/{id}/reject")
-    public ResponseEntity<Void> reject(
+    public ResponseEntity<AdminApplicationListItemDto> reject(
             @AuthenticationPrincipal CustomUserDetails admin,
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> body
@@ -179,6 +193,6 @@ public class AdminBannerController {
         requireAdmin(admin);
         String reason = body != null ? body.getOrDefault("reason", null) : null;
         appService.reject(id, admin.getUserId(), reason);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(appService.getAdminApplicationView(id));
     }
 }
