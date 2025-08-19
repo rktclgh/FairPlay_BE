@@ -21,7 +21,8 @@ public interface ShareTicketRepository extends JpaRepository<ShareTicket, Long> 
   @Query("SELECT s FROM ShareTicket s " +
       "WHERE s.expired = false " + // 아직 만료되지 않은 티켓
       "AND s.expiredAt < :endDate " + // 오늘 만료 예정
-      "AND s.reservation.schedule.date <> :today") // 오늘 예약은 제외
+      "AND s.reservation.schedule.date <> :today "+
+      "ORDER BY s.expiredAt ASC") // 오늘 예약은 제외
   List<ShareTicket> findAllExpiredExceptTodayReservations(
       @Param("endDate") LocalDateTime endDate,
       @Param("today") LocalDate today,
