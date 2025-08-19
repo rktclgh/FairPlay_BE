@@ -274,7 +274,7 @@ public class QrTicketIssueService {
         .qrCode(null)
         .manualCode(null)
         .build();
-    qrTicketRepository.save(qrTicket);
+    qrTicketRepository.saveAndFlush(qrTicket);
 
     QrTicketRequestDto qrTicketRequestDto = QrTicketRequestDto.builder()
         .attendeeId(attendee.getId())
