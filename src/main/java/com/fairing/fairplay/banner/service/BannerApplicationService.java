@@ -232,6 +232,16 @@ public class BannerApplicationService {
     /** 결제 성공 처리 → SOLD + 배너 생성 */
     @Transactional
     public void markPaid(Long appId, Long adminId) {
+        // markPaid 시작부에 추가
+        Integer pendingId = statusId(STATUS_PENDING);
+        Integer appStatus = jdbc.queryForObject(
+                "SELECT status_code_id FROM banner_application WHERE banner_application_id=? FOR UPDATE",
+                Integer.class, appId
+        );
+        if (!Objects.equals(appStatus, pendingId)) {
+            throw new IllegalStateException("승인할 수 없는 상태입니다.");
+        }
+
         // 슬롯 잠그기
         var slots = jdbc.query("""
                 SELECT s.slot_id, s.banner_type_id, s.slot_date, s.priority, s.status
@@ -341,7 +351,7 @@ public class BannerApplicationService {
                      AND status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='PENDING')
                 """, adminId, appId);
         if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 승인 처리에 실패했습니다.");
-    }
+}
 
         // com.fairing.fairplay.banner.service.BannerApplicationService
         @Transactional
