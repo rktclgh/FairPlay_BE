@@ -26,7 +26,7 @@ public class AttendeeRepositoryCustom {
     QEvent event = QEvent.event;
     QEventDetail eventDetail = QEventDetail.eventDetail;
 
-    LocalDate sixMonthsAgo = LocalDate.now().minusMonths(6);
+    LocalDate sixMonthsAgo = LocalDate.now().minusMonths(12);
 
     long deletedCount = jpaQueryFactory
         .delete(attendee)
