@@ -578,6 +578,21 @@ public class BannerService {
         }).toList();
     }
 
+    @Transactional(readOnly = true)
+    public long countExpiringAll(int days) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime until = now.plusDays(days);
+        return bannerRepository.countByBannerStatusCode_CodeAndEndDateBetween(
+                STATUS_ACTIVE, now, until);
+    }
+
+    @Transactional(readOnly = true)
+    public long countExpiringByType(int days, String typeCode) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime until = now.plusDays(days);
+        return bannerRepository.countExpiringByType(
+                STATUS_ACTIVE, typeCode, now, until);
+    }
 
 
 }
