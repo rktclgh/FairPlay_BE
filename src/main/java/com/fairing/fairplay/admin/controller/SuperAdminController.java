@@ -1,15 +1,9 @@
 package com.fairing.fairplay.admin.controller;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +24,7 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.history.dto.ChangeHistoryDto;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.etc.ChangeAccount;
+import com.fairing.fairplay.history.etc.ChangeTemplate;
 
 @RestController
 @RequestMapping("/api/super-admin")
@@ -130,6 +125,7 @@ public class SuperAdminController {
         return ResponseEntity.ok(template);
     }
 
+    @ChangeTemplate("템플릿 저장")
     @PostMapping("/template/save/{name}")
     public ResponseEntity<String> saveTemplate(@PathVariable String name,
             @AuthenticationPrincipal CustomUserDetails userDetails, @RequestBody String content) throws IOException {
