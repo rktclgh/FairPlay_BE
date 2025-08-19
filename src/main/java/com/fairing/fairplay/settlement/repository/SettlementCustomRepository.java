@@ -2,7 +2,7 @@ package com.fairing.fairplay.settlement.repository;
 
 import com.fairing.fairplay.settlement.dto.SettlementAggregationDto;
 import com.fairing.fairplay.settlement.dto.SettlementAggregationRevenueDto;
-import com.fairing.fairplay.settlement.entitiy.Settlement;
+import com.fairing.fairplay.settlement.entity.Settlement;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

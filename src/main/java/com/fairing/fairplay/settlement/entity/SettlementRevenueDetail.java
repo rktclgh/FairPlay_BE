@@ -1,4 +1,4 @@
-package com.fairing.fairplay.settlement.entitiy;
+package com.fairing.fairplay.settlement.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
