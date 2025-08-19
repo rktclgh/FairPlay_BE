@@ -493,7 +493,91 @@ public class BannerService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<HotPickDto> getActiveHotPicks(int size) {
+        final int limit = Math.max(1, Math.min(size, 20));
+        final LocalDateTime now = LocalDateTime.now();
 
+        // 1) 현재 시간에 노출 중인 HOT_PICK만, priority 오름차순
+        final List<Banner> banners = bannerRepository
+                .findAllByBannerType_CodeAndBannerStatusCode_CodeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByPriorityAsc(
+                        "HOT_PICK", "ACTIVE", now, now
+                );
+
+        // 2) eventId 없는 건 제외 + 개수 제한
+        final List<Banner> limited = banners.stream()
+                .filter(b -> b.getEventId() != null)
+                .limit(limit)
+                .toList();
+
+        if (limited.isEmpty()) return List.of();
+
+        // 3) 이벤트 로드: eventRepository PK와 일치하는 getter 사용
+        //    (현재 엔티티가 getEventId()를 쓰는 구조라면 그대로 쓰세요)
+        final List<Long> eventIds = limited.stream().map(Banner::getEventId).distinct().toList();
+
+        final var eventsById = eventRepository.findAllById(eventIds).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        com.fairing.fairplay.event.entity.Event::getEventId, // ← 엔티티가 getId()이면 getId 로 바꾸기
+                        e -> e
+                ));
+
+        // 4) DTO 변환 (모든 값 null-guard)
+        return limited.stream().map(b -> {
+            final var e = eventsById.get(b.getEventId());
+
+            String title =
+                    (e != null && e.getTitleKr() != null && !e.getTitleKr().isBlank()) ? e.getTitleKr()
+                            : (e != null && e.getTitleEng() != null && !e.getTitleEng().isBlank()) ? e.getTitleEng()
+                            : (b.getTitle() != null ? b.getTitle() : "");
+
+            String date = "";
+            String location = "";
+            String image = (b.getImageUrl() != null && !b.getImageUrl().isBlank()) ? b.getImageUrl() : null;
+            String category = "";
+
+            if (e != null && e.getEventDetail() != null) {
+                var det = e.getEventDetail();
+
+                // 날짜
+                var start = det.getStartDate();
+                var end   = det.getEndDate();
+                if (start != null) date = (end != null) ? (start + " ~ " + end) : start.toString();
+
+                // 장소
+                if (det.getLocationDetail() != null && !det.getLocationDetail().isBlank()) {
+                    location = det.getLocationDetail();
+                } else if (det.getLocation() != null) {
+                    location = String.valueOf(det.getLocation()); // 리플렉션 제거
+                }
+
+                // 썸네일
+                if (image == null && det.getThumbnailUrl() != null && !det.getThumbnailUrl().isBlank()) {
+                    image = det.getThumbnailUrl();
+                }
+
+                // 카테고리
+                if (det.getMainCategory() != null && det.getMainCategory().getGroupName() != null) {
+                    category = det.getMainCategory().getGroupName();
+                }
+            }
+
+            // 배너 기간 폴백
+            if (date.isBlank() && b.getStartDate() != null) {
+                var bs = b.getStartDate().toLocalDate();
+                date = (b.getEndDate() != null) ? (bs + " ~ " + b.getEndDate().toLocalDate()) : bs.toString();
+            }
+
+            return HotPickDto.builder()
+                    .id(b.getEventId())   // Long(primitive 말고)이어야 NPE 없음
+                    .title(title)
+                    .date(date)
+                    .location(location)
+                    .category(category)
+                    .image(image)
+                    .build();
+        }).toList();
+    }
 
 
 

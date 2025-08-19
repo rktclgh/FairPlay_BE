@@ -82,7 +82,8 @@ public class SecurityConfig {
                                                                 "/api/booths/payment/payment-page/**",
                                                                 "/api/booths/payment/request-from-email",
                                                                 "/api/booths/payment/complete",
-                                                                "/api/event-popularity/**")
+                                                                "/api/event-popularity/**",
+                                                                "/api/banner/hot-picks")
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
