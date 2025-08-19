@@ -150,6 +150,7 @@ public class QrTicketBatchService {
     // 오늘과 내일 시작하는 행사 모두 조회
     List<Tuple> results = qrTicketRepositoryCustom.findAllByEventDate(Arrays.asList(today, tomorrow));
 
+    // 수정 예정
     // attendeeId, reservationId 집합 추출
     // 이미 발급된 티켓 키 집합
     Set<String> issuedTicketKeys = qrTicketRepository
