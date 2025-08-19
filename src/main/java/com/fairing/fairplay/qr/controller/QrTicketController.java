@@ -128,13 +128,6 @@ public class QrTicketController {
     return ResponseEntity.ok().build();
   }
 
-  @PostMapping("/admin/issue")
-  public void adminForceIssue(@RequestBody Map<String, Object> request){
-    Long scheduleId = ((Number) request.get("scheduleId")).longValue();
-    Long reservationId = ((Number) request.get("reservationId")).longValue();
-    qrTicketService.adminForceIssue(scheduleId,reservationId);
-  }
-
   // 참석자 자동 저장 테스트용 개발 코드
   @PostMapping("/test/schedule")
   public void scheduleTestAttendee(){

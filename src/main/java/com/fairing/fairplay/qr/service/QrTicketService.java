@@ -1,9 +1,6 @@
 package com.fairing.fairplay.qr.service;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
-import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
-import com.fairing.fairplay.attendee.repository.AttendeeRepository;
-import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
@@ -14,14 +11,7 @@ import com.fairing.fairplay.qr.dto.QrTicketReissueResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
-import com.fairing.fairplay.qr.entity.QrTicket;
-import com.fairing.fairplay.qr.repository.QrTicketRepository;
-import com.fairing.fairplay.qr.util.CodeGenerator;
 import com.fairing.fairplay.reservation.entity.Reservation;
-import com.fairing.fairplay.reservation.repository.ReservationRepository;
-import com.fairing.fairplay.ticket.entity.EventSchedule;
-import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,16 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class QrTicketService {
 
   private final QrTicketIssueService qrTicketIssueService;
-  private final QrTicketRepository qrTicketRepository;
-  private final AttendeeRepository attendeeRepository;
-  private final EventScheduleRepository eventScheduleRepository;
-  private final CodeGenerator codeGenerator;
-  private final ReservationRepository reservationRepository;
-  private final AttendeeTypeCodeRepository attendeeTypeCodeRepository;
-
-  // 테스트 종료 후 삭제 예정
-  private final QrLinkService qrLinkService;
-  private final QrEmailService qrEmailService;
 
   // 대표자/동반자 QR 티켓 생성
   public void generateQrTicket(Attendee attendee, Reservation reservation) {
@@ -97,54 +77,5 @@ public class QrTicketService {
   @Transactional
   public void sendEmailGuest(QrTicketEmailTodayRequestDto dto) {
     qrTicketIssueService.sendEmailGuest(dto);
-  }
-
-  // 테스트 강제 QR 티켓 발급
-  @Transactional
-  public void adminForceIssue(Long eventScheduleId, Long reservationId) {
-
-    EventSchedule es = eventScheduleRepository.findById(eventScheduleId).orElse(null);
-    Reservation re = reservationRepository.findById(reservationId).orElse(null);
-
-    AttendeeTypeCode typeCode = attendeeTypeCodeRepository.findByCode(AttendeeTypeCode.PRIMARY)
-        .orElse(null);
-
-    Attendee a = attendeeRepository.findByEmailAndReservation("happylotus145@gmail.com", re);
-
-    String eventCode = es.getEvent().getEventCode();
-    LocalDateTime expiredAt = LocalDateTime.of(es.getDate(), es.getEndTime()); //만료날짜+시간 설정
-    String ticketNo = codeGenerator.generateTicketNo(eventCode); // 티켓번호 설정
-
-    QrTicket qrTicket = QrTicket.builder()
-        .attendee(a)
-        .eventSchedule(es)
-        .reentryAllowed(false)
-        .expiredAt(expiredAt)
-        .issuedAt(LocalDateTime.now())
-        .active(true)
-        .ticketNo(ticketNo)
-        .qrCode(null)
-        .manualCode(null)
-        .build();
-    qrTicketRepository.save(qrTicket);
-
-    QrTicketRequestDto dto = QrTicketRequestDto.builder()
-        .attendeeId(a.getId())
-        .reservationId(re.getReservationId())
-        .eventId(es.getEvent().getEventId())
-        .ticketId(re.getTicket().getTicketId())
-        .build();
-
-    String eventDate =
-        es.getEvent().getEventDetail().getStartDate() + " ~ " + es.getEvent().getEventDetail()
-            .getEndDate();
-    String viewingDate =
-        es.getDate().toString() + " (" + es.getWeekday() + ") "
-            + es.getStartTime();
-
-    String qrUrl = qrLinkService.generateQrLink(dto);
-    qrEmailService.sendQrEmail(qrUrl, es.getEvent().getTitleKr(), eventDate, viewingDate,
-        a.getEmail(), a.getName());
-    log.info("이메일 전송 완료:{}", a.getEmail());
   }
 }
