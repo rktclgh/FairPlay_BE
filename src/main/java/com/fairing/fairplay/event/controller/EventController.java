@@ -121,12 +121,18 @@ public class EventController {
             @RequestParam(required = false) Integer mainCategoryId,
             @RequestParam(required = false) Integer subCategoryId,
             @RequestParam(required = false) String regionName,
+            @RequestParam(required = false) Boolean includeHidden,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        if (includeHidden == true && !ADMIN_ROLE.equals(userDetails.getRoleCode())) {
+            throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+        }
+
         EventSummaryResponseDto response = eventService.getEvents(keyword, mainCategoryId, subCategoryId, regionName,
-                fromDate, toDate, userDetails, pageable);
+                fromDate, toDate, includeHidden, pageable);
         return ResponseEntity.ok(response);
     }
 
