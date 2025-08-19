@@ -7,6 +7,11 @@ spring:
   profiles:
     active: local
 
+  servlet:
+    multipart:
+      max-file-size: 20MB      # 단일 파일 최대 크기
+      max-request-size: 100MB  # 전체 요청 최대 크기 (다중 파일 업로드 고려)
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
