@@ -54,7 +54,7 @@ public class BoothApplicationMapper {
     // 목록 조회용 DTO
     public BoothApplicationListDto toListDto(BoothApplication entity) {
         return BoothApplicationListDto.builder()
-                .id(entity.getId())
+                .boothApplicationId(entity.getId())
                 .boothTitle(entity.getBoothTitle())
                 .boothTypeName(entity.getBoothType().getName())
                 .price(entity.getBoothType().getPrice())
@@ -62,6 +62,7 @@ public class BoothApplicationMapper {
                 .contactEmail(entity.getContactEmail())
                 .applyAt(entity.getApplyAt())
                 .statusCode(entity.getBoothApplicationStatusCode().getCode())
+                .statusName(entity.getBoothApplicationStatusCode().getName())
                 .paymentStatus(entity.getBoothPaymentStatusCode().getName())
                 .paymentStatusCode(entity.getBoothPaymentStatusCode().getCode())
                 .build();

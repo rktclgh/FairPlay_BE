@@ -36,6 +36,6 @@ public class Location {
     @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude;
 
-    @Column(name = "placeUrl", length = 512)
+    @Column(name = "place_url", length = 512)
     private String placeUrl;
 }
