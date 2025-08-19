@@ -55,6 +55,10 @@ public class QrTicketEntryService {
         () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 QR 코드입니다.")
     );
 
+    LocalDateTime now = LocalDateTime.now(); // 현재일시
+    if(now.isAfter(qrTicket.getExpiredAt())){
+      throw new CustomException(HttpStatus.BAD_REQUEST, "행사가 종료되었습니다.");
+    }
 
     // QR 티켓 참석자 조회
     Attendee attendee = qrTicket.getAttendee();
@@ -91,6 +95,11 @@ public class QrTicketEntryService {
     QrTicket qrTicket = qrTicketRepository.findByManualCode(dto.getManualCode()).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND, "올바르지 않은 수동 코드입니다.")
     );
+
+    LocalDateTime now = LocalDateTime.now(); // 현재일시
+    if(now.isAfter(qrTicket.getExpiredAt())){
+      throw new CustomException(HttpStatus.BAD_REQUEST, "행사가 종료되었습니다.");
+    }
 
     // QR 티켓에 저장된 참석자 조회
     Attendee attendee = qrTicket.getAttendee();
