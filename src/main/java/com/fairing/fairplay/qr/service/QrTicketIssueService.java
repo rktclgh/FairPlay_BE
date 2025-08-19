@@ -252,7 +252,7 @@ public class QrTicketIssueService {
     if (reservation.getSchedule().getDate().isBefore(nowDate) || (
         reservation.getSchedule().getDate().isEqual(nowDate) && reservation.getSchedule()
             .getEndTime().isBefore(nowTime))) {
-      throw new LinkExpiredException("종료된 행사입니다.", null);
+      throw new LinkExpiredException("종료된 행사입니다.");
     }
 
     return reservation;

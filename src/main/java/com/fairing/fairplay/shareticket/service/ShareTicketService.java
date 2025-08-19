@@ -79,11 +79,11 @@ public class ShareTicketService {
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "요청하신 링크를 찾을 수 없습니다."));
 
     if (shareTicket.getExpired()) {
-      throw new LinkExpiredException("해당 링크는 더 이상 유효하지 않습니다.", "/link-expired");
+      throw new LinkExpiredException("해당 링크는 더 이상 유효하지 않습니다.");
     }
 
     if (shareTicket.isFull()) {
-      throw new LinkExpiredException("참가자 등록이 이미 마감되었습니다.", "/link-closed");
+      throw new LinkExpiredException("참가자 등록이 이미 마감되었습니다.");
     }
     return shareTicket;
   }
