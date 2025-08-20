@@ -48,7 +48,7 @@ public class BoothAdminDashboardDto {
     private List<BoothExternalLinkDto> boothExternalLinks;
 
 
-    public static BoothAdminDashboardDto from(Booth booth) {
+    public static BoothAdminDashboardDto from(Booth booth, String paymentStatusCode, String paymentStatus) {
         return BoothAdminDashboardDto.builder()
                 .boothId(booth.getId())
                 .boothTitle(booth.getBoothTitle())
@@ -67,8 +67,8 @@ public class BoothAdminDashboardDto {
                 .contactNumber(booth.getBoothAdmin() != null ? booth.getBoothAdmin().getContactNumber() : null)
                 .statusCode("APPROVED")
                 .statusName("승인")
-                .paymentStatusCode("PAID")
-                .paymentStatus("결제완료")
+                .paymentStatusCode(paymentStatusCode)
+                .paymentStatus(paymentStatus)
                 .location(booth.getLocation())
                 .boothExternalLinks(booth.getBoothExternalLinks() != null ? booth.getBoothExternalLinks().stream()
                         .map(BoothExternalLinkDto::from)
