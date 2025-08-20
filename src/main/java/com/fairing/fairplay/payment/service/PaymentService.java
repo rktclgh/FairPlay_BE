@@ -114,6 +114,7 @@ public class PaymentService {
                 .event(event)
                 .user(user)
                 .paymentTargetType(paymentTargetType)
+                .targetId(paymentRequestDto.getTargetId()) // DTO에서 제공된 경우에만 설정
                 .merchantUid(merchantUid)
                 .quantity(paymentRequestDto.getQuantity())
                 .price(paymentRequestDto.getPrice())
@@ -317,6 +318,7 @@ public class PaymentService {
                     processReservationPaymentCompletion(payment);
                     break;
                 case "BOOTH":
+                case "BOOTH_APPLICATION":
                     processBoothPaymentCompletion(payment);
                     break;
                 case "AD":
@@ -440,8 +442,27 @@ public class PaymentService {
      * 부스 결제 완료 처리
      */
     private void processBoothPaymentCompletion(Payment payment) {
-        // TODO: 부스 신청 상태 업데이트 로직 구현
-        System.out.println("부스 결제 완료 처리됨 - targetId: " + payment.getTargetId());
+        try {
+            Long boothApplicationId = payment.getTargetId();
+            if (boothApplicationId == null) {
+                System.err.println("부스 결제 완료 처리 실패 - targetId가 null입니다. paymentId: " + payment.getPaymentId());
+                return;
+            }
+
+            // 부스 신청 정보 조회
+            BoothApplication boothApplication = boothApplicationRepository.findById(boothApplicationId)
+                    .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다: " + boothApplicationId));
+
+            System.out.println("부스 결제 완료 처리됨 - targetId: " + payment.getTargetId() + 
+                              ", boothTitle: " + boothApplication.getBoothTitle());
+            
+            // 필요시 여기에 추가 로직 구현 (상태 업데이트, 알림 등)
+            // 현재는 BoothPaymentController에서 처리하고 있으므로 로깅만 수행
+            
+        } catch (Exception e) {
+            System.err.println("부스 결제 완료 처리 중 오류 발생 - paymentId: " + payment.getPaymentId() + 
+                              ", error: " + e.getMessage());
+        }
     }
 
     /**

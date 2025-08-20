@@ -3,8 +3,12 @@ package com.fairing.fairplay.booth.controller;
 import com.fairing.fairplay.booth.dto.BoothPaymentPageDto;
 import com.fairing.fairplay.booth.dto.BoothPaymentStatusUpdateDto;
 import com.fairing.fairplay.booth.entity.Booth;
+import com.fairing.fairplay.booth.entity.BoothApplication;
+import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.booth.service.BoothApplicationService;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
@@ -33,6 +37,8 @@ public class BoothPaymentController {
     private final NotificationService notificationService;
     private final PaymentStatusCodeRepository paymentStatusCodeRepository;
     private final BoothRepository boothRepository;
+    private final BoothApplicationRepository boothApplicationRepository;
+    private final UserRepository userRepository;
 
     // 부스 결제 요청
     @PostMapping("/request")
@@ -57,7 +63,7 @@ public class BoothPaymentController {
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 결제 상태 코드를 찾을 수 없습니다."));
 
         // 결제 완료 시 부스 신청의 결제 상태를 PAID로 변경
-        if ("PAID".equals(paymentStatusCode.getCode()) && completedPayment.getTargetId() != null) {
+        if ("COMPLETED".equals(paymentStatusCode.getCode()) && completedPayment.getTargetId() != null) {
             try {
                 BoothPaymentStatusUpdateDto statusUpdateDto = new BoothPaymentStatusUpdateDto();
                 statusUpdateDto.setPaymentStatusCode("PAID");
@@ -65,18 +71,27 @@ public class BoothPaymentController {
                 
                 boothApplicationService.updatePaymentStatus(completedPayment.getTargetId(), statusUpdateDto);
                 
-                // 결제 완료 알림 발송 (관리자에게)
+                // 결제 완료 알림 발송 (부스 관리자에게)
                 NotificationRequestDto notificationDto = new NotificationRequestDto();
                 notificationDto.setTypeCode("BOOTH_PAYMENT_COMPLETED");
                 notificationDto.setMethodCode("WEB");
                 notificationDto.setTitle("부스 결제 완료");
                 notificationDto.setMessage(String.format("부스 신청 ID: %d - 결제가 완료되었습니다.", completedPayment.getTargetId()));
 
-                Booth booth = boothRepository.findById(completedPayment.getTargetId())
-                        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
-                notificationDto.setUserId(booth.getBoothAdmin().getUserId());
-
-                notificationService.createNotification(notificationDto);
+                // 부스 신청에서 사용자 정보 조회
+                BoothApplication boothApplication = boothApplicationRepository.findById(completedPayment.getTargetId())
+                        .orElse(null);
+                
+                if (boothApplication != null) {
+                    // 부스 관리자 계정의 userId를 찾아야 함 - 부스 신청의 boothEmail로 Users 테이블에서 조회
+                    Users boothUser = userRepository.findByEmail(boothApplication.getBoothEmail())
+                            .orElse(null);
+                    
+                    if (boothUser != null) {
+                        notificationDto.setUserId(boothUser.getUserId());
+                        notificationService.createNotification(notificationDto);
+                    }
+                }
                 
                 log.info("부스 결제 완료 처리 및 알림 발송 완료 - ApplicationId: {}, PaymentId: {}", 
                         completedPayment.getTargetId(), completedPayment.getMerchantUid());
