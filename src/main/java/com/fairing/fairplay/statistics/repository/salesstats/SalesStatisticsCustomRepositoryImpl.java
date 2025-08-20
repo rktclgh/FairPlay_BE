@@ -55,8 +55,8 @@ public class SalesStatisticsCustomRepositoryImpl implements SalesStatisticsCusto
     public List<SalesDailyTrendDto> getSalesDailyTrend(Long eventId, LocalDate start, LocalDate end) {
         List<Tuple> results = queryFactory
                 .select(
-                        daily.totalSales,
-                        daily.totalCount,
+                        daily.paidSales,
+                        daily.paidCount,
                         daily.statDate
                 )
                 .from(daily)
@@ -66,8 +66,8 @@ public class SalesStatisticsCustomRepositoryImpl implements SalesStatisticsCusto
 
         return results.stream()
                 .map(r -> SalesDailyTrendDto.builder()
-                        .totalSales(r.get(daily.totalSales) != null ? r.get(daily.totalSales) : 0L)
-                        .totalCount(r.get(daily.totalCount) != null ? r.get(daily.totalCount) : 0)
+                        .totalSales(r.get(daily.paidSales) != null ? r.get(daily.totalSales) : 0L)
+                        .totalCount(r.get(daily.paidCount) != null ? r.get(daily.totalCount) : 0)
                         .statDate(r.get(daily.statDate))
                         .build())
                 .toList();
