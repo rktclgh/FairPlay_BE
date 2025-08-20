@@ -79,7 +79,7 @@ public class QrTicketExitService {
         .codeValue(dto.getQrCode())
         .build();
 
-    return processCheckOutCommon(qrTicket, checkOutRequestDto);
+    return processCheckOutCommon(qrTicket, attendee, checkOutRequestDto);
   }
 
   // 회원 수동 코드 체크아웃
@@ -108,13 +108,13 @@ public class QrTicketExitService {
         .codeValue(dto.getManualCode())
         .build();
 
-    return processCheckOutCommon(qrTicket, checkOutRequestDto);
+    return processCheckOutCommon(qrTicket, attendee, checkOutRequestDto);
   }
 
   /**
    * 체크아웃 공통 로직
    */
-  private CheckResponseDto processCheckOutCommon(QrTicket qrTicket, CheckOutRequestDto dto) {
+  private CheckResponseDto processCheckOutCommon(QrTicket qrTicket, Attendee attendee, CheckOutRequestDto dto) {
     // QrActionCode 검토
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.SCANNED);
     // 코드 스캔 기록
@@ -139,7 +139,12 @@ public class QrTicketExitService {
     }
     // QR 티켓 처리
     LocalDateTime checkInTime = processCheckOut(qrTicket, qrCheckStatusCode.getCode());
+    //체크아웃 알림
     checkOutQrTicket(qrTicket);
+    // 체크인 (입장 시 false면 변경)
+    if(!attendee.getCheckedIn()){
+      attendee.setCheckedIn(true);
+    }
     return CheckResponseDto.builder()
         .message("체크아웃 완료되었습니다.")
         .checkInTime(checkInTime)

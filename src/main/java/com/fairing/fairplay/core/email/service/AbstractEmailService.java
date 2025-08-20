@@ -24,7 +24,14 @@ public abstract class AbstractEmailService {
     // 템플릿 로더
     protected String loadTemplate(String filename) {
         EmailTemplates template = emailTemplatesRepository.findByName(filename);
-        return template.getContent();
+        if (template == null) {
+            throw new RuntimeException("이메일 템플릿을 찾을 수 없습니다: " + filename);
+        }
+        String content = template.getContent();
+        if (content == null || content.trim().isEmpty()) {
+            throw new RuntimeException("이메일 템플릿 내용이 비어있습니다: " + filename);
+        }
+        return content;
 
         // 파일명 검증: 상위 디렉토리 접근 방지
         // if (filename == null || filename.contains("..") || filename.contains("/") ||

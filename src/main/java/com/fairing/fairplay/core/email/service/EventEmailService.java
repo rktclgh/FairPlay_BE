@@ -47,6 +47,16 @@ public class EventEmailService extends AbstractEmailService {
 
     private String buildHtmlContent(String templateFileName, Object... args) {
         String template = loadTemplate(templateFileName);
-        return String.format(template, args);
+        try {
+            return String.format(template, args);
+        } catch (java.util.UnknownFormatConversionException e) {
+            log.error("Invalid format specifier in template '{}': {}. Template content: {}", 
+                     templateFileName, e.getMessage(), template);
+            throw new RuntimeException("이메일 템플릿 형식 오류: " + templateFileName + " - " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Error formatting template '{}': {}. Template content: {}", 
+                     templateFileName, e.getMessage(), template);
+            throw new RuntimeException("이메일 템플릿 처리 오류: " + templateFileName, e);
+        }
     }
 }
