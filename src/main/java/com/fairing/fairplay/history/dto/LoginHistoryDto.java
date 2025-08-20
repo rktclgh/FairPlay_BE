@@ -17,6 +17,7 @@ public class LoginHistoryDto {
     private Long id;
     private Long userId;
     private String name;
+    private String email;
     private int user_role_code_id;
     private String ip;
     private String userAgent;
@@ -26,6 +27,7 @@ public class LoginHistoryDto {
         this.id = loginHistory.getId();
         this.userId = loginHistory.getUser().getUserId();
         this.name = loginHistory.getUser().getName();
+        this.email = loginHistory.getUser().getEmail();
         this.user_role_code_id = loginHistory.getUser().getRoleCode().getId();
         this.ip = loginHistory.getIp();
         this.userAgent = loginHistory.getUserAgent();

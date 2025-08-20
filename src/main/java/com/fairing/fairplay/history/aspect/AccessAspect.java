@@ -162,7 +162,7 @@ public class AccessAspect {
             throw new IllegalStateException("잘못된 연결");
         }
         HttpServletRequest httpRequest = attributes.getRequest();
-        String ip = httpRequest.getRemoteAddr();
+        String ip = getClientIpAddress(httpRequest);
 
         String userAgent = httpRequest.getHeader("User-Agent");
         loginHistory.setUserId(userId);
@@ -183,6 +183,65 @@ public class AccessAspect {
         }
 
         return null; // 인증되지 않은 경우 null 반환
+    }
+
+    /**
+     * 클라이언트의 실제 IP 주소를 가져옵니다.
+     * 프록시, 로드밸런서, CDN 등을 통과한 경우에도 실제 클라이언트 IP를 찾습니다.
+     */
+    private String getClientIpAddress(HttpServletRequest request) {
+        // 1. X-Forwarded-For 헤더 확인 (가장 일반적)
+        String ipAddress = request.getHeader("X-Forwarded-For");
+        if (ipAddress != null && !ipAddress.isEmpty() && !"unknown".equalsIgnoreCase(ipAddress)) {
+            // X-Forwarded-For는 쉼표로 구분된 IP 목록일 수 있음 (첫 번째가 실제 클라이언트 IP)
+            return ipAddress.split(",")[0].trim();
+        }
+
+        // 2. Proxy-Client-IP 헤더 확인
+        ipAddress = request.getHeader("Proxy-Client-IP");
+        if (ipAddress != null && !ipAddress.isEmpty() && !"unknown".equalsIgnoreCase(ipAddress)) {
+            return ipAddress;
+        }
+
+        // 3. WL-Proxy-Client-IP 헤더 확인 (WebLogic)
+        ipAddress = request.getHeader("WL-Proxy-Client-IP");
+        if (ipAddress != null && !ipAddress.isEmpty() && !"unknown".equalsIgnoreCase(ipAddress)) {
+            return ipAddress;
+        }
+
+        // 4. HTTP_CLIENT_IP 헤더 확인
+        ipAddress = request.getHeader("HTTP_CLIENT_IP");
+        if (ipAddress != null && !ipAddress.isEmpty() && !"unknown".equalsIgnoreCase(ipAddress)) {
+            return ipAddress;
+        }
+
+        // 5. HTTP_X_FORWARDED_FOR 헤더 확인
+        ipAddress = request.getHeader("HTTP_X_FORWARDED_FOR");
+        if (ipAddress != null && !ipAddress.isEmpty() && !"unknown".equalsIgnoreCase(ipAddress)) {
+            return ipAddress.split(",")[0].trim();
+        }
+
+        // 6. X-Real-IP 헤더 확인 (Nginx 등에서 사용)
+        ipAddress = request.getHeader("X-Real-IP");
+        if (ipAddress != null && !ipAddress.isEmpty() && !"unknown".equalsIgnoreCase(ipAddress)) {
+            return ipAddress;
+        }
+
+        // 7. X-Cluster-Client-IP 헤더 확인
+        ipAddress = request.getHeader("X-Cluster-Client-IP");
+        if (ipAddress != null && !ipAddress.isEmpty() && !"unknown".equalsIgnoreCase(ipAddress)) {
+            return ipAddress;
+        }
+
+        // 8. 모든 헤더에서 찾지 못한 경우 기본 RemoteAddr 사용
+        ipAddress = request.getRemoteAddr();
+
+        // IPv6 localhost를 IPv4로 변환
+        if ("0:0:0:0:0:0:0:1".equals(ipAddress)) {
+            ipAddress = "127.0.0.1";
+        }
+
+        return ipAddress;
     }
 
 }
