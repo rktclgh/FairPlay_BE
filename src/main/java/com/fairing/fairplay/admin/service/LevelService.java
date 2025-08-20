@@ -1,14 +1,5 @@
 package com.fairing.fairplay.admin.service;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.util.List;
-
-import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.fairing.fairplay.admin.entity.AccountLevel;
 import com.fairing.fairplay.admin.entity.FunctionLevel;
 import com.fairing.fairplay.admin.etc.InitializeLevel;
@@ -18,8 +9,15 @@ import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
-
 import jakarta.annotation.PostConstruct;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.List;
 
 @Service
 public class LevelService {
@@ -30,8 +28,8 @@ public class LevelService {
     private final UserRoleCodeRepository userRoleCodeRepository;
 
     public LevelService(AccountLevelRepository accountLevelRepository,
-            FunctionLevelRepository functionLevelRepository, UserRepository userRepository,
-            PasswordEncoder passwordEncoder, UserRoleCodeRepository userRoleCodeRepository) {
+                        FunctionLevelRepository functionLevelRepository, UserRepository userRepository,
+                        PasswordEncoder passwordEncoder, UserRoleCodeRepository userRoleCodeRepository) {
         this.accountLevelRepository = accountLevelRepository;
         this.functionLevelRepository = functionLevelRepository;
         this.userRepository = userRepository;
