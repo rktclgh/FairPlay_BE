@@ -1,6 +1,7 @@
 package com.fairing.fairplay.booth.controller;
 
 import com.fairing.fairplay.booth.dto.BoothEntryRequestDto;
+import com.fairing.fairplay.booth.dto.BoothEntryResponseDto;
 import com.fairing.fairplay.booth.service.BoothQrService;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
@@ -21,7 +22,7 @@ public class BoothQrController {
   private final BoothQrService boothQrService;
 
   @PostMapping
-  public ResponseEntity<CheckResponseDto> boothEntry(
+  public ResponseEntity<BoothEntryResponseDto> boothEntry(
       @AuthenticationPrincipal CustomUserDetails userDetails,
       @RequestBody BoothEntryRequestDto dto) {
     return ResponseEntity.status(HttpStatus.OK).body(boothQrService.checkIn(userDetails, dto));
