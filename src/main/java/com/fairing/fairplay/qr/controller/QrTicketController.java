@@ -121,13 +121,6 @@ public class QrTicketController {
     return ResponseEntity.ok(entryExitService.adminForceCheck(dto));
   }
 
-  // 당일 예약 + 동반자 정보 저장 시 QR 티켓 발송
-  @PostMapping("/send-email/guest")
-  public ResponseEntity<Void> sendEmailGuest(@RequestBody QrTicketEmailTodayRequestDto dto){
-    qrTicketService.sendEmailGuest(dto);
-    return ResponseEntity.ok().build();
-  }
-
   // 참석자 자동 저장 테스트용 개발 코드
   @PostMapping("/test/schedule")
   public void scheduleTestAttendee(){

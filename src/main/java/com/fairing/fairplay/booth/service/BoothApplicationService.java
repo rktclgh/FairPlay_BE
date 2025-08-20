@@ -355,7 +355,7 @@ public class BoothApplicationService {
 
         BoothAdmin boothAdmin = new BoothAdmin();
         boothAdmin.setUser(savedUser);
-        boothAdmin.setEmail(boothApply.getContactEmail());
+        boothAdmin.setEmail(boothApply.getBoothEmail()); // getBoothEmail()로 부스 이메일 설정
         boothAdmin.setManagerName(boothApply.getManagerName());
         boothAdmin.setContactNumber(boothApply.getContactNumber());
 
@@ -508,17 +508,7 @@ public class BoothApplicationService {
     public List<BoothApplicationListDto> getMyBoothApplications(Long userId) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
-        
-        log.info("부스 신청 조회 - 사용자 ID: {}, 이메일: {}", userId, user.getEmail());
-        
-        // 디버깅: 전체 부스 신청 확인
-        List<BoothApplication> allApplications = boothApplicationRepository.findAll();
-        log.info("전체 부스 신청 개수: {}", allApplications.size());
-        for (BoothApplication app : allApplications) {
-            log.info("부스 신청 - ID: {}, boothEmail: {}, boothTitle: {}", 
-                    app.getId(), app.getBoothEmail(), app.getBoothTitle());
-        }
-        
+
         List<BoothApplication> applications = boothApplicationRepository.findByBoothEmailOrderByApplyAtDesc(user.getEmail());
         
         log.info("조회된 부스 신청 개수: {}", applications.size());

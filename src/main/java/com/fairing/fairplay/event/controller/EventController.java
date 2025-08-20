@@ -127,7 +127,7 @@ public class EventController {
             @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        if (includeHidden == true && !ADMIN_ROLE.equals(userDetails.getRoleCode())) {
+        if (Boolean.TRUE.equals(includeHidden) && !ADMIN_ROLE.equals(userDetails.getRoleCode())) {
             throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
         }
 

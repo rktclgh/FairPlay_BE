@@ -2,8 +2,10 @@ package com.fairing.fairplay.booth.service;
 
 import com.fairing.fairplay.booth.dto.*;
 import com.fairing.fairplay.booth.entity.Booth;
+import com.fairing.fairplay.booth.entity.BoothApplication;
 import com.fairing.fairplay.booth.entity.BoothExternalLink;
 import com.fairing.fairplay.booth.entity.BoothType;
+import com.fairing.fairplay.booth.mapper.BoothApplicationMapper;
 import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothExternalLinkRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
@@ -18,7 +20,9 @@ import com.fairing.fairplay.file.service.FileService;
 import com.fairing.fairplay.user.dto.BoothAdminRequestDto;
 import com.fairing.fairplay.user.dto.BoothAdminResponseDto;
 import com.fairing.fairplay.user.entity.BoothAdmin;
+import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.BoothAdminRepository;
+import com.fairing.fairplay.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,9 +30,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,40 +47,47 @@ public class BoothService {
     private final AwsS3Service awsS3Service;
     private final BoothExternalLinkRepository boothExternalLinkRepository;
     private final BoothAdminRepository boothAdminRepository;
+    private final UserRepository userRepository;
+    private final BoothApplicationMapper boothApplicationMapper;
 
     // 부스 목록 조회 (관리자용 - 삭제된 부스 포함 조회)
     @Transactional(readOnly = true)
-    public List<BoothSummaryForManagerResponseDto> getAllBooths (Long eventId) {
+    public List<BoothSummaryForManagerResponseDto> getAllBooths(Long eventId) {
         List<Booth> booths = boothRepository.findAllByEvent(getEvent(eventId));
         List<BoothSummaryForManagerResponseDto> boothsDto = new ArrayList<>();
         booths.forEach(booth -> boothsDto.add(BoothSummaryForManagerResponseDto.from(booth)));
         return boothsDto;
     }
 
-            // 삭제된 부스 제외하고 결제 완료된 부스 목록 조회
+    // 삭제된 부스 제외하고 결제 완료된 부스 목록 조회
     @Transactional(readOnly = true)
     public List<BoothSummaryResponseDto> getBooths(Long eventId) {
         Event event = getEvent(eventId);
 
         // 1. 이벤트 ID로 모든 부스 신청서를 가져옵니다.
-        List<com.fairing.fairplay.booth.entity.BoothApplication> applications = boothApplicationRepository.findByEvent_EventId(eventId);
+        List<BoothApplication> applications = boothApplicationRepository.findByEvent_EventId(eventId);
 
-        // 2. 결제가 완료된 신청서들의 고유 식별자(제목+타입+시작일)를 만듭니다.
-        Set<String> paidBoothKeys = applications.stream()
+        // 2. 결제가 완료된 신청서들의 이메일을 수집합니다.
+        Set<String> paidBoothEmails = applications.stream()
                 .filter(app -> app.getBoothPaymentStatusCode() != null && "PAID".equals(app.getBoothPaymentStatusCode().getCode()))
-                .map(app -> app.getBoothTitle() + "|" + app.getBoothType().getId() + "|" + app.getStartDate())
+                .map(BoothApplication::getBoothEmail)
                 .collect(Collectors.toSet());
 
         // 3. 삭제되지 않은 모든 부스를 가져옵니다.
         List<Booth> booths = boothRepository.findByEventAndIsDeletedFalse(event);
+        log.info("booths: {}", booths);
 
-        // 4. 부스의 고유 식별자가 결제 완료된 식별자 목록에 포함된 부스만 필터링합니다.
+        // 4. 부스 관리자의 이메일이 결제 완료된 신청서의 이메일과 일치하는 부스만 필터링합니다.
         List<Booth> paidBooths = booths.stream()
                 .filter(booth -> {
-                    String boothKey = booth.getBoothTitle() + "|" + booth.getBoothType().getId() + "|" + booth.getStartDate();
-                    return paidBoothKeys.contains(boothKey);
+                    if (booth.getBoothAdmin() != null && booth.getBoothAdmin().getUser() != null) {
+                        String boothAdminEmail = booth.getBoothAdmin().getUser().getEmail();
+                        return paidBoothEmails.contains(boothAdminEmail);
+                    }
+                    return false;
                 })
                 .toList();
+        log.info("paidBooths: {}", paidBooths);
 
         List<BoothSummaryResponseDto> boothsDto = new ArrayList<>();
         paidBooths.forEach(booth -> boothsDto.add(BoothSummaryResponseDto.from(booth)));
@@ -88,7 +97,7 @@ public class BoothService {
 
     // 부스 상세 조회
     @Transactional(readOnly = true)
-    public BoothDetailResponseDto getBoothDetails (Long boothId) {
+    public BoothDetailResponseDto getBoothDetails(Long boothId) {
         Booth booth = getBooth(boothId);
         List<BoothExternalLinkDto> externalLinkDtos = boothExternalLinkRepository.findByBooth(booth).stream()
                 .map(link -> BoothExternalLinkDto.builder()
@@ -135,7 +144,7 @@ public class BoothService {
             booth.setEndDate(dto.getEndDate());
         }
 
-        if(dto.getStartDate() != null && dto.getEndDate() != null && dto.getEndDate().isBefore(dto.getStartDate())) {
+        if (dto.getStartDate() != null && dto.getEndDate() != null && dto.getEndDate().isBefore(dto.getStartDate())) {
             throw new IllegalArgumentException("종료일은 시작일보다 빠를 수 없습니다.");
         }
 
@@ -149,8 +158,8 @@ public class BoothService {
 
             // 새로운 외부 링크 저장
             for (BoothExternalLinkDto linkDto : dto.getBoothExternalLinks()) {
-                if (linkDto.getUrl() == null || linkDto.getUrl().isEmpty() &&
-                    linkDto.getDisplayText() == null || linkDto.getDisplayText().isEmpty()) {
+                if (linkDto.getUrl() != null && !linkDto.getUrl().isEmpty() &&
+                        linkDto.getDisplayText() != null && !linkDto.getDisplayText().isEmpty()) {
                     BoothExternalLink link = new BoothExternalLink();
                     link.setBooth(booth);
                     link.setUrl(linkDto.getUrl());
@@ -190,6 +199,13 @@ public class BoothService {
                         .build());
 
                 fileService.createFileLink(savedFile, "BOOTH", boothId);
+
+                // 배너 파일인 경우 boothBannerUrl 업데이트
+                if ("banner".equals(usage)) {
+                    String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
+                    booth.setBoothBannerUrl(cdnUrl);
+                    log.info("부스 배너 URL 업데이트: {}", cdnUrl);
+                }
             });
         }
 
@@ -227,7 +243,7 @@ public class BoothService {
 
     // 부스 관리자 정보 변경
     @Transactional
-    public BoothAdminResponseDto updateBoothAdmin (Long boothId, BoothAdminRequestDto dto) {
+    public BoothAdminResponseDto updateBoothAdmin(Long boothId, BoothAdminRequestDto dto) {
         Booth booth = boothRepository.findById(boothId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
         BoothAdmin boothAdmin = booth.getBoothAdmin();
@@ -258,16 +274,16 @@ public class BoothService {
 
     // 부스 타입 생성
     @Transactional
-    public BoothTypeDto createBoothType (Long eventId, BoothTypeDto dto) {
+    public BoothTypeDto createBoothType(Long eventId, BoothTypeDto dto) {
         BoothType boothType = new BoothType();
         boothType.setName(dto.getName());
         boothType.setSize(dto.getSize());
         boothType.setPrice(dto.getPrice());
         boothType.setMaxApplicants(dto.getMaxApplicants());
         boothType.setEvent(getEvent(eventId));
-        
+
         boothTypeRepository.saveAndFlush(boothType);
-        
+
         return BoothTypeDto.builder()
                 .id(boothType.getId())
                 .price(boothType.getPrice())
@@ -279,7 +295,7 @@ public class BoothService {
 
     // 부스 타입 목록 조회
     @Transactional(readOnly = true)
-    public List<BoothTypeDto> getBoothTypes (Long eventId) {
+    public List<BoothTypeDto> getBoothTypes(Long eventId) {
         List<BoothType> boothTypes = boothTypeRepository.findAllByEvent(getEvent(eventId));
         return boothTypes.stream()
                 .map(boothType -> BoothTypeDto.builder()
@@ -294,7 +310,7 @@ public class BoothService {
 
     // 부스 타입 수정
     @Transactional
-    public BoothTypeDto updateBoothType (Long boothTypeId, BoothTypeDto dto) {
+    public BoothTypeDto updateBoothType(Long boothTypeId, BoothTypeDto dto) {
         BoothType boothType = getBoothType(boothTypeId);
         boothType.setName(dto.getName());
         boothType.setSize(dto.getSize());
@@ -314,10 +330,61 @@ public class BoothService {
 
     // 부스 타입 삭제
     @Transactional
-    public void deleteBoothType (Long boothTypeId) {
+    public void deleteBoothType(Long boothTypeId) {
         boothTypeRepository.deleteById(boothTypeId);
     }
 
+    /********************** 부스 관리자 기능 **********************/
+    // 부스 관리자 - 내 부스 목록 조회 (실제 생성된 부스)
+    @Transactional(readOnly = true)
+    public List<BoothAdminDashboardDto> getMyBooths(Long userId) {
+        // 1. 현재 로그인한 사용자의 정보를 가져옵니다.
+        Users user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
+        String userEmail = user.getEmail();
+
+// 2. 현재 사용자가 관리하는 모든 부스를 조회합니다. (효율적인 쿼리 사용)
+// BoothRepository에 findByBoothAdmin_User_Id(userId) 같은 메소드가 필요합니다.
+        List<Booth> managedBooths = boothRepository.findByBoothAdmin_UserId(userId);
+
+// 관리하는 부스가 없으면 빈 리스트를 반환하고 종료합니다.
+        if (managedBooths.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+// 3. 사용자가 관리하는 부스들을 행사(Event) ID를 기준으로 그룹화합니다.
+        Map<Long, List<Booth>> boothsByEventId = managedBooths.stream()
+                .collect(Collectors.groupingBy(booth -> booth.getEvent().getEventId()));
+
+// 최종 결과를 담을 리스트를 생성합니다.
+        List<BoothAdminDashboardDto> resultDtos = new ArrayList<>();
+
+// 4. 각 행사 ID 별로 반복하며 신청 정보를 찾고 DTO를 생성합니다.
+        for (Map.Entry<Long, List<Booth>> entry : boothsByEventId.entrySet()) {
+            Long eventId = entry.getKey();
+            List<Booth> boothsForThisEvent = entry.getValue();
+
+            // '현재 행사 ID'와 '사용자 이메일'로 신청서를 조회합니다.
+            Optional<BoothApplication> applicationOpt =
+                    boothApplicationRepository.findByEvent_EventIdAndBoothEmail(eventId, userEmail);
+
+            // 만약 해당 행사에 대한 사용자의 신청서가 존재한다면,
+            if (applicationOpt.isPresent()) {
+                BoothApplication application = applicationOpt.get();
+                String paymentStatusCode = application.getBoothPaymentStatusCode().getCode();
+                String paymentStatusName = application.getBoothPaymentStatusCode().getName();
+
+                // 이 행사에 속한 모든 관리 부스에 대해 DTO를 생성합니다.
+                List<BoothAdminDashboardDto> dtosForThisEvent = boothsForThisEvent.stream()
+                        .map(booth -> BoothAdminDashboardDto.from(booth, paymentStatusCode, paymentStatusName))
+                        .collect(Collectors.toList());
+
+                resultDtos.addAll(dtosForThisEvent);
+            }
+        }
+
+        return resultDtos;
+    }
 
     /********************** 헬퍼 메소드 **********************/
     private Event getEvent(Long eventId) {

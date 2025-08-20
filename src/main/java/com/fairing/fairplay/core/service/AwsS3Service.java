@@ -71,7 +71,11 @@ public class AwsS3Service {
 
     // 파일 저장
     public String moveToPermanent(String key, String destPrefix) {
-        String ext = key.substring(key.lastIndexOf('.'));
+        if (key == null || key.isEmpty()) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "파일 키가 유효하지 않습니다.");
+        }
+        
+        String ext = key.contains(".") ? key.substring(key.lastIndexOf('.')) : "";
         String uuid = UUID.randomUUID().toString();
         String destKey = "uploads/" + destPrefix + "/" + uuid + ext;
 
@@ -115,7 +119,10 @@ public class AwsS3Service {
                     .build());
 
             response.setContentType(s3is.response().contentType() != null ? s3is.response().contentType() : "application/octet-stream");
-            response.setHeader("Content-Disposition", "attachment; filename=\"" + URLEncoder.encode(key.substring(key.lastIndexOf('/') + 1), "UTF-8") + "\"");
+            String fileName = key != null && key.contains("/") ? 
+                key.substring(key.lastIndexOf('/') + 1) : 
+                (key != null ? key : "download");
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + URLEncoder.encode(fileName, "UTF-8") + "\"");
 
             IOUtils.copy(s3is, response.getOutputStream());
             response.flushBuffer();
