@@ -464,7 +464,11 @@ public class PaymentService {
             Booth booth = boothRepository.findById(targetId)
                     .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
             try {
-                BoothApplication boothApplication = boothApplicationRepository.findByBoothEmail(booth.getBoothAdmin().getUser().getEmail()).getFirst();
+                BoothApplication boothApplication = boothApplicationRepository
+                        .findByBoothEmailOrderByApplyAtDesc(booth.getBoothAdmin().getUser().getEmail())
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다."));;
                 System.out.println("부스 결제 완료 처리됨 - targetId: " + payment.getTargetId() +
                         ", boothTitle: " + boothApplication.getBoothTitle());
             } catch (Exception e) {
@@ -485,18 +489,18 @@ public class PaymentService {
      */
     private void processBoothPaymentCompletion(Payment payment) {
         try {
-            Long boothApplicationId = payment.getTargetId();
-            if (boothApplicationId == null) {
+            Long boothId = payment.getTargetId();
+            if (boothId == null) {
                 System.err.println("부스 결제 완료 처리 실패 - targetId가 null입니다. paymentId: " + payment.getPaymentId());
                 return;
             }
 
             // 부스 신청 정보 조회
-            BoothApplication boothApplication = boothApplicationRepository.findById(boothApplicationId)
-                    .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다: " + boothApplicationId));
+            Booth booth = boothRepository.findById(boothId)
+                    .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다: " + boothId));;
 
             System.out.println("부스 결제 완료 처리됨 - targetId: " + payment.getTargetId() +
-                    ", boothTitle: " + boothApplication.getBoothTitle());
+                    ", boothTitle: " + booth.getBoothTitle());
 
             // 필요시 여기에 추가 로직 구현 (상태 업데이트, 알림 등)
             // 현재는 BoothPaymentController에서 처리하고 있으므로 로깅만 수행

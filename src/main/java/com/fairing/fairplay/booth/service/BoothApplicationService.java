@@ -438,29 +438,33 @@ public class BoothApplicationService {
     public void updatePaymentStatus(Long id, BoothPaymentStatusUpdateDto dto) {
         Booth booth = boothRepository.findById(id)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
-        try {
-            BoothApplication boothApplication = boothApplicationRepository.findByBoothEmail(booth.getBoothAdmin().getUser().getEmail()).getFirst();
-            BoothPaymentStatusCode statusCode = paymentCodeRepository
-                    .findByCode(dto.getPaymentStatusCode())
-                    .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 상태 코드입니다."));
+        String adminEmail = booth.getBoothAdmin().getUser().getEmail();
 
-            boothApplication.setBoothPaymentStatusCode(statusCode);
-            boothApplication.setAdminComment(dto.getAdminComment());
-            boothApplication.setStatusUpdatedAt(LocalDateTime.now());
+        BoothApplication boothApplication = boothApplicationRepository
+                .findByBoothEmailOrderByApplyAtDesc(adminEmail)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다."));
 
-            if ("PAID".equals(dto.getPaymentStatusCode())) {
-                Users user = userRepository.findByEmail(boothApplication.getBoothEmail())
-                        .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
+        BoothPaymentStatusCode statusCode = paymentCodeRepository
+                .findByCode(dto.getPaymentStatusCode())
+                .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 상태 코드입니다."));
 
-                UserRoleCode boothManagerCode = userRoleCodeRepository.findByCode("BOOTH_MANAGER")
-                        .orElseThrow(() -> new EntityNotFoundException("BOOTH_MANAGER 권한 코드가 존재하지 않습니다."));
+        boothApplication.setBoothPaymentStatusCode(statusCode);
+        boothApplication.setAdminComment(dto.getAdminComment());
+        boothApplication.setStatusUpdatedAt(LocalDateTime.now());
 
-                user.setRoleCode(boothManagerCode);
-            }
+        if ("PAID".equals(dto.getPaymentStatusCode())) {
+            Users user = userRepository.findByEmail(boothApplication.getBoothEmail())
+                    .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
 
-        } catch (Exception e) {
-            throw new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다.");
+            UserRoleCode boothManagerCode = userRoleCodeRepository.findByCode("BOOTH_MANAGER")
+                    .orElseThrow(() -> new EntityNotFoundException("BOOTH_MANAGER 권한 코드가 존재하지 않습니다."));
+
+            user.setRoleCode(boothManagerCode);
         }
+
+
     }
 
     @Transactional
@@ -514,9 +518,9 @@ public class BoothApplicationService {
                 .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
 
         List<BoothApplication> applications = boothApplicationRepository.findByBoothEmailOrderByApplyAtDesc(user.getEmail());
-        
+
         log.info("조회된 부스 신청 개수: {}", applications.size());
-        
+
         return applications.stream()
                 .map(mapper::toListDto)
                 .collect(Collectors.toList());
