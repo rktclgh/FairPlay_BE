@@ -7,6 +7,8 @@ import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.notification.dto.NotificationRequestDto;
 import com.fairing.fairplay.notification.service.NotificationService;
 import com.fairing.fairplay.payment.dto.PaymentRequestDto;
+import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.payment.repository.PaymentRepository;
 import com.fairing.fairplay.payment.service.PaymentService;
 import com.fairing.fairplay.reservation.dto.ReservationAttendeeDto;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
@@ -56,10 +58,11 @@ public class ReservationService {
     private final TicketRepository ticketRepository;
     private final ScheduleTicketRepository scheduleTicketRepository;
     private final PaymentService paymentService;
+    private final PaymentRepository paymentRepository;
 
-    // 예약 신청
+    // 예약 신청 (결제 데이터 생성 이후 마지막에 결제 완료 상태로 저장)
     @Transactional
-    public Reservation createReservation(ReservationRequestDto requestDto, Long userId) {
+    public Reservation createReservation(ReservationRequestDto requestDto, Long userId, Long paymentId) {
 
         Event event = eventRepository.findById(requestDto.getEventId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 EVENT ID: " + requestDto.getEventId()));
@@ -111,8 +114,14 @@ public class ReservationService {
         // 예약 생성
         Reservation reservation = new Reservation(event, schedule, ticket, user, requestDto.getQuantity(), requestDto.getPrice());
         reservation.setReservationStatusCode(confirmedStatus);
+        Reservation savedReservation = reservationRepository.save(reservation);
 
-        return reservationRepository.save(reservation);
+        Payment payment = paymentRepository.findById(paymentId).orElseThrow();
+
+        // 결제/예매 완료 알림 발송 (웹 알림 + HTML 이메일)
+        paymentService.sendPaymentCompletionNotifications(payment, savedReservation.getReservationId());
+
+        return savedReservation;
     }
 
     // 결제가 있는 예약 생성 (결제 우선 플로우)
@@ -161,7 +170,7 @@ public class ReservationService {
             
             // 알림 생성
             createReservationNotification(reservation, user, event);
-            
+
             return reservation;
             
         } catch (Exception e) {

@@ -33,10 +33,12 @@ public class ReservationController {
     @PostMapping
     public ResponseEntity<ReservationResponseDto> createReservation(@RequestBody ReservationRequestDto requestDto,
             @PathVariable Long eventId,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam Long paymentId
+                                                                    ) {
         Long userId = userDetails.getUserId();
         requestDto.setEventId(eventId);
-        Reservation reservation = reservationService.createReservation(requestDto, userId);
+        Reservation reservation = reservationService.createReservation(requestDto, userId, paymentId);
 
         if (reservation == null) {
             throw new IllegalStateException("예약 생성에 실패했습니다.");
