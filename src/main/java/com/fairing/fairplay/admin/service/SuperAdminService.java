@@ -1,25 +1,5 @@
 package com.fairing.fairplay.admin.service;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-
 import com.fairing.fairplay.admin.dto.AdminAuthDto;
 import com.fairing.fairplay.admin.dto.FunctionNameDto;
 import com.fairing.fairplay.admin.entity.AccountLevel;
@@ -40,8 +20,26 @@ import com.fairing.fairplay.history.repository.ChangeHistoryRepository;
 import com.fairing.fairplay.history.repository.LoginHistoryRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
-
 import jakarta.annotation.PostConstruct;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class SuperAdminService {
@@ -223,6 +221,10 @@ public class SuperAdminService {
 
     public void saveTemplate(String name, String content) {
         EmailTemplates template = emailTemplatesRepository.findByName(name);
+        if (template == null) {
+            template = new EmailTemplates();
+            template.setName(name);
+        }
         template.setContent(content);
         emailTemplatesRepository.save(template);
     }
