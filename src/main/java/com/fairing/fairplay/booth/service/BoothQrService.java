@@ -32,7 +32,7 @@ public class BoothQrService {
   @Transactional
   public BoothEntryResponseDto checkIn(CustomUserDetails userDetails, BoothEntryRequestDto dto) {
     // 1. 사용자 검증 - 로그인 사용자 확인, 사용자 조회
-    Users manager = validateUser(userDetails.getUserId());
+    validateUser(userDetails);
 
     // 2. 필수 값 확인
     if (dto.getBoothExperienceId() == null || dto.getBoothId() == null || dto.getEventId() == null
@@ -44,7 +44,7 @@ public class BoothQrService {
     QrTicket qrTicket = qrTicketEntryService.validateQrTicket(dto);
     Users user = qrTicket.getAttendee().getReservation().getUser();
 
-    // 3. 예약 검증 - 부스 예약 조회, 예약 상태 확인, 행사, 부스 일치 여부 확인, QR 티켓 소유자 == 로그인 사용자 확인
+    // 3. 예약 검증 - 부스 예약 조회, 예약 상태 확인, 행사, 부스 일치 여부 확인, QR 티켓 소유자 == 부스 체험 예약자 조회
     BoothExperienceReservation boothExperienceReservation = boothExperienceService.validateReservation(
         dto, user);
 
@@ -70,11 +70,11 @@ public class BoothQrService {
     return response;
   }
 
-  private Users validateUser(Long userId) {
-    if (userId == null) {
+  private Users validateUser(CustomUserDetails userDetails) {
+    if (userDetails == null || userDetails.getUserId() == null) {
       throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인한 사용자만 QR 스캔할 수 있습니다.");
     }
-    return userRepository.findById(userId).orElseThrow(
+    return userRepository.findById(userDetails.getUserId()).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND, "해당 사용자를 찾을 수 없습니다.")
     );
   }
