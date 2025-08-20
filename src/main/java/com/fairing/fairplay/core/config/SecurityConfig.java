@@ -85,6 +85,7 @@ public class SecurityConfig {
                                                                 "/api/booths/payment/complete",
                                                                 "/api/event-popularity/**",
                                                                 "/api/banner/hot-picks",
+                                                        "/api/banner/search-top",
                                         "/api/banners/hero/active")
 
                                                 .permitAll()

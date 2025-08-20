@@ -67,8 +67,8 @@ public class BannerSlotController {
     public ResponseEntity<List<SlotResponseDto>> getSlots(
             @AuthenticationPrincipal CustomUserDetails user,
             @RequestParam @NotNull(message = "배너 타입은 필수입니다") BannerSlotType type,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
 
         requireLogin(user);

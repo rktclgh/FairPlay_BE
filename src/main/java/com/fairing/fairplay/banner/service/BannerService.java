@@ -395,6 +395,7 @@ public class BannerService {
                 .endDate(banner.getEndDate())
                 .statusCode(banner.getBannerStatusCode().getCode())
                 .bannerTypeCode(banner.getBannerType().getCode())
+                .eventId(banner.getEventId())
                 .build();
     }
 
