@@ -130,25 +130,22 @@ public class QrTicketEntryService {
   }
 
   // 부스 입장 시 QR 티켓 검증
-  public QrTicket validateQrTicket(Users user, BoothEntryRequestDto dto,
-      BoothExperienceReservation reservation) {
+  public QrTicket validateQrTicket(BoothEntryRequestDto dto) {
     QrTicket qrTicket =
         dto.getQrCode() != null ? qrTicketRepository.findByQrCode(dto.getQrCode()).orElseThrow(
             () -> new CustomException(HttpStatus.NOT_FOUND, "유효하지 않은 QR 코드입니다.")
-        ) : qrTicketRepository.findByManualCode(dto.getManualCode()).orElseThrow(
-            () -> new CustomException(HttpStatus.NOT_FOUND, "유효하지 않은 수동 코드입니다.")
-        );
+        ) : null;
+    if(qrTicket == null){
+      throw new CustomException(HttpStatus.FORBIDDEN,"유효하지 않은 QR 티켓입니다");
+    }
     QrActionCode qrActionCode = qrActionCodeRepository.findByCode(QrActionCode.SCANNED).orElseThrow(
         () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "유효하지 않은 QR ACTION CODE입니다.")
     );
-    qrLogService.scannedQrLog(qrTicket, qrActionCode);
     Attendee attendee = qrTicket.getAttendee();
+    qrLogService.scannedQrLog(qrTicket, qrActionCode);
     Reservation eventReservation = attendee.getReservation();
-    if (!reservation.getUser().getUserId().equals(user.getUserId())) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "QR 티켓 소유자의 예약과 로그인 사용자가 일치하지 않습니다.");
-    }
-    if(eventReservation.getEvent().getEventId().equals(dto.getEventId())) {
-      throw new CustomException(HttpStatus.BAD_REQUEST,"요청한 행사와 QR 티켓의 행사가 일치하지 않습니다");
+    if (!eventReservation.getEvent().getEventId().equals(dto.getEventId())) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "요청한 행사와 QR 티켓의 행사가 일치하지 않습니다");
     }
     log.info("부스 입장 시 QR 티켓 검증 완료. scan log 저장");
     return qrTicket;
@@ -163,13 +160,13 @@ public class QrTicketEntryService {
     // 코드 스캔 기록
     qrLogService.scannedQrLog(qrTicket, qrActionCode);
     log.info("qrActionCode : {}", qrActionCode);
-    log.info("QrLog SCANNED 저장 qrTicket: {}",qrTicket.getId());
+    log.info("QrLog SCANNED 저장 qrTicket: {}", qrTicket.getId());
     // 체크인이 가능한가 -> 규칙상 (체크인 스캔 자체가 가능한지 판단)
     qrEntryValidateService.checkEntryExitPolicy(qrTicket, QrCheckStatusCode.ENTRY);
     // 현재 입장이 최초입장인가 재입장인가
     // 현재 입장이 최초입장인지 재입장인지 판단 QrCheckStatusCode.ENTRY, rCheckStatusCode.REENTRY
     String entryType = qrLogService.determineEntryOrReEntry(qrTicket);
-    log.info("현재 입장 상태:{}",entryType);
+    log.info("현재 입장 상태:{}", entryType);
     // 재입장 가능 여부 판단
     qrEntryValidateService.verifyCheckInReEntry(qrTicket);
     // 중복 스캔?
@@ -198,7 +195,7 @@ public class QrTicketEntryService {
 
   // 검증 완료 후 디비 데이터 저장
   private LocalDateTime processCheckIn(QrTicket qrTicket, String checkInType, String entryType) {
-    log.info("qrTicket : {} DB 저장 시작",qrTicket.getId());
+    log.info("qrTicket : {} DB 저장 시작", qrTicket.getId());
     // actionCodeType = CHECKED_IN, MANUAL_CHECKED_IN
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(checkInType);
     // checkStatusCode = ENTRY, REENTRY
@@ -245,12 +242,12 @@ public class QrTicketEntryService {
         .build();
   }
 
-  public void checkInQrTicket(QrTicket qrTicket){
-    messagingTemplate.convertAndSend("/topic/check-in/"+qrTicket.getId(),"체크인 처리가 완료되었습니다.");
+  public void checkInQrTicket(QrTicket qrTicket) {
+    messagingTemplate.convertAndSend("/topic/check-in/" + qrTicket.getId(), "체크인 처리가 완료되었습니다.");
   }
 
-  public void boothCheckIn(QrTicket qrTicket){
-    messagingTemplate.convertAndSend("/topic/booth/qr/"+qrTicket.getId(),"체크인 처리가 완료되었습니다.");
+  public void boothCheckIn(QrTicket qrTicket) {
+    messagingTemplate.convertAndSend("/topic/booth/qr/" + qrTicket.getId(), "체크인 처리가 완료되었습니다.");
   }
 
   private CheckResponseDto processBoothCheck(QrTicket qrTicket) {
@@ -258,12 +255,12 @@ public class QrTicketEntryService {
     QrCheckStatusCode requiredPreviousStatus = qrEntryValidateService.determineRequiredQrStatusForBoothEntry(
         qrTicket);
     CheckResponseDto checkResponseDto;
-    if(requiredPreviousStatus == null) {
+    if (requiredPreviousStatus == null) {
       checkResponseDto = CheckResponseDto.builder()
           .message("이전 기록이 저장되어 있거나 저장할 필요가 없으므로 추가 저장 안함")
           .checkInTime(null)
           .build();
-    } else{
+    } else {
       // 3. 부스 입장 로그 생성
       LocalDateTime checkInTime = qrLogService.boothQrLog(qrTicket, requiredPreviousStatus);
       checkResponseDto = CheckResponseDto.builder()

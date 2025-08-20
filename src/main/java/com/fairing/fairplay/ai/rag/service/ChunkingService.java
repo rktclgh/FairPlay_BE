@@ -9,14 +9,14 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * 청킹 전략 서비스 (600-800자 권장)
+ * 청킹 전략 서비스 (Google Gemini embedding-001 최적화: 800자 최대)
  */
 @Service
 public class ChunkingService {
 
-    private static final int MIN_CHUNK_SIZE = 50;   // 50자로 대폭 축소
-    private static final int MAX_CHUNK_SIZE = 400;  // 400자로 축소
-    private static final int PREFERRED_CHUNK_SIZE = 300; // 300자로 축소
+    private static final int MIN_CHUNK_SIZE = 100;   // 100자로 증가
+    private static final int MAX_CHUNK_SIZE = 800;  // 800자로 증가 (성능 개선)
+    private static final int PREFERRED_CHUNK_SIZE = 600; // 600자로 증가
     
     // 문장 경계 정규식 (한국어 고려)
     private static final Pattern SENTENCE_PATTERN = Pattern.compile(

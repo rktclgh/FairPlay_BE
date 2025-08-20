@@ -86,6 +86,22 @@ public class RagAdminController {
     }
 
     /**
+     * 데이터베이스 상태 확인 (디버깅용)
+     */
+    @GetMapping("/database/status")
+    public ResponseEntity<Map<String, Object>> getDatabaseStatus() {
+        try {
+            Map<String, Object> status = comprehensiveRagDataLoader.getDatabaseStatus();
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", "데이터베이스 상태 조회 실패: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
      * 모든 공개 데이터를 RAG에 로드 (민감정보/통계/운영자 영역 제외)
      * 포함: Event, Booth, BoothExperience, Review, Category
      * 제외: User 개인정보, 통계 데이터, Admin 전용 데이터, 결제 정보
