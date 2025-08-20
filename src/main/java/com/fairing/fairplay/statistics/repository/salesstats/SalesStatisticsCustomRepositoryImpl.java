@@ -2,6 +2,7 @@ package com.fairing.fairplay.statistics.repository.salesstats;
 
 import com.fairing.fairplay.statistics.dto.sales.PaymentStatusSalesDto;
 import com.fairing.fairplay.statistics.dto.sales.SalesSummaryDto;
+import com.fairing.fairplay.statistics.dto.sales.SalesDailyTrendDto;
 import com.fairing.fairplay.statistics.dto.sales.SessionSalesDto;
 import com.fairing.fairplay.statistics.entity.sales.QEventDailySalesStatistics;
 import com.fairing.fairplay.statistics.entity.sales.QEventSessionSalesStatistics;
@@ -49,6 +50,27 @@ public class SalesStatisticsCustomRepositoryImpl implements SalesStatisticsCusto
                 .refundedSales(result.get(daily.refundedSales.sum()))
                 .refundedCount(result.get(daily.refundedCount.sum()))
                 .build();
+    }
+    @Override
+    public List<SalesDailyTrendDto> getSalesDailyTrend(Long eventId, LocalDate start, LocalDate end) {
+        List<Tuple> results = queryFactory
+                .select(
+                        daily.paidSales,
+                        daily.paidCount,
+                        daily.statDate
+                )
+                .from(daily)
+                .where(daily.eventId.eq(eventId)
+                        .and(daily.statDate.between(start, end)))
+                .fetch();
+
+        return results.stream()
+                .map(r -> SalesDailyTrendDto.builder()
+                        .totalSales(r.get(daily.paidSales) != null ? r.get(daily.paidSales) : 0L)
+                        .totalCount(r.get(daily.paidCount) != null ? r.get(daily.paidCount) : 0)
+                        .statDate(r.get(daily.statDate))
+                        .build())
+                .toList();
     }
 
     @Override

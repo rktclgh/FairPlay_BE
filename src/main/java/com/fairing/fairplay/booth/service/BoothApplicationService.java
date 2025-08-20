@@ -34,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -354,7 +355,7 @@ public class BoothApplicationService {
 
         BoothAdmin boothAdmin = new BoothAdmin();
         boothAdmin.setUser(savedUser);
-        boothAdmin.setEmail(boothApply.getContactEmail());
+        boothAdmin.setEmail(boothApply.getBoothEmail()); // getBoothEmail()로 부스 이메일 설정
         boothAdmin.setManagerName(boothApply.getManagerName());
         boothAdmin.setContactNumber(boothApply.getContactNumber());
 
@@ -447,7 +448,7 @@ public class BoothApplicationService {
         booth.setStatusUpdatedAt(LocalDateTime.now());
 
         if ("PAID".equals(dto.getPaymentStatusCode())) {
-            Users user = userRepository.findByEmail(booth.getContactEmail())
+            Users user = userRepository.findByEmail(booth.getBoothEmail())
                     .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
 
             UserRoleCode boothManagerCode = userRoleCodeRepository.findByCode("BOOTH_MANAGER")
@@ -500,5 +501,20 @@ public class BoothApplicationService {
                 .contactEmail(application.getContactEmail())
                 .paymentStatus(application.getBoothPaymentStatusCode().getCode())
                 .build();
+    }
+
+    // 부스 관리자 - 내 부스 신청 목록 조회
+    @Transactional(readOnly = true)
+    public List<BoothApplicationListDto> getMyBoothApplications(Long userId) {
+        Users user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
+
+        List<BoothApplication> applications = boothApplicationRepository.findByBoothEmailOrderByApplyAtDesc(user.getEmail());
+        
+        log.info("조회된 부스 신청 개수: {}", applications.size());
+        
+        return applications.stream()
+                .map(mapper::toListDto)
+                .collect(Collectors.toList());
     }
 }

@@ -443,11 +443,16 @@ public class BoothExperienceService {
     }
 
     // 부스 입장 시 예약 조회 및 상태 검증
-    public  BoothExperienceReservation validateReservation(BoothEntryRequestDto dto) {
-        BoothExperienceReservation boothExperienceReservation = reservationRepository.findById(
-            dto.getBoothReservationId()).orElseThrow(
-            () -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스 예약 내역이 존재하지 않습니다.")
+    public  BoothExperienceReservation validateReservation(BoothEntryRequestDto dto, Users user) {
+        BoothExperience boothExperience = boothExperienceRepository.findById(dto.getBoothExperienceId()).orElseThrow(
+            () -> new CustomException(HttpStatus.BAD_REQUEST,"부스 체험이 조회되지 않습니다")
         );
+
+        // 해당 부스 체험의 예약
+        BoothExperienceReservation boothExperienceReservation = reservationRepository.findByBoothExperienceAndUser(boothExperience, user).orElseThrow(
+            () -> new CustomException(HttpStatus.NOT_FOUND,boothExperience.getTitle()+"를 예약한 기록이 없습니다.")
+        );
+
         String status = boothExperienceReservation.getExperienceStatusCode().getCode();
         if ("CANCELLED".equals(status)) {
             throw new CustomException(HttpStatus.BAD_REQUEST, "이미 취소된 부스 체험 예약입니다.");
@@ -455,7 +460,10 @@ public class BoothExperienceService {
         if (!"READY".equals(status)) {
             throw new CustomException(HttpStatus.BAD_REQUEST, "아직 입장 순서가 아닙니다. 잠시만 기다려주세요.");
         }
-        BoothExperience boothExperience = boothExperienceReservation.getBoothExperience();
+        if(!boothExperienceReservation.getUser().getUserId().equals(user.getUserId())){
+            throw new CustomException(HttpStatus.BAD_REQUEST,"QR 티켓 소유주와 예약자가 일치하지 않습니다.");
+        }
+
         Event event = boothExperience.getBooth().getEvent();
         Booth booth = boothExperience.getBooth();
 
