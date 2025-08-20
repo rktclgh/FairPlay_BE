@@ -125,7 +125,7 @@ public class SuperAdminService {
     }
 
     public Page<LoginHistoryDto> getLoginLogs(int page, int size, String email, LocalDateTime from, LocalDateTime to) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "loginTime"));
         Specification<LoginHistory> spec = Specification.where(LoginHistorySpec.searchByEmail(email))
                 .and(LoginHistorySpec.searchByTime(from, to));
 
@@ -136,7 +136,7 @@ public class SuperAdminService {
 
     public Page<ChangeHistoryDto> getChangeLogs(int page, int size, String email, String type,
             LocalDateTime from, LocalDateTime to) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "modifyTime"));
         Specification<ChangeHistory> spec = Specification.where(ChangeHistorySpec.searchByEmail(email))
                 .and(ChangeHistorySpec.searchByTargetType(type))
                 .and(ChangeHistorySpec.searchByTime(from, to));

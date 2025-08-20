@@ -67,17 +67,23 @@ public class BannerSlotController {
     public ResponseEntity<List<SlotResponseDto>> getSlots(
             @AuthenticationPrincipal CustomUserDetails user,
             @RequestParam @NotNull(message = "배너 타입은 필수입니다") BannerSlotType type,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
 
         requireLogin(user);
 
+        // KST 기준 오늘
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+
+        // 기본값 보정: 오늘 포함
+        if (from == null) from = today;
+        if (to == null)   to   = from.plusDays(30);
+
+        // 범위 검증/보정
+        if (from.isBefore(today)) from = today;
         if (from.isAfter(to)) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "시작 날짜는 종료 날짜보다 이전이어야 합니다"
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "from은 to보다 빠르거나 같아야 합니다.");
         }
         return ResponseEntity.ok(slotService.getSlots(type, from, to));
 

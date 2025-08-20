@@ -74,7 +74,6 @@ public class QrTicketService {
   }
 
   // QR 티켓 당일 발송
-  @Transactional
   public void sendEmailGuest(QrTicketEmailTodayRequestDto dto) {
     qrTicketIssueService.sendEmailGuest(dto);
   }

@@ -25,6 +25,9 @@ import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
+import com.fairing.fairplay.notification.service.NotificationService;
+import com.fairing.fairplay.notification.dto.NotificationRequestDto;
+import com.fairing.fairplay.core.email.service.PaymentCompletionEmailService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
@@ -68,6 +71,10 @@ public class PaymentService {
 
     // 알림 서비스
     private final NotificationService notificationService;
+  
+    // 결제 완료 이메일 서비스
+    private final PaymentCompletionEmailService paymentCompletionEmailService;
+
 
     // 부스 신청 정보 조회를 위한 레포지토리
     private final BoothApplicationRepository boothApplicationRepository;
@@ -336,7 +343,7 @@ public class PaymentService {
         } catch (Exception e) {
             // 후속 처리 실패 시 로그 남기고 계속 진행 (결제는 이미 완료됨)
             System.err.println("결제 완료 후속 처리 실패 - paymentId: " + payment.getPaymentId() +
-                    ", targetType: " + targetType + ", error: " + e.getMessage());
+                   ", targetType: " + targetType + ", error: " + e.getMessage());
         }
     }
 
@@ -463,12 +470,13 @@ public class PaymentService {
             } catch (Exception e) {
                 throw new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다.");
             }
+
             // 필요시 여기에 추가 로직 구현 (상태 업데이트, 알림 등)
             // 현재는 BoothPaymentController에서 처리하고 있으므로 로깅만 수행
 
         } catch (Exception e) {
             System.err.println("부스 결제 완료 처리 중 오류 발생 - paymentId: " + payment.getPaymentId() +
-                    ", error: " + e.getMessage());
+                              ", error: " + e.getMessage());
         }
     }
 
@@ -499,22 +507,6 @@ public class PaymentService {
             if (!"paid".equals(status)) {
                 throw new IllegalStateException("아임포트에서 결제가 완료되지 않았습니다. 상태: " + status);
             }
-
-//            // 4. 결제 금액 검증
-//            Number amountNumber = (Number) paymentInfo.get("amount");
-//            BigDecimal actualAmount = new BigDecimal(amountNumber.toString());
-//
-//            // BigDecimal 비교 시 스케일을 맞춰서 비교
-//            BigDecimal normalizedActual = actualAmount.setScale(2, RoundingMode.HALF_UP);
-//            BigDecimal normalizedExpected = expectedAmount.setScale(2, RoundingMode.HALF_UP);
-//
-//            if (normalizedActual.compareTo(normalizedExpected) != 0) {
-//                throw new IllegalStateException(
-//                    String.format("결제 금액이 일치하지 않습니다. 아임포트: %s, 예상: %s",
-//                                normalizedActual, normalizedExpected));
-//            }
-//
-//            System.out.println("아임포트 결제 검증 완료 - impUid: " + impUid + ", 실제금액: " + actualAmount);
 
         } catch (Exception e) {
             throw new IllegalStateException("아임포트 결제 검증 실패: " + e.getMessage(), e);
@@ -629,9 +621,9 @@ public class PaymentService {
     }
 
     /**
-     * 결제 완료 알림 발송 (웹 + 이메일 동시)
+     * 결제 완료 알림 발송 (웹 + HTML 이메일 동시)
      */
-    private void sendPaymentCompletionNotifications(Payment payment, Long reservationId) {
+    public void sendPaymentCompletionNotifications(Payment payment, Long reservationId) {
         try {
             Long userId = payment.getUser().getUserId();
             String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
@@ -651,20 +643,13 @@ public class PaymentService {
                     "/mypage/reservation"
             );
             notificationService.createNotification(webNotification);
-
-            // 2. 이메일 알림 발송 (상세 정보)
-            NotificationRequestDto emailNotification = NotificationService.buildEmailNotification(
-                    userId,
-                    isFreeTicket ? "RESERVATION" : "PAYMENT",
-                    String.format("[FairPlay] %s %s 완료", eventTitle, actionType),
-                    generatePaymentEmailContent(payment, reservationId, isFreeTicket),
-                    null
-            );
-            notificationService.createNotification(emailNotification);
-
-            System.out.println(String.format("알림 발송 완료 - userId: %d, paymentId: %d, type: %s",
-                    userId, payment.getPaymentId(), actionType));
-
+            
+            // 2. HTML 템플릿 이메일 발송 (새로운 전용 서비스 사용)
+            paymentCompletionEmailService.sendPaymentCompletionEmail(payment, reservationId);
+            
+            System.out.println(String.format("결제 완료 알림 발송 완료 - userId: %d, paymentId: %d, type: %s",
+                              userId, payment.getPaymentId(), actionType));
+            
         } catch (Exception e) {
             // 알림 발송 실패해도 결제는 성공으로 처리
             System.err.println("결제 완료 알림 발송 실패 - paymentId: " + payment.getPaymentId() +

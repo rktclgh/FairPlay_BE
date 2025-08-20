@@ -395,6 +395,7 @@ public class BannerService {
                 .endDate(banner.getEndDate())
                 .statusCode(banner.getBannerStatusCode().getCode())
                 .bannerTypeCode(banner.getBannerType().getCode())
+                .eventId(banner.getEventId())
                 .build();
     }
 
@@ -517,8 +518,9 @@ public class BannerService {
 
         final var eventsById = eventRepository.findAllById(eventIds).stream()
                 .collect(java.util.stream.Collectors.toMap(
-                        com.fairing.fairplay.event.entity.Event::getEventId, // ← 엔티티가 getId()이면 getId 로 바꾸기
-                        e -> e
+                        com.fairing.fairplay.event.entity.Event::getEventId,
+                        e -> e,
+                        (a, b) -> a // ← 중복 키일 때 첫 번째 값 유지 (예외 방지)
                 ));
 
         // 4) DTO 변환 (모든 값 null-guard)
@@ -594,5 +596,33 @@ public class BannerService {
                 STATUS_ACTIVE, typeCode, now, until);
     }
 
+
+    @Transactional(readOnly = true)
+    public List<BannerResponseDto> getHeroActive() {
+        LocalDateTime now = LocalDateTime.now();
+        return bannerRepository
+                .findAllByBannerType_CodeAndBannerStatusCode_CodeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByPriorityAsc(
+                        TYPE_HERO, STATUS_ACTIVE, now, now
+                )
+                .stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<BannerResponseDto> findByTypeAndStatus(String type, String status) {
+        LocalDateTime now = LocalDateTime.now();
+        // 널/공백 대비 & 대문자 통일
+        String t = (type == null) ? "" : type.trim().toUpperCase();
+        String s = (status == null) ? "" : status.trim().toUpperCase();
+
+        return bannerRepository
+                .findAllByBannerType_CodeAndBannerStatusCode_CodeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByPriorityAsc(
+                        t, s, now, now
+                )
+                .stream()
+                .map(this::toDto)
+                .toList();
+    }
 
 }
