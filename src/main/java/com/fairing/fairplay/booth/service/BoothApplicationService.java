@@ -436,27 +436,31 @@ public class BoothApplicationService {
 
     @Transactional
     public void updatePaymentStatus(Long id, BoothPaymentStatusUpdateDto dto) {
-        BoothApplication booth = boothApplicationRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("부스 신청 정보를 찾을 수 없습니다."));
+        Booth booth = boothRepository.findById(id)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
+        try {
+            BoothApplication boothApplication = boothApplicationRepository.findByBoothEmail(booth.getBoothAdmin().getUser().getEmail()).getFirst();
+            BoothPaymentStatusCode statusCode = paymentCodeRepository
+                    .findByCode(dto.getPaymentStatusCode())
+                    .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 상태 코드입니다."));
 
-        BoothPaymentStatusCode statusCode = paymentCodeRepository
-                .findByCode(dto.getPaymentStatusCode())
-                .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 상태 코드입니다."));
+            boothApplication.setBoothPaymentStatusCode(statusCode);
+            boothApplication.setAdminComment(dto.getAdminComment());
+            boothApplication.setStatusUpdatedAt(LocalDateTime.now());
 
-        booth.setBoothPaymentStatusCode(statusCode);
-        booth.setAdminComment(dto.getAdminComment());
-        booth.setStatusUpdatedAt(LocalDateTime.now());
+            if ("PAID".equals(dto.getPaymentStatusCode())) {
+                Users user = userRepository.findByEmail(boothApplication.getBoothEmail())
+                        .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
 
-        if ("PAID".equals(dto.getPaymentStatusCode())) {
-            Users user = userRepository.findByEmail(booth.getBoothEmail())
-                    .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
+                UserRoleCode boothManagerCode = userRoleCodeRepository.findByCode("BOOTH_MANAGER")
+                        .orElseThrow(() -> new EntityNotFoundException("BOOTH_MANAGER 권한 코드가 존재하지 않습니다."));
 
-            UserRoleCode boothManagerCode = userRoleCodeRepository.findByCode("BOOTH_MANAGER")
-                    .orElseThrow(() -> new EntityNotFoundException("BOOTH_MANAGER 권한 코드가 존재하지 않습니다."));
+                user.setRoleCode(boothManagerCode);
+            }
 
-            user.setRoleCode(boothManagerCode);
+        } catch (Exception e) {
+            throw new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다.");
         }
-
     }
 
     @Transactional
