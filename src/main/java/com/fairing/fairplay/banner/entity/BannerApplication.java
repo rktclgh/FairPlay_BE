@@ -71,6 +71,14 @@ public class BannerApplication {
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false)
+    @Builder.Default
+    private BannerPaymentStatus paymentStatus = BannerPaymentStatus.PENDING;
+
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
     @OneToMany(mappedBy = "bannerApplication", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<BannerApplicationSlot> slots = new ArrayList<>();
@@ -90,5 +98,12 @@ public class BannerApplication {
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
+    }
+
+    public void updatePaymentStatus(BannerPaymentStatus newStatus) {
+        this.paymentStatus = newStatus;
+        if (newStatus == BannerPaymentStatus.PAID) {
+            this.paidAt = LocalDateTime.now();
+        }
     }
 }

@@ -3,6 +3,9 @@ package com.fairing.fairplay.banner.service;
 import com.fairing.fairplay.banner.dto.AdminApplicationListItemDto;
 import com.fairing.fairplay.banner.dto.AdminApplicationSlotDto;
 import com.fairing.fairplay.banner.dto.CreateApplicationRequestDto;
+import com.fairing.fairplay.core.email.service.BannerEmailService;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -43,6 +46,8 @@ public class BannerApplicationService {
 
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
+    private final BannerEmailService bannerEmailService;
+    private final UserRepository userRepository;
 
     @Value("${banner.lock.default-minutes:" + DEFAULT_LOCK_MINUTES + "}")
     private int configuredLockMinutes;
@@ -353,7 +358,15 @@ public class BannerApplicationService {
                      AND status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='PENDING')
                 """, adminId, appId);
         if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 승인 처리에 실패했습니다.");
-}
+        
+        // 4) 승인 완료 이메일 발송
+        try {
+            sendApprovalEmail(appId, app);
+        } catch (Exception e) {
+            // 이메일 발송 실패 시 로그만 남기고 처리 계속 진행
+            System.err.println("배너 승인 이메일 발송 실패 - appId: " + appId + ", error: " + e.getMessage());
+        }
+    }
 
         // com.fairing.fairplay.banner.service.BannerApplicationService
         @Transactional
@@ -544,5 +557,185 @@ public class BannerApplicationService {
                         case "REJECTED" -> "N/A";
                         default -> "WAITING";
                     };
+            }
+
+            /**
+             * 배너 승인 이메일 발송
+             * 부스와 달리 배너는 승인과 동시에 결제 완료 처리되므로 결제 링크가 아닌 완료 알림
+             */
+            private void sendApprovalEmail(Long appId, Map<String, Object> appInfo) {
+                try {
+                    // 신청자 정보 조회
+                    Map<String, Object> applicantInfo = jdbc.queryForMap("""
+                        SELECT ba.applicant_id, ba.title, ba.total_amount,
+                               bt.name as banner_type_name,
+                               u.name as applicant_name, u.email as applicant_email
+                        FROM banner_application ba
+                        JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id  
+                        JOIN users u ON u.user_id = ba.applicant_id
+                        WHERE ba.banner_application_id = ?
+                        """, appId);
+                    
+                    String applicantEmail = (String) applicantInfo.get("applicant_email");
+                    String applicantName = (String) applicantInfo.get("applicant_name");
+                    String title = (String) applicantInfo.get("title");
+                    String bannerType = (String) applicantInfo.get("banner_type_name");
+                    Integer totalAmount = (Integer) applicantInfo.get("total_amount");
+                    
+                    // 배너는 승인과 동시에 결제 완료되므로 결제 링크 대신 완료 알림 발송
+                    bannerEmailService.sendApprovalWithPaymentEmail(
+                        applicantEmail, 
+                        title, 
+                        bannerType, 
+                        totalAmount, 
+                        appId, 
+                        applicantName
+                    );
+                    
+                    System.out.println("배너 승인 이메일 발송 완료 - appId: " + appId + 
+                                     ", recipient: " + applicantEmail);
+                    
+                } catch (Exception e) {
+                    System.err.println("배너 승인 이메일 발송 중 오류 - appId: " + appId + 
+                                     ", error: " + e.getMessage());
+                    throw e;
+                }
+            }
+
+            /**
+             * 배너 신청 승인 (부스 방식처럼 승인 후 결제 링크 이메일 발송)
+             * 기존 markPaid와 달리 승인만 처리하고 결제는 별도로 진행
+             */
+            @Transactional
+            public void approveWithPaymentLink(Long appId, Long adminId) {
+                try {
+                    // 1. 신청 상태 확인
+                    Integer pendingId = statusId(STATUS_PENDING);
+                    Integer appStatus = jdbc.queryForObject(
+                            "SELECT status_code_id FROM banner_application WHERE banner_application_id=? FOR UPDATE",
+                            Integer.class, appId
+                    );
+                    if (!Objects.equals(appStatus, pendingId)) {
+                        throw new IllegalStateException("승인할 수 없는 상태입니다.");
+                    }
+
+                    // 2. 신청 상태를 APPROVED로 변경 (결제는 별도)
+                    int updated = jdbc.update("""
+                          UPDATE banner_application
+                             SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='APPROVED'),
+                                 approved_by=?, approved_at=NOW()
+                           WHERE banner_application_id=? 
+                             AND status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='PENDING')
+                        """, adminId, appId);
+                    if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 승인 처리에 실패했습니다.");
+
+                    // 3. 결제 링크가 포함된 승인 이메일 발송
+                    sendApprovalEmailWithPaymentLink(appId);
+                    
+                    System.out.println("배너 승인 완료 (결제 링크 발송) - appId: " + appId);
+
+                } catch (Exception e) {
+                    System.err.println("배너 승인 처리 실패 - appId: " + appId + ", error: " + e.getMessage());
+                    throw e;
+                }
+            }
+
+            /**
+             * 승인 시 결제 링크가 포함된 이메일 발송
+             */
+            private void sendApprovalEmailWithPaymentLink(Long appId) {
+                try {
+                    // 신청자 정보 조회
+                    Map<String, Object> applicantInfo = jdbc.queryForMap("""
+                        SELECT ba.applicant_id, ba.title, ba.total_amount,
+                               bt.name as banner_type_name,
+                               u.name as applicant_name, u.email as applicant_email
+                        FROM banner_application ba
+                        JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id  
+                        JOIN users u ON u.user_id = ba.applicant_id
+                        WHERE ba.banner_application_id = ?
+                        """, appId);
+                    
+                    String applicantEmail = (String) applicantInfo.get("applicant_email");
+                    String applicantName = (String) applicantInfo.get("applicant_name");
+                    String title = (String) applicantInfo.get("title");
+                    String bannerType = (String) applicantInfo.get("banner_type_name");
+                    Integer totalAmount = (Integer) applicantInfo.get("total_amount");
+                    
+                    // 부스와 동일한 방식으로 결제 링크가 포함된 이메일 발송
+                    bannerEmailService.sendApprovalWithPaymentEmail(
+                        applicantEmail, 
+                        title, 
+                        bannerType, 
+                        totalAmount, 
+                        appId, 
+                        applicantName
+                    );
+                    
+                    System.out.println("배너 승인 이메일 발송 완료 (결제 링크 포함) - appId: " + appId + 
+                                     ", recipient: " + applicantEmail);
+                    
+                } catch (Exception e) {
+                    System.err.println("배너 승인 이메일 발송 실패 - appId: " + appId + 
+                                     ", error: " + e.getMessage());
+                    throw e;
+                }
+            }
+
+            /**
+             * 결제 완료 시 배너 슬롯 활성화 (부스 방식처럼 승인과 결제를 분리할 때 사용)
+             * 현재는 markPaid에서 승인과 결제를 동시에 처리하지만, 
+             * 향후 부스처럼 승인 → 결제 → 활성화 순서로 변경할 때를 대비
+             */
+            public void activateBannerSlots(Long appId) {
+                try {
+                    // 배너 신청 정보 조회
+                    Map<String, Object> app = jdbc.queryForMap("""
+                        SELECT event_id, title, image_url, link_url, banner_type_id
+                        FROM banner_application WHERE banner_application_id=?
+                        """, appId);
+                    
+                    // 해당 신청의 슬롯들을 SOLD로 변경하고 배너 생성
+                    var slots = jdbc.query("""
+                        SELECT s.slot_id, s.banner_type_id, s.slot_date, s.priority, s.status
+                        FROM banner_application_slot asx
+                        JOIN banner_slot s ON s.slot_id = asx.slot_id
+                        WHERE asx.banner_application_id = ?
+                        FOR UPDATE
+                        """, (rs, i) -> Map.of(
+                        "slotId", rs.getLong("slot_id"),
+                        "typeId", rs.getLong("banner_type_id"),
+                        "slotDate", rs.getDate("slot_date").toLocalDate(),
+                        "priority", rs.getInt("priority"),
+                        "status", rs.getString("status")
+                    ), appId);
+                    
+                    if (slots.isEmpty()) {
+                        System.out.println("활성화할 슬롯이 없습니다 - appId: " + appId);
+                        return;
+                    }
+                    
+                    // 슬롯들을 SOLD로 변경
+                    var slotIdList = slots.stream()
+                            .map(m -> (Long) m.get("slotId"))
+                            .toList();
+                    
+                    var soldParams = new MapSqlParameterSource()
+                            .addValue("slotIds", slotIdList);
+                            
+                    int sold = namedJdbc.update("""
+                        UPDATE banner_slot
+                           SET status='SOLD'
+                         WHERE slot_id IN (:slotIds)
+                           AND status IN ('LOCKED', 'AVAILABLE')
+                        """, soldParams);
+                        
+                    System.out.println("배너 슬롯 활성화 완료 - appId: " + appId + 
+                                     ", 활성화된 슬롯 수: " + sold);
+                    
+                } catch (Exception e) {
+                    System.err.println("배너 슬롯 활성화 실패 - appId: " + appId + 
+                                     ", error: " + e.getMessage());
+                }
             }
     }

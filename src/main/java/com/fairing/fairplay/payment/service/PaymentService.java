@@ -1,5 +1,7 @@
 package com.fairing.fairplay.payment.service;
 
+import com.fairing.fairplay.banner.entity.BannerApplication;
+import com.fairing.fairplay.banner.repository.BannerApplicationRepository;
 import com.fairing.fairplay.booth.entity.Booth;
 import com.fairing.fairplay.booth.entity.BoothApplication;
 import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
@@ -77,6 +79,9 @@ public class PaymentService {
     // 부스 신청 정보 조회를 위한 레포지토리
     private final BoothApplicationRepository boothApplicationRepository;
     private final BoothRepository boothRepository;
+    
+    // 배너 신청 정보 조회를 위한 레포지토리
+    private final BannerApplicationRepository bannerApplicationRepository;
 
     // 아임포트 API 설정
     @Value("${iamport.api-key}")
@@ -294,7 +299,11 @@ public class PaymentService {
                 prefix = "TICKET";
                 break;
             case "BOOTH":
+            case "BOOTH_APPLICATION":
                 prefix = "BOOTH";
+                break;
+            case "BANNER_APPLICATION":
+                prefix = "BANNER";
                 break;
             case "AD":
                 prefix = "AD";
@@ -332,6 +341,9 @@ public class PaymentService {
                     break;
                 case "BOOTH_APPLICATION":
                     processBoothApplyPaymentCompletion(payment);
+                    break;
+                case "BANNER_APPLICATION":
+                    processBannerPaymentCompletion(payment);
                     break;
                 case "AD":
                     processAdvertisementPaymentCompletion(payment);
@@ -507,6 +519,34 @@ public class PaymentService {
 
         } catch (Exception e) {
             System.err.println("부스 결제 완료 처리 중 오류 발생 - paymentId: " + payment.getPaymentId() +
+                    ", error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 배너 결제 완료 처리
+     */
+    private void processBannerPaymentCompletion(Payment payment) {
+        try {
+            Long bannerApplicationId = payment.getTargetId();
+            if (bannerApplicationId == null) {
+                System.err.println("배너 결제 완료 처리 실패 - targetId가 null입니다. paymentId: " + payment.getPaymentId());
+                return;
+            }
+
+            // 배너 신청 정보 조회
+            BannerApplication application = bannerApplicationRepository.findById(bannerApplicationId)
+                    .orElseThrow(() -> new IllegalArgumentException("배너 신청 정보를 찾을 수 없습니다: " + bannerApplicationId));
+
+            System.out.println("배너 결제 완료 처리됨 - targetId: " + payment.getTargetId() +
+                    ", title: " + application.getTitle());
+
+            // 배너 슬롯 활성화 (향후 승인과 결제를 분리할 때를 대비한 로직)
+            // 현재는 BannerPaymentController에서 결제 상태 업데이트만 처리하고 
+            // 실제 슬롯 활성화는 markPaid에서 이미 처리됨
+
+        } catch (Exception e) {
+            System.err.println("배너 결제 완료 처리 중 오류 발생 - paymentId: " + payment.getPaymentId() +
                     ", error: " + e.getMessage());
         }
     }
@@ -737,24 +777,39 @@ public class PaymentService {
         // 1. 요청 데이터 유효성 검증
         validatePaymentRequest(paymentRequestDto);
 
-        // 2. 부스 신청 정보에서 사용자 정보 가져오기
-        if (!"BOOTH_APPLICATION".equals(paymentRequestDto.getPaymentTargetType())) {
-            throw new IllegalArgumentException("이메일 결제는 부스 신청에만 사용 가능합니다.");
+        // 2. 결제 타입에 따라 사용자 정보 가져오기
+        if (!"BOOTH_APPLICATION".equals(paymentRequestDto.getPaymentTargetType()) && 
+            !"BANNER_APPLICATION".equals(paymentRequestDto.getPaymentTargetType())) {
+            throw new IllegalArgumentException("이메일 결제는 부스 또는 배너 신청에만 사용 가능합니다.");
         }
 
         if (paymentRequestDto.getTargetId() == null) {
-            throw new IllegalArgumentException("부스 신청 ID가 필요합니다.");
+            throw new IllegalArgumentException("신청 ID가 필요합니다.");
         }
 
-        // 3. 부스 신청 정보에서 부스 이메일로 사용자 찾기
-        BoothApplication boothApplication = boothApplicationRepository.findById(paymentRequestDto.getTargetId())
-                .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다."));
+        Users user;
+        
+        if ("BOOTH_APPLICATION".equals(paymentRequestDto.getPaymentTargetType())) {
+            // 3-A. 부스 신청 정보에서 부스 이메일로 사용자 찾기
+            BoothApplication boothApplication = boothApplicationRepository.findById(paymentRequestDto.getTargetId())
+                    .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다."));
 
-        Users user = userRepository.findByEmail(boothApplication.getBoothEmail())
-                .orElseThrow(() -> new IllegalArgumentException("부스 관리자 계정을 찾을 수 없습니다: " + boothApplication.getBoothEmail()));
+            user = userRepository.findByEmail(boothApplication.getBoothEmail())
+                    .orElseThrow(() -> new IllegalArgumentException("부스 관리자 계정을 찾을 수 없습니다: " + boothApplication.getBoothEmail()));
 
-        // 4. 이벤트 정보 설정 (부스 신청에서 가져오기)
-        paymentRequestDto.setEventId(boothApplication.getEvent().getEventId());
+            // 4-A. 이벤트 정보 설정 (부스 신청에서 가져오기)
+            paymentRequestDto.setEventId(boothApplication.getEvent().getEventId());
+        } else {
+            // 3-B. 배너 신청 정보에서 신청자 ID로 사용자 찾기
+            BannerApplication bannerApplication = bannerApplicationRepository.findById(paymentRequestDto.getTargetId())
+                    .orElseThrow(() -> new IllegalArgumentException("배너 신청 정보를 찾을 수 없습니다."));
+
+            user = userRepository.findById(bannerApplication.getApplicantId())
+                    .orElseThrow(() -> new IllegalArgumentException("배너 신청자 계정을 찾을 수 없습니다: " + bannerApplication.getApplicantId()));
+
+            // 4-B. 이벤트 정보 설정 (배너 신청에서 가져오기)
+            paymentRequestDto.setEventId(bannerApplication.getEventId());
+        }
 
         // 5. 기존 savePayment 메서드 활용
         return savePayment(paymentRequestDto, user.getUserId());
