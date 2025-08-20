@@ -31,12 +31,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        jdbc:
-          time_zone: Asia/Seoul
-        connection:
-          characterEncoding: UTF-8
-          useUnicode: true
-        time_zone: Asia/Seoul
 
   hashids:
     salt: ${HASHIDS_SALT}
@@ -57,10 +51,6 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
-
-  jackson:
-    time-zone: Asia/Seoul
-    date-format: yyyy-MM-dd'T'HH:mm:ss
 
 # 웹소켓 설정 (배포환경 최적화)
 websocket:
