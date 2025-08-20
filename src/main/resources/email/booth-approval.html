@@ -4,55 +4,245 @@
     <meta charset="UTF-8">
     <title>FairPlay 부스 등록 승인 및 계정 안내</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
-        .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border: 1px solid #dddddd; padding: 40px; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .header img { width: 150px; }
-        .content { font-size: 16px; line-height: 1.6; color: #333333; }
-        .content h1 { color: #6b4dd3; }
-        .content p { margin: 0 0 20px; color: #333333; }
-        .account-box { background-color: #f9f9f9; border: 1px solid #eeeeee; padding: 20px; margin-top: 20px; border-radius: 10px; }
-        .footer { text-align: center; margin-top: 40px; font-size: 12px; color: #888888; }
-        .login-btn { display: inline-block; padding: 10px 20px; margin-top: 20px; background-color: #8e7bd1; color: #ffffff; text-decoration: none; border-radius: 5px; }
+        body {
+            font-family: "Segoe UI", "Apple SD Gothic Neo", Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            padding: 40px 24px 32px 24px;
+            background: #ffffff;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .logo-icon span {
+            font-size: 28px;
+        }
+
+        h2 {
+            color: #1f2937;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .brand {
+            color: #3b82f6;
+            font-weight: 700;
+        }
+
+        .message-box {
+            background: #F8F9FD;
+            background: linear-gradient(0deg, rgb(255, 255, 255) 0%, rgb(244, 247, 251) 100%);
+            border-radius: 40px;
+            padding: 25px 35px;
+            border: 5px solid rgb(255, 255, 255);
+            box-shadow: rgba(133, 189, 215, 0.8784313725) 0px 30px 30px -20px;
+            margin: 20px;
+        }
+
+        .message-box p {
+            font-size: 15px;
+            color: #475569;
+            text-align: center;
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        .message-box .message {
+            text-align: left;
+        }
+
+        .account-box {
+            margin-top: 20px;
+        }
+
+        .account-box p {
+            background: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 20px;
+            margin-top: 15px;
+            box-shadow: #cff0ff 0px 10px 10px -5px;
+            border-inline: 2px solid transparent;
+            text-align: left;
+        }
+
+        .payment-box {
+            background: #fdf4d6;
+            border-radius: 20px;
+            padding: 25px 35px;
+            margin: 20px;
+            margin-top: 50px;
+        }
+
+        .info-box {
+            background: #f8f9fa;
+            border-radius: 20px;
+            padding: 25px 35px;
+            margin: 20px;
+            margin-top: 30px;
+        }
+
+        .login-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-top: 20px;
+            background-color: #8e7bd1;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+
+        .warning-box {
+            color: #6c757d;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+
+        .footer {
+            margin-top: 32px;
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .footer span {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        button {
+            display: flex;
+            align-items: center;
+            font-family: inherit;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 17px;
+            padding: 0.8em 1.3em 0.8em 0.9em;
+            color: white;
+            background: #ad5389;
+            background: linear-gradient(to right, #5b96bb, #9fdcc9, #6ca8d0);
+            border: none;
+            letter-spacing: 0.05em;
+            border-radius: 16px;
+        }
+
+        button svg {
+            margin-right: 3px;
+            transform: rotate(30deg);
+            transition: transform 0.5s cubic-bezier(0.76, 0, 0.24, 1);
+        }
+
+        button span {
+            transition: transform 0.5s cubic-bezier(0.76, 0, 0.24, 1);
+        }
+
+        button:hover svg {
+            transform: translateX(5px) rotate(90deg);
+        }
+
+        button:hover span {
+            transform: translateX(7px);
+        }
+
+        a {
+            color: #fff;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="header">
-        <img src="cid:%s" alt="FairPlay Logo">
+    <div class="logo">
+        <div class="logo-icon">
+            <img
+                    src="cid:%s"
+                    alt="FairPlay Logo"
+                    style="width: 64px; height: 64px; object-fit: contain"
+            />
+        </div>
+        <h2><span class="brand">FairPlay</span> 부스 등록 승인 안내</h2>
     </div>
-    <div class="content">
-        <h1>부스 등록 신청이 승인되었습니다!</h1>
-        <p>안녕하세요.</p>
-        <p>요청하신 행사 '%s'의 '%s' 부스 등록 신청이 최종 승인되었음을 알려드립니다.</p>
-        <p>부스 관리를 위한 전용 관리자 계정이 생성되었습니다. 아래 정보를 사용하여 로그인 후, 즉시 비밀번호를 변경해 주시기 바랍니다.</p>
+    <div class="message-box">
+        <h3>부스 등록 신청이 승인되었습니다!</h3>
+        <p class="message">안녕하세요.</p>
+        <p class="message">요청하신 행사 '%s'의 '%s' 부스 등록 신청이 최종 승인되었음을 알려드립니다.</p>
+        <p class="message">부스 관리를 위한 전용 관리자 계정이 생성되었습니다. 아래 정보를 사용하여 로그인 후, 즉시 비밀번호를 변경해 주시기 바랍니다.</p>
         <div class="account-box">
             <p><strong>아이디 (이메일):</strong> %s</p>
             <p><strong>임시 비밀번호:</strong> %s</p>
         </div>
-        <div style="text-align: center;">
-            <a href="https://fair-play.ink/" class="login-btn" style="color: #ffffff">로그인 페이지로 이동</a>
+
+        <div style="align-items: center; display: flex; justify-content: center; margin-top: 20px;">
+            <button>
+                <svg
+                        height="24"
+                        width="24"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                >
+                    <path d="M0 0h24v24H0z" fill="none"></path>
+                    <path
+                            d="M5 13c0-5.088 2.903-9.436 7-11.182C16.097 3.564 19 7.912 19 13c0 .823-.076 1.626-.22 2.403l1.94 1.832a.5.5 0 0 1 .095.603l-2.495 4.575a.5.5 0 0 1-.793.114l-2.234-2.234a1 1 0 0 0-.707-.293H9.414a1 1 0 0 0-.707.293l-2.234 2.234a.5.5 0 0 1-.793-.114l-2.495-4.575a.5.5 0 0 1 .095-.603l1.94-1.832C5.077 14.626 5 13.823 5 13zm1.476 6.696l.817-.817A3 3 0 0 1 9.414 18h5.172a3 3 0 0 1 2.121.879l.817.817.982-1.8-1.1-1.04a2 2 0 0 1-.593-1.82c.124-.664.187-1.345.187-2.036 0-3.87-1.995-7.3-5-8.96C8.995 5.7 7 9.13 7 13c0 .691.063 1.372.187 2.037a2 2 0 0 1-.593 1.82l-1.1 1.039.982 1.8zM12 13a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"
+                            fill="currentColor"
+                    ></path>
+                </svg>
+                <span><a href="https://fair-play.ink/">로그인 페이지로 이동</a></span>
+            </button>
         </div>
-        
-        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; margin-top: 30px; border-radius: 10px;">
+        <p style="margin-top: 30px;">FairPlay와 함께 성공적인 부스를 만들어보세요!</p>
+        <p>감사합니다.</p>
+    </div>
+    <div>
+        <div class="payment-box">
             <h3 style="color: #856404; margin: 0 0 15px 0;">📋 결제 요청 안내</h3>
             <p style="color: #856404; margin: 0 0 10px 0;"><strong>부스 타입:</strong> %s</p>
             <p style="color: #856404; margin: 0 0 10px 0;"><strong>부스 크기:</strong> %s</p>
             <p style="color: #856404; margin: 0 0 15px 0;"><strong>결제 금액:</strong> %,d원</p>
             <p style="color: #856404; margin: 15px 0 0 0; font-size: 14px;">승인된 부스 운영을 위해서는 위 금액의 결제가 필요합니다.</p>
-            <p style="color: #856404; margin: 10px 0 0 0; font-size: 14px;"><strong>결제 방법:</strong> 위에 안내된 계정으로 로그인 후 결제를 진행해 주시기 바랍니다.</p>
+            <p style="color: #856404; margin: 10px 0 0 0; font-size: 14px;"><strong>결제 방법:</strong> 위에 안내된 계정으로 로그인 후
+                대시보드에서 결제를 진행해 주시기 바랍니다.</p>
         </div>
-        
-        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; margin-top: 30px; border-radius: 5px;">
+
+        <div class="info-box">
             <p style="color: #6c757d; margin: 0; font-size: 14px;">
                 <!-- TODO: 배포 서버로 변경 -->
                 ⚠️ <strong>부스 운영을 취소하시려면</strong><br>
-                <a href="http://localhost:5173/booth/cancel?applicationId=%d" style="color: #dc3545; text-decoration: underline;">여기를 클릭하여 취소 요청</a>을 해주시기 바랍니다.
+                <a href="http://localhost:5173/booth/cancel?applicationId=%d"
+                   style="color: #dc3545; text-decoration: underline;">여기를 클릭하여 취소 요청</a>을 해주시기 바랍니다.
             </p>
+
+            <div class="warning-box">
+                <span> 📞 문의: </span>
+                <a href="support@fairplay.com" class="contact-link"
+                >support@fair-play.ink</a
+                >
+            </div>
         </div>
-        
-        <p style="margin-top: 30px;">FairPlay와 함께 성공적인 부스를 만들어보세요!</p>
-        <p>감사합니다.<br>FairPlay 팀 드림</p>
+
     </div>
     <div class="footer">
         <p>&copy; 2025 FairPlay. All rights reserved.</p>
