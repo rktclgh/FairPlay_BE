@@ -43,6 +43,19 @@ public class SecurityConfig {
                                                                 "/static/**",
                                                                 "/manifest.json",
                                                                 "/robots.txt",
+                                                                // 프론트엔드 라우트 허용
+                                                                "/login",
+                                                                "/register", 
+                                                                "/eventoverview",
+                                                                "/event-registration-intro",
+                                                                "/mypage/**",
+                                                                "/admin_dashboard/**",
+                                                                "/host/**",
+                                                                "/booth-admin/**",
+                                                                "/events/**",
+                                                                "/eventdetail/**",
+                                                                "/qr-ticket/**",
+                                                                "/auth/**",
                                                                 "/api/users/signup",
                                                                 "/api/auth/login",
                                                                 "/api/auth/logout",
@@ -102,6 +115,15 @@ public class SecurityConfig {
                                                                 "/api/chat/presence/disconnect")
                                                 .authenticated() // JWT 인증
                                                 .anyRequest().authenticated())
+                                .exceptionHandling(exceptions -> exceptions
+                                                .authenticationEntryPoint((request, response, authException) -> {
+                                                        response.setStatus(401);
+                                                        response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"" + authException.getMessage() + "\"}");
+                                                })
+                                                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                                                        response.setStatus(403);
+                                                        response.getWriter().write("{\"error\":\"Access Denied\",\"message\":\"" + accessDeniedException.getMessage() + "\"}");
+                                                }))
                                 .addFilterBefore(
                                                 new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
                                                 UsernamePasswordAuthenticationFilter.class);
