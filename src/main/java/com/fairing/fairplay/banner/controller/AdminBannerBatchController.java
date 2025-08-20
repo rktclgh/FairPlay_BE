@@ -3,6 +3,7 @@ package com.fairing.fairplay.banner.controller;
 
 import com.fairing.fairplay.banner.batch.HotPickScheduler;
 import com.fairing.fairplay.banner.batch.NewPickScheduler;
+import com.fairing.fairplay.banner.service.BannerService;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class AdminBannerBatchController {
     private static final String ROLE_ADMIN = "ADMIN";
+    private final BannerService bannerService;
 
     private final NewPickScheduler newPickScheduler;
     private final HotPickScheduler hotPickScheduler;
