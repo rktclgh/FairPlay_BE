@@ -11,11 +11,13 @@ import com.fairing.fairplay.attendee.repository.AttendeeRepositoryCustom;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.service.ShareTicketService;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +59,18 @@ public class AttendeeService {
     AttendeeInfoResponseDto attendeeInfoResponseDto = saveAttendee("GUEST", dto,
         shareTicket.getReservation().getReservationId());
     shareTicketService.updateShareTicket(shareTicket);
+
+    LocalDate today = LocalDate.now();
+    LocalDate reservationDate = shareTicket.getReservation().getCreatedAt().toLocalDate();
+    LocalDate scheduleDate = shareTicket.getReservation().getSchedule().getDate();
+    if(reservationDate.isEqual(today) && scheduleDate.isEqual(today)) {
+      QrTicketEmailTodayRequestDto qrTicketEmailTodayRequestDto = QrTicketEmailTodayRequestDto
+          .builder()
+          .attendeeId(attendeeInfoResponseDto.getAttendeeId())
+          .reservationId(attendeeInfoResponseDto.getReservationId())
+          .build();
+      qrTicketService.sendEmailGuest(qrTicketEmailTodayRequestDto);
+    }
     return attendeeInfoResponseDto;
   }
 
