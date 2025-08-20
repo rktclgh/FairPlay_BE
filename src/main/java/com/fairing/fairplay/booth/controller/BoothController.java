@@ -11,6 +11,7 @@ import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.user.dto.BoothAdminRequestDto;
 import com.fairing.fairplay.user.dto.BoothAdminResponseDto;
+import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -22,7 +23,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/events/{eventId}/booths")
 @RequiredArgsConstructor
 @Slf4j
 public class BoothController {
@@ -30,8 +30,9 @@ public class BoothController {
     private final BoothService boothService;
     private final EventRepository eventRepository;
     private final BoothRepository boothRepository;
+    private final UserRepository userRepository;
 
-    @GetMapping("/host")
+    @GetMapping("/api/events/{eventId}/booths/host")
     @PreAuthorize("hasAuthority('EVENT_MANAGER')")
     @FunctionAuth("getAllBooths")
     public ResponseEntity<List<BoothSummaryForManagerResponseDto>> getAllBooths(@PathVariable Long eventId, @AuthenticationPrincipal CustomUserDetails auth) {
@@ -42,17 +43,21 @@ public class BoothController {
         return ResponseEntity.ok(boothService.getAllBooths(eventId));
     }
 
-    @GetMapping
+    @GetMapping("/api/events/{eventId}/booths")
     public ResponseEntity<List<BoothSummaryResponseDto>> getBooths(@PathVariable Long eventId) {
-        return ResponseEntity.ok(boothService.getBooths(eventId));
+        log.info("부스 조회 시도");
+        List<BoothSummaryResponseDto> response = boothService.getBooths(eventId);
+        log.info("조회 성공: {}", response);
+        return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/{boothId}")
+    @GetMapping("/api/events/{eventId}/booths/{boothId}")
     public ResponseEntity<BoothDetailResponseDto> getBoothDetails(@PathVariable Long eventId, @PathVariable Long boothId) {
+        log.info("부스 상세 정보 조회 시도: boothId={}", boothId);
         return ResponseEntity.ok(boothService.getBoothDetails(boothId));
     }
 
-    @PatchMapping("/{boothId}")
+    @PatchMapping("/api/events/{eventId}/booths/{boothId}")
     @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("updateBooth")
     public ResponseEntity<BoothDetailResponseDto> updateBooth(@PathVariable Long eventId, @PathVariable Long boothId, @RequestBody BoothUpdateRequestDto dto, @AuthenticationPrincipal CustomUserDetails auth) {
@@ -66,7 +71,7 @@ public class BoothController {
         return ResponseEntity.ok(boothService.updateBooth(boothId, dto));
     }
 
-    @DeleteMapping("/{boothId}")
+    @DeleteMapping("/api/events/{eventId}/booths/{boothId}")
     @PreAuthorize("hasAuthority('EVENT_MANAGER')")
     @FunctionAuth("deleteBooth")
     public ResponseEntity<String> deleteBooth(@PathVariable Long eventId, @PathVariable Long boothId, @AuthenticationPrincipal CustomUserDetails auth) {
@@ -76,7 +81,7 @@ public class BoothController {
         return ResponseEntity.ok("부스 삭제 완료(soft delete)");
     }
 
-    @PatchMapping("/{boothId}/manager")
+    @PatchMapping("/api/events/{eventId}/booths/{boothId}/manager")
     @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("updateBoothAdminInfo")
     public ResponseEntity<BoothAdminResponseDto> updateBoothAdminInfo (
@@ -98,7 +103,7 @@ public class BoothController {
     }
 
     /********************** 부스 타입 관리 **********************/
-    @PostMapping("/types")
+    @PostMapping("/api/events/{eventId}/booths/types")
     @PreAuthorize("hasAuthority('EVENT_MANAGER')")
     @FunctionAuth("createBoothType")
     public ResponseEntity<BoothTypeDto> createBoothType(@PathVariable Long eventId, @RequestBody BoothTypeDto dto, @AuthenticationPrincipal CustomUserDetails auth) {
@@ -108,13 +113,13 @@ public class BoothController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/types")
+    @GetMapping("/api/events/{eventId}/booths/types")
     public ResponseEntity<List<BoothTypeDto>> getBoothTypes(@PathVariable Long eventId) {
         List<BoothTypeDto> response = boothService.getBoothTypes(eventId);
         return ResponseEntity.ok(response);
     }
 
-    @PatchMapping("/types/{boothTypeId}")
+    @PatchMapping("/api/events/{eventId}/booths/types/{boothTypeId}")
     @PreAuthorize("hasAuthority('EVENT_MANAGER')")
     @FunctionAuth("updateBoothType")
     public ResponseEntity<BoothTypeDto> updateBoothType(@PathVariable Long eventId, @PathVariable Long boothTypeId, @RequestBody BoothTypeDto dto, @AuthenticationPrincipal CustomUserDetails auth) {
@@ -125,7 +130,7 @@ public class BoothController {
     }
 
     // 부스 타입 삭제  (소프트 딜리트)
-    @DeleteMapping("/types/{boothTypeId}")
+    @DeleteMapping("/api/events/{eventId}/booths/types/{boothTypeId}")
     @PreAuthorize("hasAuthority('EVENT_MANAGER')")
     @FunctionAuth("deleteBoothType")
     public ResponseEntity<String> deleteBoothType(@PathVariable Long eventId, @PathVariable Long boothTypeId, @AuthenticationPrincipal CustomUserDetails auth) {
@@ -133,6 +138,18 @@ public class BoothController {
 
         boothService.deleteBoothType(boothTypeId);
         return ResponseEntity.ok("삭제 완료");
+    }
+
+    /********************** 부스 관리자 기능 **********************/
+    // 부스 관리자 - 내 부스 목록 조회 (실제 부스)
+    @GetMapping("/api/booths/my-booths")
+    @PreAuthorize("hasAuthority('BOOTH_MANAGER')")
+    @FunctionAuth("getMyBooths")
+    public ResponseEntity<List<BoothAdminDashboardDto>> getMyBooths(
+            @AuthenticationPrincipal CustomUserDetails user) {
+        
+        List<BoothAdminDashboardDto> booths = boothService.getMyBooths(user.getUserId());
+        return ResponseEntity.ok(booths);
     }
 
     /***** 헬퍼 메소드 *****/

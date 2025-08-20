@@ -28,7 +28,7 @@ public interface BoothRepository extends JpaRepository<Booth, Long> {
            "JOIN FETCH b.event e " +
            "LEFT JOIN FETCH b.boothAdmin ba " +
            "LEFT JOIN FETCH ba.user u " +
-           "WHERE b.boothAdmin.userId = :userId " +
+           "WHERE ba.userId = :userId " +
            "ORDER BY b.boothTitle ASC")
     List<Booth> findByBoothAdminId(@Param("userId") Long userId);
 
