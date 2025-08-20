@@ -1,21 +1,5 @@
 package com.fairing.fairplay.admin.controller;
 
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.List;
-
-import org.springframework.data.domain.Page;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 import com.fairing.fairplay.admin.dto.AdminAuthDto;
 import com.fairing.fairplay.admin.dto.FunctionNameDto;
 import com.fairing.fairplay.admin.service.SuperAdminService;
@@ -25,6 +9,15 @@ import com.fairing.fairplay.history.dto.ChangeHistoryDto;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.etc.ChangeAccount;
 import com.fairing.fairplay.history.etc.ChangeTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/super-admin")
@@ -131,13 +124,5 @@ public class SuperAdminController {
             @AuthenticationPrincipal CustomUserDetails userDetails, @RequestBody String content) throws IOException {
         superAdminService.saveTemplate(name, content);
         return ResponseEntity.ok("템플릿 저장완료");
-    }
-
-    @ChangeTemplate("템플릿 새로고침")
-    @PostMapping("/template/refresh/{name}")
-    public ResponseEntity<String> refreshTemplate(@PathVariable String name,
-            @AuthenticationPrincipal CustomUserDetails userDetails) throws Exception {
-        superAdminService.refreshTemplateFromClasspath(name);
-        return ResponseEntity.ok("템플릿 새로고침 완료: " + name);
     }
 }
