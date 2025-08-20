@@ -328,8 +328,10 @@ public class PaymentService {
                     processReservationPaymentCompletion(payment);
                     break;
                 case "BOOTH":
-                case "BOOTH_APPLICATION":
                     processBoothPaymentCompletion(payment);
+                    break;
+                case "BOOTH_APPLICATION":
+                    processBoothApplyPaymentCompletion(payment);
                     break;
                 case "AD":
                     processAdvertisementPaymentCompletion(payment);
@@ -341,7 +343,7 @@ public class PaymentService {
         } catch (Exception e) {
             // 후속 처리 실패 시 로그 남기고 계속 진행 (결제는 이미 완료됨)
             System.err.println("결제 완료 후속 처리 실패 - paymentId: " + payment.getPaymentId() +
-                   ", targetType: " + targetType + ", error: " + e.getMessage());
+                    ", targetType: " + targetType + ", error: " + e.getMessage());
         }
     }
 
@@ -449,9 +451,9 @@ public class PaymentService {
     }
 
     /**
-     * 부스 결제 완료 처리
+     * 부스 신청 결제 완료 처리
      */
-    private void processBoothPaymentCompletion(Payment payment) {
+    private void processBoothApplyPaymentCompletion(Payment payment) {
         try {
             if (payment.getTargetId() == null) {
                 System.err.println("부스 결제 완료 처리 실패 - targetId가 null입니다. paymentId: " + payment.getPaymentId());
@@ -474,7 +476,34 @@ public class PaymentService {
 
         } catch (Exception e) {
             System.err.println("부스 결제 완료 처리 중 오류 발생 - paymentId: " + payment.getPaymentId() +
-                              ", error: " + e.getMessage());
+                    ", error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 부스 결제 완료 처리
+     */
+    private void processBoothPaymentCompletion(Payment payment) {
+        try {
+            Long boothApplicationId = payment.getTargetId();
+            if (boothApplicationId == null) {
+                System.err.println("부스 결제 완료 처리 실패 - targetId가 null입니다. paymentId: " + payment.getPaymentId());
+                return;
+            }
+
+            // 부스 신청 정보 조회
+            BoothApplication boothApplication = boothApplicationRepository.findById(boothApplicationId)
+                    .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다: " + boothApplicationId));
+
+            System.out.println("부스 결제 완료 처리됨 - targetId: " + payment.getTargetId() +
+                    ", boothTitle: " + boothApplication.getBoothTitle());
+
+            // 필요시 여기에 추가 로직 구현 (상태 업데이트, 알림 등)
+            // 현재는 BoothPaymentController에서 처리하고 있으므로 로깅만 수행
+
+        } catch (Exception e) {
+            System.err.println("부스 결제 완료 처리 중 오류 발생 - paymentId: " + payment.getPaymentId() +
+                    ", error: " + e.getMessage());
         }
     }
 
@@ -646,7 +675,7 @@ public class PaymentService {
             paymentCompletionEmailService.sendPaymentCompletionEmail(payment, reservationId);
 
             System.out.println(String.format("결제 완료 알림 발송 완료 - userId: %d, paymentId: %d, type: %s",
-                              userId, payment.getPaymentId(), actionType));
+                    userId, payment.getPaymentId(), actionType));
 
         } catch (Exception e) {
             // 알림 발송 실패해도 결제는 성공으로 처리
