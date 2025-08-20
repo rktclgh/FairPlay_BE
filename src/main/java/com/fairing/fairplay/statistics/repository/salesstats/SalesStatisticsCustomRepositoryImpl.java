@@ -66,8 +66,8 @@ public class SalesStatisticsCustomRepositoryImpl implements SalesStatisticsCusto
 
         return results.stream()
                 .map(r -> SalesDailyTrendDto.builder()
-                        .totalSales(r.get(daily.paidSales) != null ? r.get(daily.totalSales) : 0L)
-                        .totalCount(r.get(daily.paidCount) != null ? r.get(daily.totalCount) : 0)
+                        .totalSales(r.get(daily.paidSales) != null ? r.get(daily.paidSales) : 0L)
+                        .totalCount(r.get(daily.paidCount) != null ? r.get(daily.paidCount) : 0)
                         .statDate(r.get(daily.statDate))
                         .build())
                 .toList();
