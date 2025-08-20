@@ -1,6 +1,7 @@
 package com.fairing.fairplay.booth.service;
 
 import com.fairing.fairplay.booth.dto.BoothEntryRequestDto;
+import com.fairing.fairplay.booth.dto.BoothEntryResponseDto;
 import com.fairing.fairplay.booth.dto.BoothExperienceReservationResponseDto;
 import com.fairing.fairplay.booth.dto.BoothExperienceStatusUpdateDto;
 import com.fairing.fairplay.booth.entity.BoothExperienceReservation;
@@ -29,7 +30,7 @@ public class BoothQrService {
 
   // QR 티켓을 통한 부스 입장 처리
   @Transactional
-  public CheckResponseDto checkIn(CustomUserDetails userDetails, BoothEntryRequestDto dto) {
+  public BoothEntryResponseDto checkIn(CustomUserDetails userDetails, BoothEntryRequestDto dto) {
     // 1. 사용자 검증 - 로그인 사용자 확인, 사용자 조회
     Users manager = validateUser(userDetails.getUserId());
 
@@ -60,7 +61,13 @@ public class BoothQrService {
     BoothExperienceReservationResponseDto boothExperienceReservationResponseDto = boothExperienceService.updateReservationStatus(
         boothExperienceReservation.getReservationId(),
         boothExperienceStatusUpdateDto);
-    return qrTicketEntryService.processQrEntry(qrTicket);
+    CheckResponseDto checkResponseDto = qrTicketEntryService.processQrEntry(qrTicket);
+    BoothEntryResponseDto response = BoothEntryResponseDto.builder()
+        .name(boothExperienceReservationResponseDto.getUserName())
+        .message(checkResponseDto.getMessage())
+        .checkInTime(checkResponseDto.getCheckInTime())
+        .build();
+    return response;
   }
 
   private Users validateUser(Long userId) {
