@@ -187,6 +187,9 @@ public class FileService {
     }
 
     private String extractFileName(String key) {
-        return key.substring(key.lastIndexOf('/') + 1);
+        if (key == null || key.isEmpty()) {
+            return "unknown";
+        }
+        return key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
     }
 }

@@ -2,8 +2,10 @@ package com.fairing.fairplay.booth.service;
 
 import com.fairing.fairplay.booth.dto.*;
 import com.fairing.fairplay.booth.entity.Booth;
+import com.fairing.fairplay.booth.entity.BoothApplication;
 import com.fairing.fairplay.booth.entity.BoothExternalLink;
 import com.fairing.fairplay.booth.entity.BoothType;
+import com.fairing.fairplay.booth.mapper.BoothApplicationMapper;
 import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothExternalLinkRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
@@ -18,7 +20,9 @@ import com.fairing.fairplay.file.service.FileService;
 import com.fairing.fairplay.user.dto.BoothAdminRequestDto;
 import com.fairing.fairplay.user.dto.BoothAdminResponseDto;
 import com.fairing.fairplay.user.entity.BoothAdmin;
+import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.BoothAdminRepository;
+import com.fairing.fairplay.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +49,8 @@ public class BoothService {
     private final AwsS3Service awsS3Service;
     private final BoothExternalLinkRepository boothExternalLinkRepository;
     private final BoothAdminRepository boothAdminRepository;
+    private final UserRepository userRepository;
+    private final BoothApplicationMapper boothApplicationMapper;
 
     // 부스 목록 조회 (관리자용 - 삭제된 부스 포함 조회)
     @Transactional(readOnly = true)
@@ -61,24 +67,29 @@ public class BoothService {
         Event event = getEvent(eventId);
 
         // 1. 이벤트 ID로 모든 부스 신청서를 가져옵니다.
-        List<com.fairing.fairplay.booth.entity.BoothApplication> applications = boothApplicationRepository.findByEvent_EventId(eventId);
+        List<BoothApplication> applications = boothApplicationRepository.findByEvent_EventId(eventId);
 
-        // 2. 결제가 완료된 신청서들의 고유 식별자(제목+타입+시작일)를 만듭니다.
-        Set<String> paidBoothKeys = applications.stream()
+        // 2. 결제가 완료된 신청서들의 이메일을 수집합니다.
+        Set<String> paidBoothEmails = applications.stream()
                 .filter(app -> app.getBoothPaymentStatusCode() != null && "PAID".equals(app.getBoothPaymentStatusCode().getCode()))
-                .map(app -> app.getBoothTitle() + "|" + app.getBoothType().getId() + "|" + app.getStartDate())
+                .map(BoothApplication::getBoothEmail)
                 .collect(Collectors.toSet());
 
         // 3. 삭제되지 않은 모든 부스를 가져옵니다.
         List<Booth> booths = boothRepository.findByEventAndIsDeletedFalse(event);
+        log.info("booths: {}", booths);
 
-        // 4. 부스의 고유 식별자가 결제 완료된 식별자 목록에 포함된 부스만 필터링합니다.
+        // 4. 부스 관리자의 이메일이 결제 완료된 신청서의 이메일과 일치하는 부스만 필터링합니다.
         List<Booth> paidBooths = booths.stream()
                 .filter(booth -> {
-                    String boothKey = booth.getBoothTitle() + "|" + booth.getBoothType().getId() + "|" + booth.getStartDate();
-                    return paidBoothKeys.contains(boothKey);
+                    if (booth.getBoothAdmin() != null && booth.getBoothAdmin().getUser() != null) {
+                        String boothAdminEmail = booth.getBoothAdmin().getUser().getEmail();
+                        return paidBoothEmails.contains(boothAdminEmail);
+                    }
+                    return false;
                 })
                 .toList();
+        log.info("paidBooths: {}", paidBooths);
 
         List<BoothSummaryResponseDto> boothsDto = new ArrayList<>();
         paidBooths.forEach(booth -> boothsDto.add(BoothSummaryResponseDto.from(booth)));
@@ -149,8 +160,8 @@ public class BoothService {
 
             // 새로운 외부 링크 저장
             for (BoothExternalLinkDto linkDto : dto.getBoothExternalLinks()) {
-                if (linkDto.getUrl() == null || linkDto.getUrl().isEmpty() &&
-                    linkDto.getDisplayText() == null || linkDto.getDisplayText().isEmpty()) {
+                if (linkDto.getUrl() != null && !linkDto.getUrl().isEmpty() &&
+                    linkDto.getDisplayText() != null && !linkDto.getDisplayText().isEmpty()) {
                     BoothExternalLink link = new BoothExternalLink();
                     link.setBooth(booth);
                     link.setUrl(linkDto.getUrl());
@@ -190,6 +201,13 @@ public class BoothService {
                         .build());
 
                 fileService.createFileLink(savedFile, "BOOTH", boothId);
+                
+                // 배너 파일인 경우 boothBannerUrl 업데이트
+                if ("banner".equals(usage)) {
+                    String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
+                    booth.setBoothBannerUrl(cdnUrl);
+                    log.info("부스 배너 URL 업데이트: {}", cdnUrl);
+                }
             });
         }
 
@@ -318,6 +336,30 @@ public class BoothService {
         boothTypeRepository.deleteById(boothTypeId);
     }
 
+    /********************** 부스 관리자 기능 **********************/
+    // 부스 관리자 - 내 부스 목록 조회 (실제 생성된 부스)
+    @Transactional(readOnly = true)
+    public List<BoothAdminDashboardDto> getMyBooths(Long userId) {
+        Users user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
+
+        List<Booth> boothsByEmail = boothRepository.findAll().stream()
+                .filter(booth -> booth.getBoothAdmin() != null && 
+                               user.getEmail().equals(booth.getBoothAdmin().getUser().getEmail()))
+                .collect(Collectors.toList());
+
+        List<Booth> booths = boothRepository.findByBoothAdminId(userId);
+        
+        // 만약 userId로 조회한 결과가 비어있고 이메일로 조회한 결과가 있다면 이메일 기준으로 반환
+        if (booths.isEmpty() && !boothsByEmail.isEmpty()) {
+            log.info("이메일 기준으로 부스 반환");
+            booths = boothsByEmail;
+        }
+        
+        return booths.stream()
+                .map(BoothAdminDashboardDto::from)
+                .collect(Collectors.toList());
+    }
 
     /********************** 헬퍼 메소드 **********************/
     private Event getEvent(Long eventId) {
