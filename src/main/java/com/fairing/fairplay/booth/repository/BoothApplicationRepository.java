@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface BoothApplicationRepository extends JpaRepository<BoothApplication, Long> {
     // 특정 행사에 대한 부스 신청 목록 조회
@@ -18,4 +19,7 @@ public interface BoothApplicationRepository extends JpaRepository<BoothApplicati
 
     // 이메일로 부스 신청 목록 조회 (최신순)
     List<BoothApplication> findByBoothEmailOrderByApplyAtDesc(String boothEmail);
-}
+
+    List<BoothApplication> findByBoothEmail(String boothEmail);
+
+    Optional<BoothApplication> findByEvent_EventIdAndBoothEmail(Long eventId, String boothEmail);}
