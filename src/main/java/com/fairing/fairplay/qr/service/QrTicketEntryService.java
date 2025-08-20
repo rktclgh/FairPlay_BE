@@ -144,7 +144,7 @@ public class QrTicketEntryService {
     Attendee attendee = qrTicket.getAttendee();
     qrLogService.scannedQrLog(qrTicket, qrActionCode);
     Reservation eventReservation = attendee.getReservation();
-    if (eventReservation.getEvent().getEventId().equals(dto.getEventId())) {
+    if (!eventReservation.getEvent().getEventId().equals(dto.getEventId())) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "요청한 행사와 QR 티켓의 행사가 일치하지 않습니다");
     }
     log.info("부스 입장 시 QR 티켓 검증 완료. scan log 저장");
