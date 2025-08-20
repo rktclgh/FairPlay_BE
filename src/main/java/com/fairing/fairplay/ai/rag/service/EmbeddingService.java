@@ -84,7 +84,7 @@ public class EmbeddingService {
             return embedding;
 
         } catch (Exception e) {
-            log.error("Gemini 임베딩 실패: {}", e.getMessage());
+            log.error("Gemini 임베딩 실패: {}", e.getMessage(), e);
             
             // Fallback: 간단한 해시 기반 벡터 (오류 시에만)
             log.warn("Gemini 임베딩 실패로 해시 기반 벡터로 대체");
@@ -137,7 +137,7 @@ public class EmbeddingService {
             return embedding;
 
         } catch (Exception e) {
-            log.error("Gemini 질의 임베딩 실패, 일반 임베딩으로 대체: {}", e.getMessage());
+            log.error("Gemini 질의 임베딩 실패, 일반 임베딩으로 대체: {}", e.getMessage(), e);
             return embedText(query);
         }
     }
@@ -196,7 +196,7 @@ public class EmbeddingService {
             
             return vector;
         } catch (Exception e) {
-            log.error("폴백 벡터 생성도 실패: {}", e.getMessage());
+            log.error("폴백 벡터 생성도 실패: {}", e.getMessage(), e);
             return new float[VECTOR_DIMENSION]; // 영벡터 반환
         }
     }
