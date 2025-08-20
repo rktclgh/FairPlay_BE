@@ -1,5 +1,6 @@
 package com.fairing.fairplay.core.email.service;
 
+import com.fairing.fairplay.admin.repository.EmailTemplatesRepository;
 import com.fairing.fairplay.core.util.EmailSender;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -8,8 +9,9 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class EventEmailService extends AbstractEmailService {
 
-    public EventEmailService(EmailSender emailSender) {
-        super(emailSender);
+    public EventEmailService(EmailSender emailSender,
+            EmailTemplatesRepository emailTemplatesRepository) {
+        super(emailSender, emailTemplatesRepository);
     }
 
     public void sendRejectionEmail(String to, String eventTitle, String reason) {

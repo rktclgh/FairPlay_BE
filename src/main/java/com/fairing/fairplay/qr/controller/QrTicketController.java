@@ -2,6 +2,7 @@ package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
@@ -120,11 +121,11 @@ public class QrTicketController {
     return ResponseEntity.ok(entryExitService.adminForceCheck(dto));
   }
 
-  @PostMapping("/admin/issue")
-  public void adminForceIssue(@RequestBody Map<String, Object> request){
-    Long scheduleId = ((Number) request.get("scheduleId")).longValue();
-    Long reservationId = ((Number) request.get("reservationId")).longValue();
-    qrTicketService.adminForceIssue(scheduleId,reservationId);
+  // 당일 예약 + 동반자 정보 저장 시 QR 티켓 발송
+  @PostMapping("/send-email/guest")
+  public ResponseEntity<Void> sendEmailGuest(@RequestBody QrTicketEmailTodayRequestDto dto){
+    qrTicketService.sendEmailGuest(dto);
+    return ResponseEntity.ok().build();
   }
 
   // 참석자 자동 저장 테스트용 개발 코드

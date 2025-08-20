@@ -127,3 +127,19 @@ logging:
 # QR 티켓 조회 주소
 qr:
   url: ${QR_TICKET_REACT_URL}
+
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: fairplay       # 앱 이름 태그
+      instance: ${HOSTNAME:local} # 인스턴스 태그

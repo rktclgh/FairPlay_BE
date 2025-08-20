@@ -27,6 +27,9 @@ public class RagRedisRepository {
     private static final String CHUNK_HASH_PREFIX = "rag:chunk:";
     private static final String DOC_CHUNKS_SET_PREFIX = "rag:doc:";
     
+    /**
+     * 단일 청크 저장 (기존 메서드 유지)
+     */
     public void saveChunk(Chunk chunk) {
         String chunkKey = CHUNK_HASH_PREFIX + chunk.getChunkId();
         String docChunksKey = DOC_CHUNKS_SET_PREFIX + chunk.getDocId() + ":chunks";
@@ -48,6 +51,43 @@ public class RagRedisRepository {
             redisTemplate.opsForSet().add(docChunksKey, chunk.getChunkId());
         } catch (Exception e) {
             throw new RuntimeException("청크 저장 실패: " + chunk.getChunkId() + " - " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 여러 청크를 배치로 저장 (파이프라이닝 사용으로 성능 개선)
+     */
+    public void saveChunks(List<Chunk> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            return;
+        }
+        
+        try {
+            // Redis 파이프라이닝을 사용하여 배치 저장 (RedisCallback 사용)
+            redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+                for (Chunk chunk : chunks) {
+                    String chunkKey = CHUNK_HASH_PREFIX + chunk.getChunkId();
+                    String docChunksKey = DOC_CHUNKS_SET_PREFIX + chunk.getDocId() + ":chunks";
+                    
+                    // 해시 필드 저장
+                    redisTemplate.opsForHash().put(chunkKey, "docId", chunk.getDocId());
+                    redisTemplate.opsForHash().put(chunkKey, "text", chunk.getText());
+                    
+                    float[] embedding = chunk.getEmbedding();
+                    if (embedding != null) {
+                        redisTemplate.opsForHash().put(chunkKey, "vector", encodeVector(embedding));
+                    }
+                    redisTemplate.opsForHash().put(chunkKey, "createdAt", chunk.getCreatedAt());
+                    
+                    // 세트에 추가
+                    redisTemplate.opsForSet().add(CHUNKS_SET_KEY, chunk.getChunkId());
+                    redisTemplate.opsForSet().add(docChunksKey, chunk.getChunkId());
+                }
+                return null;
+            });
+            
+        } catch (Exception e) {
+            throw new RuntimeException("배치 청크 저장 실패: " + e.getMessage(), e);
         }
     }
     

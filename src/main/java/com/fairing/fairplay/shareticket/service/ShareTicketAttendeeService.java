@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 public class ShareTicketAttendeeService {
+
   private final UserRepository userRepository;
   private final AttendeeService attendeeService;
   private final ShareTicketRepository shareTicketRepository;
@@ -42,8 +43,8 @@ public class ShareTicketAttendeeService {
   @Transactional
   public ShareTicketSaveResponseDto saveShareTicketAndAttendee(CustomUserDetails userDetails,
       ShareTicketSaveRequestDto dto) {
-    if(userDetails == null || dto.getReservationId() == null) {
-      throw new CustomException(HttpStatus.UNAUTHORIZED,"로그인 후 이용해주세요");
+    if (userDetails == null || dto.getReservationId() == null) {
+      throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인 후 이용해주세요");
     }
 
     // 1. attendee 저장
@@ -55,8 +56,8 @@ public class ShareTicketAttendeeService {
         () -> new CustomException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다.")
     );
 
-    if(!reservation.getUser().getUserId().equals(buyUser.getUserId())) {
-      throw new CustomException(HttpStatus.FORBIDDEN,"해당 예약에 대한 권한이 없습니다.");
+    if (!reservation.getUser().getUserId().equals(buyUser.getUserId())) {
+      throw new CustomException(HttpStatus.FORBIDDEN, "해당 예약에 대한 권한이 없습니다.");
     }
 
     AttendeeSaveRequestDto attendeeSaveRequestDto = AttendeeSaveRequestDto.builder()
@@ -86,7 +87,7 @@ public class ShareTicketAttendeeService {
   // 공유 폼 링크 생성
   private String generateToken(ShareTicketSaveRequestDto dto) {
     if (dto == null) {
-      throw new CustomException(HttpStatus.NOT_FOUND,"유효하지 않은 요청입니다.");
+      throw new CustomException(HttpStatus.NOT_FOUND, "유효하지 않은 요청입니다.");
     }
 
     // 예약 유무 조회
@@ -117,10 +118,11 @@ public class ShareTicketAttendeeService {
     LocalDate today = LocalDateTime.now().toLocalDate();
 
     LocalDateTime expiredAt;
-    if (today.equals(
-        scheduleDate.minusDays(1))) {
-      expiredAt = scheduleDate.atStartOfDay();
+    // 행사 시작일이 오늘 기준 -1일 또는 당일일 경우 => 공유폼 만료 기한 당일 시작시간까지
+    if (today.equals(scheduleDate.minusDays(1)) || today.equals(scheduleDate)) {
+      expiredAt = LocalDateTime.of(scheduleDate, reservation.getSchedule().getStartTime());
     } else {
+      // 그외 행사 시작 전날
       expiredAt = scheduleDate.minusDays(1).atStartOfDay();
     }
 
@@ -130,7 +132,7 @@ public class ShareTicketAttendeeService {
         .expired(false) // 만료 여부
         .submittedCount(1) // 대표자 제출
         .reservation(reservation) // 예약 연결
-        .expiredAt(expiredAt) // 폼 만료 기한 (행사 시작일 하루 전)
+        .expiredAt(expiredAt) // 폼 만료 기한 (행사 시작일 하루 전 또는 시작시간까지)
         .build();
 
     shareTicketRepository.saveAndFlush(shareTicket);

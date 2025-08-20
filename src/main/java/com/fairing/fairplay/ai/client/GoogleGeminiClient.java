@@ -36,7 +36,7 @@ public class GoogleGeminiClient implements LlmClient {
         boolean beta = useBetaEndpoint(model);
         boolean allowThinking = beta && supportsThinking(model);
 
-        int outTokens = (maxOutputTokens != null && maxOutputTokens > 0) ? maxOutputTokens : 512; // 필요하면 1024로 올려도 됨
+        int outTokens = (maxOutputTokens != null && maxOutputTokens > 0) ? maxOutputTokens : 2048; // RAG 응답을 위해 증가
         double temp = (temperature != null) ? temperature : 0.7;
 
         // 1차 시도
@@ -45,7 +45,7 @@ public class GoogleGeminiClient implements LlmClient {
 
         // 2차 시도 (토큰 컷 or thoughts에 토큰 먹힌 케이스 대비)
         if (r.shouldRetry) {
-            int out2 = Math.min(outTokens * 2, 4096);
+            int out2 = Math.min(outTokens * 2, 8192);
             CallResult r2 = sendOnce(messages, temp, out2, beta, /*thinkingBudget*/ allowThinking ? 0 : null);
             if (r2.ok()) return r2.text();
         }
