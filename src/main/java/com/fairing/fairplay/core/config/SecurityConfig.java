@@ -53,6 +53,7 @@ public class SecurityConfig {
                                                                 "/host/**",
                                                                 "/booth-admin/**",
                                                                 "/events/**",
+                                                                "/eventdetail/**",
                                                                 "/qr-ticket/**",
                                                                 "/auth/**",
                                                                 "/api/users/signup",
