@@ -29,9 +29,11 @@ import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 
 @Aspect
 @Component
+@Slf4j
 public class AccessAspect {
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -102,15 +104,26 @@ public class AccessAspect {
         ChangeBanner changeBanner = method.getAnnotation(ChangeBanner.class);
         String changeString = changeBanner.value();
 
-        Long userId = getCurrentUserId(); // 테스트용 하드코딩, getCurrentId 사용 예정
-        Long targetId = (Long) joinPoint.getArgs()[1];
-        Users executor = userRepository.findById(userId).orElseThrow();
-        Users target = userRepository.findById(targetId).orElseThrow();
+        Long userId = getCurrentUserId();
+        if (userId == null) {
+            log.warn("ChangeBanner: 사용자 ID를 가져올 수 없음");
+            return joinPoint.proceed();
+        }
+
+        Users executor = userRepository.findById(userId).orElse(null);
+        if (executor == null) {
+            log.warn("ChangeBanner: 사용자를 찾을 수 없음 - userId: {}", userId);
+            return joinPoint.proceed();
+        }
+
+        // 배너 관련 작업이므로 targetId를 배너 ID로 사용
+        Long bannerId = (Long) joinPoint.getArgs()[1];
+        
         ChangeHistory changeHistory = ChangeHistory.builder()
                 .user(executor)
-                .targetId(target.getUserId())
+                .targetId(bannerId) // 배너 ID를 targetId로 사용
                 .targetType("배너 정보 수정")
-                .content(changeString)
+                .content(changeString + " (배너 ID: " + bannerId + ")")
                 .modifyTime(LocalDateTime.now())
                 .build();
         changeHistoryRepository.save(changeHistory);
