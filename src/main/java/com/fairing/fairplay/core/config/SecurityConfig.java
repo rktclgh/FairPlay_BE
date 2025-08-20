@@ -84,9 +84,13 @@ public class SecurityConfig {
                                                                 "/api/booths/payment/request-from-email",
                                                                 "/api/booths/payment/complete",
                                                                 "/api/event-popularity/**",
-                                                                "/api/banner/hot-picks")
+                                                                "/api/banner/hot-picks",
+                                        "/api/banners/hero/active")
+
                                                 .permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
+                                        .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
+
+                                        .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/attendees").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/events/*/schedule").permitAll()
