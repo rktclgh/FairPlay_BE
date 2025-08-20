@@ -82,6 +82,7 @@ public class QrLogService {
   }
 
   // 비정상 중복 스캔 -> 스캔할 때 검토
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void duplicateQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
       QrCheckStatusCode qrCheckStatusCode) {
     saveQrLog(qrTicket, qrActionCode);
@@ -89,10 +90,12 @@ public class QrLogService {
   }
 
   // 잘못된 스캔 -> 입장, 퇴장 시 검토
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void invalidQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
       QrCheckStatusCode qrCheckStatusCode) {
     saveQrLog(qrTicket, qrActionCode);
     LocalDateTime saveTime = saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    log.info("saveQrCheckLog saveTime:{}",saveTime);
   }
 
   // 특정 qr 티켓의 최근 checkstatus 로그 조회

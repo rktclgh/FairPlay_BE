@@ -42,7 +42,7 @@ public class Attendee {
   @Column(name = "phone", nullable = true)
   private String phone;
 
-  @Column(name = "email", nullable = true, unique = true)
+  @Column(name = "email", nullable = true)
   private String email;
 
   @Column(name = "birth", nullable = true)

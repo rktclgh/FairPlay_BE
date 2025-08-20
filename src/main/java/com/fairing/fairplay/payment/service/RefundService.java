@@ -86,7 +86,7 @@ public class RefundService {
      * 2단계: 관리자의 환불 승인 - 이때 아임포트에 환불 요청
      */
     @Transactional
-    public PaymentResponseDto approveRefund(Long refundId, Long adminUserId) {
+    public PaymentResponseDto approveRefund(Long refundId, RefundApprovalDto approval, Long adminUserId) {
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
 

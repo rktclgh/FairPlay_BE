@@ -1,8 +1,16 @@
 package com.fairing.fairplay.payment.service;
 
+import com.fairing.fairplay.booth.entity.Booth;
+import com.fairing.fairplay.booth.entity.BoothApplication;
+import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
+import com.fairing.fairplay.booth.repository.BoothRepository;
+import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.email.service.PaymentCompletionEmailService;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.notification.dto.NotificationRequestDto;
+import com.fairing.fairplay.notification.service.NotificationService;
 import com.fairing.fairplay.payment.dto.PaymentRequestDto;
 import com.fairing.fairplay.payment.dto.PaymentResponseDto;
 import com.fairing.fairplay.payment.entity.Payment;
@@ -13,32 +21,29 @@ import com.fairing.fairplay.payment.repository.*;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.reservation.repository.ReservationStatusCodeRepository;
-import com.fairing.fairplay.booth.entity.BoothApplication;
-import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
-import com.fairing.fairplay.ticket.entity.EventSchedule;
-import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
-import com.fairing.fairplay.notification.service.NotificationService;
-import com.fairing.fairplay.notification.dto.NotificationRequestDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
@@ -53,25 +58,30 @@ public class PaymentService {
     private final PaymentStatusCodeRepository paymentStatusCodeRepository;
     private final PaymentTypeCodeRepository paymentTypeCodeRepository;
     private final PaymentTargetTypeRepository paymentTargetTypeRepository;
-    
+
     // 결제 완료 후 후속 처리를 위한 추가 레포지토리
     private final ReservationStatusCodeRepository reservationStatusCodeRepository;
-    
+
     // 예매 생성을 위한 추가 의존성
     private final TicketRepository ticketRepository;
     private final EventScheduleRepository eventScheduleRepository;
     private final ScheduleTicketRepository scheduleTicketRepository;
-    
+
     // 알림 서비스
     private final NotificationService notificationService;
-    
+
+    // 결제 완료 이메일 서비스
+    private final PaymentCompletionEmailService paymentCompletionEmailService;
+
+
     // 부스 신청 정보 조회를 위한 레포지토리
     private final BoothApplicationRepository boothApplicationRepository;
-    
+    private final BoothRepository boothRepository;
+
     // 아임포트 API 설정
     @Value("${iamport.api-key}")
     private String iamportApiKey;
-    
+
     @Value("${iamport.secret-key}")
     private String iamportSecretKey;
 
@@ -104,9 +114,9 @@ public class PaymentService {
         PaymentStatusCode paymentStatusCode = paymentStatusCodeRepository.getReferenceByCode("PENDING");
 
         // merchantUid는 외부에서 제공되거나 자체 생성
-        String merchantUid = paymentRequestDto.getMerchantUid() != null 
-            ? paymentRequestDto.getMerchantUid() 
-            : generateMerchantUid(paymentRequestDto.getPaymentTargetType());
+        String merchantUid = paymentRequestDto.getMerchantUid() != null
+                ? paymentRequestDto.getMerchantUid()
+                : generateMerchantUid(paymentRequestDto.getPaymentTargetType());
 
         // 결제 후 메인 데이터 생성
 
@@ -134,34 +144,34 @@ public class PaymentService {
     public PaymentResponseDto processFreeTicket(PaymentRequestDto paymentRequestDto, Long userId) {
         // 1. 요청 데이터 유효성 검증
         validatePaymentRequest(paymentRequestDto);
-        
+
         // 2. 무료 티켓인지 확인
         BigDecimal totalAmount = paymentRequestDto.getPrice().multiply(new BigDecimal(paymentRequestDto.getQuantity()));
         if (totalAmount.compareTo(BigDecimal.ZERO) != 0) {
             throw new IllegalArgumentException("무료 티켓이 아닙니다. 금액: " + totalAmount);
         }
-        
+
         // 3. 결제 정보 저장 (PENDING 상태)
         PaymentResponseDto savedPayment = savePayment(paymentRequestDto, userId);
-        
+
         // 4. 즉시 완료 처리 (PG사 연동 없이)
         Payment payment = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
-        
+
         // 5. 결제 완료 상태로 변경
         PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
                 .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
-        
+
         payment.setPaymentStatusCode(completedStatus);
         payment.setPaidAt(LocalDateTime.now());
         // 무료 티켓의 경우 imp_uid는 "FREE_" + merchantUid 형태로 설정
         payment.setImpUid("FREE_" + payment.getMerchantUid());
-        
+
         Payment savedPaymentEntity = paymentRepository.save(payment);
-        
+
         // 6. 결제 완료 후 후속 처리 (예약 생성 등)
         processPaymentCompletionActions(savedPaymentEntity);
-        
+
         return PaymentResponseDto.fromEntity(savedPaymentEntity);
     }
 
@@ -188,7 +198,7 @@ public class PaymentService {
         // 3. imp_uid 중복 검증 (이미 사용된 PG 결제 ID인지 확인)
         if (paymentRequestDto.getImpUid() != null) {
             boolean duplicateImpUid = paymentRepository.existsByImpUidAndPaymentStatusCode_Code(
-                paymentRequestDto.getImpUid(), "COMPLETED");
+                    paymentRequestDto.getImpUid(), "COMPLETED");
             if (duplicateImpUid) {
                 throw new IllegalStateException("이미 사용된 결제 ID입니다: " + paymentRequestDto.getImpUid());
             }
@@ -206,7 +216,7 @@ public class PaymentService {
         payment.setImpUid(paymentRequestDto.getImpUid());
         payment.setPaymentStatusCode(completedStatus);
         payment.setPaidAt(LocalDateTime.now());
-        
+
         Payment savedPayment = paymentRepository.save(payment);
 
         // 6. 결제 완료 후 후속 처리
@@ -244,7 +254,7 @@ public class PaymentService {
         } else {
             throw new IllegalArgumentException("결제 전체 조회 권한이 없습니다.");
         }
-        
+
         return PaymentResponseDto.fromEntityList(payments);
     }
 
@@ -266,14 +276,14 @@ public class PaymentService {
     public void updatePaymentTargetId(String merchantUid, Long targetId) {
         Payment payment = paymentRepository.findByMerchantUid(merchantUid)
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: " + merchantUid));
-        
+
         payment.setTargetId(targetId);
         paymentRepository.save(payment);
     }
 
     /**
      * 결제 대상 타입별 고유 merchantUid 생성
-     * 형식: {PREFIX}_yyyyMMddHHmm_xxxxx 
+     * 형식: {PREFIX}_yyyyMMddHHmm_xxxxx
      * 예: TICKET_202501080330_12345, BOOTH_202501080330_12345, AD_202501080330_12345
      */
     public String generateMerchantUid(String targetType) {
@@ -292,14 +302,14 @@ public class PaymentService {
             default:
                 prefix = "PAY";
         }
-        
+
         // 현재 시간을 yyyyMMddHHmm 형식으로 포맷
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
-        
+
         // 5자리 랜덤 숫자 생성 (10000~99999)
         Random random = new Random();
         int randomNum = 10000 + random.nextInt(90000);
-        
+
         return String.format("%s_%s_%d", prefix, timestamp, randomNum);
     }
 
@@ -311,15 +321,17 @@ public class PaymentService {
      */
     private void processPaymentCompletionActions(Payment payment) {
         String targetType = payment.getPaymentTargetType().getPaymentTargetCode();
-        
+
         try {
             switch (targetType) {
                 case "RESERVATION":
                     processReservationPaymentCompletion(payment);
                     break;
                 case "BOOTH":
-                case "BOOTH_APPLICATION":
                     processBoothPaymentCompletion(payment);
+                    break;
+                case "BOOTH_APPLICATION":
+                    processBoothApplyPaymentCompletion(payment);
                     break;
                 case "AD":
                     processAdvertisementPaymentCompletion(payment);
@@ -330,8 +342,8 @@ public class PaymentService {
             }
         } catch (Exception e) {
             // 후속 처리 실패 시 로그 남기고 계속 진행 (결제는 이미 완료됨)
-            System.err.println("결제 완료 후속 처리 실패 - paymentId: " + payment.getPaymentId() + 
-                              ", targetType: " + targetType + ", error: " + e.getMessage());
+            System.err.println("결제 완료 후속 처리 실패 - paymentId: " + payment.getPaymentId() +
+                    ", targetType: " + targetType + ", error: " + e.getMessage());
         }
     }
 
@@ -439,29 +451,63 @@ public class PaymentService {
     }
 
     /**
+     * 부스 신청 결제 완료 처리
+     */
+    private void processBoothApplyPaymentCompletion(Payment payment) {
+        try {
+            if (payment.getTargetId() == null) {
+                System.err.println("부스 결제 완료 처리 실패 - targetId가 null입니다. paymentId: " + payment.getPaymentId());
+                return;
+            }
+
+            Long targetId = payment.getTargetId();
+            Booth booth = boothRepository.findById(targetId)
+                    .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
+            try {
+                BoothApplication boothApplication = boothApplicationRepository
+                        .findByBoothEmailOrderByApplyAtDesc(booth.getBoothAdmin().getUser().getEmail())
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다."));;
+                System.out.println("부스 결제 완료 처리됨 - targetId: " + payment.getTargetId() +
+                        ", boothTitle: " + boothApplication.getBoothTitle());
+            } catch (Exception e) {
+                throw new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다.");
+            }
+
+            // 필요시 여기에 추가 로직 구현 (상태 업데이트, 알림 등)
+            // 현재는 BoothPaymentController에서 처리하고 있으므로 로깅만 수행
+
+        } catch (Exception e) {
+            System.err.println("부스 결제 완료 처리 중 오류 발생 - paymentId: " + payment.getPaymentId() +
+                    ", error: " + e.getMessage());
+        }
+    }
+
+    /**
      * 부스 결제 완료 처리
      */
     private void processBoothPaymentCompletion(Payment payment) {
         try {
-            Long boothApplicationId = payment.getTargetId();
-            if (boothApplicationId == null) {
+            Long boothId = payment.getTargetId();
+            if (boothId == null) {
                 System.err.println("부스 결제 완료 처리 실패 - targetId가 null입니다. paymentId: " + payment.getPaymentId());
                 return;
             }
 
             // 부스 신청 정보 조회
-            BoothApplication boothApplication = boothApplicationRepository.findById(boothApplicationId)
-                    .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다: " + boothApplicationId));
+            Booth booth = boothRepository.findById(boothId)
+                    .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다: " + boothId));;
 
-            System.out.println("부스 결제 완료 처리됨 - targetId: " + payment.getTargetId() + 
-                              ", boothTitle: " + boothApplication.getBoothTitle());
-            
+            System.out.println("부스 결제 완료 처리됨 - targetId: " + payment.getTargetId() +
+                    ", boothTitle: " + booth.getBoothTitle());
+
             // 필요시 여기에 추가 로직 구현 (상태 업데이트, 알림 등)
             // 현재는 BoothPaymentController에서 처리하고 있으므로 로깅만 수행
-            
+
         } catch (Exception e) {
-            System.err.println("부스 결제 완료 처리 중 오류 발생 - paymentId: " + payment.getPaymentId() + 
-                              ", error: " + e.getMessage());
+            System.err.println("부스 결제 완료 처리 중 오류 발생 - paymentId: " + payment.getPaymentId() +
+                    ", error: " + e.getMessage());
         }
     }
 
@@ -480,35 +526,19 @@ public class PaymentService {
     private void validatePaymentWithIamport(String impUid, BigDecimal expectedAmount) {
         try {
             System.out.println("아임포트 결제 검증 시작 - impUid: " + impUid + ", 예상금액: " + expectedAmount);
-            
+
             // 1. 아임포트 액세스 토큰 획득
             String accessToken = getIamportAccessToken();
-            
+
             // 2. imp_uid로 결제 정보 조회
             Map<String, Object> paymentInfo = getPaymentInfoFromIamport(impUid, accessToken);
-            
+
             // 3. 결제 상태 검증
             String status = (String) paymentInfo.get("status");
             if (!"paid".equals(status)) {
                 throw new IllegalStateException("아임포트에서 결제가 완료되지 않았습니다. 상태: " + status);
             }
-            
-//            // 4. 결제 금액 검증
-//            Number amountNumber = (Number) paymentInfo.get("amount");
-//            BigDecimal actualAmount = new BigDecimal(amountNumber.toString());
-//
-//            // BigDecimal 비교 시 스케일을 맞춰서 비교
-//            BigDecimal normalizedActual = actualAmount.setScale(2, RoundingMode.HALF_UP);
-//            BigDecimal normalizedExpected = expectedAmount.setScale(2, RoundingMode.HALF_UP);
-//
-//            if (normalizedActual.compareTo(normalizedExpected) != 0) {
-//                throw new IllegalStateException(
-//                    String.format("결제 금액이 일치하지 않습니다. 아임포트: %s, 예상: %s",
-//                                normalizedActual, normalizedExpected));
-//            }
-//
-//            System.out.println("아임포트 결제 검증 완료 - impUid: " + impUid + ", 실제금액: " + actualAmount);
-            
+
         } catch (Exception e) {
             throw new IllegalStateException("아임포트 결제 검증 실패: " + e.getMessage(), e);
         }
@@ -567,15 +597,15 @@ public class PaymentService {
         Map<String, Object> paymentInfo;
         try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
             String jsonLine = br.readLine();
-            
+
             ObjectMapper objectMapper = new ObjectMapper();
             Map<String, Object> topLevelMap = objectMapper.readValue(jsonLine, Map.class);
-            
+
             Integer code = (Integer) topLevelMap.get("code");
             if (code == null || code != 0) {
                 throw new IllegalStateException("아임포트 API 응답 오류: " + topLevelMap.get("message"));
             }
-            
+
             paymentInfo = (Map<String, Object>) topLevelMap.get("response");
         }
 
@@ -590,7 +620,7 @@ public class PaymentService {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("결제 금액이 유효하지 않습니다: " + amount);
         }
-        
+
         // 최대 결제 금액 제한 (예: 1000만원)
         BigDecimal maxAmount = new BigDecimal("10000000");
         if (amount.compareTo(maxAmount) > 0) {
@@ -605,63 +635,56 @@ public class PaymentService {
         if (paymentRequestDto == null) {
             throw new IllegalArgumentException("결제 요청 데이터가 없습니다.");
         }
-        
+
         if (paymentRequestDto.getPrice() == null) {
             throw new IllegalArgumentException("결제 금액이 없습니다.");
         }
-        
+
         validatePaymentAmount(paymentRequestDto.getPrice());
-        
+
         if (paymentRequestDto.getQuantity() == null || paymentRequestDto.getQuantity() <= 0) {
             throw new IllegalArgumentException("수량이 유효하지 않습니다: " + paymentRequestDto.getQuantity());
         }
-        
+
         if (paymentRequestDto.getPaymentTargetType() == null || paymentRequestDto.getPaymentTargetType().trim().isEmpty()) {
             throw new IllegalArgumentException("결제 대상 타입이 없습니다.");
         }
     }
 
     /**
-     * 결제 완료 알림 발송 (웹 + 이메일 동시)
+     * 결제 완료 알림 발송 (웹 + HTML 이메일 동시)
      */
-    private void sendPaymentCompletionNotifications(Payment payment, Long reservationId) {
+    public void sendPaymentCompletionNotifications(Payment payment, Long reservationId) {
         try {
             Long userId = payment.getUser().getUserId();
             String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
             BigDecimal amount = payment.getAmount();
             String userName = payment.getUser().getName();
-            
+
             // 무료 티켓 여부 확인
             boolean isFreeTicket = amount.compareTo(BigDecimal.ZERO) == 0;
             String actionType = isFreeTicket ? "예매" : "결제";
-            
+
             // 1. 웹 알림 발송 (실시간)
             NotificationRequestDto webNotification = NotificationService.buildWebNotification(
-                userId, 
-                isFreeTicket ? "RESERVATION" : "PAYMENT", 
-                String.format("%s 완료", actionType), 
-                String.format("%s %s가 완료되었습니다! 마이페이지에서 확인해보세요.", eventTitle, actionType),
-                "/mypage/reservation"
+                    userId,
+                    isFreeTicket ? "RESERVATION" : "PAYMENT",
+                    String.format("%s 완료", actionType),
+                    String.format("%s %s가 완료되었습니다! 마이페이지에서 확인해보세요.", eventTitle, actionType),
+                    "/mypage/reservation"
             );
             notificationService.createNotification(webNotification);
-            
-            // 2. 이메일 알림 발송 (상세 정보)
-            NotificationRequestDto emailNotification = NotificationService.buildEmailNotification(
-                userId,
-                isFreeTicket ? "RESERVATION" : "PAYMENT",
-                String.format("[FairPlay] %s %s 완료", eventTitle, actionType),
-                generatePaymentEmailContent(payment, reservationId, isFreeTicket),
-                null
-            );
-            notificationService.createNotification(emailNotification);
-            
-            System.out.println(String.format("알림 발송 완료 - userId: %d, paymentId: %d, type: %s", 
-                              userId, payment.getPaymentId(), actionType));
-            
+
+            // 2. HTML 템플릿 이메일 발송 (새로운 전용 서비스 사용)
+            paymentCompletionEmailService.sendPaymentCompletionEmail(payment, reservationId);
+
+            System.out.println(String.format("결제 완료 알림 발송 완료 - userId: %d, paymentId: %d, type: %s",
+                    userId, payment.getPaymentId(), actionType));
+
         } catch (Exception e) {
             // 알림 발송 실패해도 결제는 성공으로 처리
-            System.err.println("결제 완료 알림 발송 실패 - paymentId: " + payment.getPaymentId() + 
-                              ", error: " + e.getMessage());
+            System.err.println("결제 완료 알림 발송 실패 - paymentId: " + payment.getPaymentId() +
+                    ", error: " + e.getMessage());
         }
     }
 
@@ -673,38 +696,38 @@ public class PaymentService {
         String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
         String actionType = isFreeTicket ? "예매" : "결제";
         String amountText = isFreeTicket ? "무료" : payment.getAmount().toString() + "원";
-        
+
         return String.format("""
-            안녕하세요, %s님
-            
-            %s %s가 성공적으로 완료되었습니다.
-            
-            [%s 정보]
-            - 이벤트: %s
-            - %s 금액: %s
-            - %s 일시: %s
-            - 예약 번호: %s
-            - 주문 번호: %s
-            
-            티켓 정보 및 QR 코드는 마이페이지 > 예매 내역에서 확인하실 수 있습니다.
-            
-            행사 당일 QR 코드 또는 예약 번호를 지참해 주시기 바랍니다.
-            
-            문의사항이 있으시면 언제든 고객센터로 연락 주세요.
-            
-            감사합니다.
-            FairPlay 팀
-            """, 
-            userName,
-            eventTitle, actionType,
-            actionType,
-            eventTitle,
-            actionType, amountText,
-            actionType, payment.getPaidAt() != null ? 
-                payment.getPaidAt().format(DateTimeFormatter.ofPattern("yyyy년 MM월 dd일 HH:mm")) : 
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy년 MM월 dd일 HH:mm")),
-            reservationId != null ? reservationId.toString() : "처리중",
-            payment.getMerchantUid()
+                        안녕하세요, %s님
+                        
+                        %s %s가 성공적으로 완료되었습니다.
+                        
+                        [%s 정보]
+                        - 이벤트: %s
+                        - %s 금액: %s
+                        - %s 일시: %s
+                        - 예약 번호: %s
+                        - 주문 번호: %s
+                        
+                        티켓 정보 및 QR 코드는 마이페이지 > 예매 내역에서 확인하실 수 있습니다.
+                        
+                        행사 당일 QR 코드 또는 예약 번호를 지참해 주시기 바랍니다.
+                        
+                        문의사항이 있으시면 언제든 고객센터로 연락 주세요.
+                        
+                        감사합니다.
+                        FairPlay 팀
+                        """,
+                userName,
+                eventTitle, actionType,
+                actionType,
+                eventTitle,
+                actionType, amountText,
+                actionType, payment.getPaidAt() != null ?
+                        payment.getPaidAt().format(DateTimeFormatter.ofPattern("yyyy년 MM월 dd일 HH:mm")) :
+                        LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy년 MM월 dd일 HH:mm")),
+                reservationId != null ? reservationId.toString() : "처리중",
+                payment.getMerchantUid()
         );
     }
 
@@ -726,7 +749,7 @@ public class PaymentService {
         // 3. 부스 신청 정보에서 부스 이메일로 사용자 찾기
         BoothApplication boothApplication = boothApplicationRepository.findById(paymentRequestDto.getTargetId())
                 .orElseThrow(() -> new IllegalArgumentException("부스 신청 정보를 찾을 수 없습니다."));
-        
+
         Users user = userRepository.findByEmail(boothApplication.getBoothEmail())
                 .orElseThrow(() -> new IllegalArgumentException("부스 관리자 계정을 찾을 수 없습니다: " + boothApplication.getBoothEmail()));
 

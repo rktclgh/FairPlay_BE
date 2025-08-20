@@ -419,7 +419,7 @@ public class EventApplyService {
 
         eventDetail.setContent("");
         eventDetail.setPolicy("");
-        eventDetail.setHostName(eventApply.getManagerName());
+        eventDetail.setHostName(eventApply.getBusinessName());
         eventDetail.setContactInfo("");
         eventDetail.setReentryAllowed(true);
         eventDetail.setCheckOutAllowed(false);

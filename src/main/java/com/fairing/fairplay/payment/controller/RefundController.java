@@ -38,12 +38,13 @@ public class RefundController {
     @FunctionAuth("approveRefund")
     public ResponseEntity<PaymentResponseDto> approveRefund(
             @PathVariable Long refundId,
+            @RequestBody RefundApprovalDto approval,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         if (userDetails == null) {
             throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
         }
 
-        PaymentResponseDto approvedRefund = refundService.approveRefund(refundId, userDetails.getUserId());
+        PaymentResponseDto approvedRefund = refundService.approveRefund(refundId, approval, userDetails.getUserId());
         return ResponseEntity.ok(approvedRefund);
     }
 

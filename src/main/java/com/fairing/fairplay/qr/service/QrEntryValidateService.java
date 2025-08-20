@@ -402,6 +402,7 @@ public class QrEntryValidateService {
 
   // QR 체크인 코드 검증
   public QrCheckStatusCode validateQrCheckStatusCode(String qrCheckStatusCode) {
+    log.info("qrCheckStatusCode 찾기 : {}",qrCheckStatusCode);
     return qrCheckStatusCodeRepository.findByCode(qrCheckStatusCode)
         .orElseThrow(() -> new CustomException(
             HttpStatus.BAD_REQUEST, "QR 체크인 상태 코드가 올바르지 않습니다."));

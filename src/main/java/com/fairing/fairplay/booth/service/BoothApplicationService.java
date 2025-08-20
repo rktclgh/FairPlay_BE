@@ -355,7 +355,7 @@ public class BoothApplicationService {
 
         BoothAdmin boothAdmin = new BoothAdmin();
         boothAdmin.setUser(savedUser);
-        boothAdmin.setEmail(boothApply.getContactEmail());
+        boothAdmin.setEmail(boothApply.getBoothEmail()); // getBoothEmail()로 부스 이메일 설정
         boothAdmin.setManagerName(boothApply.getManagerName());
         boothAdmin.setContactNumber(boothApply.getContactNumber());
 
@@ -436,19 +436,26 @@ public class BoothApplicationService {
 
     @Transactional
     public void updatePaymentStatus(Long id, BoothPaymentStatusUpdateDto dto) {
-        BoothApplication booth = boothApplicationRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("부스 신청 정보를 찾을 수 없습니다."));
+        Booth booth = boothRepository.findById(id)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
+        String adminEmail = booth.getBoothAdmin().getUser().getEmail();
+
+        BoothApplication boothApplication = boothApplicationRepository
+                .findByBoothEmailOrderByApplyAtDesc(adminEmail)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다."));
 
         BoothPaymentStatusCode statusCode = paymentCodeRepository
                 .findByCode(dto.getPaymentStatusCode())
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 상태 코드입니다."));
 
-        booth.setBoothPaymentStatusCode(statusCode);
-        booth.setAdminComment(dto.getAdminComment());
-        booth.setStatusUpdatedAt(LocalDateTime.now());
+        boothApplication.setBoothPaymentStatusCode(statusCode);
+        boothApplication.setAdminComment(dto.getAdminComment());
+        boothApplication.setStatusUpdatedAt(LocalDateTime.now());
 
         if ("PAID".equals(dto.getPaymentStatusCode())) {
-            Users user = userRepository.findByEmail(booth.getBoothEmail())
+            Users user = userRepository.findByEmail(boothApplication.getBoothEmail())
                     .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
 
             UserRoleCode boothManagerCode = userRoleCodeRepository.findByCode("BOOTH_MANAGER")
@@ -456,6 +463,7 @@ public class BoothApplicationService {
 
             user.setRoleCode(boothManagerCode);
         }
+
 
     }
 
@@ -508,21 +516,11 @@ public class BoothApplicationService {
     public List<BoothApplicationListDto> getMyBoothApplications(Long userId) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다."));
-        
-        log.info("부스 신청 조회 - 사용자 ID: {}, 이메일: {}", userId, user.getEmail());
-        
-        // 디버깅: 전체 부스 신청 확인
-        List<BoothApplication> allApplications = boothApplicationRepository.findAll();
-        log.info("전체 부스 신청 개수: {}", allApplications.size());
-        for (BoothApplication app : allApplications) {
-            log.info("부스 신청 - ID: {}, boothEmail: {}, boothTitle: {}", 
-                    app.getId(), app.getBoothEmail(), app.getBoothTitle());
-        }
-        
+
         List<BoothApplication> applications = boothApplicationRepository.findByBoothEmailOrderByApplyAtDesc(user.getEmail());
-        
+
         log.info("조회된 부스 신청 개수: {}", applications.size());
-        
+
         return applications.stream()
                 .map(mapper::toListDto)
                 .collect(Collectors.toList());
