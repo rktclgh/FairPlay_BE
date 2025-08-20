@@ -15,6 +15,7 @@ import com.fairing.fairplay.qr.service.QrTicketEntryService;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BoothQrService {
 
   private final UserRepository userRepository;
@@ -32,10 +34,7 @@ public class BoothQrService {
 
   // QR 티켓을 통한 부스 입장 처리
   @Transactional
-  public BoothEntryResponseDto checkIn(CustomUserDetails userDetails, BoothEntryRequestDto dto) {
-    // 1. 사용자 검증 - 로그인 사용자 확인, 사용자 조회
-    validateUser(userDetails);
-
+  public BoothEntryResponseDto checkIn(BoothEntryRequestDto dto) {
     // 2. 필수 값 확인
     if (dto.getBoothExperienceId() == null || dto.getBoothId() == null || dto.getEventId() == null
         ||  dto.getQrCode() == null) {
@@ -45,10 +44,12 @@ public class BoothQrService {
     // 4. QR 티켓 검증 - QR 코드 또는 수동 코드로 QR 티켓 조회,
     QrTicket qrTicket = qrTicketEntryService.validateQrTicket(dto);
     Users user = qrTicket.getAttendee().getReservation().getUser();
+    log.info("qrTicket user {}", user.getName());
 
     // 3. 예약 검증 - 부스 예약 조회, 예약 상태 확인, 행사, 부스 일치 여부 확인, QR 티켓 소유자 == 부스 체험 예약자 조회
     BoothExperienceReservation boothExperienceReservation = boothExperienceService.validateReservation(
         dto, user);
+    log.info("boothExperienceReservation {}", boothExperienceReservation.getBoothExperience().getTitle());
 
     // 5. 상태 IN_PROGRESS 로 변경
     BoothExperienceStatusCode boothExperienceStatusCode = boothExperienceStatusCodeRepository.findByCode(
@@ -56,6 +57,9 @@ public class BoothQrService {
         () -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR,
             "부스 예약 상태 코드(IN_PROGRESS)를 찾을 수 없습니다.")
     );
+    log.info("boothExperienceStatusCode {}", boothExperienceStatusCode.getCode());
+
+
     BoothExperienceStatusUpdateDto boothExperienceStatusUpdateDto = BoothExperienceStatusUpdateDto.builder()
         .statusCode(boothExperienceStatusCode.getCode())
         .notes("QR 스캔을 통한 부스 입장 처리")
