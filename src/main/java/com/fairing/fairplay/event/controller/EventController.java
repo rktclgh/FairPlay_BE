@@ -1,9 +1,15 @@
 package com.fairing.fairplay.event.controller;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
+import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.etc.FunctionAuth;
+import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.event.dto.*;
+import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.event.service.EventService;
+import com.fairing.fairplay.history.etc.ChangeEvent;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -11,32 +17,11 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
-import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.etc.FunctionAuth;
-import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.event.dto.EventDetailRequestDto;
-import com.fairing.fairplay.event.dto.EventDetailResponseDto;
-import com.fairing.fairplay.event.dto.EventRequestDto;
-import com.fairing.fairplay.event.dto.EventResponseDto;
-import com.fairing.fairplay.event.dto.EventStatusThumbnailDto;
-import com.fairing.fairplay.event.dto.EventSummaryResponseDto;
-import com.fairing.fairplay.event.repository.EventRepository;
-import com.fairing.fairplay.event.service.EventService;
-import com.fairing.fairplay.history.etc.ChangeEvent;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.*;
 import software.amazon.awssdk.services.s3.S3Client;
+
+import java.time.LocalDate;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/events")
@@ -63,36 +48,36 @@ public class EventController {
     private static final String COMMON_ROLE = "COMMON"; // 일반 사용자
 
     /*********************** CREATE ***********************/
-    // 행사 등록
-    @PostMapping
-    @FunctionAuth("createEvent")
-    public ResponseEntity<EventResponseDto> createEvent(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestBody EventRequestDto eventRequestDto) {
-        // 전체 관리자 권한
-        checkAuth(userDetails, ADMIN);
+    // 행사 등록 -> EventApply 에서 처리
+//    @PostMapping
+//    @FunctionAuth("createEvent")
+//    public ResponseEntity<EventResponseDto> createEvent(
+//            @AuthenticationPrincipal CustomUserDetails userDetails,
+//            @RequestBody EventRequestDto eventRequestDto) {
+//        // 전체 관리자 권한
+//        checkAuth(userDetails, ADMIN);
+//
+//        EventResponseDto responseDto = eventService.createEvent(userDetails.getUserId(), eventRequestDto);
+//        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
+//    }
 
-        EventResponseDto responseDto = eventService.createEvent(userDetails.getUserId(), eventRequestDto);
-        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
-    }
-
-    // 행사 상세 생성
-    @PostMapping("/{eventId}/details")
-    @FunctionAuth("createEventDetail")
-    public ResponseEntity<EventDetailResponseDto> createEventDetail(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
-
-        // 전체 관리자 OR 행사 관리자 권한
-        checkAuth(userDetails, EVENT);
-        Long loginUserId = userDetails.getUserId();
-
-        checkEventManager(userDetails, eventId);
-
-        EventDetailResponseDto responseDto = eventService.createEventDetail(loginUserId, eventDetailRequestDto,
-                eventId);
-        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
-    }
+    // 행사 상세 생성 -> EventApply 에서 처리
+//    @PostMapping("/{eventId}/details")
+//    @FunctionAuth("createEventDetail")
+//    public ResponseEntity<EventDetailResponseDto> createEventDetail(
+//            @AuthenticationPrincipal CustomUserDetails userDetails,
+//            @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
+//
+//        // 전체 관리자 OR 행사 관리자 권한
+//        checkAuth(userDetails, EVENT);
+//        Long loginUserId = userDetails.getUserId();
+//
+//        checkEventManager(userDetails, eventId);
+//
+//        EventDetailResponseDto responseDto = eventService.createEventDetail(loginUserId, eventDetailRequestDto,
+//                eventId);
+//        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
+//    }
 
     /*********************** READ ***********************/
 
@@ -136,25 +121,39 @@ public class EventController {
             @RequestParam(required = false) Integer mainCategoryId,
             @RequestParam(required = false) Integer subCategoryId,
             @RequestParam(required = false) String regionName,
+            @RequestParam(required = false) Boolean includeHidden,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
-            @PageableDefault(size = 10) Pageable pageable) {
+            @PageableDefault(size = 10) Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        if (Boolean.TRUE.equals(includeHidden) && !ADMIN_ROLE.equals(userDetails.getRoleCode())) {
+            throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+        }
+
         EventSummaryResponseDto response = eventService.getEvents(keyword, mainCategoryId, subCategoryId, regionName,
-                fromDate, toDate, pageable);
+                fromDate, toDate, includeHidden, pageable);
         return ResponseEntity.ok(response);
     }
 
-    // 행사 목록 조회 (테스트용)
-    @GetMapping("/list")
-    public ResponseEntity<List<EventResponseDto>> getEventList() {
-        List<EventResponseDto> events = eventService.getEventList();
-        return ResponseEntity.ok(events);
+    // 사용자 담당 이벤트 조회
+    @GetMapping("/my-event")
+    public ResponseEntity<EventResponseDto> getMyEvent(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        checkAuth(userDetails, EVENT);
+
+        EventResponseDto event = eventService.getUserEvent(userDetails);
+        return ResponseEntity.ok(event);
     }
 
     // 행사 상세 조회
     @GetMapping("/{eventId}/details")
-    public ResponseEntity<EventDetailResponseDto> getEventDetail(@PathVariable Long eventId) {
-        EventDetailResponseDto eventDetail = eventService.getEventDetail(eventId);
+    public ResponseEntity<EventDetailResponseDto> getEventDetail(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        EventDetailResponseDto eventDetail = eventService.getEventDetail(eventId, userDetails);
         return ResponseEntity.ok(eventDetail);
     }
 

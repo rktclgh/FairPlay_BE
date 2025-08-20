@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -39,12 +40,29 @@ public class EventSnapshotDto {
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer mainCategoryId;
+    private String mainCategoryName;
     private Integer subCategoryId;
+    private String subCategoryName;
     private Integer regionCodeId;
     private Boolean reentryAllowed;
     private Boolean checkInAllowed;
     private Boolean checkOutAllowed;
+    private String hostCompany;
+    private Boolean age;
     private List<EventSnapshotDto.ExternalLinkSnapshot> externalLinks;
+
+    // from Location
+    private String placeName;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private String address;
+    private String placeUrl;
+
+    // from Manager
+    private String businessNumber;
+    private String managerName;
+    private String managerPhone;
+    private String managerEmail;
 
     @Data
     @Builder

@@ -71,7 +71,7 @@ public class ScheduleTicket {
                     .saleQuantity(dto.getSaleQuantity())
                     .salesStartAt(dto.getSalesStartAt())
                     .salesEndAt(dto.getSalesEndAt())
-                    .visible(dto.getVisible())
+                    .visible(dto.getVisible() != null ? dto.getVisible() : false)
                     .build();
 
             tickets.add(scheduleTicket);

@@ -5,9 +5,11 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import com.fairing.fairplay.booth.entity.BoothType;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Getter
@@ -37,14 +39,11 @@ public class BoothApplication {
     @Column(name = "manager_name", nullable = false, length = 20)
     private String managerName;
 
-    @Column(nullable = false, length = 100)
-    private String email;
+    @Column(name = "email", nullable = false, length = 100)
+    private String contactEmail;
 
     @Column(name = "contact_number", nullable = false, length = 20)
     private String contactNumber;
-
-    @Column(name = "official_url", nullable = false, length = 512)
-    private String officialUrl;
 
     @Column(name = "apply_at", columnDefinition = "DATETIME DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime applyAt;
@@ -63,7 +62,6 @@ public class BoothApplication {
     @Column(name = "status_updated_at")
     private LocalDateTime statusUpdatedAt;
 
-
     @Column(name = "booth_title", nullable = false, length = 100)
     private String boothTitle;
 
@@ -73,5 +71,15 @@ public class BoothApplication {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
+    @Column(name = "booth_banner_url", length = 512)
+    private String boothBannerUrl;
 
+    @OneToMany(mappedBy = "boothApplication", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<BoothExternalLink> boothExternalLinks = new HashSet<>();
+
+    public void updateStatus(BoothApplicationStatusCode newStatus, String adminComment) {
+        this.boothApplicationStatusCode = newStatus;
+        this.adminComment = adminComment;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
 }

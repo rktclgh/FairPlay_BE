@@ -12,11 +12,11 @@ import java.math.BigDecimal;
 public class PaymentRequestDto {
 
     private Long paymentId;
-    private Long eventId;               // 이벤트 ID
+    private Long eventId;               // 이벤트 ID (선택적 - 광고 결제 등은 null 가능)
     private Long userId;                // 결제 요청자 ID
     
     // 결제 대상 관련 필드
-    private String targetType;          // 결제 대상 타입 코드 (RESERVATION, BOOTH, AD)
+    private String paymentTargetType;          // 결제 대상 타입 코드 (RESERVATION, BOOTH, AD)
     private Long targetId;              // 실제 결제 대상 ID
     
     private Integer quantity;           // 구매 수량
@@ -27,7 +27,14 @@ public class PaymentRequestDto {
     private String merchantUid;
     private String impUid;
     private BigDecimal amount;
+    private String applyNum;                // 카드 승인번호
     private BigDecimal refundRequestAmount;
     private String reason;
+    
+    // 예매 생성을 위한 추가 정보
+    private Long scheduleId;            // 이벤트 스케줄 ID
+    
+    // 이메일에서 접근하는 경우 사용자 식별을 위한 필드
+    private String contactEmail;        // 연락처 이메일 (부스 신청자 이메일)
 
 }

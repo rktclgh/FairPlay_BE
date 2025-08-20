@@ -27,10 +27,15 @@ public class QrLogService {
   private final QrLogRepository qrLogRepository;
   private final QrCheckLogRepository qrCheckLogRepository;
 
-  // QR 코드 발급
+  // QR 코드 다건 발급
   @Transactional
-  public void issuedQrLog(List<QrTicket> qrTickets, QrActionCode qrActionCode) {
+  public void issuedQrLogs(List<QrTicket> qrTickets, QrActionCode qrActionCode) {
     saveQrLog(qrTickets, qrActionCode);
+  }
+
+  @Transactional
+  public void issuedQrLog(QrTicket qrTicket, QrActionCode qrActionCode) {
+    saveQrLog(qrTicket, qrActionCode);
   }
 
   // QR 코드 스캔
@@ -47,7 +52,10 @@ public class QrLogService {
     // qrLog: CHECKED_IN or MANUAL_CHECKED_IN 저장
     LocalDateTime entryTime = saveQrLog(qrTicket, qrActionCode);
     // qrCheckLog: ENTRY or REENTRY 저장
-    saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    LocalDateTime saveTime = saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    log.info("입장 저장 완료");
+    log.info("entryTime: {}", entryTime);
+    log.info("qrCheckStatusCode: {}", qrCheckStatusCode);
     return entryTime;
   }
 
@@ -55,29 +63,39 @@ public class QrLogService {
   @Transactional
   public LocalDateTime exitQrLog(QrTicket qrTicket, QrCheckStatusCode qrCheckStatusCode) {
     // qrCheckLog: EXIT 저장
-    saveQrCheckLog(qrTicket, qrCheckStatusCode);
-    return null;
+    log.info("부스 입장 완료");
+    log.info("qrCheckStatusCode: {}", qrCheckStatusCode);
+    return saveQrCheckLog(qrTicket, qrCheckStatusCode);
+  }
+
+  // 부스 입장 시 이전 상태가 저장되지 않았을 경우 로그 저장
+  @Transactional
+  public LocalDateTime boothQrLog(QrTicket qrTicket, QrCheckStatusCode prevCheckStatusCode) {
+    return saveQrCheckLog(qrTicket, prevCheckStatusCode);
   }
 
   @Transactional
-  public LocalDateTime forceCheckQrLog(QrTicket qrTicket, QrActionCode qrActionCode, QrCheckStatusCode qrCheckStatusCode) {
+  public LocalDateTime forceCheckQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
+      QrCheckStatusCode qrCheckStatusCode) {
     saveQrLog(qrTicket, qrActionCode);
-    saveQrCheckLog(qrTicket, qrCheckStatusCode);
-    return null;
+    return saveQrCheckLog(qrTicket, qrCheckStatusCode);
   }
 
   // 비정상 중복 스캔 -> 스캔할 때 검토
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void duplicateQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
       QrCheckStatusCode qrCheckStatusCode) {
     saveQrLog(qrTicket, qrActionCode);
-    saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    LocalDateTime saveTime = saveQrCheckLog(qrTicket, qrCheckStatusCode);
   }
 
   // 잘못된 스캔 -> 입장, 퇴장 시 검토
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void invalidQrLog(QrTicket qrTicket, QrActionCode qrActionCode,
       QrCheckStatusCode qrCheckStatusCode) {
     saveQrLog(qrTicket, qrActionCode);
-    saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    LocalDateTime saveTime = saveQrCheckLog(qrTicket, qrCheckStatusCode);
+    log.info("saveQrCheckLog saveTime:{}",saveTime);
   }
 
   // 특정 qr 티켓의 최근 checkstatus 로그 조회
@@ -154,12 +172,13 @@ public class QrLogService {
   }
 
   // QrCheckLog 저장 - CHECKIN, CHECKOUT
-  private void saveQrCheckLog(QrTicket qrTicket, QrCheckStatusCode qrCheckStatusCode) {
+  private LocalDateTime saveQrCheckLog(QrTicket qrTicket, QrCheckStatusCode qrCheckStatusCode) {
     QrCheckLog qrCheckLog = QrCheckLog.builder()
         .qrTicket(qrTicket)
         .checkStatusCode(qrCheckStatusCode)
         .build();
-    qrCheckLogRepository.save(qrCheckLog);
+    QrCheckLog savedQrCheckLog = qrCheckLogRepository.save(qrCheckLog);
     qrCheckLogRepository.flush();
+    return savedQrCheckLog.getCreatedAt();
   }
 }

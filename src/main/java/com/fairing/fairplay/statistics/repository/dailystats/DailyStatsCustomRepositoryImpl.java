@@ -1,6 +1,7 @@
 package com.fairing.fairplay.statistics.repository.dailystats;
 
 import com.fairing.fairplay.event.entity.QEventDetail;
+import com.fairing.fairplay.qr.entity.QQrTicket;
 import com.fairing.fairplay.statistics.dto.event.EventPopularityStatisticsListDto;
 import com.fairing.fairplay.statistics.dto.reservation.AdminReservationStatsByCategoryDto;
 import com.fairing.fairplay.statistics.dto.reservation.AdminReservationStatsListDto;
@@ -22,12 +23,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
 @Repository
+@Component
 @RequiredArgsConstructor
 public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepository {
 
@@ -39,6 +42,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
         QReservationStatusCode statusCode = QReservationStatusCode.reservationStatusCode;
         QAttendee a = QAttendee.attendee;
         QQrCheckLog q = QQrCheckLog.qrCheckLog;
+        QQrTicket qrt = QQrTicket.qrTicket;
 
         LocalDateTime start = targetDate.atStartOfDay();
         LocalDateTime end = targetDate.plusDays(1).atStartOfDay();
@@ -55,11 +59,13 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
 
         // 2. 체크인 수
         List<Tuple> checkinResults = queryFactory
-                .select(r.event.eventId, a.count())
+                .select(r.event.eventId, a.id.countDistinct())
                 .from(a)
                 .join(r).on(a.reservation.eq(r))
+                .join(qrt).on(qrt.attendee.eq(a))           // QrTicket 조인 추가
+                .join(q).on(q.qrTicket.eq(qrt))
                 .where(a.checkedIn.isTrue()
-                        .and(q.createdAt.between(start, end)))
+                        .and(q.createdAt.goe(start).and(q.createdAt.lt(end))))
                 .groupBy(r.event.eventId)
                 .fetch();
 
@@ -92,7 +98,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
         // 체크인 수 반영
         for (Tuple t : checkinResults) {
             Long eventId = t.get(r.event.eventId);
-            Long checkins = t.get(a.count());
+            Long checkins = t.get(a.id.countDistinct());
 
             EventDailyStatistics stat = map.computeIfAbsent(eventId, id ->
                     EventDailyStatistics.builder()

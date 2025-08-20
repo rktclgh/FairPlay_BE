@@ -17,9 +17,7 @@ public class SessionStatsDto {
     private String sessionName;
     private Integer reservations;
     private Integer checkins;
-    private Integer cancellation;
+    private Integer cancellations;
     private Integer noShows;
-
-
 
 }

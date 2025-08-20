@@ -1,5 +1,6 @@
 package com.fairing.fairplay.core.email.service;
 
+import com.fairing.fairplay.admin.repository.EmailTemplatesRepository;
 import com.fairing.fairplay.core.util.EmailSender;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -8,16 +9,17 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class EventEmailService extends AbstractEmailService {
 
-    public EventEmailService(EmailSender emailSender) {
-        super(emailSender);
+    public EventEmailService(EmailSender emailSender,
+            EmailTemplatesRepository emailTemplatesRepository) {
+        super(emailSender, emailTemplatesRepository);
     }
 
     public void sendRejectionEmail(String to, String eventTitle, String reason) {
         send(to, "rejection", eventTitle, reason);
     }
 
-    public void sendApprovalEmail(String to, String eventTitle, String username, String tempPassword) {
-        send(to, "approval", eventTitle, username, tempPassword);
+    public void sendApprovalEmail(String to, String eventTitle, String eventEmail, String tempPassword) {
+        send(to, "approval", eventTitle, eventEmail, tempPassword);
     }
 
     @Override
@@ -32,10 +34,10 @@ public class EventEmailService extends AbstractEmailService {
             subject = "[FairPlay] 행사 등록 신청이 반려되었습니다.";
             htmlContent = buildHtmlContent("event-rejection.html", "logo", eventTitle, reason);
         } else if ("approval".equals(type)) {
-            String username = (String) params[2];
+            String eventEmail = (String) params[2];
             String tempPassword = (String) params[3];
             subject = "[FairPlay] 행사 등록 신청이 승인되었습니다! 계정 안내";
-            htmlContent = buildHtmlContent("event-approval.html", "logo", eventTitle, username, tempPassword);
+            htmlContent = buildHtmlContent("event-approval.html", "logo", eventTitle, eventEmail, tempPassword);
         } else {
             throw new IllegalArgumentException("Unsupported email type: " + type);
         }

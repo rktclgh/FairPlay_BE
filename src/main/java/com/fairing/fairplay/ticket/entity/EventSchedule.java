@@ -55,7 +55,8 @@ public class EventSchedule {
         eventSchedule.setDate(dto.getDate());
         eventSchedule.setStartTime(dto.getStartTime());
         eventSchedule.setEndTime(dto.getEndTime());
-        eventSchedule.setWeekday(dto.getWeekday());
+        // 날짜를 기반으로 요일 자동 계산: 일요일(0) ~ 토요일(6)
+        eventSchedule.setWeekday(dto.getDate().getDayOfWeek().getValue() % 7);
         eventSchedule.setCreatedAt(LocalDateTime.now());
         return eventSchedule;
     }

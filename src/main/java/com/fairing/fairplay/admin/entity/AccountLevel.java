@@ -22,7 +22,7 @@ public class AccountLevel {
     private Long userId;
 
     @MapsId
-    @OneToOne
+    @OneToOne(cascade = {jakarta.persistence.CascadeType.PERSIST, jakarta.persistence.CascadeType.MERGE})
     @JoinColumn(name = "user_id")
     private Users user;
 

@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>FairPlay 결제/예매 완료</title>
+    <style>
+        body {
+            font-family: "Segoe UI", "Apple SD Gothic Neo", Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 40px 24px 32px;
+            text-align: center;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+        }
+
+        .header img {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            object-fit: contain;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 16px;
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 32px 24px;
+        }
+
+        .greeting {
+            font-size: 16px;
+            color: #374151;
+            margin-bottom: 20px;
+        }
+
+        .greeting strong {
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        .ticket-info {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 24px 0;
+        }
+
+        .ticket-info h3 {
+            color: #1f2937;
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 16px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 12px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #6b7280;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: #1f2937;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .amount-highlight {
+            color: #3b82f6;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .action-section {
+            text-align: center;
+            margin: 32px 0;
+            padding: 24px;
+            background: #fafbfc;
+            border-radius: 12px;
+        }
+
+        .qr-button {
+            background: #3b82f6;
+            color: white;
+            padding: 16px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 600;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+
+        .qr-button:hover {
+            background: #2563eb;
+        }
+
+        .warning-box {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .warning-box h4 {
+            color: #dc2626;
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0 0 12px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .warning-list {
+            color: #4b5563;
+            font-size: 14px;
+            margin: 0;
+            padding-left: 0;
+            list-style: none;
+        }
+
+        .warning-list li {
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .warning-list li:before {
+            content: "•";
+            color: #dc2626;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+
+        .contact-info {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .contact-info p {
+            color: #075985;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .contact-link {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 24px;
+            border-top: 1px solid #f1f5f9;
+            background: #fafbfc;
+        }
+
+        .footer span {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .ticket-type-badge {
+            display: inline-block;
+            background: #dcfce7;
+            color: #166534;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="cid:logo" alt="FairPlay Logo"/>
+            <h1>🎉 티켓 예매 완료!</h1>
+            <p>티켓이 성공적으로 발급되었습니다</p>
+        </div>
+
+        <div class="content">
+            <div class="greeting">
+                안녕하세요 <strong>%s님</strong>,<br/>
+                <strong>%s</strong> 티켓 구매가 성공적으로 완료되었습니다.
+            </div>
+
+            <div class="ticket-info">
+                <h3>🎫 티켓 정보<span class="ticket-type-badge">%s</span></h3>
+                
+                <div class="info-row">
+                    <span class="info-label">이벤트명</span>
+                    <span class="info-value">%s</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">결제 금액</span>
+                    <span class="info-value amount-highlight">%s원</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">%s 일시</span>
+                    <span class="info-value">%s</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">이벤트 기간</span>
+                    <span class="info-value">%s</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">예약 번호</span>
+                    <span class="info-value">%s</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">주문 번호</span>
+                    <span class="info-value">%s</span>
+                </div>
+            </div>
+
+            <div class="action-section">
+                <p style="color: #374151; font-size: 15px; margin-bottom: 16px;">
+                    📱 <strong>QR 코드와 상세 정보</strong>는 마이페이지에서 확인하세요
+                </p>
+            </div>
+
+            <div class="warning-box">
+                <h4>⚠️ 중요 안내사항</h4>
+                <ul class="warning-list">
+                    <li><strong>행사 당일 QR 코드 또는 예약번호를 지참</strong>해 주시기 바랍니다</li>
+                    <li><strong>티켓 정보와 QR 코드는 마이페이지</strong>에서 언제든 확인 가능합니다</li>
+                    <li><strong>환불은 행사 시작 3일 전까지만</strong> 신청 가능합니다</li>
+                    <li><strong>티켓을 타인에게 양도하거나 복제</strong>하는 것은 금지됩니다</li>
+                </ul>
+            </div>
+
+            <div class="contact-info">
+                <p>
+                    📞 문의사항이 있으시면 언제든 연락주세요<br/>
+                    <a href="mailto:support@fair-play.ink" class="contact-link">support@fair-play.ink</a>
+                </p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <span>© 2025 FairPlay · 박람회/행사 예약 플랫폼</span>
+        </div>
+    </div>
+</body>
+</html>

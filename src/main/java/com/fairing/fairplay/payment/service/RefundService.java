@@ -1,9 +1,7 @@
 package com.fairing.fairplay.payment.service;
 
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.payment.dto.PaymentRequestDto;
-import com.fairing.fairplay.payment.dto.PaymentResponseDto;
-import com.fairing.fairplay.payment.dto.RefundResponseDto;
+import com.fairing.fairplay.payment.dto.*;
 import com.fairing.fairplay.payment.entity.Payment;
 import com.fairing.fairplay.payment.entity.PaymentStatusCode;
 import com.fairing.fairplay.payment.entity.Refund;
@@ -16,6 +14,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +26,10 @@ import java.io.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URL;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -47,10 +52,15 @@ public class RefundService {
      * 1단계: 구매자의 환불 요청 - DB에만 저장, 아임포트 호출하지 않음
      */
     @Transactional
-    public PaymentResponseDto requestRefund(Long paymentId, PaymentRequestDto paymentRequestDto) {
+    public PaymentResponseDto requestRefund(Long paymentId, PaymentRequestDto paymentRequestDto, Long userId) {
 
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new IllegalArgumentException("결제 내역이 없습니다."));
+
+        // 본인의 결제인지 확인
+        if (!payment.getUser().getUserId().equals(userId)) {
+            throw new IllegalArgumentException("본인의 결제 내역만 환불 요청할 수 있습니다.");
+        }
 
         // 환불 가능한 상태인지 확인
         validateRefundRequest(payment, paymentRequestDto.getRefundRequestAmount());
@@ -76,7 +86,7 @@ public class RefundService {
      * 2단계: 관리자의 환불 승인 - 이때 아임포트에 환불 요청
      */
     @Transactional
-    public PaymentResponseDto approveRefund(Long refundId) {
+    public PaymentResponseDto approveRefund(Long refundId, RefundApprovalDto approval, Long adminUserId) {
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
 
@@ -131,7 +141,7 @@ public class RefundService {
      * 환불 요청 거절
      */
     @Transactional
-    public PaymentResponseDto rejectRefund(Long refundId, String rejectReason) {
+    public PaymentResponseDto rejectRefund(Long refundId, String rejectReason, Long adminUserId) {
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
 
@@ -264,10 +274,55 @@ public class RefundService {
     }
 
     /**
+     * 내 환불 목록 조회 (RefundListResponseDto 형태)
+     */
+    @Transactional(readOnly = true)
+    public List<RefundListResponseDto> getMyRefundList(Long userId) {
+        try {
+            List<Refund> refunds = refundRepository.findByUserId(userId);
+            return refunds.stream()
+                    .map(this::convertToRefundListResponseDto)
+                    .collect(java.util.stream.Collectors.toList());
+        } catch (Exception e) {
+            throw new RuntimeException("내 환불 목록 조회 중 오류가 발생했습니다: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Refund 엔티티를 RefundListResponseDto로 변환
+     */
+    private RefundListResponseDto convertToRefundListResponseDto(Refund refund) {
+        return RefundListResponseDto.builder()
+                .refundId(refund.getRefundId())
+                .paymentId(refund.getPayment().getPaymentId())
+                .merchantUid(refund.getPayment().getMerchantUid())
+                .eventId(refund.getPayment().getEvent() != null ? refund.getPayment().getEvent().getEventId() : null)
+                .eventName(refund.getPayment().getEvent() != null ? refund.getPayment().getEvent().getTitleKr() : null)
+                .userId(refund.getPayment().getUser().getUserId())
+                .userName(refund.getPayment().getUser().getName())
+                .userEmail(refund.getPayment().getUser().getEmail())
+                .userPhone(refund.getPayment().getUser().getPhone())
+                .paymentTargetType(refund.getPayment().getPaymentTargetType().getPaymentTargetCode())
+                .paymentTargetName(refund.getPayment().getPaymentTargetType().getPaymentTargetName())
+                .targetId(refund.getPayment().getTargetId())
+                .quantity(refund.getPayment().getQuantity())
+                .price(refund.getPayment().getPrice())
+                .totalAmount(refund.getPayment().getAmount())
+                .paidAt(refund.getPayment().getPaidAt())
+                .refundAmount(refund.getAmount())
+                .refundReason(refund.getReason())
+                .refundStatus(refund.getRefundStatusCode().getCode())
+                .refundStatusName(refund.getRefundStatusCode().getName())
+                .refundCreatedAt(refund.getCreatedAt())
+                .refundApprovedAt(refund.getApprovedAt())
+                .build();
+    }
+
+    /**
      * 대기 중인 환불 요청 조회 (관리자용)
      */
     @Transactional(readOnly = true)
-    public List<RefundResponseDto> getPendingRefunds(Long eventId) {
+    public List<RefundResponseDto> getPendingRefunds(Long eventId, CustomUserDetails userDetails) {
         RefundStatusCode requestedStatus = refundStatusCodeRepository.findByCode("REQUESTED")
                 .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: REQUESTED"));
         
@@ -318,5 +373,102 @@ public class RefundService {
 
         conn.disconnect();
         return accessToken;
+    }
+
+    /**
+     * 환불 목록 조회 (필터링 및 페이징 지원)
+     */
+    @Transactional(readOnly = true)
+    public Page<RefundListResponseDto> getRefundList(RefundListRequestDto request) {
+        try {
+            // 날짜 문자열을 LocalDateTime으로 변환
+            LocalDateTime paymentDateFrom = null;
+            LocalDateTime paymentDateTo = null;
+            
+            if (request.getPaymentDateFrom() != null && !request.getPaymentDateFrom().trim().isEmpty()) {
+                LocalDate fromDate = LocalDate.parse(request.getPaymentDateFrom(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                paymentDateFrom = fromDate.atStartOfDay();
+            }
+            
+            if (request.getPaymentDateTo() != null && !request.getPaymentDateTo().trim().isEmpty()) {
+                LocalDate toDate = LocalDate.parse(request.getPaymentDateTo(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                paymentDateTo = toDate.atTime(LocalTime.MAX);
+            }
+
+            // 페이징 정보 생성
+            Sort sort = Sort.by(
+                "desc".equalsIgnoreCase(request.getSortDirection()) 
+                    ? Sort.Direction.DESC 
+                    : Sort.Direction.ASC,
+                request.getSortBy()
+            );
+            
+            Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), sort);
+
+            // Repository 메서드 호출
+            return refundRepository.findRefundsWithFilters(
+                request.getEventName(),
+                paymentDateFrom,
+                paymentDateTo,
+                request.getRefundStatus(),
+                request.getPaymentTargetType(),
+                pageable
+            );
+            
+        } catch (Exception e) {
+            throw new RuntimeException("환불 목록 조회 중 오류가 발생했습니다: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 환불 요청 (새로운 DTO 사용)
+     */
+    @Transactional
+    public PaymentResponseDto requestRefundWithDto(RefundRequestDto refundRequest, Long userId) {
+        Payment payment = paymentRepository.findById(refundRequest.getPaymentId())
+                .orElseThrow(() -> new IllegalArgumentException("결제 내역이 없습니다."));
+
+        // 본인의 결제인지 확인
+        if (!payment.getUser().getUserId().equals(userId)) {
+            throw new IllegalArgumentException("본인의 결제 내역만 환불 요청할 수 있습니다.");
+        }
+
+        BigDecimal refundAmount;
+        
+        if ("FULL".equals(refundRequest.getRefundType())) {
+            // 전체 환불
+            refundAmount = payment.getAmount().subtract(payment.getRefundedAmount());
+        } else {
+            // 부분 환불
+            if (refundRequest.getRefundQuantity() != null && refundRequest.getRefundQuantity() > 0) {
+                // 수량 기반 환불
+                BigDecimal unitPrice = payment.getPrice();
+                refundAmount = unitPrice.multiply(BigDecimal.valueOf(refundRequest.getRefundQuantity()));
+            } else if (refundRequest.getRefundAmount() != null) {
+                // 금액 기반 환불
+                refundAmount = refundRequest.getRefundAmount();
+            } else {
+                throw new IllegalArgumentException("부분 환불의 경우 환불 금액 또는 수량을 지정해야 합니다.");
+            }
+        }
+
+        // 환불 가능한 상태인지 확인
+        validateRefundRequest(payment, refundAmount);
+
+        // 환불 요청 상태 코드 조회 (REQUESTED)
+        RefundStatusCode requestedStatus = refundStatusCodeRepository.findByCode("REQUESTED")
+                .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: REQUESTED"));
+
+        // 환불 요청 정보를 DB에 저장 (상태: REQUESTED)
+        Refund refund = Refund.builder()
+                .payment(payment)
+                .amount(refundAmount)
+                .reason(refundRequest.getReason())
+                .refundStatusCode(requestedStatus)
+                .createdAt(LocalDateTime.now())
+                .build();
+        refundRepository.save(refund);
+
+        return PaymentResponseDto.fromEntity(payment);
     }
 }

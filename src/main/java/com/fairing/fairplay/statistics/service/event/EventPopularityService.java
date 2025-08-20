@@ -1,9 +1,12 @@
 package com.fairing.fairplay.statistics.service.event;
 
+import com.fairing.fairplay.statistics.dto.event.EventAgePopularityDto;
+import com.fairing.fairplay.statistics.dto.event.EventGenderPopularityDto;
 import com.fairing.fairplay.statistics.dto.event.EventPopularityPageResponseDto;
 import com.fairing.fairplay.statistics.dto.event.EventPopularityStatisticsListDto;
 import com.fairing.fairplay.statistics.dto.event.PopularityOverviewResponseDto;
 import com.fairing.fairplay.statistics.dto.event.TopEventsResponseDto;
+import com.fairing.fairplay.statistics.entity.event.EventPopularityStatistics;
 import com.fairing.fairplay.statistics.repository.eventstats.EventPopularityStatsCustomRepositoryImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -13,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
-
 
 @Service
 @RequiredArgsConstructor
@@ -32,14 +34,14 @@ public class EventPopularityService {
         }
 
         // 1. 전체 인기 행사 통계
-       List<EventPopularityStatisticsListDto> allStats = popularityRepository.aggregatedPopularity(startDate,  endDate ,"" ,"");
+        List<EventPopularityStatisticsListDto> allStats = popularityRepository.aggregatedPopularity(startDate, endDate,
+                "", "");
 
         // 2. 개요 통계 계산
         PopularityOverviewResponseDto overview = calculateOverview(allStats);
 
         // 3. TOP 5 리스트들
         TopEventsResponseDto topEvents = popularityRepository.topAggregatedPopularity(startDate, endDate);
-
 
         return EventPopularityPageResponseDto.builder()
                 .allEvents(allStats)
@@ -51,7 +53,8 @@ public class EventPopularityService {
     /**
      * 검색 기능
      */
-    public List<EventPopularityStatisticsListDto> searchEvents(LocalDate startDate, LocalDate endDate, String keyword, String mainCategory, String subCategory) {
+    public List<EventPopularityStatisticsListDto> searchEvents(LocalDate startDate, LocalDate endDate, String keyword,
+            String mainCategory, String subCategory) {
         if (mainCategory != null && "all".equalsIgnoreCase(mainCategory)) {
             mainCategory = "";
         }
@@ -61,20 +64,21 @@ public class EventPopularityService {
         if (keyword == null || keyword.isBlank()) {
             throw new IllegalArgumentException("검색어(keyword)는 null 또는 빈 문자열일 수 없습니다.");
         }
-        return popularityRepository.searchEventWithRank(startDate,  endDate,  keyword, mainCategory,  subCategory);
+        return popularityRepository.searchEventWithRank(startDate, endDate, keyword, mainCategory, subCategory);
     }
 
     /**
      * 카테고리별 인기 행사 조회
      */
-    public Page<EventPopularityStatisticsListDto> getEventsByCategory(LocalDate startDate, LocalDate endDate, String mainCategory, String subCategory, Pageable pageable) {
+    public Page<EventPopularityStatisticsListDto> getEventsByCategory(LocalDate startDate, LocalDate endDate,
+            String mainCategory, String subCategory, Pageable pageable) {
         if (mainCategory != null && "all".equalsIgnoreCase(mainCategory)) {
             mainCategory = "";
         }
         if (subCategory != null && "all".equalsIgnoreCase(subCategory)) {
             subCategory = "";
         }
-        return popularityRepository.aggregatedPopularity(startDate, endDate, mainCategory, subCategory, pageable);
+        return popularityRepository.paymentCountPopularity(startDate, endDate, mainCategory, subCategory, pageable);
     }
 
     private PopularityOverviewResponseDto calculateOverview(List<EventPopularityStatisticsListDto> allStats) {
@@ -98,5 +102,17 @@ public class EventPopularityService {
                 .avgReservationCount(Math.round(avgReservations))
                 .avgWishlistCount(Math.round(avgWishlists))
                 .build();
+    }
+
+    public List<EventGenderPopularityDto> topMalesPick() {
+        return popularityRepository.topMalesPick();
+    }
+
+    public List<EventGenderPopularityDto> topFemalesPick() {
+        return popularityRepository.topFemalesPick();
+    }
+
+    public List<EventAgePopularityDto> topAgePick(int ageGroup) {
+        return popularityRepository.topAgePick(ageGroup);
     }
 }

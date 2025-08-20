@@ -1,4 +1,4 @@
-@access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzNSIsImVtYWlsIjoiYWRtaW40QGZhaXJwbGF5LmNvbSIsInJvbGUiOiLsoITssrQg6rSA66as7J6QIiwicm9sZUlkIjoxLCJpYXQiOjE3NTQ5MjcyMDksImV4cCI6MTc1NDkyNzUwOX0.jc9n5PEz4OYABXSNiBqBJu5kRiOJsa95e3qTVtns5vE
+@access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzNSIsImVtYWlsIjoiYWRtaW40QGZhaXJwbGF5LmNvbSIsInJvbGUiOiLsoITssrQg6rSA66as7J6QIiwicm9sZUlkIjoxLCJpYXQiOjE3NTQ5Njc3ODIsImV4cCI6MTc1NDk2ODA4Mn0.TK9yDVItHZeONs133o1vtgM_orVWewRc9tA1Ue-WIn8
 
 ### 1단계: 파일 임시 업로드
 # 먼저 이 요청을 실행하여 파일을 임시 업로드하고, 응답으로 받은 JSON에서
@@ -116,7 +116,7 @@ GET http://localhost:8080/api/events/applications?status=PENDING&page=0&size=10&
 Authorization: Bearer {{access_token}}
 
 ### 행사 신청 승인 (관리자용)
-PUT http://localhost:8080/api/events/applications/4
+PUT http://localhost:8080/api/events/applications/5
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 

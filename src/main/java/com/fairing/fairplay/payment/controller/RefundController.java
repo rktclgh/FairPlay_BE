@@ -5,6 +5,7 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.payment.dto.*;
 import com.fairing.fairplay.payment.service.RefundService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -24,12 +25,11 @@ public class RefundController {
             @PathVariable Long paymentId,
             @RequestBody PaymentRequestDto paymentRequestDto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // 임시 하드코딩: userId = 1L 사용자로 가정
-        // if(userDetails == null) {
-        // throw new IllegalArgumentException("사용자 인증이 필요합니다.");
-        // }
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
+        }
 
-        PaymentResponseDto refundRequest = refundService.requestRefund(paymentId, paymentRequestDto);
+        PaymentResponseDto refundRequest = refundService.requestRefund(paymentId, paymentRequestDto, userDetails.getUserId());
         return ResponseEntity.ok(refundRequest);
     }
 
@@ -38,13 +38,13 @@ public class RefundController {
     @FunctionAuth("approveRefund")
     public ResponseEntity<PaymentResponseDto> approveRefund(
             @PathVariable Long refundId,
+            @RequestBody RefundApprovalDto approval,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // 임시 하드코딩: ADMIN 가정
-        // if(userDetails == null) {
-        // throw new IllegalArgumentException("사용자 인증이 필요합니다.");
-        // }
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
+        }
 
-        PaymentResponseDto approvedRefund = refundService.approveRefund(refundId);
+        PaymentResponseDto approvedRefund = refundService.approveRefund(refundId, approval, userDetails.getUserId());
         return ResponseEntity.ok(approvedRefund);
     }
 
@@ -55,12 +55,11 @@ public class RefundController {
             @PathVariable Long refundId,
             @RequestBody(required = false) String rejectReason,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // 임시 하드코딩: ADMIN 가정
-        // if(userDetails == null) {
-        // throw new IllegalArgumentException("사용자 인증이 필요합니다.");
-        // }
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
+        }
 
-        PaymentResponseDto rejectedRefund = refundService.rejectRefund(refundId, rejectReason);
+        PaymentResponseDto rejectedRefund = refundService.rejectRefund(refundId, rejectReason, userDetails.getUserId());
         return ResponseEntity.ok(rejectedRefund);
     }
 
@@ -76,13 +75,14 @@ public class RefundController {
 
     // 내 환불 요청 목록 조회 (구매자용)
     @GetMapping("/me")
-    public ResponseEntity<List<RefundResponseDto>> getMyRefunds(
+    public ResponseEntity<List<RefundListResponseDto>> getMyRefunds(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // 임시 하드코딩: userId = 1L
-        Long userId = 1L;
-        // if(userDetails != null) { userId = userDetails.getUserId(); }
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
+        }
 
-        List<RefundResponseDto> myRefunds = refundService.getMyRefunds(userId);
+        Long userId = userDetails.getUserId();
+        List<RefundListResponseDto> myRefunds = refundService.getMyRefundList(userId);
         return ResponseEntity.ok(myRefunds);
     }
 
@@ -92,12 +92,35 @@ public class RefundController {
     public ResponseEntity<List<RefundResponseDto>> getPendingRefunds(
             @RequestParam(required = false) Long eventId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // 임시 하드코딩: ADMIN 가정
-        // if(userDetails == null) {
-        // throw new IllegalArgumentException("사용자 인증이 필요합니다.");
-        // }
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
+        }
 
-        List<RefundResponseDto> pendingRefunds = refundService.getPendingRefunds(eventId);
+        List<RefundResponseDto> pendingRefunds = refundService.getPendingRefunds(eventId, userDetails);
         return ResponseEntity.ok(pendingRefunds);
+    }
+
+    // 환불 목록 조회 (필터링 및 페이징 지원)
+    @PostMapping("/list")
+    // @FunctionAuth("getRefundList") // 임시로 주석 처리
+    public ResponseEntity<Page<RefundListResponseDto>> getRefundList(
+            @RequestBody RefundListRequestDto request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        
+        Page<RefundListResponseDto> refundList = refundService.getRefundList(request);
+        return ResponseEntity.ok(refundList);
+    }
+
+    // 환불 요청 (새로운 DTO 사용)
+    @PostMapping("/request-refund")
+    public ResponseEntity<PaymentResponseDto> requestRefundWithDto(
+            @RequestBody RefundRequestDto refundRequest,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
+        }
+
+        PaymentResponseDto refundResponse = refundService.requestRefundWithDto(refundRequest, userDetails.getUserId());
+        return ResponseEntity.ok(refundResponse);
     }
 }

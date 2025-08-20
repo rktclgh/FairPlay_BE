@@ -30,9 +30,8 @@ public class ScheduleTicketController {
         return ResponseEntity.ok().build();
     }
 
-    // 회차별 티켓 설정 조회
+    // 회차별 티켓 설정 조회 (일반 사용자도 예매를 위해 접근 가능)
     @GetMapping
-    @FunctionAuth("getScheduleTickets")
     public ResponseEntity<List<ScheduleTicketResponseDto>> getScheduleTickets(
             @PathVariable Long eventId,
             @PathVariable Long scheduleId) {

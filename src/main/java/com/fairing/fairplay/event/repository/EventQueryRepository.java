@@ -16,6 +16,7 @@ public interface EventQueryRepository {
             String region,
             LocalDate fromDate,
             LocalDate toDate,
+            Boolean includeHidden,
             Pageable pageable
     );
 }

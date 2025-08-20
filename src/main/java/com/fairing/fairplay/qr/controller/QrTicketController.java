@@ -2,6 +2,8 @@ package com.fairing.fairplay.qr.controller;
 
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
+import com.fairing.fairplay.qr.dto.QrTicketGuestResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueGuestRequestDto;
 import com.fairing.fairplay.qr.dto.QrTicketReissueMemberRequestDto;
 import com.fairing.fairplay.qr.dto.scan.AdminForceCheckRequestDto;
@@ -14,7 +16,9 @@ import com.fairing.fairplay.qr.dto.QrTicketResponseDto;
 import com.fairing.fairplay.qr.dto.QrTicketUpdateResponseDto;
 import com.fairing.fairplay.qr.dto.scan.QrCheckRequestDto;
 import com.fairing.fairplay.qr.service.EntryExitService;
+import com.fairing.fairplay.qr.service.QrTicketBatchService;
 import com.fairing.fairplay.qr.service.QrTicketService;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -32,6 +36,7 @@ public class QrTicketController {
 
   private final QrTicketService qrTicketService;
   private final EntryExitService entryExitService;
+  private final QrTicketBatchService qrTicketBatchService;
 
   // 마이페이지에서 QR 티켓 조회
   @PostMapping
@@ -42,7 +47,7 @@ public class QrTicketController {
 
   // 비회원 QR 티켓 조회 (참석자)
   @GetMapping("/{token}")
-  public ResponseEntity<QrTicketResponseDto> issueGuest(@PathVariable String token) {
+  public ResponseEntity<QrTicketGuestResponseDto> issueGuest(@PathVariable String token) {
     return ResponseEntity.ok(qrTicketService.issueGuest(token));
   }
 
@@ -114,5 +119,11 @@ public class QrTicketController {
   public ResponseEntity<CheckResponseDto> adminForceCheck(
       @RequestBody AdminForceCheckRequestDto dto) {
     return ResponseEntity.ok(entryExitService.adminForceCheck(dto));
+  }
+
+  // 참석자 자동 저장 테스트용 개발 코드
+  @PostMapping("/test/schedule")
+  public void scheduleTestAttendee(){
+    qrTicketBatchService.createQrTicket();
   }
 }

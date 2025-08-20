@@ -52,6 +52,7 @@ jobs:
             echo "VITE_CDN_BASE_URL=${{ secrets.VITE_CDN_BASE_URL }}"
             echo "VITE_KAKAO_CLIENT_ID=${{ secrets.VITE_KAKAO_CLIENT_ID }}"
             echo "VITE_KAKAO_MAP_ID=${{ secrets.VITE_KAKAO_MAP_ID }}"
+            echo "VITE_BUSINESS_SERVICE_KEY=${{ secrets.VITE_BUSINESS_SERVICE_KEY }}"
           } >> .env
 
       - name: Build FE

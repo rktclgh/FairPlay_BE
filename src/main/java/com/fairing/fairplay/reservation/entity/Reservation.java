@@ -1,6 +1,7 @@
 package com.fairing.fairplay.reservation.entity;
 
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.payment.entity.Payment;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.user.entity.Users;
@@ -63,5 +64,6 @@ public class Reservation {
         this.user = user;
         this.quantity = quantity;
         this.price = price;
+        this.createdAt = LocalDateTime.now();
     }
 }

@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -33,7 +34,7 @@ public class Banner {
     @Column(nullable = false, length = 100)
     private String title;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = true, length = 255)
     private String imageUrl;
 
     @Column(length = 255)
@@ -65,6 +66,8 @@ public class Banner {
     @JoinColumn(name = "banner_type_id", nullable = false)
     private BannerType bannerType;
 
+    @Column(name = "booking_rate", precision = 5, scale = 2, nullable = false)
+    private BigDecimal bookingRate;  // 0.00 ~ 100.00
 
 
     public void updateStatus(BannerStatusCode newStatus) {
@@ -83,6 +86,7 @@ public class Banner {
         this.endDate = endDate;
         this.priority = priority;
         this.bannerType = bannerType;
+        this.eventId = eventId; // ★ 세팅
 
     }
 
@@ -97,6 +101,7 @@ public class Banner {
         this.endDate = endDate;
         this.bannerStatusCode = statusCode;
         this.bannerType = bannerType;
+        this.eventId = eventId; // ★ 세팅
 
     }
 

@@ -19,8 +19,6 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.ColumnDefault;
 
-/*참석자*/
-/*추후 reservation 폴더로 이동될 가능성 있음*/
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
@@ -43,17 +41,27 @@ public class Attendee {
 
   @Column(name = "phone", nullable = true)
   private String phone;
-  @Column(name = "email", nullable = true, unique = true)
+
+  @Column(name = "email", nullable = true)
   private String email;
+
   @Column(name = "birth", nullable = true)
   private LocalDate birth;
+
   @Column(name = "checked_in", nullable = false)
   @ColumnDefault("false")
   @Builder.Default
   private Boolean checkedIn = false;
+
+  @Column(name = "agree_to_terms", nullable = false)
+  @ColumnDefault("false")
+  @Builder.Default
+  private Boolean agreeToTerms = false;
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "attendee_type_code_id")
   private AttendeeTypeCode attendeeTypeCode;
+
   @CreationTimestamp
   @Column(name = "created_at", updatable = false)
   private LocalDateTime createdAt;

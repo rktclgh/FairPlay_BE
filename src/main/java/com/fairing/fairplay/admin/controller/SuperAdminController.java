@@ -1,5 +1,6 @@
 package com.fairing.fairplay.admin.controller;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -23,6 +24,7 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.history.dto.ChangeHistoryDto;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.etc.ChangeAccount;
+import com.fairing.fairplay.history.etc.ChangeTemplate;
 
 @RestController
 @RequestMapping("/api/super-admin")
@@ -101,7 +103,7 @@ public class SuperAdminController {
     @PostMapping("/modify-auth/{userId}")
     // 권한매핑 추가예정
     public ResponseEntity<String> modifyAuth(@AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable Long userId,
+            @PathVariable("userId") Long userId,
             @RequestBody List<String> authList) {
 
         superAdminService.modifyAuth(userId, authList);
@@ -109,4 +111,25 @@ public class SuperAdminController {
         return ResponseEntity.ok("권한 수정 완료.");
     }
 
+    @GetMapping("/templates")
+    public ResponseEntity<List<String>> getTemplateList(@AuthenticationPrincipal CustomUserDetails userDetails)
+            throws IOException {
+        List<String> templateList = superAdminService.getTemplateList();
+        return ResponseEntity.ok(templateList);
+    }
+
+    @GetMapping("/template/{name}")
+    public ResponseEntity<String> getTemplate(@PathVariable String name,
+            @AuthenticationPrincipal CustomUserDetails userDetails) throws IOException {
+        String template = superAdminService.getTemplate(name);
+        return ResponseEntity.ok(template);
+    }
+
+    @ChangeTemplate("템플릿 저장")
+    @PostMapping("/template/save/{name}")
+    public ResponseEntity<String> saveTemplate(@PathVariable String name,
+            @AuthenticationPrincipal CustomUserDetails userDetails, @RequestBody String content) throws IOException {
+        superAdminService.saveTemplate(name, content);
+        return ResponseEntity.ok("템플릿 저장완료");
+    }
 }

@@ -17,5 +17,6 @@ public class EventSummaryResponseDto {  // 행사 목록
     private Pageable pageable;
     private Long totalElements;
     private Integer totalPages;
+    private String statusCode;
     
 }

@@ -1,11 +1,13 @@
 package com.fairing.fairplay.core.service;
 
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.dto.FileUploadResponseDto;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.ResponseInputStream;
@@ -29,12 +31,12 @@ public class AwsS3Service {
 
     @Value("${cloud.aws.s3.bucket-name}")
     private String bucketName;
-    
+
     @Value("${cloud.aws.cloudfront.domain:}")
     private String cloudfrontDomain;
 
     // 파일 임시 저장
-    public FileUploadResponseDto uploadTemp(MultipartFile file) throws IOException {    // 백엔드 저장 전 임시 업로드
+    public FileUploadResponseDto uploadTemp(MultipartFile file) {    // 백엔드 저장 전 임시 업로드
         String ext = Optional.ofNullable(file.getOriginalFilename())
                 .filter(f -> f.contains("."))
                 .map(f -> f.substring(f.lastIndexOf('.')))
@@ -42,14 +44,21 @@ public class AwsS3Service {
         String uuid = UUID.randomUUID().toString();
         String key = "uploads/tmp" + LocalDate.now() + "/" + uuid + ext;
 
-        // S3에 업로드
-        s3Client.putObject(
-                PutObjectRequest.builder().bucket(bucketName).key(key).build(),
-                RequestBody.fromInputStream(file.getInputStream(), file.getSize())
-        );
-        
-        log.info("Temporary file uploaded successfully - Key: {}, Original: {}, Size: {}", 
-            key, file.getOriginalFilename(), file.getSize());
+        try {
+            s3Client.putObject(
+                    PutObjectRequest.builder().bucket(bucketName).key(key).build(),
+                    RequestBody.fromInputStream(file.getInputStream(), file.getSize())
+            );
+        } catch (S3Exception e) {
+            log.error("S3 파일 업로드 실패. Key: {}", key, e);
+            throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "S3 파일 업로드에 실패했습니다: " + e.getMessage());
+        } catch (IOException e) {
+            log.error("파일 스트림 읽기 실패. OriginalFileName: {}", file.getOriginalFilename(), e);
+            throw new CustomException(HttpStatus.BAD_REQUEST, "업로드할 파일 스트림을 읽는 중 오류가 발생했습니다.");
+        }
+
+        log.info("Temporary file uploaded successfully - Key: {}, Original: {}, Size: {}",
+                key, file.getOriginalFilename(), file.getSize());
 
         // 미리보기용 URL
         String downloadUrl = "/api/uploads/download?key=" + URLEncoder.encode(key, StandardCharsets.UTF_8);
@@ -62,17 +71,18 @@ public class AwsS3Service {
 
     // 파일 저장
     public String moveToPermanent(String key, String destPrefix) {
-        String ext = key.substring(key.lastIndexOf('.'));
+        if (key == null || key.isEmpty()) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "파일 키가 유효하지 않습니다.");
+        }
+        
+        String ext = key.contains(".") ? key.substring(key.lastIndexOf('.')) : "";
         String uuid = UUID.randomUUID().toString();
         String destKey = "uploads/" + destPrefix + "/" + uuid + ext;
 
         try {
             // 먼저 원본 파일이 존재하는지 확인
-            s3Client.headObject(HeadObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(key)
-                    .build());
-            
+            s3Client.headObject(HeadObjectRequest.builder().bucket(bucketName).key(key).build());
+
             // 복사
             s3Client.copyObject(CopyObjectRequest.builder()
                     .sourceBucket(bucketName)
@@ -80,43 +90,52 @@ public class AwsS3Service {
                     .destinationBucket(bucketName)
                     .destinationKey(destKey)
                     .build());
-            
+
             // 복사 완료 후에만 원본 삭제
-            s3Client.deleteObject(DeleteObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(key)
-                    .build());
-            
+            s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucketName).key(key).build());
+
             log.info("Successfully moved file from {} to {}", key, destKey);
             return destKey;
-            
+
         } catch (NoSuchKeyException e) {
-            log.error("Source file not found: {}", key);
-            throw e;
-        } catch (Exception e) {
-            log.error("Error moving file from {} to {}: {}", key, destKey, e.getMessage());
-            throw e;
+            log.error("Source file not found: {}", key, e);
+            throw new CustomException(HttpStatus.NOT_FOUND, "영구 저장으로 이동할 임시 파일을 찾을 수 없습니다: " + key);
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                log.error("Source file not found (S3 404): {}", key, e);
+                throw new CustomException(HttpStatus.NOT_FOUND, "영구 저장으로 이동할 임시 파일을 찾을 수 없습니다: " + key);
+            }
+            log.error("Error moving file from {} to {}: {}", key, destKey, e.getMessage(), e);
+            throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "파일 이동 중 S3 오류가 발생했습니다.");
         }
     }
 
     // 파일 다운로드
     public void downloadFile(String key, HttpServletResponse response) throws IOException {
-        ResponseInputStream<GetObjectResponse> s3is = s3Client.getObject(GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .build());
+        try {
+            ResponseInputStream<GetObjectResponse> s3is = s3Client.getObject(GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
 
-        response.setContentType(s3is.response().contentType() != null ? s3is.response().contentType() : "application/octet-stream");
-        response.setHeader("Content-Disposition", "attachment; filename=\"" + URLEncoder.encode(key.substring(key.lastIndexOf('/')+1), "UTF-8") + "\"");
+            response.setContentType(s3is.response().contentType() != null ? s3is.response().contentType() : "application/octet-stream");
+            String fileName = key != null && key.contains("/") ? 
+                key.substring(key.lastIndexOf('/') + 1) : 
+                (key != null ? key : "download");
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + URLEncoder.encode(fileName, "UTF-8") + "\"");
 
-        IOUtils.copy(s3is, response.getOutputStream());
-        response.flushBuffer();
+            IOUtils.copy(s3is, response.getOutputStream());
+            response.flushBuffer();
+        } catch (S3Exception e) {
+            log.error("S3 파일 다운로드 실패. Key: {}", key, e);
+            throw new CustomException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없거나 다운로드 중 오류가 발생했습니다.");
+        }
     }
 
     public String getPublicUrl(String key) {
         return s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toExternalForm();
     }
-    
+
     /**
      * CloudFront를 통한 CDN URL 생성
      * CloudFront 도메인이 설정되어 있으면 CloudFront URL, 없으면 직접 S3 URL 반환
@@ -198,10 +217,16 @@ public class AwsS3Service {
 
     // 파일 삭제
     public void deleteFile(String key) {
-        s3Client.deleteObject(DeleteObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .build());
+        try {
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build());
+            log.info("S3 파일 삭제 성공. Key: {}", key);
+        } catch (S3Exception e) {
+            log.error("S3 파일 삭제 실패. Key: {}", key, e);
+            throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "S3 파일 삭제 중 오류가 발생했습니다.");
+        }
     }
 
     /**
@@ -216,9 +241,9 @@ public class AwsS3Service {
             return true;
         } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
             return false;
-        } catch (Exception e) {
-            log.error("파일 존재 여부 확인 중 오류 발생 - Key: {}, 오류: {}", key, e.getMessage());
-            throw e;
+        } catch (S3Exception e) {
+            log.error("파일 존재 여부 확인 중 S3 오류 발생 - Key: {}, 오류: {}", key, e.getMessage());
+            return false;
         }
     }
 }

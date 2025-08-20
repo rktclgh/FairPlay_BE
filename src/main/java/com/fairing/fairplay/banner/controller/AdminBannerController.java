@@ -1,24 +1,18 @@
 package com.fairing.fairplay.banner.controller;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import com.fairing.fairplay.banner.dto.*;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.fairing.fairplay.banner.dto.BannerPriorityUpdateDto;
-import com.fairing.fairplay.banner.dto.BannerRequestDto;
-import com.fairing.fairplay.banner.dto.BannerResponseDto;
-import com.fairing.fairplay.banner.dto.BannerStatusUpdateDto;
 import com.fairing.fairplay.banner.service.BannerApplicationService;
 import com.fairing.fairplay.banner.service.BannerService;
 import com.fairing.fairplay.core.etc.FunctionAuth;
@@ -120,4 +114,71 @@ public class AdminBannerController {
         appService.markPaid(id, user.getUserId());
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/summary")
+    public ResponseEntity<Map<String, Object>> summary(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestParam(defaultValue = "7") int expiringDays,                 // 옵션: 기본 7일
+            @RequestParam(required = false) String expiringType                 // 옵션: 타입별 계산 원하면 전달 (HERO/MD_PICK/...)
+    ) {
+        requireAdmin(user);
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalSales", bannerService.sumBannerSales());       // 기존
+        result.put("activeCount", bannerService.countActiveBannersNow());
+        result.put("recentCount", bannerService.countRecentBanners(7));
+
+        long expiring = (expiringType == null || expiringType.isBlank())
+                ? bannerService.countExpiringAll(expiringDays)          // 전체 타입
+                : bannerService.countExpiringByType(expiringDays, expiringType);
+
+        result.put("expiringCount", expiring);                          // 추가
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/vip")
+    public ResponseEntity<List<BannerResponseDto>> listVip(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to
+    ) {
+        requireAdmin(user);
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "from은 to보다 빠르거나 같아야 합니다.");
+        }
+        return ResponseEntity.ok(bannerService.searchVip(type, status, q, from, to));
+    }
+
+    @PatchMapping("/reorder")
+    public ResponseEntity<Void> reorderForDate(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestBody @Valid ReorderRequestDto req) {
+        requireAdmin(user);
+        bannerService.reorderForDate(req);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<BannerResponseDto> getOne(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long id) {
+        requireAdmin(user);
+        return ResponseEntity.ok(bannerService.getOne(id));
+    }
+
+    // 관리자용 신청서 목록 조회
+    @GetMapping(value = "/applications", params = "!id")
+    public ResponseEntity<?> listApplications(
+            @AuthenticationPrincipal CustomUserDetails admin,
+            @RequestParam(required = false) String status,     // PENDING | APPROVED | REJECTED
+            @RequestParam(required = false) String type,       // HERO | SEARCH_TOP
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size
+    ) {
+                requireAdmin(admin);
+                return ResponseEntity.ok(appService.listAdminApplications(status, type, page, size));
+            }
+
 }

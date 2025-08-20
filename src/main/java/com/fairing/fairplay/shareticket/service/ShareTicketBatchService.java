@@ -19,9 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class ShareTicketBatchService {
 
   private final ShareTicketRepository shareTicketRepository;
-  private final ReservationRepository reservationRepository;
 
   // 만료 날짜가 오늘이고 아직 만료처리되지 않은 공유 폼 링크 조회
+  // 당일 예약이거나 행사 전날 예약했을 경우엔 제외
   public List<ShareTicket> fetchExpiredBatch(int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
 
@@ -30,9 +30,7 @@ public class ShareTicketBatchService {
     LocalDateTime endDate = now.plusDays(1).atStartOfDay(); // 11
     log.info("fetchExpiredBatch startDate: {}, endDate: {}", startDate, endDate);
 
-    return shareTicketRepository.findAllByExpiredAtGreaterThanEqualAndExpiredAtLessThan(
-        startDate, endDate,
-        pageable);
+    return shareTicketRepository.findAllExpiredExceptTodayReservations(endDate, now,  pageable);
   }
 
   // 공유 폼 링크 만료 -> 스케줄러 자동 실행
@@ -45,6 +43,7 @@ public class ShareTicketBatchService {
 
     log.info("expiredToken: {}", shareTickets.size());
     shareTicketRepository.saveAll(shareTickets);
+    shareTicketRepository.flush();
   }
 
   // 만료된 정보 삭제
