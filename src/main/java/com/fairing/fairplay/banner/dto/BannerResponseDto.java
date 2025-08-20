@@ -20,4 +20,6 @@ public class BannerResponseDto {
     private String bannerTypeCode;
     private boolean hot;
     private boolean mdPick;
+    private Long eventId;
+
 }

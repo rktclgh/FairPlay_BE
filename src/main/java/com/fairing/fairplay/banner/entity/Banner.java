@@ -86,6 +86,7 @@ public class Banner {
         this.endDate = endDate;
         this.priority = priority;
         this.bannerType = bannerType;
+        this.eventId = eventId; // ★ 세팅
 
     }
 
@@ -100,6 +101,7 @@ public class Banner {
         this.endDate = endDate;
         this.bannerStatusCode = statusCode;
         this.bannerType = bannerType;
+        this.eventId = eventId; // ★ 세팅
 
     }
 
