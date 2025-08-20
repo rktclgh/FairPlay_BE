@@ -15,4 +15,7 @@ public interface BoothApplicationRepository extends JpaRepository<BoothApplicati
 
     @Query("SELECT COUNT(ba) > 0 FROM BoothApplication ba WHERE ba.boothEmail = :boothEmail AND ba.boothApplicationStatusCode.code = 'PENDING'")
     boolean existsPendingApplicationByBoothEmail(String boothEmail);
+
+    // 이메일로 부스 신청 목록 조회 (최신순)
+    List<BoothApplication> findByBoothEmailOrderByApplyAtDesc(String boothEmail);
 }
