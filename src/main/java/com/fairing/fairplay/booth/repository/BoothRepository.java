@@ -53,4 +53,6 @@ public interface BoothRepository extends JpaRepository<Booth, Long> {
            "           AND ba2.boothPaymentStatusCode.code = 'PAID') " +
            "ORDER BY b.boothTitle ASC")
     List<Booth> findByEventAndIsDeletedFalseAndPaymentStatusPaid(@Param("event") Event event);
+
+    List<Booth> findByBoothAdmin_UserId(Long userId);
 }
