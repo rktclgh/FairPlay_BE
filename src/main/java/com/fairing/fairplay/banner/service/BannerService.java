@@ -625,4 +625,85 @@ public class BannerService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<NewPickDto> getActiveNewPicks(int size) {
+        final int limit = Math.max(1, Math.min(size, 20));
+        final LocalDateTime now = LocalDateTime.now();
+
+        // NEW + ACTIVE + 노출기간 내, priority ASC
+        List<Banner> banners = bannerRepository
+                .findAllByBannerType_CodeAndBannerStatusCode_CodeAndStartDateLessThanEqualAndEndDateGreaterThanEqualOrderByPriorityAsc(
+                        "NEW", "ACTIVE", now, now
+                );
+
+        // eventId 있는 것만 제한
+        List<Banner> limited = banners.stream()
+                .filter(b -> b.getEventId() != null)
+                .limit(limit)
+                .toList();
+
+        if (limited.isEmpty()) return List.of();
+
+        // 이벤트 벌크 로딩
+        List<Long> eventIds = limited.stream().map(Banner::getEventId).distinct().toList();
+        var eventsById = eventRepository.findAllById(eventIds).stream()
+                .collect(Collectors.toMap(Event::getEventId, e -> e, (a,b)->a));
+
+        // DTO 매핑
+        return limited.stream().map(b -> {
+            Event e = eventsById.get(b.getEventId());
+
+            String title =
+                    (e != null && e.getTitleKr() != null && !e.getTitleKr().isBlank()) ? e.getTitleKr()
+                            : (e != null && e.getTitleEng()!= null && !e.getTitleEng().isBlank()) ? e.getTitleEng()
+                            : (b.getTitle() != null ? b.getTitle() : "");
+
+            String image = (b.getImageUrl() != null && !b.getImageUrl().isBlank()) ? b.getImageUrl() : null;
+            String date  = "";
+            String location = "";
+            String category = "";
+            LocalDateTime createdAt = null;
+
+            if (e != null && e.getEventDetail() != null) {
+                var det = e.getEventDetail();
+
+                // 날짜
+                var s = det.getStartDate();
+                var ed = det.getEndDate();
+                if (s != null) date = (ed != null) ? (s + " ~ " + ed) : s.toString();
+
+                // 장소
+                if (det.getLocationDetail() != null && !det.getLocationDetail().isBlank()) {
+                    location = det.getLocationDetail();
+                } else if (det.getLocation() != null) {
+                    location = String.valueOf(det.getLocation());
+                }
+
+                // 썸네일
+                if (image == null && det.getThumbnailUrl() != null && !det.getThumbnailUrl().isBlank()) {
+                    image = det.getThumbnailUrl();
+                }
+
+                // 카테고리
+                if (det.getMainCategory() != null && det.getMainCategory().getGroupName() != null) {
+                    category = det.getMainCategory().getGroupName();
+                }
+
+                // NEW 판별 기준 (가능하면 event_detail.created_at, 없으면 배너 시작일)
+                createdAt = det.getCreatedAt();
+            }
+            if (createdAt == null) createdAt = b.getStartDate();
+
+            return NewPickDto.builder()
+                    .id(b.getEventId())
+                    .title(title)
+                    .image(image)
+                    .date(date)
+                    .location(location)
+                    .category(category)
+                    .createdAt(createdAt)
+                    .build();
+        }).toList();
+    }
+
 }
