@@ -16,6 +16,7 @@ import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ public class BoothQrService {
   private final BoothExperienceStatusCodeRepository boothExperienceStatusCodeRepository;
   private final BoothExperienceService boothExperienceService;
   private final QrTicketEntryService qrTicketEntryService;
+  private final SimpMessagingTemplate messagingTemplate;
 
   // QR 티켓을 통한 부스 입장 처리
   @Transactional
@@ -67,6 +69,7 @@ public class BoothQrService {
         .message(checkResponseDto.getMessage())
         .checkInTime(checkResponseDto.getCheckInTime())
         .build();
+    checkInBooth(qrTicket.getId());
     return response;
   }
 
@@ -77,6 +80,10 @@ public class BoothQrService {
     return userRepository.findById(userDetails.getUserId()).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND, "해당 사용자를 찾을 수 없습니다.")
     );
+  }
+
+  private void checkInBooth(Long qrTicketId) {
+    messagingTemplate.convertAndSend("/qr/booth/"+qrTicketId, "부스 입장 완료");
   }
 }
 

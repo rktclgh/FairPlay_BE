@@ -20,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,7 @@ public class BoothExperienceService {
     private final BoothExperienceStatusCodeRepository statusCodeRepository;
     private final BoothRepository boothRepository;
     private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // 1. 부스 체험 등록 (부스 담당자)
     @Transactional
@@ -388,7 +390,8 @@ public class BoothExperienceService {
         BoothExperienceReservation savedReservation = reservationRepository.save(reservation);
         log.info("부스 체험 예약 완료 - 예약 ID: {}, 대기 순번: {}", 
                 savedReservation.getReservationId(), savedReservation.getQueuePosition());
-
+        String notificationMessage = "부스 체험 예약이 완료되었습니다. 현재 대기 순번: +"+savedReservation.getQueuePosition()+"번";
+        waitingNotification(userId, notificationMessage);
         return BoothExperienceReservationResponseDto.fromEntity(savedReservation);
     }
 
@@ -537,7 +540,7 @@ public class BoothExperienceService {
     }
 
     // 상태 변경 처리
-    private void processStatusChange(BoothExperienceReservation reservation, 
+    private void processStatusChange(BoothExperienceReservation reservation,
                                    BoothExperienceStatusCode newStatus, String notes) {
         LocalDateTime now = LocalDateTime.now();
         reservation.setExperienceStatusCode(newStatus);
@@ -583,6 +586,8 @@ public class BoothExperienceService {
             reservationRepository.save(nextReservation);
             
             log.info("다음 대기자 호출 - 예약 ID: {}", nextReservation.getReservationId());
+            String notificationMessage = "조금 있으면 입장하실 시간입니다. 현재 내 순번: "+nextReservation.getQueuePosition()+"번";
+            waitingNotification(nextReservation.getUser().getUserId(), notificationMessage);
         }
     }
 
@@ -595,9 +600,7 @@ public class BoothExperienceService {
             BoothExperienceReservation reservation = waitingReservations.get(i);
             reservation.setQueuePosition(i + 1);
         }
-
         reservationRepository.saveAll(waitingReservations);
-        log.info("대기 순번 재정렬 완료 - 체험 ID: {}", experience.getExperienceId());
     }
 
     // 사용자 본인 예약 취소 (보안 검증 포함)
@@ -829,5 +832,9 @@ public class BoothExperienceService {
                 userId, roleCode, e.getMessage(), e);
             return List.of();
         }
+    }
+
+    public void waitingNotification(Long userId, String message) {
+        messagingTemplate.convertAndSend("/queue/waiting/"+userId, message);
     }
 }
