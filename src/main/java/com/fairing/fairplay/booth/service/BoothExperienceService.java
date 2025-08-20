@@ -10,9 +10,11 @@ import com.fairing.fairplay.booth.repository.BoothExperienceReservationRepositor
 import com.fairing.fairplay.booth.repository.BoothExperienceStatusCodeRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -830,6 +832,26 @@ public class BoothExperienceService {
                 userId, roleCode, e.getMessage(), e);
             return List.of();
         }
+    }
+
+    public BoothUserRecentlyWaitingCount getUserRecentlyEventWaitingCount(CustomUserDetails userDetails, Long eventId) {
+        Optional<BoothExperienceReservation> latest = reservationRepository.findLatestActiveReservation(eventId, userDetails.getUserId());
+        Integer count = latest
+            .map(reservation -> {
+                String code = reservation.getExperienceStatusCode().getCode();
+                return "IN_PROGRESS".equals(code) ? -1 : "READY".equals(code) ? 0 :reservation.getQueuePosition();
+            })
+            .orElse(0);
+
+        String eventName = latest
+            .map(reservation -> reservation.getBoothExperience().getTitle())
+            .orElse(null);
+
+        return BoothUserRecentlyWaitingCount.builder()
+            .waitingCount(count)
+            .eventName(eventName)
+            .eventId(eventId)
+            .build();
     }
 
     public void waitingNotification(Long userId, Integer waitingCount) {
