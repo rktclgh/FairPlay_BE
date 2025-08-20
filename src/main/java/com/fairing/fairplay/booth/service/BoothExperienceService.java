@@ -390,8 +390,7 @@ public class BoothExperienceService {
         BoothExperienceReservation savedReservation = reservationRepository.save(reservation);
         log.info("부스 체험 예약 완료 - 예약 ID: {}, 대기 순번: {}", 
                 savedReservation.getReservationId(), savedReservation.getQueuePosition());
-        String notificationMessage = "부스 체험 예약이 완료되었습니다. 현재 대기 순번: +"+savedReservation.getQueuePosition()+"번";
-        waitingNotification(userId, notificationMessage);
+        waitingNotification(userId, savedReservation.getQueuePosition());
         return BoothExperienceReservationResponseDto.fromEntity(savedReservation);
     }
 
@@ -585,9 +584,7 @@ public class BoothExperienceService {
             nextReservation.setReadyAt(LocalDateTime.now());
             reservationRepository.save(nextReservation);
             
-            log.info("다음 대기자 호출 - 예약 ID: {}", nextReservation.getReservationId());
-            String notificationMessage = "조금 있으면 입장하실 시간입니다. 현재 내 순번: "+nextReservation.getQueuePosition()+"번";
-            waitingNotification(nextReservation.getUser().getUserId(), notificationMessage);
+            waitingNotification(nextReservation.getUser().getUserId(), nextReservation.getQueuePosition());
         }
     }
 
@@ -599,6 +596,7 @@ public class BoothExperienceService {
         for (int i = 0; i < waitingReservations.size(); i++) {
             BoothExperienceReservation reservation = waitingReservations.get(i);
             reservation.setQueuePosition(i + 1);
+            waitingNotification(reservation.getUser().getUserId(), reservation.getQueuePosition());
         }
         reservationRepository.saveAll(waitingReservations);
     }
@@ -834,7 +832,7 @@ public class BoothExperienceService {
         }
     }
 
-    public void waitingNotification(Long userId, String message) {
-        messagingTemplate.convertAndSend("/queue/waiting/"+userId, message);
+    public void waitingNotification(Long userId, Integer waitingCount) {
+        messagingTemplate.convertAndSend("/queue/waiting/"+userId, waitingCount);
     }
 }
