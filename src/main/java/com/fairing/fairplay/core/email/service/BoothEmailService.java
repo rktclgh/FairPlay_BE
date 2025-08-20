@@ -49,9 +49,8 @@ public class BoothEmailService extends AbstractEmailService {
             Integer price = (Integer) params[7];
             Long applicationId = (Long) params[8];
             subject = "[FairPlay] 부스 등록 신청이 승인되었습니다! 계정 안내 및 결제 요청";
-            // 참고: applicationId가 마지막에 두 번 전달되고 있습니다. 템플릿 확인이 필요합니다.
-            htmlContent = buildHtmlContent("booth-approval.html", "logo", eventTitle, boothTitle, boothEmail,
-                    tempPassword, boothTypeName, boothSize, price, applicationId, applicationId);
+            htmlContent = buildHtmlContent("booth-approval.html", "logo", eventTitle, boothTitle, boothEmail, tempPassword, boothTypeName, boothSize, price, applicationId);
+
         } else if ("cancel".equals(type)) {
             String cancelReason = HtmlUtils.htmlEscape((String) params[3]);
             subject = "[FairPlay] 부스 취소 확인";

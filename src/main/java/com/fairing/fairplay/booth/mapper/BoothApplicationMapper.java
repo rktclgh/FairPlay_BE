@@ -57,6 +57,7 @@ public class BoothApplicationMapper {
                 .boothApplicationId(entity.getId())
                 .boothTitle(entity.getBoothTitle())
                 .boothTypeName(entity.getBoothType().getName())
+                .boothTypeSize(entity.getBoothType().getSize())
                 .price(entity.getBoothType().getPrice())
                 .managerName(entity.getManagerName())
                 .contactEmail(entity.getContactEmail())
@@ -65,6 +66,10 @@ public class BoothApplicationMapper {
                 .statusName(entity.getBoothApplicationStatusCode().getName())
                 .paymentStatus(entity.getBoothPaymentStatusCode().getName())
                 .paymentStatusCode(entity.getBoothPaymentStatusCode().getCode())
+                .boothTypeId(entity.getBoothType().getId())
+                .eventTitle(entity.getEvent().getTitleKr())
+                .startDate(entity.getStartDate())
+                .endDate(entity.getEndDate())
                 .build();
     }
 
