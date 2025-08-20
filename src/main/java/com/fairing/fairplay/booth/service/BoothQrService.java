@@ -83,7 +83,7 @@ public class BoothQrService {
   }
 
   private void checkInBooth(Long qrTicketId) {
-    messagingTemplate.convertAndSend("/qr/booth/"+qrTicketId, "부스 입장 완료");
+    messagingTemplate.convertAndSend("/topic/booth/qr/"+qrTicketId, "부스 입장 완료");
   }
 }
 
