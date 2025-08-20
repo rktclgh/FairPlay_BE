@@ -1,7 +1,5 @@
 package com.fairing.fairplay.history.service;
 
-import java.util.List;
-
 import org.springframework.stereotype.Service;
 
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
@@ -44,18 +42,20 @@ public class LoginHistoryService {
                 loginHistoryRepository.save(loginHistoryEntity);
         }
 
-        public List<LoginHistoryDto> getAllLoginHistory() {
-                List<LoginHistory> histories = loginHistoryRepository.findAll();
-                return histories.stream()
-                                .map(history -> new LoginHistoryDto(
-                                                history.getId(),
-                                                history.getUser().getUserId(),
-                                                history.getUser().getName(),
-                                                history.getRoleCode().getId(),
-                                                history.getIp(),
-                                                history.getUserAgent(),
-                                                history.getLoginTime()))
-                                .toList();
-        }
+        // public List<LoginHistoryDto> getAllLoginHistory() {
+        // List<LoginHistory> histories =
+        // loginHistoryRepository.findAllByOrderByLoginTimeDesc();
+        // return histories.stream()
+        // .map(history -> new LoginHistoryDto(
+        // history.getId(),
+        // history.getUser().getUserId(),
+        // history.getUser().getName(),
+        // history.getUser().getEmail(),
+        // history.getRoleCode().getId(),
+        // history.getIp(),
+        // history.getUserAgent(),
+        // history.getLoginTime()))
+        // .toList();
+        // }
 
 }

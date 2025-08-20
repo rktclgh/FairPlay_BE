@@ -291,14 +291,14 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 List<Tuple> results = queryFactory
                                 .select(
                                                 eps.eventTitle.max(), // MAX(eps.event_title)
-                                                eps.eventId.count())
+                                                r.reservationId.countDistinct())
                                 .from(eps)
                                 .join(e).on(e.eventId.eq(eps.eventId))
                                 .join(r).on(r.event.eventId.eq(eps.eventId))
                                 .join(u).on(r.user.userId.eq(u.userId))
                                 .where(u.gender.eq("MALE"))
                                 .groupBy(eps.eventId, u.gender)
-                                .orderBy(eps.eventId.count().desc())
+                                .orderBy(r.reservationId.countDistinct().desc())
                                 .fetch();
                 List<Tuple> top5 = results.size() > 5 ? results.subList(0, 5) : results;
 
@@ -314,14 +314,14 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 List<Tuple> results = queryFactory
                                 .select(
                                                 eps.eventTitle.max(), // MAX(eps.event_title)
-                                                eps.eventId.count())
+                                                r.reservationId.countDistinct())
                                 .from(eps)
                                 .join(e).on(e.eventId.eq(eps.eventId))
                                 .join(r).on(r.event.eventId.eq(eps.eventId))
                                 .join(u).on(r.user.userId.eq(u.userId))
                                 .where(u.gender.eq("FEMALE"))
                                 .groupBy(eps.eventId, u.gender)
-                                .orderBy(eps.eventId.count().desc())
+                                .orderBy(r.reservationId.countDistinct().desc())
                                 .fetch();
                 List<Tuple> top5 = results.size() > 5 ? results.subList(0, 5) : results;
 
@@ -337,7 +337,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                 List<Tuple> results = queryFactory
                                 .select(
                                                 eps.eventTitle.max(),
-                                                eps.count())
+                                                r.reservationId.countDistinct())
                                 .from(eps)
                                 .join(e).on(eps.eventId.eq(e.eventId))
                                 .join(r).on(r.event.eventId.eq(eps.eventId))
@@ -347,7 +347,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                                                 "TIMESTAMPDIFF(YEAR, {0}, NOW())",
                                                 u.birthday).between(age, age + 9))
                                 .groupBy(eps.eventId)
-                                .orderBy(eps.eventId.count().desc())
+                                .orderBy(r.reservationId.countDistinct().desc())
                                 .fetch();
 
                 return results.stream()

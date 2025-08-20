@@ -3,6 +3,7 @@ package com.fairing.fairplay.statistics.dto.sales;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Getter
@@ -11,6 +12,7 @@ public class SalesDashboardResponse {
     private SummarySection summary;
     private List<StatusBreakdownItem> statusBreakdown;
     private List<SessionSalesItem> sessionSales;
+    private List<SalesDailyTrend> salesDailyTrend;
 
     @Getter
     @Builder
@@ -46,5 +48,14 @@ public class SalesDashboardResponse {
         private Integer quantity;
         private Long salesAmount;
         private String status;
+    }
+
+    @Getter
+    @Builder
+    public static class SalesDailyTrend {
+        private LocalDate date;
+        private Long amount;
+        private Integer count;
+
     }
 }
