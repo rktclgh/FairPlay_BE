@@ -132,4 +132,12 @@ public class SuperAdminController {
         superAdminService.saveTemplate(name, content);
         return ResponseEntity.ok("템플릿 저장완료");
     }
+
+    @ChangeTemplate("템플릿 새로고침")
+    @PostMapping("/template/refresh/{name}")
+    public ResponseEntity<String> refreshTemplate(@PathVariable String name,
+            @AuthenticationPrincipal CustomUserDetails userDetails) throws Exception {
+        superAdminService.refreshTemplateFromClasspath(name);
+        return ResponseEntity.ok("템플릿 새로고침 완료: " + name);
+    }
 }

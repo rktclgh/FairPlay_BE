@@ -223,8 +223,25 @@ public class SuperAdminService {
 
     public void saveTemplate(String name, String content) {
         EmailTemplates template = emailTemplatesRepository.findByName(name);
+        if (template == null) {
+            template = new EmailTemplates();
+            template.setName(name);
+        }
         template.setContent(content);
         emailTemplatesRepository.save(template);
+    }
+
+    /**
+     * 손상된 템플릿을 classpath에서 다시 로드
+     */
+    public void refreshTemplateFromClasspath(String templateName) throws Exception {
+        Resource resource = new ClassPathResource("email/" + templateName);
+        if (!resource.exists()) {
+            throw new RuntimeException("템플릿 파일을 찾을 수 없습니다: " + templateName);
+        }
+        
+        String content = new String(Files.readAllBytes(resource.getFile().toPath()), StandardCharsets.UTF_8);
+        saveTemplate(templateName, content);
     }
 
     @PostConstruct
