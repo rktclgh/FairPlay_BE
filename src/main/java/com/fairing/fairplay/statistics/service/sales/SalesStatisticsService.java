@@ -18,11 +18,13 @@ public class SalesStatisticsService {
         SalesSummaryDto summary = getSummaryWithDefaults(eventId, start, end);
         List<PaymentStatusSalesDto> statusSales = defaultIfNull(salesRepo.getSalesByPaymentStatus(eventId, start, end));
         List<SessionSalesDto> sessionSales = defaultIfNull(salesRepo.getSessionSales(eventId, start, end));
+        List<SalesDailyTrendDto> salesDailyTrends =  defaultIfNull(salesRepo.getSalesDailyTrend(eventId, start, end));
 
         return SalesDashboardResponse.builder()
                 .summary(buildSummarySection(summary))
                 .statusBreakdown(buildStatusBreakdown(statusSales))
                 .sessionSales(buildSessionSales(sessionSales))
+                .salesDailyTrend(buildSalesDailyTrend(salesDailyTrends))
                 .build();
     }
 
@@ -53,6 +55,7 @@ public class SalesStatisticsService {
                 .toList();
     }
 
+
     private List<SalesDashboardResponse.SessionSalesItem> buildSessionSales(List<SessionSalesDto> list) {
         return list.stream()
                 .map(s -> SalesDashboardResponse.SessionSalesItem.builder()
@@ -62,6 +65,16 @@ public class SalesStatisticsService {
                         .quantity(safeInt(s.getQuantity()))
                         .salesAmount(safeLong(s.getSalesAmount()))
                         .status(statusLabel(s.getPaymentStatusCode()))
+                        .build())
+                .toList();
+    }
+
+    private List<SalesDashboardResponse.SalesDailyTrend> buildSalesDailyTrend(List<SalesDailyTrendDto> list) {
+        return list.stream()
+                .map(s -> SalesDashboardResponse.SalesDailyTrend.builder()
+                        .date(s.getStatDate())
+                        .amount(s.getTotalSales())
+                        .count(s.getTotalCount())
                         .build())
                 .toList();
     }
