@@ -2,6 +2,7 @@ package com.fairing.fairplay.banner.controller;
 
 import com.fairing.fairplay.banner.dto.BannerResponseDto;
 import com.fairing.fairplay.banner.dto.HotPickDto;
+import com.fairing.fairplay.banner.dto.NewPickDto;
 import com.fairing.fairplay.banner.service.BannerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,15 @@ public class BannerPublicController {
     @PreAuthorize("permitAll()")
     public List<BannerResponseDto> getHeroActive() {
         return bannerService.getHeroActive();
+    }
+
+    @GetMapping("/new-picks")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<List<NewPickDto>> getNewPicks(
+            @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        int limit = Math.max(1, Math.min(size, 20));
+        return ResponseEntity.ok(bannerService.getActiveNewPicks(limit));
     }
 
     @GetMapping
