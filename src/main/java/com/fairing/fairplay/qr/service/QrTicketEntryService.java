@@ -3,7 +3,6 @@ package com.fairing.fairplay.qr.service;
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.booth.dto.BoothEntryRequestDto;
-import com.fairing.fairplay.booth.entity.BoothExperienceReservation;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.qr.dto.scan.AdminCheckRequestDto;
 import com.fairing.fairplay.qr.dto.scan.AdminForceCheckRequestDto;
@@ -87,7 +86,7 @@ public class QrTicketEntryService {
         .codeValue(qrTicket.getQrCode())
         .qrActionCode(QrActionCode.CHECKED_IN)
         .build();
-    return processCheckInCommon(qrTicket, checkInRequestDto);
+    return processCheckInCommon(qrTicket, attendee, checkInRequestDto);
   }
 
   // 수동 코드 체크인
@@ -116,7 +115,7 @@ public class QrTicketEntryService {
         .codeValue(qrTicket.getManualCode())
         .qrActionCode(QrActionCode.MANUAL_CHECKED_IN)
         .build();
-    return processCheckInCommon(qrTicket, checkInRequestDto);
+    return processCheckInCommon(qrTicket, attendee, checkInRequestDto);
   }
 
   // 강제 입퇴장 체크인
@@ -154,7 +153,7 @@ public class QrTicketEntryService {
   /**
    * 체크인 공통 로직
    */
-  private CheckResponseDto processCheckInCommon(QrTicket qrTicket, CheckInRequestDto dto) {
+  private CheckResponseDto processCheckInCommon(QrTicket qrTicket, Attendee attendee, CheckInRequestDto dto) {
     // QrActionCode 검토
     QrActionCode qrActionCode = qrEntryValidateService.validateQrActionCode(QrActionCode.SCANNED);
     // 코드 스캔 기록
@@ -186,7 +185,12 @@ public class QrTicketEntryService {
     // QR 티켓 처리
     LocalDateTime checkInTime = processCheckIn(qrTicket, dto.getQrActionCode(), entryType);
     log.info("QR 티켓 처리 완료");
+    // 웹소켓 알림
     checkInQrTicket(qrTicket);
+    // 체크인 (입장 시 false면 변경)
+    if(!attendee.getCheckedIn()){
+      attendee.setCheckedIn(true);
+    }
     return CheckResponseDto.builder()
         .message("체크인 완료되었습니다.")
         .checkInTime(checkInTime)
