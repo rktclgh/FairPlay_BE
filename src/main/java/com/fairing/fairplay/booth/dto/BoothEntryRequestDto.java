@@ -11,9 +11,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class BoothEntryRequestDto {
 
-  private Long boothReservationId; // 체험 예약 ID
+  private Long boothExperienceId; // 체험 예약 ID
   private Long boothId; // 부스 ID
   private Long eventId; // 행사 ID
   private String qrCode; // QR 코드
-  private String manualCode; // 수동 코드
 }
