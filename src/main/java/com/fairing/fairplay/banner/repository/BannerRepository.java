@@ -156,7 +156,7 @@ ORDER BY b.startDate DESC, b.priority ASC
   WHERE b.bannerStatusCode.code = 'ACTIVE'
     AND b.bannerType.code = 'HOT_PICK'
     AND :now BETWEEN b.startDate AND b.endDate
-  ORDER BY COALESCE(b.bookingRate, 0) DESC, b.priority ASC, b.id DESC
+  ORDER BY b.priority ASC, b.id DESC
 """)
     List<Banner> findActiveHotPicksOrderByRate(
             @Param("now") java.time.LocalDateTime now,
