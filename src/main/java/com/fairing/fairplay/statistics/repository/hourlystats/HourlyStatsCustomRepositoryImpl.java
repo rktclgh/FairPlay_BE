@@ -65,15 +65,20 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                 .fetch();
 
 
+
         return results.stream()
-                .map(t -> EventHourlyStatistics.builder()
-                        .eventId(t.get(r.event.eventId))
-                        .statDate(t.get(r.createdAt).toLocalDate())
-                        .hour(t.get(r.createdAt.hour()))
-                        .reservations(t.get(r.count()).longValue())
-                        .totalRevenue(t.get(p.amount.sum()))
-                        .createdAt(LocalDateTime.now())
-                        .build())
+                .map(t -> {
+                    BigDecimal revenue = t.get(p.amount.sum().coalesce(BigDecimal.ZERO)); // 이미 가져온 값
+
+                    return EventHourlyStatistics.builder()
+                            .eventId(t.get(r.event.eventId))
+                            .statDate(t.get(r.createdAt).toLocalDate())
+                            .hour(t.get(r.createdAt.hour()))
+                            .reservations(t.get(r.count()).longValue())
+                            .totalRevenue(revenue) // 여기 변수 사용
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                })
                 .toList();
     }
 
@@ -320,12 +325,13 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
         return results.stream()
                 .map(t -> {
                     Integer dayOfWeek = t.get(r.createdAt.dayOfWeek());
+                    BigDecimal revenue = t.get(p.amount.sum().coalesce(BigDecimal.ZERO));
                     return EventHourlyStatistics.builder()
                             .eventId(t.get(r.event.eventId))
                             .statDate(startDate)
                             .hour(dayOfWeek)
                             .reservations(t.get(r.count()).longValue())
-                            .totalRevenue(t.get(p.amount.sum()))
+                            .totalRevenue(revenue)
                             .createdAt(LocalDateTime.now())
                             .build();
                 })

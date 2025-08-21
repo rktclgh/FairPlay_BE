@@ -42,7 +42,7 @@ public class HourlyStatisticsController {
         return hourlyAnalysisService.analyzeHourlyBookings(eventId, date, date);
     }
 
-    @GetMapping("/hourly/{eventId}/day-of-week")
+    /*@GetMapping("/hourly/{eventId}/day-of-week")
     @FunctionAuth("getHourlyStatisticsByDayOfWeek")
     public HourlyAnalysisResponseDto getHourlyStatisticsByDayOfWeek(
             @PathVariable Long eventId,
@@ -52,7 +52,7 @@ public class HourlyStatisticsController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "시작 날짜는 종료 날짜보다 늦을 수 없습니다.");
         }
         return hourlyAnalysisService.analyzeHourlyBookingsByDayOfWeek(eventId, start, end);
-    }
+    }*/
 
     @GetMapping("/daily/{eventId}/day-of-week")
     @FunctionAuth("getDayOfWeekSummary")

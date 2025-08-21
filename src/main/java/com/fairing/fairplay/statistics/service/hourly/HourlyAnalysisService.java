@@ -48,6 +48,8 @@ public class HourlyAnalysisService {
                 .totalRevenue(s1.getTotalRevenue().add(s2.getTotalRevenue()))
                 .build()
                 ));
+
+
         List<EventHourlyStatistics> aggregatedList = new ArrayList<>(aggregatedStats.values());
         // 전체 합계 계산
         long totalReservations = aggregatedList.stream()
