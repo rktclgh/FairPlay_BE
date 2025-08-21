@@ -139,10 +139,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
              ON s.reservation_status_code_id = r.reservation_status_code_id
         WHERE s.code IN (:statuses)
           AND r.canceled = 0
-          AND r.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          AND r.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+          AND r.created_at < CURDATE()
         GROUP BY r.event_id
         HAVING bookedQty > 0
-        ORDER BY bookedQty DESC
+        ORDER BY bookedQty DESC, r.event_id ASC
         LIMIT :limit
         """, nativeQuery = true)
     List<Object[]> findEventBookingQuantitiesLastWeek(@Param("statuses") List<String> statuses, @Param("limit") int limit);
