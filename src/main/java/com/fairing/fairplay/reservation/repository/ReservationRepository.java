@@ -139,8 +139,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
              ON s.reservation_status_code_id = r.reservation_status_code_id
         WHERE s.code IN (:statuses)
           AND r.canceled = 0
-          AND r.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
-          AND r.created_at < DATE_ADD(CURDATE(), INTERVAL 6 DAY)
+          AND r.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         GROUP BY r.event_id
         HAVING bookedQty > 0
         ORDER BY bookedQty DESC
