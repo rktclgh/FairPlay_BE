@@ -63,8 +63,8 @@ public class AwsS3Service {
         log.info("Temporary file uploaded successfully - Key: {}, Original: {}, Size: {}",
                 key, file.getOriginalFilename(), file.getSize());
 
-        // 미리보기용 URL
-        String downloadUrl = baseUrl + "/api/uploads/download?key=" + URLEncoder.encode(key, StandardCharsets.UTF_8);
+        // 미리보기용 URL (상대 경로로 반환, 프론트엔드에서 baseUrl 추가)
+        String downloadUrl = "/api/uploads/download?key=" + URLEncoder.encode(key, StandardCharsets.UTF_8);
 
         // 이미지 여부
         boolean isImage = file.getContentType() != null && file.getContentType().startsWith("image/");
