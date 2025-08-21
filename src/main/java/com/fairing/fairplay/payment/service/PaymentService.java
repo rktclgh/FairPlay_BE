@@ -233,7 +233,14 @@ public class PaymentService {
         // 6. 결제 완료 후 후속 처리
         processPaymentCompletionActions(savedPayment);
 
-        return PaymentResponseDto.fromEntity(savedPayment);
+        // 7. 후속 처리로 업데이트된 payment 정보를 다시 조회하여 반환
+        Payment updatedPayment = paymentRepository.findById(savedPayment.getPaymentId())
+                .orElse(savedPayment);
+        
+        System.out.println("🟢 [PaymentService] completePayment 반환 - paymentId: " + updatedPayment.getPaymentId() +
+                ", targetId: " + updatedPayment.getTargetId());
+        
+        return PaymentResponseDto.fromEntity(updatedPayment);
     }
 
     // 티켓 결제 전체 조회 (전체 관리자, 행사 관리자)
@@ -436,36 +443,31 @@ public class PaymentService {
      */
     private void processReservationPaymentCompletion(Payment payment) {
         try {
-            // 방식 A: 결제 완료 후 예매 생성
+            // 방식 A: 결제 완료 후 예매 생성 (targetId가 null인 경우만)
             if (payment.getTargetId() == null) {
                 // targetId가 null이면 결제 후 예매 생성해야 하는 상황
                 Long reservationId = createReservationAfterPayment(payment);
 
+                System.out.println("🔴 [PaymentService] 예매 생성 완료 - reservationId: " + reservationId);
+                
                 // payment의 targetId를 실제 예매 ID로 업데이트
                 payment.setTargetId(reservationId);
-                paymentRepository.save(payment);
+                Payment savedPayment = paymentRepository.save(payment);
+                
+                System.out.println("🔴 [PaymentService] payment 업데이트 완료 - paymentId: " + savedPayment.getPaymentId() +
+                        ", targetId: " + savedPayment.getTargetId());
 
                 System.out.println("결제 후 예매 생성 완료 - paymentId: " + payment.getPaymentId() +
                         ", reservationId: " + reservationId);
+                
+                // 예약 처리 성공 후 알림 발송
+                sendPaymentCompletionNotifications(payment, reservationId);
             } else {
-                // 기존 방식: 이미 생성된 예매의 상태만 업데이트
-                Long reservationId = payment.getTargetId();
-
-                Reservation reservation = reservationRepository.findById(reservationId)
-                        .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
-
-                // 예약 상태를 CONFIRMED로 변경
-                var confirmedStatus = reservationStatusCodeRepository.findByCode("CONFIRMED")
-                        .orElseThrow(() -> new IllegalStateException("CONFIRMED 상태 코드를 찾을 수 없습니다."));
-
-                reservation.setReservationStatusCode(confirmedStatus);
-                reservationRepository.save(reservation);
-
-                System.out.println("기존 예약 상태 업데이트 완료 - reservationId: " + reservationId);
+                // targetId가 이미 있는 경우: 기존 예매에 대한 알림만 발송
+                System.out.println("기존 예약에 대한 알림 발송 - paymentId: " + payment.getPaymentId() +
+                        ", targetId: " + payment.getTargetId());
+                sendPaymentCompletionNotifications(payment, payment.getTargetId());
             }
-
-            // 예약 처리 성공 후 알림 발송
-            sendPaymentCompletionNotifications(payment, payment.getTargetId());
 
         } catch (Exception e) {
             System.err.println("예약 처리 실패 - paymentId: " + payment.getPaymentId() +

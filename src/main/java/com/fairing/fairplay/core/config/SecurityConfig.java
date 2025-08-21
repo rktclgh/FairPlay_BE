@@ -55,6 +55,7 @@ public class SecurityConfig {
                                                                 "/events/**",
                                                                 "/eventdetail/**",
                                                                 "/qr-ticket/**",
+                                                                "/banner/payment",
                                                                 "/auth/**",
                                                                 "/api/users/signup",
                                                                 "/api/auth/login",
@@ -62,6 +63,7 @@ public class SecurityConfig {
                                                                 "/api/auth/refresh",
                                                                 "/api/events", // GET 행사 목록 조회
                                                                 "/api/events/*/details", // GET 행사 상세 조회 (*/details 패턴)
+                                                                "/api/events/hot-picks", // GET 핫픽 조회
                                                                 "/api/users/forgot-password",
                                                                 "/swagger-ui/**",
                                                                 "/v3/api-docs/**",

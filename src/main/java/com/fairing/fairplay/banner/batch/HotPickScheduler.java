@@ -31,6 +31,15 @@ public class HotPickScheduler {
     @Scheduled(cron = "0 0 2 * * *") // 매일 새벽 2시
     @Transactional
     public void updateHotPicks() {
+        updateHotPicksManual();
+    }
+
+    /**
+     * 수동 실행용 HotPick 업데이트 메서드
+     * 어제부터 일주일간 판매량 기준으로 HotPick 생성
+     */
+    @Transactional
+    public void updateHotPicksManual() {
         BannerType hotPickType = typeRepo.findByCode("HOT_PICK")
                 .orElseThrow(() -> new IllegalStateException("HOT_PICK 배너 타입 없음"));
         BannerStatusCode active = statusRepo.findByCode("ACTIVE")
@@ -41,13 +50,9 @@ public class HotPickScheduler {
         // 기존 HOT_PICK 모두 비활성화
         bannerRepository.deactivateAllActiveByType(hotPickType.getCode(), "ACTIVE", inactive);
 
-
-// 예매 수량 상위 이벤트 조회 (CONFIRMED 만 포함)
-        List<Object[]> ranking = reservationRepository
-                .findEventBookingQuantities(java.util.List.of("CONFIRMED"));
-
-        // 예매율 순위 조회
-        List<Object[]> bookingRates = reservationRepository.findEventBookingRates("CONFIRMED");
+        // 어제부터 일주일간 예매 수량 상위 이벤트 조회 (CONFIRMED 만 포함)
+        List<Object[]> weeklyRanking = reservationRepository
+                .findEventBookingQuantitiesLastWeek(java.util.List.of("CONFIRMED"), HOT_PICK_LIMIT);
 
         int prio = 0;
         int created = 0;
@@ -55,20 +60,24 @@ public class HotPickScheduler {
         LocalDateTime startAt = LocalDateTime.now().withSecond(0).withNano(0);
         LocalDateTime endAt   = startAt.plusDays(7);
 
-        for (Object[] row : bookingRates) {
+        for (Object[] row : weeklyRanking) {
             if (created >= HOT_PICK_LIMIT) break;
             Long eventId = ((Number) row[0]).longValue();
+            Long bookedQty = ((Number) row[1]).longValue();
+            
+            log.info("HotPick 후보 - EventId: {}, 일주일간 판매량: {}매", eventId, bookedQty);
 
 
             // 같은 이벤트가 이미 HOT_PICK ACTIVE 상태면 건너뜀 (선택)
             if (bannerRepository.existsByBannerType_CodeAndEventIdAndBannerStatusCode_Code(
                     hotPickType.getCode(), eventId, active.getCode())) {
+                log.info("EventId {} 는 이미 HotPick으로 등록되어 있어 건너뛰", eventId);
                 continue;
             }
 
 
                     Banner banner = new Banner(
-                            "Hot Pick" + eventId,
+                            "Hot Pick #" + eventId + " (Week Sales: " + bookedQty + ")",
                             "",  // image_url (TODO: 이벤트/파일에서 가져오기)
                             null,
                             prio++,             // <- 0,1,2… UK 충돌 방지
@@ -78,15 +87,15 @@ public class HotPickScheduler {
                             hotPickType
                     );
                     banner.setEventId(eventId);
-                    bannerRepository.save(banner);
+                    Banner savedBanner = bannerRepository.save(banner);
+                    log.info("HotPick 배너 생성 완료 - ID: {}, EventId: {}, Priority: {}, 판매량: {}", 
+                            savedBanner.getId(), eventId, savedBanner.getPriority(), bookedQty);
             created++;
 
                 }
 
 
-        log.info("HOT_PICK 배너 {}건 생성 완료", created);
-
-
- }
+        log.info("HOT_PICK 배너 {}건 생성 완료 (어제부터 일주일간 판매량 기준)", created);
+    }
 }
 

@@ -8,7 +8,9 @@ import com.fairing.fairplay.notification.dto.NotificationRequestDto;
 import com.fairing.fairplay.notification.service.NotificationService;
 import com.fairing.fairplay.payment.dto.PaymentRequestDto;
 import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.payment.entity.PaymentStatusCode;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
+import com.fairing.fairplay.payment.repository.PaymentStatusCodeRepository;
 import com.fairing.fairplay.reservation.dto.ReservationAttendeeDto;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
 import com.fairing.fairplay.reservation.entity.Reservation;
@@ -57,10 +59,15 @@ public class ReservationService {
     private final TicketRepository ticketRepository;
     private final ScheduleTicketRepository scheduleTicketRepository;
     private final PaymentRepository paymentRepository;
+    private final PaymentStatusCodeRepository paymentStatusCodeRepository;
 
     // 예약 신청 (결제 데이터 생성 이후 마지막에 결제 완료 상태로 저장)
     @Transactional
     public Reservation createReservation(ReservationRequestDto requestDto, Long userId, Long paymentId) {
+        
+        System.out.println("🔵 [ReservationService] createReservation 호출 - userId: " + userId + 
+                ", paymentId: " + paymentId + ", eventId: " + requestDto.getEventId() + 
+                ", scheduleId: " + requestDto.getScheduleId() + ", ticketId: " + requestDto.getTicketId());
 
         Event event = eventRepository.findById(requestDto.getEventId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 EVENT ID: " + requestDto.getEventId()));
@@ -113,10 +120,21 @@ public class ReservationService {
         Reservation reservation = new Reservation(event, schedule, ticket, user, requestDto.getQuantity(), requestDto.getPrice());
         reservation.setReservationStatusCode(confirmedStatus);
         Reservation savedReservation = reservationRepository.save(reservation);
+        
+        System.out.println("🔵 [ReservationService] 예매 생성 완료 - reservationId: " + savedReservation.getReservationId() + 
+                ", eventId: " + savedReservation.getEvent().getEventId() + 
+                ", scheduleId: " + (savedReservation.getSchedule() != null ? savedReservation.getSchedule().getScheduleId() : null));
 
         Payment payment = paymentRepository.findById(paymentId).orElseThrow();
+        
+        // 결제 완료 상태로 업데이트
+        PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
+                .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
+        payment.setPaymentStatusCode(completedStatus);
+        payment.setPaidAt(LocalDateTime.now());
+        paymentRepository.save(payment);
 
-        // 결제/예매 완료 알림 발송은 PaymentService에서 처리됨 (순환참조 방지로 제거)
+        // 알림은 별도 서비스에서 처리 (순환참조 방지)
 
         return savedReservation;
     }

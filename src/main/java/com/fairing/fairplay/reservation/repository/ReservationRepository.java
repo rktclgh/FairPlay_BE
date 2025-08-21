@@ -2,21 +2,22 @@ package com.fairing.fairplay.reservation.repository;
 
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.review.dto.PossibleReviewResponseDto;
-import com.fairing.fairplay.user.entity.Users;
-import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.util.List;
+import java.util.Optional;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
   List<Reservation> findByEvent_EventId(Long eventId);
 
   List<Reservation> findByUser_userId(Long userUserId);
+  
+  List<Reservation> findByUser_UserIdAndEvent_EventId(Long userId, Long eventId);
 
   Optional<Reservation> findByReservationIdAndUser_UserId(Long reservationId, Long userId);
 
@@ -130,6 +131,24 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
         ORDER BY bookedQty DESC
         """, nativeQuery = true)
     List<Object[]> findEventBookingQuantities(@Param("statuses") List<String> statuses);
+
+    // 어제부터 일주일간 예매 수량 상위 이벤트 (HotPick 용)
+    @Query(value = """
+        SELECT r.event_id AS eventId,
+               COALESCE(SUM(r.quantity), COUNT(*)) AS bookedQty
+        FROM reservation r
+        JOIN reservation_status_code s
+             ON s.reservation_status_code_id = r.reservation_status_code_id
+        WHERE s.code IN (:statuses)
+          AND r.canceled = 0
+          AND r.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+          AND r.created_at < CURDATE()
+        GROUP BY r.event_id
+        HAVING bookedQty > 0
+        ORDER BY bookedQty DESC, r.event_id ASC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<Object[]> findEventBookingQuantitiesLastWeek(@Param("statuses") List<String> statuses, @Param("limit") int limit);
   }
 
 
