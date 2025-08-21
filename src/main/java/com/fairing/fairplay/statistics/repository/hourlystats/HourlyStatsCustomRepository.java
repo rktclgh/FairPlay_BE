@@ -12,4 +12,7 @@ public interface HourlyStatsCustomRepository {
     List<EventHourlyStatistics> findByEventIdAndDateRange(Long eventId, LocalDate startDate, LocalDate endDate);
     Optional<EventHourlyStatistics> findPeakHourForDate(LocalDate targetDate);
     List<EventHourlyStatistics> findTop5PeakHours(LocalDate targetDate);
+    List<EventHourlyStatistics> calculateByDayOfWeek(Long eventId, LocalDate startDate, LocalDate endDate);
+    List<EventHourlyStatistics> calculateDailySummaryByDayOfWeek(Long eventId, LocalDate startDate, LocalDate endDate);
+    List<EventHourlyStatistics> calculateMonthlyTimePeriodSummary(Long eventId, LocalDate startDate, LocalDate endDate);
 }
