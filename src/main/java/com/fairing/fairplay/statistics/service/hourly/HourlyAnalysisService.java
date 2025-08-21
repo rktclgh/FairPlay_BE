@@ -283,14 +283,16 @@ public class HourlyAnalysisService {
                 .sum();
 
         String[] dayNames = {"", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"};
-        
+
         return dailyStats.stream()
                 .map(stat -> {
-                    double percentage = totalBookings > 0 ? 
+                    double percentage = totalBookings > 0 ?
                             (double) stat.getReservations() / totalBookings * 100 : 0;
-                    
+                    int dbDay = stat.getHour();
+                    int normalized = dbDay == 1 ? 7 : dbDay - 1;
+
                     return DayOfWeekSummaryDto.builder()
-                            .day(dayNames[stat.getHour()])
+                            .day(dayNames[normalized])
                             .bookings(stat.getReservations())
                             .revenue(stat.getTotalRevenue())
                             .percentage(Math.round(percentage * 10.0) / 10.0)
