@@ -20,9 +20,13 @@ import com.fairing.fairplay.payment.entity.PaymentStatusCode;
 import com.fairing.fairplay.payment.entity.PaymentTargetType;
 import com.fairing.fairplay.payment.entity.PaymentTypeCode;
 import com.fairing.fairplay.payment.repository.*;
+import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.reservation.repository.ReservationStatusCodeRepository;
+import com.fairing.fairplay.reservation.service.ReservationService;
+import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
@@ -75,6 +79,8 @@ public class PaymentService {
     // 결제 완료 이메일 서비스
     private final PaymentCompletionEmailService paymentCompletionEmailService;
 
+    // 예약 서비스 (티켓 생성용)
+    private final ReservationService reservationService;
 
     // 부스 신청 정보 조회를 위한 레포지토리
     private final BoothApplicationRepository boothApplicationRepository;
@@ -363,59 +369,65 @@ public class PaymentService {
      * 결제 완료 후 예매 생성 (방식 A)
      */
     private Long createReservationAfterPayment(Payment payment) {
-       /* try {
-            // Payment에서 예매 정보 추출
+        try {
+            System.out.println("결제 완료 후 예매 생성 시작 - paymentId: " + payment.getPaymentId());
+            
+            // 결제 정보에서 예매 생성에 필요한 정보 추출
+            // 현재 Payment 엔티티에 scheduleId, ticketId 필드가 없으므로
+            // 임시로 더미 데이터를 사용하고, 향후 개선이 필요
+            
             Event event = payment.getEvent();
             Users user = payment.getUser();
-            Long scheduleId = payment.getScheduleId();
-            Long ticketId = payment.getTicketId();
-
-            // 스케줄 정보 조회 (있는 경우만)
-            EventSchedule schedule = null;
-            if (scheduleId != null) {
-                schedule = eventScheduleRepository.findById(scheduleId).orElse(null);
+            
+            if (event == null) {
+                throw new IllegalArgumentException("이벤트 정보가 없습니다.");
             }
-
-            // 티켓 정보 조회
-            Ticket ticket = ticketRepository.findById(ticketId)
-                    .orElseThrow(() -> new IllegalArgumentException("티켓을 찾을 수 없습니다: " + ticketId));
-
-            // 재고 차감 (스케줄이 있는 경우만)
-            if (schedule != null) {
-                int updatedRows = scheduleTicketRepository.decreaseStockIfAvailable(
-                        ticketId, scheduleId, payment.getQuantity());
-
-                if (updatedRows == 0) {
-                    throw new IllegalStateException("티켓 재고가 부족합니다.");
-                }
+            
+            if (user == null) {
+                throw new IllegalArgumentException("사용자 정보가 없습니다.");
             }
+            
 
-            // 예매 상태 (초기: CONFIRMED - 결제가 이미 완료된 상태이므로)
-            var confirmedStatus = reservationStatusCodeRepository.findByCode("CONFIRMED")
-                    .orElseThrow(() -> new IllegalStateException("CONFIRMED 상태 코드를 찾을 수 없습니다."));
-
-            // 예매 생성 - 생성자를 사용하여 객체 생성
-            Reservation reservation = new Reservation(event, schedule, ticket, user,
-                                                    payment.getQuantity(),
-                                                    payment.getAmount().intValue());
-            reservation.setReservationStatusCode(confirmedStatus);
-            reservation.setCreatedAt(LocalDateTime.now());
-            reservation.setUpdatedAt(LocalDateTime.now());
-
-            Reservation savedReservation = reservationRepository.save(reservation);
-
-            System.out.println("예매 생성 성공 - reservationId: " + savedReservation.getReservationId() +
-                              ", ticketId: " + ticketId + ", quantity: " + payment.getQuantity());
-
-            return savedReservation.getReservationId();
-
+            List<EventSchedule> schedules = eventScheduleRepository.findByEvent_EventId(event.getEventId());
+            if (schedules.isEmpty()) {
+                throw new IllegalStateException("이벤트에 스케줄이 없습니다.");
+            }
+            
+            EventSchedule schedule = schedules.get(0); // 첫 번째 스케줄 사용
+            
+            List<Ticket> tickets = ticketRepository.findTicketsByEventId(event.getEventId());
+            if (tickets.isEmpty()) {
+                throw new IllegalStateException("이벤트에 티켓이 없습니다.");
+            }
+            
+            Ticket ticket = tickets.get(0); // 첫 번째 티켓 사용
+            
+            // ReservationRequestDto 생성
+            ReservationRequestDto reservationRequest = new ReservationRequestDto();
+            reservationRequest.setEventId(event.getEventId());
+            reservationRequest.setScheduleId(schedule.getScheduleId());
+            reservationRequest.setTicketId(ticket.getTicketId());
+            reservationRequest.setQuantity(payment.getQuantity());
+            reservationRequest.setPrice(payment.getAmount().intValue());
+            
+            // ReservationService를 사용하여 예약 생성
+            Reservation reservation = reservationService.createReservation(
+                reservationRequest, 
+                user.getUserId(), 
+                payment.getPaymentId()
+            );
+            
+            System.out.println("예매 생성 성공 - reservationId: " + reservation.getReservationId() +
+                              ", ticketId: " + ticket.getTicketId() + ", quantity: " + payment.getQuantity());
+            
+            return reservation.getReservationId();
+            
         } catch (Exception e) {
             System.err.println("예매 생성 실패 - paymentId: " + payment.getPaymentId() +
                               ", error: " + e.getMessage());
+            e.printStackTrace();
             throw new IllegalStateException("예매 생성에 실패했습니다: " + e.getMessage(), e);
-        }*/
-
-        return 1L;
+        }
     }
 
     /**
