@@ -96,6 +96,10 @@ cloud:
     cloudfront:
       domain: ${AWS_CLOUDFRONT_DOMAIN}
 
+# 애플리케이션 기본 URL
+app:
+  base-url: ${APP_BASE_URL:https://fair-play.ink}
+
 # 아임포트 설정
 iamport:
   api-key: ${IAMPORT_API_KEY}

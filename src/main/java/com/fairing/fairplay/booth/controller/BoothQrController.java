@@ -22,9 +22,7 @@ public class BoothQrController {
   private final BoothQrService boothQrService;
 
   @PostMapping
-  public ResponseEntity<BoothEntryResponseDto> boothEntry(
-      @AuthenticationPrincipal CustomUserDetails userDetails,
-      @RequestBody BoothEntryRequestDto dto) {
-    return ResponseEntity.status(HttpStatus.OK).body(boothQrService.checkIn(userDetails, dto));
+  public ResponseEntity<BoothEntryResponseDto> boothEntry(@RequestBody BoothEntryRequestDto dto) {
+    return ResponseEntity.status(HttpStatus.OK).body(boothQrService.checkIn(dto));
   }
 }
