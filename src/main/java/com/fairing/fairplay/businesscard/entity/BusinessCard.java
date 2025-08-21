@@ -1,5 +1,6 @@
 package com.fairing.fairplay.businesscard.entity;
 
+import com.fairing.fairplay.event.entity.Location;
 import com.fairing.fairplay.user.entity.Users;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -44,23 +45,30 @@ public class BusinessCard {
     @Column(length = 200)
     private String website;
     
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
+    private Location location;
+    
     @Column(length = 300)
-    private String address;
+    private String detailAddress;
     
     @Column(length = 500)
     private String description;
     
-    @Column(length = 50)
+    @Column(length = 200)
     private String linkedIn;
     
-    @Column(length = 50)
+    @Column(length = 200)
     private String instagram;
     
-    @Column(length = 50)
+    @Column(length = 200)
     private String facebook;
     
-    @Column(length = 50)
+    @Column(length = 200)
     private String twitter;
+
+    @Column(length = 200)
+    private String github;
     
     @Column(length = 300)
     private String profileImageUrl;
