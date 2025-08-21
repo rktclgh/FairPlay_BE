@@ -52,7 +52,9 @@ public class EventHotPickService {
                         .title(event.getTitleKr())
                         .date(formatEventDate(event))
                         .location(event.getEventDetail() != null && event.getEventDetail().getLocation() != null 
-                                ? event.getEventDetail().getLocation().getBuildingName() 
+                                ? (event.getEventDetail().getLocation().getBuildingName() != null 
+                                   ? event.getEventDetail().getLocation().getBuildingName()
+                                   : event.getEventDetail().getLocation().getPlaceName())
                                 : "장소 미정")
                         .category(event.getEventDetail() != null && event.getEventDetail().getMainCategory() != null 
                                 ? event.getEventDetail().getMainCategory().getGroupName() 
