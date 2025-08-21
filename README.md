@@ -101,7 +101,7 @@ DB\_PASSWORD=password
 
 ---
 
-## 💡 FAQ & 문제해결
+## 💡 FAQ & 문제해결 
 
 * 실행 시 DB 접속 오류
 
