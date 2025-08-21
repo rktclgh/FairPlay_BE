@@ -11,6 +11,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -47,6 +48,8 @@ public class HourlyAnalysisService {
                 .totalRevenue(s1.getTotalRevenue().add(s2.getTotalRevenue()))
                 .build()
                 ));
+
+
         List<EventHourlyStatistics> aggregatedList = new ArrayList<>(aggregatedStats.values());
         // 전체 합계 계산
         long totalReservations = aggregatedList.stream()
@@ -54,7 +57,7 @@ public class HourlyAnalysisService {
                 .sum();
 
         BigDecimal totalRevenue = aggregatedList.stream()
-                .map(EventHourlyStatistics::getTotalRevenue)
+                .map(stat -> stat.getTotalRevenue() == null ? BigDecimal.ZERO : stat.getTotalRevenue())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return HourlyAnalysisResponseDto.builder()
@@ -208,6 +211,125 @@ public class HourlyAnalysisService {
         if (max == afternoon) return "오후 시간대 집중형";
         if (max == morning) return "오전 시간대 집중형";
         return "새벽 시간대 집중형";
+    }
+
+    public HourlyAnalysisResponseDto analyzeHourlyBookingsByDayOfWeek(Long eventId, LocalDate startDate, LocalDate endDate) {
+        List<EventHourlyStatistics> hourlyStats = hourlyStatsRepository.calculateByDayOfWeek(eventId, startDate, endDate);
+        
+        if (hourlyStats.isEmpty()) {
+            return HourlyAnalysisResponseDto.builder()
+                    .summary(HourlyStatsSummaryDto.builder()
+                            .totalReservations(0L)
+                            .totalRevenue(BigDecimal.ZERO)
+                            .averageHourlyReservations(0.0)
+                            .mostActiveHour(0)
+                            .mostActiveHourDescription("데이터 없음")
+                            .build())
+                    .peakHours(PeakHoursSummaryDto.builder()
+                            .topHours(new ArrayList<>())
+                            .peakPeriod("데이터 없음")
+                            .peakHourPercentage(0.0)
+                            .build())
+                    .hourlyDetails(new ArrayList<>())
+                    .patternAnalysis(PatternAnalysisDto.builder()
+                            .morningPattern("오전 (06-12시): 0건")
+                            .afternoonPattern("오후 (12-18시): 0건")
+                            .eveningPattern("저녁 (18-24시): 0건")
+                            .nightPattern("새벽 (00-06시): 0건")
+                            .overallTrend("데이터 없음")
+                            .insights(new ArrayList<>())
+                            .build())
+                    .build();
+        }
+
+        Map<Integer, EventHourlyStatistics> aggregatedStats = hourlyStats.stream()
+                .collect(Collectors.toMap(
+                        EventHourlyStatistics::getHour,
+                        Function.identity(),
+                        (s1, s2) -> EventHourlyStatistics.builder()
+                                .eventId(eventId)
+                                .hour(s1.getHour())
+                                .totalRevenue(
+                                (s1.getTotalRevenue() == null ? BigDecimal.ZERO : s1.getTotalRevenue())
+                                        .add(s2.getTotalRevenue() == null ? BigDecimal.ZERO : s2.getTotalRevenue())
+                                )
+                                .totalRevenue(s1.getTotalRevenue().add(s2.getTotalRevenue()))
+                                .build()
+                ));
+
+        List<EventHourlyStatistics> aggregatedList = new ArrayList<>(aggregatedStats.values());
+
+        long totalReservations = aggregatedList.stream()
+                .mapToLong(EventHourlyStatistics::getReservations)
+                .sum();
+
+        BigDecimal totalRevenue = aggregatedList.stream()
+                .map(stat -> stat.getTotalRevenue() == null ? BigDecimal.ZERO : stat.getTotalRevenue())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return HourlyAnalysisResponseDto.builder()
+                .summary(buildSummary(aggregatedList, totalReservations, totalRevenue, startDate, endDate))
+                .peakHours(buildPeakHours(aggregatedList, totalReservations))
+                .hourlyDetails(buildHourlyDetails(aggregatedList, totalReservations))
+                .patternAnalysis(buildPatternAnalysis(aggregatedList))
+                .build();
+    }
+
+    public List<DayOfWeekSummaryDto> getDayOfWeekSummary(Long eventId, LocalDate startDate, LocalDate endDate) {
+        List<EventHourlyStatistics> dailyStats = hourlyStatsRepository.calculateDailySummaryByDayOfWeek(eventId, startDate, endDate);
+        
+        long totalBookings = dailyStats.stream()
+                .mapToLong(EventHourlyStatistics::getReservations)
+                .sum();
+
+        String[] dayNames = {"", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"};
+
+        return dailyStats.stream()
+                .map(stat -> {
+                    double percentage = totalBookings > 0 ?
+                            (double) stat.getReservations() / totalBookings * 100 : 0;
+                    int dayIndex = stat.getHour();
+
+                    return DayOfWeekSummaryDto.builder()
+                            .day(dayNames[dayIndex])
+                            .bookings(stat.getReservations())
+                            .revenue(stat.getTotalRevenue())
+                            .percentage(Math.round(percentage * 10.0) / 10.0)
+                            .build();
+                })
+                .toList();
+    }
+
+    public List<MonthlyTimePeriodDto> getMonthlyTimePeriodSummary(Long eventId, LocalDate startDate, LocalDate endDate) {
+        List<EventHourlyStatistics> monthlyStats = hourlyStatsRepository.calculateMonthlyTimePeriodSummary(eventId, startDate, endDate);
+        
+        String[] monthNames = {"", "1월", "2월", "3월", "4월", "5월", "6월", 
+                              "7월", "8월", "9월", "10월", "11월", "12월"};
+        
+        Map<Integer, Map<Integer, Long>> monthlyData = new HashMap<>();
+        
+        for (EventHourlyStatistics stat : monthlyStats) {
+            int month = stat.getHour() / 10;
+            int timePeriod = stat.getHour() % 10;
+            
+            monthlyData.computeIfAbsent(month, k -> new HashMap<>())
+                      .put(timePeriod, stat.getReservations());
+        }
+        
+        return monthlyData.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> {
+                    Integer month = entry.getKey();
+                    Map<Integer, Long> periodData = entry.getValue();
+                    
+                    return MonthlyTimePeriodDto.builder()
+                            .month(monthNames[month])
+                            .morning(periodData.getOrDefault(1, 0L))
+                            .afternoon(periodData.getOrDefault(2, 0L))
+                            .evening(periodData.getOrDefault(3, 0L))
+                            .build();
+                })
+                .toList();
     }
 
     private List<String> generateInsights(List<EventHourlyStatistics> stats, long morning, long afternoon, long evening, long night) {

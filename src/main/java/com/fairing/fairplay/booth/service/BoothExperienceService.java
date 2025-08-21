@@ -375,7 +375,8 @@ public class BoothExperienceService {
     BoothExperienceReservation savedReservation = reservationRepository.save(reservation);
     log.info("부스 체험 예약 완료 - 예약 ID: {}, 대기 순번: {}", savedReservation.getReservationId(),
         savedReservation.getQueuePosition());
-    waitingNotification(userId, savedReservation.getQueuePosition());
+    // 현재 내 예약의 순번 실시간 알림
+    waitingNotification(userId, savedReservation.getQueuePosition(), "");
     return BoothExperienceReservationResponseDto.fromEntity(savedReservation);
   }
 
@@ -533,15 +534,22 @@ public class BoothExperienceService {
     switch (newStatus.getCode()) {
       case "READY":
         reservation.setReadyAt(now);
+        waitingNotification(reservation.getUser().getUserId(), reservation.getQueuePosition() - 1,
+            "입장 해주세요.");
         break;
       case "IN_PROGRESS":
         reservation.setStartedAt(now);
+        waitingNotification(reservation.getUser().getUserId(), 0, "체험중입니다!");
         // 다음 대기자를 READY 상태로 변경
-        processNextWaitingReservation(reservation.getBoothExperience());
+        // processNextWaitingReservation(reservation.getBoothExperience());
         break;
       case "COMPLETED":
+        log.info("COMPLETED: {}", reservation.getExperienceStatusCode().getCode());
+
+        // 사용자 상태 COMPLETED 변경 -> 상태 완료로 변경
         reservation.setCompletedAt(now);
         // 다음 대기자를 READY 상태로 변경
+        waitingNotification(reservation.getUser().getUserId(), 0, "예약된 체험 없음");
         processNextWaitingReservation(reservation.getBoothExperience());
         break;
       case "CANCELLED":
@@ -564,10 +572,8 @@ public class BoothExperienceService {
 
       nextReservation.setExperienceStatusCode(readyStatus);
       nextReservation.setReadyAt(LocalDateTime.now());
+      waitingNotification(nextReservation.getUser().getUserId(), 0, "입장해주세요!");
       reservationRepository.save(nextReservation);
-
-      waitingNotification(nextReservation.getUser().getUserId(),
-          nextReservation.getQueuePosition());
     }
   }
 
@@ -579,7 +585,8 @@ public class BoothExperienceService {
     for (int i = 0; i < waitingReservations.size(); i++) {
       BoothExperienceReservation reservation = waitingReservations.get(i);
       reservation.setQueuePosition(i + 1);
-      waitingNotification(reservation.getUser().getUserId(), reservation.getQueuePosition());
+      // 이후 대기자들 대기 순번 재알림
+      waitingNotification(reservation.getUser().getUserId(), reservation.getQueuePosition(), "");
     }
     reservationRepository.saveAll(waitingReservations);
   }
@@ -807,18 +814,48 @@ public class BoothExperienceService {
         eventId, userDetails.getUserId());
     Integer count = latest.map(reservation -> {
       String code = reservation.getExperienceStatusCode().getCode();
-      return "IN_PROGRESS".equals(code) ? -1
+      return "IN_PROGRESS".equals(code) ? 0
           : "READY".equals(code) ? 0 : reservation.getQueuePosition();
     }).orElse(0);
 
     String eventName = latest.map(reservation -> reservation.getBoothExperience().getTitle())
         .orElse(null);
 
+    String message = "예약된 체험 없음";
+    if (latest.isPresent()) {
+      String code = latest.get().getExperienceStatusCode().getCode();
+      var statusOpt = statusCodeRepository.findByCode(code);
+      if (statusOpt.isPresent()) {
+        String sc = statusOpt.get().getCode();
+        switch (sc) {
+          case "READY" -> {
+            count = 0;
+            message = "입장해주세요!";
+          }
+          case "IN_PROGRESS" -> {
+            count = 0;
+            message = "체험 중";
+          }
+          case "COMPLETED", "CANCELLED" -> {
+            count = 0;
+            message = "예약된 체험 없음";
+          }
+          default -> { /* 유지: message 기본값 */ }
+        }
+      } else {
+        log.warn("Unknown status code: {}", code);
+        count = 0;
+        message = "예약된 체험 없음";
+      }
+    }
+    waitingNotification(userDetails.getUserId(), count, message);
     return BoothUserRecentlyWaitingCount.builder().waitingCount(count).eventName(eventName)
+        .message(message)
         .eventId(eventId).build();
   }
 
-  public void waitingNotification(Long userId, Integer waitingCount) {
-    messagingTemplate.convertAndSend("/queue/waiting/" + userId, waitingCount);
+  public void waitingNotification(Long userId, Integer waitingCount, String statusMessage) {
+    WaitingMessage msg = new WaitingMessage(waitingCount, statusMessage);
+    messagingTemplate.convertAndSend("/topic/waiting/" + userId, msg);
   }
 }

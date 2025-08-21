@@ -78,4 +78,6 @@ public interface BoothExperienceRepository extends JpaRepository<BoothExperience
            "WHERE b.boothAdmin.userId = :userId " +
            "ORDER BY be.experienceDate ASC, be.startTime ASC")
     List<BoothExperience> findByBoothAdminId(@Param("userId") Long userId);
+
+  List<BoothExperience> findAllExperiencesByBooth_Id(Long boothId);
 }

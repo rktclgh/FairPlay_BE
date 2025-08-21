@@ -36,6 +36,10 @@ public class ReservationController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam Long paymentId
                                                                     ) {
+        System.out.println("🔶 [ReservationController] createReservation 호출됨 - eventId: " + eventId + 
+                ", paymentId: " + paymentId + ", scheduleId: " + requestDto.getScheduleId() + 
+                ", ticketId: " + requestDto.getTicketId());
+                
         Long userId = userDetails.getUserId();
         requestDto.setEventId(eventId);
         Reservation reservation = reservationService.createReservation(requestDto, userId, paymentId);

@@ -43,7 +43,7 @@ public class BannerEmailService extends AbstractEmailService {
             String applicantName = HtmlUtils.htmlEscape((String) params[5]);
             
             // 결제 링크 생성 (프론트엔드 배너 결제 페이지)
-            String paymentUrl = String.format("http://localhost:5173/banner/payment?applicationId=%d", applicationId);
+            String paymentUrl = String.format("https://fair-play.ink/banner/payment?applicationId=%d", applicationId);
             
             subject = "[FairPlay] 배너 광고 신청이 승인되었습니다! 결제를 진행해주세요.";
             htmlContent = buildHtmlContent("banner-approval.html", "logo", title, bannerType,

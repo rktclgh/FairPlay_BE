@@ -108,6 +108,11 @@ public class AttendeeService {
     );
   }
 
+  // 해당 예약에 참석자가 존재하는지 확인 (중복 처리 방지)
+  public boolean existsByReservationId(Long reservationId) {
+    return attendeeRepository.existsByReservation_ReservationId(reservationId);
+  }
+
   // 동반자 정보 수정
   @Transactional
   public AttendeeInfoResponseDto updateAttendee(Long attendeeId, AttendeeUpdateRequestDto dto,
@@ -170,11 +175,17 @@ public class AttendeeService {
   // DB save 로직 분리
   private AttendeeInfoResponseDto saveAttendee(String attendeeType, AttendeeSaveRequestDto dto,
       Long reservationId) {
+    log.info("[AttendeeService] saveAttendee 시작 - 요청된 reservationId: {}", reservationId);
+    
     AttendeeTypeCode attendeeTypeCode = attendeeTypeCodeRepository.findByCode(attendeeType)
         .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST,
             "잘못된 참석자 유형 값입니다. 입력값: " + attendeeType));
 
     Reservation reservation = findReservation(reservationId);
+    
+    log.info("[AttendeeService] 찾은 reservation - reservationId: {}, eventId: {}, scheduleId: {}", 
+        reservation.getReservationId(), reservation.getEvent().getEventId(), 
+        reservation.getSchedule() != null ? reservation.getSchedule().getScheduleId() : null);
 
     Attendee attendee = Attendee.builder()
         .name(dto.getName())
@@ -185,6 +196,10 @@ public class AttendeeService {
         .reservation(reservation)
         .build();
     Attendee savedAttendee = attendeeRepository.save(attendee);
+    
+    log.info("[AttendeeService] attendee 저장 완료 - attendeeId: {}, reservationId: {}", 
+        savedAttendee.getId(), savedAttendee.getReservation().getReservationId());
+    
     return buildAttendeeInfoResponse(savedAttendee);
   }
 
