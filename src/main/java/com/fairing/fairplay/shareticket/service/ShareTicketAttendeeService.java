@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +47,9 @@ public class ShareTicketAttendeeService {
     if (userDetails == null || dto.getReservationId() == null) {
       throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인 후 이용해주세요");
     }
+    
+    log.info("[ShareTicketAttendeeService] 시작 - 전달받은 reservationId: {}, totalAllowed: {}", 
+        dto.getReservationId(), dto.getTotalAllowed());
 
     // 1. attendee 저장
     Users buyUser = userRepository.findByUserId(userDetails.getUserId()).orElseThrow(
@@ -58,6 +62,38 @@ public class ShareTicketAttendeeService {
 
     if (!reservation.getUser().getUserId().equals(buyUser.getUserId())) {
       throw new CustomException(HttpStatus.FORBIDDEN, "해당 예약에 대한 권한이 없습니다.");
+    }
+
+    // 강력한 중복 처리 방지 체크
+    // 1. 해당 예약에 attendee가 이미 존재하는지 확인
+    if (attendeeService.existsByReservationId(dto.getReservationId())) {
+      log.info("[ShareTicketAttendeeService] 이미 참석자가 등록된 예약입니다 - reservationId: {}", dto.getReservationId());
+      // 기존 데이터 반환
+      String existingToken = shareTicketRepository.findByReservation_ReservationId(dto.getReservationId())
+          .map(shareTicket -> shareTicket.getLinkToken())
+          .orElse(null);
+      return ShareTicketSaveResponseDto.builder()
+          .reservationId(dto.getReservationId())
+          .token(existingToken)
+          .build();
+    }
+    
+    // 2. 동일한 사용자의 동일한 이벤트에 대한 중복 처리 확인
+    List<Reservation> existingReservations = reservationRepository
+        .findByUser_UserIdAndEvent_EventId(buyUser.getUserId(), reservation.getEvent().getEventId());
+    for (Reservation existingReservation : existingReservations) {
+      if (attendeeService.existsByReservationId(existingReservation.getReservationId())) {
+        log.info("[ShareTicketAttendeeService] 동일 사용자의 동일 이벤트에 대한 중복 처리 방지 - userId: {}, eventId: {}, existingReservationId: {}", 
+            buyUser.getUserId(), reservation.getEvent().getEventId(), existingReservation.getReservationId());
+        // 기존 예약의 데이터 반환
+        String existingToken = shareTicketRepository.findByReservation_ReservationId(existingReservation.getReservationId())
+            .map(shareTicket -> shareTicket.getLinkToken())
+            .orElse(null);
+        return ShareTicketSaveResponseDto.builder()
+            .reservationId(existingReservation.getReservationId())
+            .token(existingToken)
+            .build();
+      }
     }
 
     AttendeeSaveRequestDto attendeeSaveRequestDto = AttendeeSaveRequestDto.builder()

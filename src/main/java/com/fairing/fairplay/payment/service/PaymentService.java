@@ -233,7 +233,14 @@ public class PaymentService {
         // 6. 결제 완료 후 후속 처리
         processPaymentCompletionActions(savedPayment);
 
-        return PaymentResponseDto.fromEntity(savedPayment);
+        // 7. 후속 처리로 업데이트된 payment 정보를 다시 조회하여 반환
+        Payment updatedPayment = paymentRepository.findById(savedPayment.getPaymentId())
+                .orElse(savedPayment);
+        
+        System.out.println("🟢 [PaymentService] completePayment 반환 - paymentId: " + updatedPayment.getPaymentId() +
+                ", targetId: " + updatedPayment.getTargetId());
+        
+        return PaymentResponseDto.fromEntity(updatedPayment);
     }
 
     // 티켓 결제 전체 조회 (전체 관리자, 행사 관리자)
@@ -441,9 +448,14 @@ public class PaymentService {
                 // targetId가 null이면 결제 후 예매 생성해야 하는 상황
                 Long reservationId = createReservationAfterPayment(payment);
 
+                System.out.println("🔴 [PaymentService] 예매 생성 완료 - reservationId: " + reservationId);
+                
                 // payment의 targetId를 실제 예매 ID로 업데이트
                 payment.setTargetId(reservationId);
-                paymentRepository.save(payment);
+                Payment savedPayment = paymentRepository.save(payment);
+                
+                System.out.println("🔴 [PaymentService] payment 업데이트 완료 - paymentId: " + savedPayment.getPaymentId() +
+                        ", targetId: " + savedPayment.getTargetId());
 
                 System.out.println("결제 후 예매 생성 완료 - paymentId: " + payment.getPaymentId() +
                         ", reservationId: " + reservationId);
@@ -451,10 +463,10 @@ public class PaymentService {
                 // 예약 처리 성공 후 알림 발송
                 sendPaymentCompletionNotifications(payment, reservationId);
             } else {
-                // targetId가 이미 있는 경우: 별도의 예약 생성 플로우에서 처리 중이므로 
-                // 여기서는 추가 처리하지 않음 (중복 방지)
-                System.out.println("예약이 별도 플로우에서 처리 중 - paymentId: " + payment.getPaymentId() +
+                // targetId가 이미 있는 경우: 기존 예매에 대한 알림만 발송
+                System.out.println("기존 예약에 대한 알림 발송 - paymentId: " + payment.getPaymentId() +
                         ", targetId: " + payment.getTargetId());
+                sendPaymentCompletionNotifications(payment, payment.getTargetId());
             }
 
         } catch (Exception e) {

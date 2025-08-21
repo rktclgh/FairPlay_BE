@@ -64,6 +64,10 @@ public class ReservationService {
     // 예약 신청 (결제 데이터 생성 이후 마지막에 결제 완료 상태로 저장)
     @Transactional
     public Reservation createReservation(ReservationRequestDto requestDto, Long userId, Long paymentId) {
+        
+        System.out.println("🔵 [ReservationService] createReservation 호출 - userId: " + userId + 
+                ", paymentId: " + paymentId + ", eventId: " + requestDto.getEventId() + 
+                ", scheduleId: " + requestDto.getScheduleId() + ", ticketId: " + requestDto.getTicketId());
 
         Event event = eventRepository.findById(requestDto.getEventId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 EVENT ID: " + requestDto.getEventId()));
@@ -116,6 +120,10 @@ public class ReservationService {
         Reservation reservation = new Reservation(event, schedule, ticket, user, requestDto.getQuantity(), requestDto.getPrice());
         reservation.setReservationStatusCode(confirmedStatus);
         Reservation savedReservation = reservationRepository.save(reservation);
+        
+        System.out.println("🔵 [ReservationService] 예매 생성 완료 - reservationId: " + savedReservation.getReservationId() + 
+                ", eventId: " + savedReservation.getEvent().getEventId() + 
+                ", scheduleId: " + (savedReservation.getSchedule() != null ? savedReservation.getSchedule().getScheduleId() : null));
 
         Payment payment = paymentRepository.findById(paymentId).orElseThrow();
         
