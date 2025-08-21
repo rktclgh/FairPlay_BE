@@ -338,7 +338,7 @@ public class QrTicketIssueService {
 
     qrTicket.setQrCode(qrCode);
     qrTicket.setManualCode(manualCode);
-    return qrTicketRepository.save(qrTicket);
+    return qrTicketRepository.saveAndFlush(qrTicket);
   }
 
   // QR 티켓 초기화
