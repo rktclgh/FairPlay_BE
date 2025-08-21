@@ -42,7 +42,6 @@ public class BoothExperienceService {
   private final BoothRepository boothRepository;
   private final UserRepository userRepository;
   private final SimpMessagingTemplate messagingTemplate;
-  private final BoothExperienceStatusCodeRepository boothExperienceStatusCodeRepository;
 
   // 1. 부스 체험 등록 (부스 담당자)
   @Transactional
@@ -377,7 +376,7 @@ public class BoothExperienceService {
     log.info("부스 체험 예약 완료 - 예약 ID: {}, 대기 순번: {}", savedReservation.getReservationId(),
         savedReservation.getQueuePosition());
     // 현재 내 예약의 순번 실시간 알림
-    waitingNotification(userId, savedReservation.getQueuePosition(),"");
+    waitingNotification(userId, savedReservation.getQueuePosition(), "");
     return BoothExperienceReservationResponseDto.fromEntity(savedReservation);
   }
 
@@ -427,7 +426,6 @@ public class BoothExperienceService {
 
     BoothExperienceReservation updatedReservation = reservationRepository.save(reservation);
     log.info("예약 상태 변경 완료 - 예약 ID: {}, 상태: {}", reservationId, newStatus.getCode());
-
 
     return BoothExperienceReservationResponseDto.fromEntity(updatedReservation);
   }
@@ -536,7 +534,8 @@ public class BoothExperienceService {
     switch (newStatus.getCode()) {
       case "READY":
         reservation.setReadyAt(now);
-        waitingNotification(reservation.getUser().getUserId(),reservation.getQueuePosition()-1,"입장 해주세요.");
+        waitingNotification(reservation.getUser().getUserId(), reservation.getQueuePosition() - 1,
+            "입장 해주세요.");
         break;
       case "IN_PROGRESS":
         reservation.setStartedAt(now);
@@ -587,7 +586,7 @@ public class BoothExperienceService {
       BoothExperienceReservation reservation = waitingReservations.get(i);
       reservation.setQueuePosition(i + 1);
       // 이후 대기자들 대기 순번 재알림
-      waitingNotification(reservation.getUser().getUserId(), reservation.getQueuePosition(),"");
+      waitingNotification(reservation.getUser().getUserId(), reservation.getQueuePosition(), "");
     }
     reservationRepository.saveAll(waitingReservations);
   }
@@ -823,24 +822,35 @@ public class BoothExperienceService {
         .orElse(null);
 
     String message = "예약된 체험 없음";
-    if(latest.isPresent()) {
-      String code = latest.map(reservation -> reservation.getExperienceStatusCode().getCode())
-          .orElse(null);
-      BoothExperienceStatusCode statusCode = boothExperienceStatusCodeRepository.findByCode(code).orElse(null);
-      log.info("statusCode:{}",statusCode.getCode());
-      if(statusCode.getCode().equals("READY")){
-        count=0;
-        message = "입장해주세요!";
-      }else if(statusCode.getCode().equals("IN_PROGRESS")){
-        count=0;
-        message = "체험 중";
-      } else if(statusCode.getCode().equals("COMPLETED") || statusCode.getCode().equals("CANCELLED")){
-        count=0;
+    if (latest.isPresent()) {
+      String code = latest.get().getExperienceStatusCode().getCode();
+      var statusOpt = statusCodeRepository.findByCode(code);
+      if (statusOpt.isPresent()) {
+        String sc = statusOpt.get().getCode();
+        switch (sc) {
+          case "READY" -> {
+            count = 0;
+            message = "입장해주세요!";
+          }
+          case "IN_PROGRESS" -> {
+            count = 0;
+            message = "체험 중";
+          }
+          case "COMPLETED", "CANCELLED" -> {
+            count = 0;
+            message = "예약된 체험 없음";
+          }
+          default -> { /* 유지: message 기본값 */ }
+        }
+      } else {
+        log.warn("Unknown status code: {}", code);
+        count = 0;
         message = "예약된 체험 없음";
       }
     }
     waitingNotification(userDetails.getUserId(), count, message);
-    return BoothUserRecentlyWaitingCount.builder().waitingCount(count).eventName(eventName).message(message)
+    return BoothUserRecentlyWaitingCount.builder().waitingCount(count).eventName(eventName)
+        .message(message)
         .eventId(eventId).build();
   }
 
