@@ -55,6 +55,7 @@ public class SecurityConfig {
                                                                 "/events/**",
                                                                 "/eventdetail/**",
                                                                 "/qr-ticket/**",
+                                                                "/banner/payment",
                                                                 "/auth/**",
                                                                 "/api/users/signup",
                                                                 "/api/auth/login",

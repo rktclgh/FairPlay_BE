@@ -436,7 +436,7 @@ public class PaymentService {
      */
     private void processReservationPaymentCompletion(Payment payment) {
         try {
-            // 방식 A: 결제 완료 후 예매 생성
+            // 방식 A: 결제 완료 후 예매 생성 (targetId가 null인 경우만)
             if (payment.getTargetId() == null) {
                 // targetId가 null이면 결제 후 예매 생성해야 하는 상황
                 Long reservationId = createReservationAfterPayment(payment);
@@ -447,25 +447,15 @@ public class PaymentService {
 
                 System.out.println("결제 후 예매 생성 완료 - paymentId: " + payment.getPaymentId() +
                         ", reservationId: " + reservationId);
+                
+                // 예약 처리 성공 후 알림 발송
+                sendPaymentCompletionNotifications(payment, reservationId);
             } else {
-                // 기존 방식: 이미 생성된 예매의 상태만 업데이트
-                Long reservationId = payment.getTargetId();
-
-                Reservation reservation = reservationRepository.findById(reservationId)
-                        .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
-
-                // 예약 상태를 CONFIRMED로 변경
-                var confirmedStatus = reservationStatusCodeRepository.findByCode("CONFIRMED")
-                        .orElseThrow(() -> new IllegalStateException("CONFIRMED 상태 코드를 찾을 수 없습니다."));
-
-                reservation.setReservationStatusCode(confirmedStatus);
-                reservationRepository.save(reservation);
-
-                System.out.println("기존 예약 상태 업데이트 완료 - reservationId: " + reservationId);
+                // targetId가 이미 있는 경우: 별도의 예약 생성 플로우에서 처리 중이므로 
+                // 여기서는 추가 처리하지 않음 (중복 방지)
+                System.out.println("예약이 별도 플로우에서 처리 중 - paymentId: " + payment.getPaymentId() +
+                        ", targetId: " + payment.getTargetId());
             }
-
-            // 예약 처리 성공 후 알림 발송
-            sendPaymentCompletionNotifications(payment, payment.getTargetId());
 
         } catch (Exception e) {
             System.err.println("예약 처리 실패 - paymentId: " + payment.getPaymentId() +

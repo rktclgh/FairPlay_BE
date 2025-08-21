@@ -575,7 +575,7 @@ public class BannerApplicationService {
                         JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id  
                         JOIN users u ON u.user_id = ba.applicant_id
                         JOIN event e ON e.event_id = ba.event_id
-                        JOIN event_admin ea ON ea.user_id = e.organizer_id
+                        JOIN event_admin ea ON ea.user_id = e.manager_id
                         WHERE ba.banner_application_id = ?
                         """, appId);
                     
@@ -658,7 +658,7 @@ public class BannerApplicationService {
                         JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id  
                         JOIN users u ON u.user_id = ba.applicant_id
                         JOIN event e ON e.event_id = ba.event_id
-                        JOIN event_admin ea ON ea.user_id = e.organizer_id
+                        JOIN event_admin ea ON ea.user_id = e.manager_id
                         WHERE ba.banner_application_id = ?
                         """, appId);
                     
