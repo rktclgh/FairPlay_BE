@@ -288,11 +288,10 @@ public class HourlyAnalysisService {
                 .map(stat -> {
                     double percentage = totalBookings > 0 ?
                             (double) stat.getReservations() / totalBookings * 100 : 0;
-                    int dbDay = stat.getHour();
-                    int normalized = dbDay == 1 ? 7 : dbDay - 1;
+                    int dayIndex = stat.getHour();
 
                     return DayOfWeekSummaryDto.builder()
-                            .day(dayNames[normalized])
+                            .day(dayNames[dayIndex])
                             .bookings(stat.getReservations())
                             .revenue(stat.getTotalRevenue())
                             .percentage(Math.round(percentage * 10.0) / 10.0)
