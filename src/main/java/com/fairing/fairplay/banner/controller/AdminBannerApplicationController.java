@@ -38,9 +38,22 @@ public class AdminBannerApplicationController {
         return ResponseEntity.ok(appService.listAdminApplications(s, t, page, size));
     }
 
-    //  승인(= 결제 성공 처리 + 배너 생성)
+    //  광고 신청 승인(부스 방식처럼 승인 후 결제 링크 이메일 발송)
     @PostMapping("/applications/{id}/approve")
     public ResponseEntity<AdminApplicationListItemDto> approve(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body
+    ) {
+        requireLogin(user);
+        // 기존 markPaid 대신 새로운 승인 메서드 사용 (결제 링크 이메일 발송)
+        appService.approveWithPaymentLink(id, user.getUserId());
+        return ResponseEntity.ok(appService.getAdminApplicationView(id));
+    }
+
+    //  승인(기존 방식 - 승인과 동시에 결제 완료 처리)
+    @PostMapping("/applications/{id}/approve-and-pay")
+    public ResponseEntity<AdminApplicationListItemDto> approveAndPay(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, Object> body

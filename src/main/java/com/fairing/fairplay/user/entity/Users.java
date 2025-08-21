@@ -11,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -67,6 +68,10 @@ public class Users {
 
     @Column(name = "gender")
     private String gender;
+    
+    // 전자명함 관계
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY)
+    private com.fairing.fairplay.businesscard.entity.BusinessCard businessCard;
 
     // FK 예시 (만약 role_code_id가 코드테이블과 연관 매핑이면 아래 추가)
     // @ManyToOne(fetch = FetchType.LAZY)

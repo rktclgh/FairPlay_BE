@@ -304,7 +304,7 @@ public class EventApplyService {
         Page<EventApply> eventApplies;
 
         if (status == null || status.isEmpty()) {
-            eventApplies = eventApplyRepository.findAll(pageable);
+            eventApplies = eventApplyRepository.findAllByOrderByApplyAtDesc(pageable);
         } else {
             eventApplies = eventApplyRepository.findByStatusCode_CodeOrderByApplyAtDesc(status, pageable);
         }

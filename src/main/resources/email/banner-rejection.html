@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>배너 광고 반려 안내</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            text-align: center;
+            padding: 30px 20px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px;
+        }
+        .rejection-box {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .rejection-box .icon {
+            font-size: 48px;
+            color: #dc3545;
+            margin-bottom: 10px;
+        }
+        .reason-box {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .footer {
+            background: #f8f9fa;
+            color: #666;
+            text-align: center;
+            padding: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📝 배너 광고 검토 결과</h1>
+        </div>
+        
+        <div class="content">
+            <div class="rejection-box">
+                <div class="icon">❌</div>
+                <h2 style="color: #dc3545; margin: 10px 0;">신청이 반려되었습니다</h2>
+                <p>죄송합니다. 배너 광고 신청이 반려되었습니다.<br>
+                아래 사유를 확인하시고 수정 후 재신청해주세요.</p>
+            </div>
+
+            <h3>📋 신청 정보</h3>
+            <p><strong>광고 제목:</strong> %2$s</p>
+
+            <div class="reason-box">
+                <h4>📌 반려 사유</h4>
+                <p style="font-size: 16px; color: #333;">%3$s</p>
+            </div>
+
+            <p style="margin-top: 30px;">
+                안녕하세요,<br><br>
+                FairPlay를 이용해 주셔서 감사합니다.<br>
+                반려 사유를 참고하여 수정 후 다시 신청해주시기 바랍니다.<br><br>
+                문의사항이 있으시면 언제든 고객센터로 연락주세요.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>© 2024 FairPlay. All rights reserved.</p>
+            <p>이 메일은 발신 전용입니다. 문의사항은 고객센터를 이용해주세요.</p>
+        </div>
+    </div>
+</body>
+</html>

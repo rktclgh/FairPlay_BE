@@ -1,6 +1,7 @@
 package com.fairing.fairplay.booth.controller;
 
 import com.fairing.fairplay.booth.dto.*;
+import com.fairing.fairplay.booth.entity.Booth;
 import com.fairing.fairplay.booth.service.BoothExperienceService;
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
@@ -304,5 +305,15 @@ public class BoothExperienceController {
         
         log.info("최종 반환 부스 목록 크기: {}", booths.size());
         return ResponseEntity.ok(booths);
+    }
+
+    // 17. 해당 사용자 가장 최근 예약 현황
+    @GetMapping("/user/{eventId}/waiting-count")
+    public ResponseEntity<BoothUserRecentlyWaitingCount> getUserRecentlyEventWaitingCount(
+        @AuthenticationPrincipal CustomUserDetails userDetails,
+        @PathVariable Long eventId
+    ){
+        return ResponseEntity.ok(boothExperienceService
+            .getUserRecentlyEventWaitingCount(userDetails,eventId));
     }
 }
