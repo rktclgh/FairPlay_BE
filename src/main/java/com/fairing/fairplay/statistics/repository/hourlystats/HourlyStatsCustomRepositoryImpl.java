@@ -10,6 +10,7 @@ import com.fairing.fairplay.statistics.entity.sales.QEventDailySalesStatistics;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -301,16 +302,19 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime end = endDate.plusDays(1).atStartOfDay();
 
+        NumberExpression<Integer> dayOfWeekExpr =
+                Expressions.numberTemplate(Integer.class, "((dayofweek({0}) + 5) % 7) + 1", r.createdAt);
+
+        NumberExpression<Long> reservationCountExpr = r.reservationId.countDistinct();
+        NumberExpression<BigDecimal> revenueExpr = p.amount.sum().coalesce(BigDecimal.ZERO);
+
         List<Tuple> results = queryFactory
                 .select(
                         r.event.eventId,
                         // DB별 요일 반환값을 월=1..일=7로 표준화
-                        new CaseBuilder()
-                        .when(r.createdAt.dayOfWeek().eq(1)).then(7)  // SQL Sunday=1 → 7
-                                        .otherwise(r.createdAt.dayOfWeek().subtract(1)).as("dayOfWeek"),
-                        // 중복 예약 제거
-                        r.reservationId.countDistinct(),
-                        p.amount.sum().coalesce(BigDecimal.ZERO)
+                        dayOfWeekExpr,
+                        reservationCountExpr,
+                        revenueExpr
                 )
                 .from(r)
                 .leftJoin(p).on(
@@ -330,13 +334,15 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
 
         return results.stream()
                 .map(t -> {
-                    Integer dayOfWeek = t.get(r.createdAt.dayOfWeek());
-                    BigDecimal revenue = t.get(p.amount.sum().coalesce(BigDecimal.ZERO));
+                    Integer dayOfWeek = t.get(dayOfWeekExpr);
+
+                    Long reservations = t.get(reservationCountExpr);
+                    BigDecimal revenue = t.get(revenueExpr);
                     return EventHourlyStatistics.builder()
                             .eventId(t.get(r.event.eventId))
                             .statDate(startDate)
                             .hour(dayOfWeek)
-                            .reservations(t.get(r.count()).longValue())
+                            .reservations(reservations)
                             .totalRevenue(revenue)
                             .createdAt(LocalDateTime.now())
                             .build();
