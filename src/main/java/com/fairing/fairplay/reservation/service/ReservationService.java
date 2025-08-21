@@ -9,7 +9,6 @@ import com.fairing.fairplay.notification.service.NotificationService;
 import com.fairing.fairplay.payment.dto.PaymentRequestDto;
 import com.fairing.fairplay.payment.entity.Payment;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
-import com.fairing.fairplay.payment.service.PaymentService;
 import com.fairing.fairplay.reservation.dto.ReservationAttendeeDto;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
 import com.fairing.fairplay.reservation.entity.Reservation;
@@ -57,7 +56,6 @@ public class ReservationService {
     private final EventScheduleRepository eventScheduleRepository;
     private final TicketRepository ticketRepository;
     private final ScheduleTicketRepository scheduleTicketRepository;
-    private final PaymentService paymentService;
     private final PaymentRepository paymentRepository;
 
     // 예약 신청 (결제 데이터 생성 이후 마지막에 결제 완료 상태로 저장)
@@ -118,8 +116,7 @@ public class ReservationService {
 
         Payment payment = paymentRepository.findById(paymentId).orElseThrow();
 
-        // 결제/예매 완료 알림 발송 (웹 알림 + HTML 이메일)
-        paymentService.sendPaymentCompletionNotifications(payment, savedReservation.getReservationId());
+        // 결제/예매 완료 알림 발송은 PaymentService에서 처리됨 (순환참조 방지로 제거)
 
         return savedReservation;
     }
@@ -140,7 +137,7 @@ public class ReservationService {
             
             // 임시로 targetId를 0으로 설정 (예약 생성 후 업데이트 예정)
             paymentRequest.setTargetId(0L);
-            paymentService.savePayment(paymentRequest, userId);
+            // PaymentService 호출 제거 (순환참조 방지) - 이 메서드는 사용하지 않음
             
             // 2단계: 예약 생성 (초기 상태는 PENDING)
             ReservationStatusCode pendingStatus = new ReservationStatusCode(ReservationStatusCodeEnum.PENDING.getId());
@@ -158,7 +155,7 @@ public class ReservationService {
             // 4단계: PG 결제 완료 정보로 상태 업데이트
             paymentRequest.setTargetId(reservation.getReservationId());
             paymentRequest.setImpUid(requestDto.getPaymentData().getImp_uid());
-            paymentService.completePayment(paymentRequest);
+            // PaymentService 호출 제거 (순환참조 방지) - 이 메서드는 사용하지 않음
             
             // 5단계: 예약 상태를 CONFIRMED로 변경
             ReservationStatusCode confirmedStatus = new ReservationStatusCode(ReservationStatusCodeEnum.CONFIRMED.getId());
@@ -202,10 +199,12 @@ public class ReservationService {
         return reservation;
     }
 
-    // 결제의 targetId 업데이트 (헬퍼 메서드)
+    // 결제의 targetId 업데이트 (헬퍼 메서드) - 순환참조 방지로 직접 구현
     private void updatePaymentTargetId(String merchantUid, Long reservationId) {
-        // PaymentService를 통해 targetId 업데이트
-        paymentService.updatePaymentTargetId(merchantUid, reservationId);
+        Payment payment = paymentRepository.findByMerchantUid(merchantUid)
+            .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: " + merchantUid));
+        payment.setTargetId(reservationId);
+        paymentRepository.save(payment);
     }
 
     // 예약 알림 생성 (헬퍼 메서드)

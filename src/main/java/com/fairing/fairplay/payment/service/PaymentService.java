@@ -387,18 +387,15 @@ public class PaymentService {
                 throw new IllegalArgumentException("사용자 정보가 없습니다.");
             }
             
-            // TODO: 실제 프론트에서 전달한 scheduleId와 ticketId를 사용해야 함
-            // 현재는 Payment 테이블에 이 정보가 없으므로, 기본값 사용
-            
-            // 이벤트의 첫 번째 스케줄과 티켓을 찾아서 사용 (임시 방편)
-            List<EventSchedule> schedules = eventScheduleRepository.findByEvent_EventIdOrderByDateAsc(event.getEventId());
+
+            List<EventSchedule> schedules = eventScheduleRepository.findByEvent_EventId(event.getEventId());
             if (schedules.isEmpty()) {
                 throw new IllegalStateException("이벤트에 스케줄이 없습니다.");
             }
             
             EventSchedule schedule = schedules.get(0); // 첫 번째 스케줄 사용
             
-            List<Ticket> tickets = ticketRepository.findByEvent_EventId(event.getEventId());
+            List<Ticket> tickets = ticketRepository.findTicketsByEventId(event.getEventId());
             if (tickets.isEmpty()) {
                 throw new IllegalStateException("이벤트에 티켓이 없습니다.");
             }
