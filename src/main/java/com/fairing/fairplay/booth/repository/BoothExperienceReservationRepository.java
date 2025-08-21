@@ -127,4 +127,19 @@ public interface BoothExperienceReservationRepository extends JpaRepository<Boot
         @Param("eventId") Long eventId,
         @Param("userId") Long userId
     );
+
+    @Query("""
+        SELECT r
+        FROM BoothExperienceReservation r
+        WHERE r.boothExperience.booth.event.eventId = :eventId
+          AND r.boothExperience.booth.id = :boothId
+          AND r.user.userId = :userId
+          AND r.experienceStatusCode.code = 'READY'
+        ORDER BY r.reservedAt DESC
+    """)
+    Optional<BoothExperienceReservation> findLatestReadyReservation(
+        @Param("eventId") Long eventId,
+        @Param("boothId") Long boothId,
+        @Param("userId") Long userId
+    );
 }
