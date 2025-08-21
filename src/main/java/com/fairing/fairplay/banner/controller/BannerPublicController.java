@@ -41,6 +41,7 @@ public class BannerPublicController {
     }
 
     @GetMapping("/hot-picks")
+    @PreAuthorize("permitAll()")   // ← 이 줄 추가
     public ResponseEntity<List<HotPickDto>> getHotPicks(
             @RequestParam(name = "size", defaultValue = "10") int size
     ) {
