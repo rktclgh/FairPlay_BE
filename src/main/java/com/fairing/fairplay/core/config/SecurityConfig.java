@@ -45,7 +45,7 @@ public class SecurityConfig {
                                                                 "/robots.txt",
                                                                 // 프론트엔드 라우트 허용
                                                                 "/login",
-                                                                "/register", 
+                                                                "/register",
                                                                 "/eventoverview",
                                                                 "/event-registration-intro",
                                                                 "/mypage/**",
@@ -98,13 +98,19 @@ public class SecurityConfig {
                                                                 "/api/booths/payment/complete",
                                                                 "/api/event-popularity/**",
                                                                 "/api/banner/hot-picks",
-                                                        "/api/banner/search-top",
-                                        "/api/banners/hero/active")
+                                                                "/api/events/hot-picks",
+                                                                "/api/banner/search-top",
+                                                                "/api/admin/reservation/**",
+                                                                "/api/event-compare/**",
+                                                                "/api/popular-events/**",
+                                                                "/api/sales-statistics/**",
+                                                                "/api/reservation-statistics/**",
+                                                                "/api/banners/hero/active")
 
                                                 .permitAll()
-                                        .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
 
-                                        .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/attendees").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/events/*/schedule").permitAll()
@@ -118,11 +124,18 @@ public class SecurityConfig {
                                 .exceptionHandling(exceptions -> exceptions
                                                 .authenticationEntryPoint((request, response, authException) -> {
                                                         response.setStatus(401);
-                                                        response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"" + authException.getMessage() + "\"}");
+                                                        response.getWriter().write(
+                                                                        "{\"error\":\"Unauthorized\",\"message\":\""
+                                                                                        + authException.getMessage()
+                                                                                        + "\"}");
                                                 })
                                                 .accessDeniedHandler((request, response, accessDeniedException) -> {
                                                         response.setStatus(403);
-                                                        response.getWriter().write("{\"error\":\"Access Denied\",\"message\":\"" + accessDeniedException.getMessage() + "\"}");
+                                                        response.getWriter().write(
+                                                                        "{\"error\":\"Access Denied\",\"message\":\""
+                                                                                        + accessDeniedException
+                                                                                                        .getMessage()
+                                                                                        + "\"}");
                                                 }))
                                 .addFilterBefore(
                                                 new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
