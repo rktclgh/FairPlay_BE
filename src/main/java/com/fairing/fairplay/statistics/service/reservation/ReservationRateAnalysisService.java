@@ -5,18 +5,27 @@ import com.fairing.fairplay.statistics.repository.sessionstats.EventSessionStati
 import com.fairing.fairplay.statistics.repository.ticketstats.EventTicketStatisticsRepository;
 import com.fairing.fairplay.statistics.repository.ticketstats.TicketStatsCustomRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class ReservationRateAnalysisService {
 
         private final EventTicketStatisticsRepository eventTicketStatisticsRepository;
         private final EventSessionStatisticsRepository eventSessionStatisticsRepository;
         private final TicketStatsCustomRepository ticketStatsCustomRepository;
+
+        public ReservationRateAnalysisService(
+                EventTicketStatisticsRepository eventTicketStatisticsRepository,
+                EventSessionStatisticsRepository eventSessionStatisticsRepository,
+                @Qualifier("ticketStatsCustomRepositoryImpl") TicketStatsCustomRepository ticketStatsCustomRepository) {
+                this.eventTicketStatisticsRepository = eventTicketStatisticsRepository;
+                this.eventSessionStatisticsRepository = eventSessionStatisticsRepository;
+                this.ticketStatsCustomRepository = ticketStatsCustomRepository;
+        }
 
         public ReservationRateAnalysisDto reservationRateAnalysisDashboard(Long eventId, LocalDate start,
                         LocalDate end) {

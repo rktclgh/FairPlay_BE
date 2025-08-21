@@ -6,6 +6,7 @@ import com.fairing.fairplay.statistics.dto.reservation.HourlyReservationRateDto;
 import com.fairing.fairplay.reservation.entity.QReservation;
 import com.fairing.fairplay.ticket.entity.QTicket;
 import com.querydsl.core.Tuple;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -62,21 +63,25 @@ public class TicketStatsCustomRepositoryImpl implements TicketStatsCustomReposit
         List<Tuple> hourlyReservations = queryFactory
                 .select(r.createdAt.hour(), r.count())
                 .from(r)
-                .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .where(
-                        r.event.eventId.eq(eventId)
-                                .and(r.createdAt.between(start, end))
+                r.event.eventId.eq(eventId)
+                        .and(r.createdAt.goe(start))
+                .and(r.createdAt.lt(end))
                 )
-                .groupBy(r.createdAt.hour())
+        .groupBy(r.createdAt.hour())
                 .fetch();
 
         // 전체 티켓 재고 조회
         Integer totalStock = queryFactory
                 .select(t.stock.sum())
                 .from(t)
-                .join(r).on(t.ticketId.eq(r.ticket.ticketId))
+                .where(t.ticketId.in(
+                JPAExpressions
+                        .select(r.ticket.ticketId).from(r)
                 .where(r.event.eventId.eq(eventId))
-                .fetchOne();
+                .distinct()
+                ))
+        .fetchOne();
 
         if (totalStock == null || totalStock == 0) {
             return IntStream.range(0, 24)
@@ -116,15 +121,15 @@ public class TicketStatsCustomRepositoryImpl implements TicketStatsCustomReposit
 
         // 일별 예매 건수 조회
         List<Tuple> dailyReservations = queryFactory
-                .select(r.createdAt.dayOfMonth(), r.createdAt.month(), r.count())
+                .select(r.createdAt.year(), r.createdAt.month(), r.createdAt.dayOfMonth(), r.count())
                 .from(r)
-                .join(t).on(r.ticket.ticketId.eq(t.ticketId))
                 .where(
                         r.event.eventId.eq(eventId)
-                                .and(r.createdAt.between(start, end))
+                                .and(r.createdAt.goe(start))
+                                .and(r.createdAt.lt(end))
                 )
-                .groupBy(r.createdAt.dayOfMonth(), r.createdAt.month())
-                .orderBy(r.createdAt.month().asc(), r.createdAt.dayOfMonth().asc())
+                .groupBy(r.createdAt.year(), r.createdAt.month(), r.createdAt.dayOfMonth())
+                .orderBy(r.createdAt.year().asc(), r.createdAt.month().asc(), r.createdAt.dayOfMonth().asc())
                 .fetch();
 
         // 전체 티켓 재고 조회
@@ -135,33 +140,38 @@ public class TicketStatsCustomRepositoryImpl implements TicketStatsCustomReposit
                 .where(r.event.eventId.eq(eventId))
                 .fetchOne();
 
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM/dd");
         if (totalStock == null || totalStock == 0) {
-            return dailyReservations.stream()
-                    .map(tuple -> {
-                        Integer month = tuple.get(r.createdAt.month());
-                        Integer day = tuple.get(r.createdAt.dayOfMonth());
-                        return DailyReservationRateDto.builder()
-                                .date(String.format("%02d/%02d", month, day))
-                                .rate(0.0)
-                                .build();
-                    })
-                    .toList();
-        }
+            List<DailyReservationRateDto> zeros = new java.util.ArrayList<>();
+            for (LocalDate d = startDate; !d.isAfter(endDate); d = d.plusDays(1)) {
+                zeros.add(DailyReservationRateDto.builder()
+                        .date(d.format(fmt))
+                        .rate(0.0)
+                        .build());
+                }
+            return zeros;
+            }
 
         // 일별 예매율 계산
-        return dailyReservations.stream()
-                .map(tuple -> {
-                    Integer month = tuple.get(r.createdAt.month());
-                    Integer day = tuple.get(r.createdAt.dayOfMonth());
-                    Long reservationCount = tuple.get(r.count());
+        java.util.Map<LocalDate, Long> countByDate = new java.util.HashMap<>();
+        for (Tuple tuple : dailyReservations) {
+            int year = tuple.get(r.createdAt.year());
+            int month = tuple.get(r.createdAt.month());
+            int day = tuple.get(r.createdAt.dayOfMonth());
+            LocalDate d = LocalDate.of(year, month, day);
+            countByDate.put(d, tuple.get(r.count()));
+            }
 
-                    double rate = (double) reservationCount / totalStock * 100;
-
-                    return DailyReservationRateDto.builder()
-                            .date(String.format("%02d/%02d", month, day))
-                            .rate(Math.round(rate * 10.0) / 10.0)
-                            .build();
-                })
-                .toList();
+                DateTimeFormatter fmts = DateTimeFormatter.ofPattern("MM/dd");
+        java.util.List<DailyReservationRateDto> result = new java.util.ArrayList<>();
+        for (LocalDate d = startDate; !d.isAfter(endDate); d = d.plusDays(1)) {
+            long reservationCount = countByDate.getOrDefault(d, 0L);
+            double rate = ((double) reservationCount / totalStock) * 100;
+            result.add(DailyReservationRateDto.builder()
+                    .date(d.format(fmts))
+                    .rate(Math.round(rate * 10.0) / 10.0)
+                    .build());
+            }
+        return result;
     }
 }

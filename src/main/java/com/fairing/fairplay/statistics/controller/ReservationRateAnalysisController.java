@@ -1,5 +1,6 @@
 package com.fairing.fairplay.statistics.controller;
 
+import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.statistics.dto.reservation.DailyReservationRateDto;
 import com.fairing.fairplay.statistics.dto.reservation.HourlyReservationRateDto;
 import com.fairing.fairplay.statistics.dto.reservation.ReservationRateAnalysisDto;
@@ -21,6 +22,7 @@ public class ReservationRateAnalysisController {
     private final ReservationRateAnalysisService reservationRateAnalysisService;
 
     @GetMapping("/reservationRate/{eventId}")
+    @FunctionAuth("getReservationRateAnalysis")
     public ReservationRateAnalysisDto getReservationRateAnalysis(
             @PathVariable Long eventId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
@@ -33,6 +35,7 @@ public class ReservationRateAnalysisController {
     }
 
     @GetMapping("/reservationRate/{eventId}/hourly")
+    @FunctionAuth("getHourlyReservationRate")
     public List<HourlyReservationRateDto> getHourlyReservationRate(
             @PathVariable Long eventId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
@@ -45,6 +48,7 @@ public class ReservationRateAnalysisController {
     }
 
     @GetMapping("/reservationRate/{eventId}/daily")
+    @FunctionAuth("getDailyReservationRate")
     public List<DailyReservationRateDto> getDailyReservationRate(
             @PathVariable Long eventId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,

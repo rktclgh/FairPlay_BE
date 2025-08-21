@@ -249,7 +249,10 @@ public class HourlyAnalysisService {
                         (s1, s2) -> EventHourlyStatistics.builder()
                                 .eventId(eventId)
                                 .hour(s1.getHour())
-                                .reservations(s1.getReservations() + s2.getReservations())
+                                .totalRevenue(
+                                (s1.getTotalRevenue() == null ? BigDecimal.ZERO : s1.getTotalRevenue())
+                                        .add(s2.getTotalRevenue() == null ? BigDecimal.ZERO : s2.getTotalRevenue())
+                                )
                                 .totalRevenue(s1.getTotalRevenue().add(s2.getTotalRevenue()))
                                 .build()
                 ));

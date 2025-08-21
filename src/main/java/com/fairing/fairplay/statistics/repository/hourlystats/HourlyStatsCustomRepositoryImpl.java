@@ -49,17 +49,18 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                         p.amount.sum().coalesce(BigDecimal.ZERO)
                 )
                 .from(r)
-                .leftJoin(p).on(
-                        p.targetId.eq(r.reservationId)
-                                .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION"))
-                                .and(p.paidAt.isNotNull())
-                                .and(p.paidAt.between(start, end))
-                                .and(p.paymentStatusCode.paymentStatusCodeId.eq(2)) // COMPLETED 상태만
+                .join(p).on(
+                p.targetId.eq(r.reservationId)
+                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION"))
                 )
                 .leftJoin(p.paymentTargetType, ptt)
                 .where(
                         r.event.eventId.eq(eventId)
                                 .and(r.createdAt.between(start, end))
+                                .and(p.paidAt.isNotNull())
+                                .and(p.paidAt.between(start, end))
+                                .and(p.paymentStatusCode.paymentStatusCodeId.eq(2))
+
                 )
                 .groupBy(r.event.eventId, r.createdAt.hour(), r.createdAt.dayOfMonth())
                 .fetch();
@@ -182,15 +183,16 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                 .select(
                         r.event.eventId,
                         r.createdAt.hour(),
-                        r.count(),
+                        r.reservationId.countDistinct(),                     // 중복 제거한 예약 수
                         p.amount.sum().coalesce(BigDecimal.ZERO)
-                )
+                                )
                 .from(r)
-                .leftJoin(p).on(p.targetId.eq(r.reservationId)
+                .innerJoin(p).on(                                        // 결제 완료된 예약만 조인
+                        p.targetId.eq(r.reservationId)
                         .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION"))
-                        .and(p.paidAt.isNotNull())
-                        .and(p.paidAt.between(start, end))
-                        .and(p.paymentStatusCode.paymentStatusCodeId.eq(2))) // COMPLETED 상태만
+                .and(p.paidAt.isNotNull())
+                .and(p.paidAt.between(start, end))
+                .and(p.paymentStatusCode.paymentStatusCodeId.eq(2)))
                 .where(r.createdAt.between(start, end))
                 .groupBy(r.event.eventId, r.createdAt.hour())
                 .fetch();
@@ -302,8 +304,12 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
         List<Tuple> results = queryFactory
                 .select(
                         r.event.eventId,
-                        r.createdAt.dayOfWeek(),
-                        r.count(),
+                        // DB별 요일 반환값을 월=1..일=7로 표준화
+                        new CaseBuilder()
+                        .when(r.createdAt.dayOfWeek().eq(1)).then(7)  // SQL Sunday=1 → 7
+                                        .otherwise(r.createdAt.dayOfWeek().subtract(1)).as("dayOfWeek"),
+                        // 중복 예약 제거
+                        r.reservationId.countDistinct(),
                         p.amount.sum().coalesce(BigDecimal.ZERO)
                 )
                 .from(r)
