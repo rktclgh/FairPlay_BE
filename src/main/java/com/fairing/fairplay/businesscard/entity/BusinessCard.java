@@ -54,7 +54,7 @@ public class BusinessCard {
     
     @Column(length = 500)
     private String description;
-    
+
     @Column(length = 200)
     private String linkedIn;
     
@@ -69,7 +69,7 @@ public class BusinessCard {
 
     @Column(length = 200)
     private String github;
-    
+
     @Column(length = 300)
     private String profileImageUrl;
     

@@ -3,6 +3,7 @@ package com.fairing.fairplay.businesscard.dto;
 import lombok.Data;
 import java.math.BigDecimal;
 
+
 @Data
 public class BusinessCardRequestDto {
     private String name;
