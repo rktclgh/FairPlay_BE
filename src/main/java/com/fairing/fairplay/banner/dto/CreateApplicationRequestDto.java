@@ -20,10 +20,8 @@ public record CreateApplicationRequestDto(
         String title,
 
         @NotBlank(message = "이미지 URL은 필수입니다")
-        @URL(message = "올바른 이미지 URL 형식이어야 합니다")
         String imageUrl,
 
-        @URL(message = "올바른 링크 URL 형식이어야 합니다")
         String linkUrl,
 
         @NotEmpty(message = "아이템 목록은 비어있을 수 없습니다")

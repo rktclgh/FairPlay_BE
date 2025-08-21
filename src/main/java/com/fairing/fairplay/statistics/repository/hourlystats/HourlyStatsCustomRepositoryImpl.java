@@ -8,7 +8,9 @@ import com.fairing.fairplay.statistics.entity.hourly.QEventHourlyStatistics;
 import com.fairing.fairplay.statistics.entity.sales.EventDailySalesStatistics;
 import com.fairing.fairplay.statistics.entity.sales.QEventDailySalesStatistics;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -37,6 +39,7 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
 
         QPaymentTargetType ptt = QPaymentTargetType.paymentTargetType;
 
+
         List<Tuple> results = queryFactory
                 .select(
                         r.event.eventId,
@@ -47,27 +50,37 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                         p.amount.sum().coalesce(BigDecimal.ZERO)
                 )
                 .from(r)
-                .leftJoin(p).on(p.targetId.eq(r.reservationId)
-                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION")))
+                .join(p).on(
+                p.targetId.eq(r.reservationId)
+                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION"))
+                )
                 .leftJoin(p.paymentTargetType, ptt)
                 .where(
                         r.event.eventId.eq(eventId)
                                 .and(r.createdAt.between(start, end))
-                                .and(p.paidAt.isNull().or(p.paidAt.between(start, end))) // 미결제 + 해당기간 결제
-// 모든 예약 포함
+                                .and(p.paidAt.isNotNull())
+                                .and(p.paidAt.between(start, end))
+                                .and(p.paymentStatusCode.paymentStatusCodeId.eq(2))
+
                 )
                 .groupBy(r.event.eventId, r.createdAt.hour(), r.createdAt.dayOfMonth())
                 .fetch();
 
+
+
         return results.stream()
-                .map(t -> EventHourlyStatistics.builder()
-                        .eventId(t.get(r.event.eventId))
-                        .statDate(t.get(r.createdAt).toLocalDate())
-                        .hour(t.get(r.createdAt.hour()))
-                        .reservations(t.get(r.count()).longValue())
-                        .totalRevenue(t.get(p.amount.sum()))
-                        .createdAt(LocalDateTime.now())
-                        .build())
+                .map(t -> {
+                    BigDecimal revenue = t.get(p.amount.sum().coalesce(BigDecimal.ZERO)); // 이미 가져온 값
+
+                    return EventHourlyStatistics.builder()
+                            .eventId(t.get(r.event.eventId))
+                            .statDate(t.get(r.createdAt).toLocalDate())
+                            .hour(t.get(r.createdAt.hour()))
+                            .reservations(t.get(r.count()).longValue())
+                            .totalRevenue(revenue) // 여기 변수 사용
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                })
                 .toList();
     }
 
@@ -171,19 +184,17 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                 .select(
                         r.event.eventId,
                         r.createdAt.hour(),
-                        r.count(),
-                        Expressions.cases()
-                                .when(p.paidAt.between(start, end))
-                                .then(p.amount.sum())
-                                .otherwise(BigDecimal.ZERO)
-                )
+                        r.reservationId.countDistinct(),                     // 중복 제거한 예약 수
+                        p.amount.sum().coalesce(BigDecimal.ZERO)
+                                )
                 .from(r)
-                .leftJoin(p).on(p.targetId.eq(r.reservationId)
-                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION")))
-                .where(
-                        r.createdAt.between(start, end)
-                                .and(p.paidAt.isNull().or(p.paidAt.between(start, end))) // 결제가 같은 날에 이루어진 경우만
-                )
+                .innerJoin(p).on(                                        // 결제 완료된 예약만 조인
+                        p.targetId.eq(r.reservationId)
+                        .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION"))
+                .and(p.paidAt.isNotNull())
+                .and(p.paidAt.between(start, end))
+                .and(p.paymentStatusCode.paymentStatusCodeId.eq(2)))
+                .where(r.createdAt.between(start, end))
                 .groupBy(r.event.eventId, r.createdAt.hour())
                 .fetch();
 
@@ -237,5 +248,161 @@ public class HourlyStatsCustomRepositoryImpl implements HourlyStatsCustomReposit
                 .orderBy(ehs.reservations.desc())
                 .limit(5)
                 .fetch();
+    }
+
+    @Override
+    public List<EventHourlyStatistics> calculateByDayOfWeek(Long eventId, LocalDate startDate, LocalDate endDate) {
+        QReservation r = QReservation.reservation;
+        QPayment p = QPayment.payment;
+
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        List<Tuple> results = queryFactory
+                .select(
+                        r.event.eventId,
+                        r.createdAt.dayOfWeek(),
+                        r.createdAt.hour(),
+                        r.count(),
+                        p.amount.sum().coalesce(BigDecimal.ZERO)
+                )
+                .from(r)
+                .leftJoin(p).on(
+                        p.targetId.eq(r.reservationId)
+                                .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION"))
+                                .and(p.paidAt.isNotNull())
+                                .and(p.paidAt.between(start, end))
+                                .and(p.paymentStatusCode.paymentStatusCodeId.eq(2))
+                )
+                .where(
+                        r.event.eventId.eq(eventId)
+                                .and(r.createdAt.between(start, end))
+                )
+                .groupBy(r.event.eventId, r.createdAt.dayOfWeek(), r.createdAt.hour())
+                .orderBy(r.createdAt.dayOfWeek().asc(), r.createdAt.hour().asc())
+                .fetch();
+
+        return results.stream()
+                .map(t -> EventHourlyStatistics.builder()
+                        .eventId(t.get(r.event.eventId))
+                        .statDate(startDate)
+                        .hour(t.get(r.createdAt.hour()))
+                        .reservations(t.get(r.count()).longValue())
+                        .totalRevenue(t.get(p.amount.sum()))
+                        .createdAt(LocalDateTime.now())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    public List<EventHourlyStatistics> calculateDailySummaryByDayOfWeek(Long eventId, LocalDate startDate, LocalDate endDate) {
+        QReservation r = QReservation.reservation;
+        QPayment p = QPayment.payment;
+
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        NumberExpression<Integer> dayOfWeekExpr =
+                Expressions.numberTemplate(Integer.class, "((dayofweek({0}) + 5) % 7) + 1", r.createdAt);
+
+        NumberExpression<Long> reservationCountExpr = r.reservationId.countDistinct();
+        NumberExpression<BigDecimal> revenueExpr = p.amount.sum().coalesce(BigDecimal.ZERO);
+
+        List<Tuple> results = queryFactory
+                .select(
+                        r.event.eventId,
+                        // DB별 요일 반환값을 월=1..일=7로 표준화
+                        dayOfWeekExpr,
+                        reservationCountExpr,
+                        revenueExpr
+                )
+                .from(r)
+                .leftJoin(p).on(
+                        p.targetId.eq(r.reservationId)
+                                .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION"))
+                                .and(p.paidAt.isNotNull())
+                                .and(p.paidAt.between(start, end))
+                                .and(p.paymentStatusCode.paymentStatusCodeId.eq(2))
+                )
+                .where(
+                        r.event.eventId.eq(eventId)
+                                .and(r.createdAt.between(start, end))
+                )
+                .groupBy(r.event.eventId, r.createdAt.dayOfWeek())
+                .orderBy(r.createdAt.dayOfWeek().asc())
+                .fetch();
+
+        return results.stream()
+                .map(t -> {
+                    Integer dayOfWeek = t.get(dayOfWeekExpr);
+
+                    Long reservations = t.get(reservationCountExpr);
+                    BigDecimal revenue = t.get(revenueExpr);
+                    return EventHourlyStatistics.builder()
+                            .eventId(t.get(r.event.eventId))
+                            .statDate(startDate)
+                            .hour(dayOfWeek)
+                            .reservations(reservations)
+                            .totalRevenue(revenue)
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                })
+                .toList();
+    }
+
+    @Override
+    public List<EventHourlyStatistics> calculateMonthlyTimePeriodSummary(Long eventId, LocalDate startDate, LocalDate endDate) {
+        QReservation r = QReservation.reservation;
+        QPayment p = QPayment.payment;
+
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+
+        List<Tuple> results = queryFactory
+                .select(
+                        r.event.eventId,
+                        r.createdAt.month(),
+                        new CaseBuilder()
+                                .when(r.createdAt.hour().between(6, 11)).then(1)
+                                .when(r.createdAt.hour().between(12, 17)).then(2)
+                                .when(r.createdAt.hour().between(18, 23)).then(3)
+                                .otherwise(0).as("timePeriod"),
+                        r.count()
+                )
+                .from(r)
+                .leftJoin(p).on(
+                        p.targetId.eq(r.reservationId)
+                                .and(p.paymentTargetType.paymentTargetCode.eq("RESERVATION"))
+                                .and(p.paidAt.isNotNull())
+                                .and(p.paidAt.between(start, end))
+                                .and(p.paymentStatusCode.paymentStatusCodeId.eq(2))
+                )
+                .where(
+                        r.event.eventId.eq(eventId)
+                                .and(r.createdAt.between(start, end))
+                )
+                .groupBy(r.event.eventId, r.createdAt.month(), 
+                        new CaseBuilder()
+                                .when(r.createdAt.hour().between(6, 11)).then(1)
+                                .when(r.createdAt.hour().between(12, 17)).then(2)
+                                .when(r.createdAt.hour().between(18, 23)).then(3)
+                                .otherwise(0))
+                .orderBy(r.createdAt.month().asc())
+                .fetch();
+
+        return results.stream()
+                .map(t -> {
+                    Integer month = t.get(r.createdAt.month());
+                    Integer timePeriod = t.get(Expressions.numberPath(Integer.class, "timePeriod"));
+                    return EventHourlyStatistics.builder()
+                            .eventId(t.get(r.event.eventId))
+                            .statDate(startDate)
+                            .hour(month * 10 + timePeriod)
+                            .reservations(t.get(r.count()).longValue())
+                            .totalRevenue(BigDecimal.ZERO)
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                })
+                .toList();
     }
 }

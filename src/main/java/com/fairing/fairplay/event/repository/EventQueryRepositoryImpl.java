@@ -53,7 +53,8 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         detail.endDate,
                         detail.thumbnailUrl,
                         detail.regionCode.name,
-                        event.statusCode.code
+                        event.statusCode.code,
+                        event.titleEng
                 ))
                 .from(event)
                 .join(event.eventDetail, detail)
@@ -147,7 +148,8 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         detail.endDate,
                         detail.thumbnailUrl,
                         detail.regionCode.name,
-                        event.statusCode.code
+                        event.statusCode.code,
+                        event.titleEng
                 ))
                 .from(event)
                 .join(event.eventDetail, detail)

@@ -33,7 +33,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setDisconnectDelay(30000)
                 .setSuppressCors(false);
 
-        // 알림 전용 WebSocket 엔드포인트  
+        // 알림 전용 WebSocket 엔드포인트
         registry.addEndpoint("/ws/notifications")
                 .setAllowedOriginPatterns("*")
                 .addInterceptors(jwtHandshakeInterceptor);
@@ -50,30 +50,30 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
         // 체크인/체크아웃 전용 SockJS fallback 엔드포인트
         registry.addEndpoint("/ws/qr-sockjs")
-            .setAllowedOriginPatterns("*")
-            .withSockJS()
-            .setSessionCookieNeeded(false)
-            .setHeartbeatTime(25000)
-            .setDisconnectDelay(30000)
-            .setSuppressCors(false);
+                .setAllowedOriginPatterns("*")
+                .withSockJS()
+                .setSessionCookieNeeded(false)
+                .setHeartbeatTime(25000)
+                .setDisconnectDelay(30000)
+                .setSuppressCors(false);
 
         // 부스 체크인 전용 SockJS fallback 엔드포인트
         registry.addEndpoint("/ws/booth-sockjs")
-            .setAllowedOriginPatterns("*")
-            .withSockJS()
-            .setSessionCookieNeeded(false)
-            .setHeartbeatTime(25000)
-            .setDisconnectDelay(30000)
-            .setSuppressCors(false);
+                .setAllowedOriginPatterns("*")
+                .withSockJS()
+                .setSessionCookieNeeded(false)
+                .setHeartbeatTime(25000)
+                .setDisconnectDelay(30000)
+                .setSuppressCors(false);
 
         // 부스 실시간 웨이팅 전용 SockJS fallback 엔드포인트
         registry.addEndpoint("/ws/waiting-sockjs")
-            .setAllowedOriginPatterns("*")
-            .withSockJS()
-            .setSessionCookieNeeded(false)
-            .setHeartbeatTime(25000)
-            .setDisconnectDelay(30000)
-            .setSuppressCors(false);
+                .setAllowedOriginPatterns("*")
+                .withSockJS()
+                .setSessionCookieNeeded(false)
+                .setHeartbeatTime(25000)
+                .setDisconnectDelay(30000)
+                .setSuppressCors(false);
     }
 
     @Override

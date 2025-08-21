@@ -93,10 +93,8 @@ public class BannerPaymentController {
             throw new CustomException(HttpStatus.BAD_REQUEST, "승인되지 않은 배너 신청입니다.");
         }
         
-        // 이미 결제 완료된 경우
-        if (BannerPaymentStatus.PAID == application.getPaymentStatus()) {
-            throw new CustomException(HttpStatus.BAD_REQUEST, "이미 결제가 완료된 배너입니다.");
-        }
+        // 이미 결제 완료된 경우 - 예외 대신 결제 완료 정보를 반환
+        // 프론트엔드에서 결제 완료 상태를 확인하고 적절한 UI를 표시할 수 있도록 함
         
         // 사용자 정보 조회
         Users applicant = userRepository.findById(application.getApplicantId())

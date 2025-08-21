@@ -565,18 +565,21 @@ public class BannerApplicationService {
              */
             private void sendApprovalEmail(Long appId, Map<String, Object> appInfo) {
                 try {
-                    // 신청자 정보 조회
+                    // 신청자 정보 및 이벤트 관리자 정보 조회
                     Map<String, Object> applicantInfo = jdbc.queryForMap("""
-                        SELECT ba.applicant_id, ba.title, ba.total_amount,
+                        SELECT ba.applicant_id, ba.title, ba.total_amount, ba.event_id,
                                bt.name as banner_type_name,
-                               u.name as applicant_name, u.email as applicant_email
+                               u.name as applicant_name,
+                               ea.contact_email as event_admin_email
                         FROM banner_application ba
                         JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id  
                         JOIN users u ON u.user_id = ba.applicant_id
+                        JOIN event e ON e.event_id = ba.event_id
+                        JOIN event_admin ea ON ea.user_id = e.manager_id
                         WHERE ba.banner_application_id = ?
                         """, appId);
                     
-                    String applicantEmail = (String) applicantInfo.get("applicant_email");
+                    String eventAdminEmail = (String) applicantInfo.get("event_admin_email");
                     String applicantName = (String) applicantInfo.get("applicant_name");
                     String title = (String) applicantInfo.get("title");
                     String bannerType = (String) applicantInfo.get("banner_type_name");
@@ -584,7 +587,7 @@ public class BannerApplicationService {
                     
                     // 배너는 승인과 동시에 결제 완료되므로 결제 링크 대신 완료 알림 발송
                     bannerEmailService.sendApprovalWithPaymentEmail(
-                        applicantEmail, 
+                        eventAdminEmail, 
                         title, 
                         bannerType, 
                         totalAmount, 
@@ -593,7 +596,7 @@ public class BannerApplicationService {
                     );
                     
                     System.out.println("배너 승인 이메일 발송 완료 - appId: " + appId + 
-                                     ", recipient: " + applicantEmail);
+                                     ", recipient: " + eventAdminEmail);
                     
                 } catch (Exception e) {
                     System.err.println("배너 승인 이메일 발송 중 오류 - appId: " + appId + 
@@ -645,18 +648,21 @@ public class BannerApplicationService {
              */
             private void sendApprovalEmailWithPaymentLink(Long appId) {
                 try {
-                    // 신청자 정보 조회
+                    // 신청자 정보 및 이벤트 관리자 정보 조회
                     Map<String, Object> applicantInfo = jdbc.queryForMap("""
-                        SELECT ba.applicant_id, ba.title, ba.total_amount,
+                        SELECT ba.applicant_id, ba.title, ba.total_amount, ba.event_id,
                                bt.name as banner_type_name,
-                               u.name as applicant_name, u.email as applicant_email
+                               u.name as applicant_name,
+                               ea.contact_email as event_admin_email
                         FROM banner_application ba
                         JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id  
                         JOIN users u ON u.user_id = ba.applicant_id
+                        JOIN event e ON e.event_id = ba.event_id
+                        JOIN event_admin ea ON ea.user_id = e.manager_id
                         WHERE ba.banner_application_id = ?
                         """, appId);
                     
-                    String applicantEmail = (String) applicantInfo.get("applicant_email");
+                    String eventAdminEmail = (String) applicantInfo.get("event_admin_email");
                     String applicantName = (String) applicantInfo.get("applicant_name");
                     String title = (String) applicantInfo.get("title");
                     String bannerType = (String) applicantInfo.get("banner_type_name");
@@ -664,7 +670,7 @@ public class BannerApplicationService {
                     
                     // 부스와 동일한 방식으로 결제 링크가 포함된 이메일 발송
                     bannerEmailService.sendApprovalWithPaymentEmail(
-                        applicantEmail, 
+                        eventAdminEmail, 
                         title, 
                         bannerType, 
                         totalAmount, 
@@ -673,7 +679,7 @@ public class BannerApplicationService {
                     );
                     
                     System.out.println("배너 승인 이메일 발송 완료 (결제 링크 포함) - appId: " + appId + 
-                                     ", recipient: " + applicantEmail);
+                                     ", recipient: " + eventAdminEmail);
                     
                 } catch (Exception e) {
                     System.err.println("배너 승인 이메일 발송 실패 - appId: " + appId + 
@@ -730,8 +736,46 @@ public class BannerApplicationService {
                            AND status IN ('LOCKED', 'AVAILABLE')
                         """, soldParams);
                         
-                    System.out.println("배너 슬롯 활성화 완료 - appId: " + appId + 
-                                     ", 활성화된 슬롯 수: " + sold);
+                    // 배너 상태 코드 조회 (ACTIVE) - 루프 밖에서 한 번만 조회
+                    Integer activeStatusCodeId = jdbc.queryForObject("""
+                        SELECT banner_status_code_id FROM banner_status_code WHERE code = 'ACTIVE'
+                        """, Integer.class);
+                    
+                    // 각 슬롯에 대해 배너 생성
+                    for (var slot : slots) {
+                        // MySQL 호환을 위해 KeyHolder 사용
+                        KeyHolder keyHolder = new GeneratedKeyHolder();
+                        jdbc.update(con -> {
+                            PreparedStatement ps = con.prepareStatement("""
+                                INSERT INTO banner (event_id, title, image_url, link_url, banner_type_id, 
+                                                   priority, start_date, end_date, banner_status_code_id, created_at)
+                                SELECT ?, ?, ?, ?, ?, ?, 
+                                       (SELECT start_date FROM banner_application WHERE banner_application_id = ?),
+                                       (SELECT end_date FROM banner_application WHERE banner_application_id = ?),
+                                       ?, NOW()
+                                """, Statement.RETURN_GENERATED_KEYS);
+                            ps.setObject(1, app.get("event_id"));
+                            ps.setObject(2, app.get("title"));
+                            ps.setObject(3, app.get("image_url"));
+                            ps.setObject(4, app.get("link_url"));
+                            ps.setObject(5, slot.get("typeId"));
+                            ps.setObject(6, slot.get("priority"));
+                            ps.setLong(7, appId);
+                            ps.setLong(8, appId);
+                            ps.setInt(9, activeStatusCodeId);
+                            return ps;
+                        }, keyHolder);
+                        
+                        Long bannerId = Objects.requireNonNull(keyHolder.getKey()).longValue();
+                            
+                        // 슬롯에 배너 ID 연결
+                        jdbc.update("""
+                            UPDATE banner_slot SET sold_banner_id = ? WHERE slot_id = ?
+                            """, bannerId, slot.get("slotId"));
+                    }
+                    
+                    System.out.println("배너 슬롯 활성화 및 배너 생성 완료 - appId: " + appId + 
+                                     ", 활성화된 슬롯 수: " + sold + ", 생성된 배너 수: " + slots.size());
                     
                 } catch (Exception e) {
                     System.err.println("배너 슬롯 활성화 실패 - appId: " + appId + 

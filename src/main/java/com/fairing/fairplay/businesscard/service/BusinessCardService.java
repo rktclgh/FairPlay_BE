@@ -8,6 +8,8 @@ import com.fairing.fairplay.businesscard.entity.CollectedBusinessCard;
 import com.fairing.fairplay.businesscard.repository.BusinessCardRepository;
 import com.fairing.fairplay.businesscard.repository.CollectedBusinessCardRepository;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.event.entity.Location;
+import com.fairing.fairplay.event.repository.LocationRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ public class BusinessCardService {
     private final CollectedBusinessCardRepository collectedCardRepository;
     private final UserRepository userRepository;
     private final BusinessCardQRService qrService;
+    private final LocationRepository locationRepository;
 
     /**
      * 사용자의 전자명함 조회 (본인용 - 모든 필드 포함)
@@ -182,12 +185,31 @@ public class BusinessCardService {
         businessCard.setPhoneNumber(requestDto.getPhoneNumber());
         businessCard.setEmail(requestDto.getEmail());
         businessCard.setWebsite(requestDto.getWebsite());
-        businessCard.setAddress(requestDto.getAddress());
+        businessCard.setDetailAddress(requestDto.getDetailAddress());
         businessCard.setDescription(requestDto.getDescription());
         businessCard.setLinkedIn(requestDto.getLinkedIn());
         businessCard.setInstagram(requestDto.getInstagram());
         businessCard.setFacebook(requestDto.getFacebook());
         businessCard.setTwitter(requestDto.getTwitter());
+        businessCard.setGithub(requestDto.getGithub());
         businessCard.setProfileImageUrl(requestDto.getProfileImageUrl());
+        
+        // Location 처리
+        if (requestDto.getAddress() != null && requestDto.getLatitude() != null && requestDto.getLongitude() != null) {
+            Location location = new Location();
+            location.setAddress(requestDto.getAddress());
+            location.setBuildingName(requestDto.getBuildingName());
+            location.setPlaceName(requestDto.getPlaceName());
+            location.setLatitude(requestDto.getLatitude());
+            location.setLongitude(requestDto.getLongitude());
+            location.setPlaceUrl(requestDto.getPlaceUrl());
+            
+            Location savedLocation = locationRepository.save(location);
+            businessCard.setLocation(savedLocation);
+        } else if (businessCard.getLocation() != null && 
+                  (requestDto.getAddress() == null || requestDto.getLatitude() == null || requestDto.getLongitude() == null)) {
+            // 기존 location이 있지만 새로운 요청에서 location 정보가 없으면 null로 설정
+            businessCard.setLocation(null);
+        }
     }
 }
