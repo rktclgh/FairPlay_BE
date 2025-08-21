@@ -736,25 +736,37 @@ public class BannerApplicationService {
                            AND status IN ('LOCKED', 'AVAILABLE')
                         """, soldParams);
                         
+                    // 배너 상태 코드 조회 (ACTIVE) - 루프 밖에서 한 번만 조회
+                    Integer activeStatusCodeId = jdbc.queryForObject("""
+                        SELECT banner_status_code_id FROM banner_status_code WHERE code = 'ACTIVE'
+                        """, Integer.class);
+                    
                     // 각 슬롯에 대해 배너 생성
                     for (var slot : slots) {
-                        // 배너 상태 코드 조회 (ACTIVE)
-                        Integer statusCodeId = jdbc.queryForObject("""
-                            SELECT banner_status_code_id FROM banner_status_code WHERE code = 'ACTIVE'
-                            """, Integer.class);
-                            
-                        Long bannerId = jdbc.queryForObject("""
-                            INSERT INTO banner (event_id, title, image_url, link_url, banner_type_id, 
-                                               priority, start_date, end_date, banner_status_code_id, created_at)
-                            SELECT ?, ?, ?, ?, ?, ?, 
-                                   (SELECT start_date FROM banner_application WHERE banner_application_id = ?),
-                                   (SELECT end_date FROM banner_application WHERE banner_application_id = ?),
-                                   ?, NOW()
-                            RETURNING banner_id
-                            """, Long.class,
-                            app.get("event_id"), app.get("title"), app.get("image_url"), 
-                            app.get("link_url"), slot.get("typeId"), slot.get("priority"), 
-                            appId, appId, statusCodeId);
+                        // MySQL 호환을 위해 KeyHolder 사용
+                        KeyHolder keyHolder = new GeneratedKeyHolder();
+                        jdbc.update(con -> {
+                            PreparedStatement ps = con.prepareStatement("""
+                                INSERT INTO banner (event_id, title, image_url, link_url, banner_type_id, 
+                                                   priority, start_date, end_date, banner_status_code_id, created_at)
+                                SELECT ?, ?, ?, ?, ?, ?, 
+                                       (SELECT start_date FROM banner_application WHERE banner_application_id = ?),
+                                       (SELECT end_date FROM banner_application WHERE banner_application_id = ?),
+                                       ?, NOW()
+                                """, Statement.RETURN_GENERATED_KEYS);
+                            ps.setObject(1, app.get("event_id"));
+                            ps.setObject(2, app.get("title"));
+                            ps.setObject(3, app.get("image_url"));
+                            ps.setObject(4, app.get("link_url"));
+                            ps.setObject(5, slot.get("typeId"));
+                            ps.setObject(6, slot.get("priority"));
+                            ps.setLong(7, appId);
+                            ps.setLong(8, appId);
+                            ps.setInt(9, activeStatusCodeId);
+                            return ps;
+                        }, keyHolder);
+                        
+                        Long bannerId = Objects.requireNonNull(keyHolder.getKey()).longValue();
                             
                         // 슬롯에 배너 ID 연결
                         jdbc.update("""
