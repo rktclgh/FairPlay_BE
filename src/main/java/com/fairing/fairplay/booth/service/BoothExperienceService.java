@@ -42,6 +42,7 @@ public class BoothExperienceService {
   private final BoothRepository boothRepository;
   private final UserRepository userRepository;
   private final SimpMessagingTemplate messagingTemplate;
+  private final BoothExperienceStatusCodeRepository boothExperienceStatusCodeRepository;
 
   // 1. 부스 체험 등록 (부스 담당자)
   @Transactional
@@ -114,97 +115,100 @@ public class BoothExperienceService {
         "필터링된 체험 목록 조회 시작 - eventId: {}, startDate: {}, endDate: {}, boothName: {}, isAvailable: {}, sortBy: {}",
         eventId, startDate, endDate, boothName, isAvailable, sortBy);
 
-    LocalDate today = LocalDate.now();
+//    LocalDate today = LocalDate.now();
+//
+//    // 날짜 파싱 - final 변수로 선언
+//    final LocalDate filterStartDate;
+//    final LocalDate filterEndDate;
+//
+//    LocalDate startDateTemp;
+//    if (startDate != null && !startDate.trim().isEmpty()) {
+//      try {
+//        startDateTemp = LocalDate.parse(startDate);
+//      } catch (Exception e) {
+//        log.warn("잘못된 시작 날짜 형식: {}", startDate);
+//        startDateTemp = null;
+//      }
+//    } else {
+//      startDateTemp = null;
+//    }
+//
+//    LocalDate endDateTemp;
+//    if (endDate != null && !endDate.trim().isEmpty()) {
+//      try {
+//        endDateTemp = LocalDate.parse(endDate);
+//      } catch (Exception e) {
+//        log.warn("잘못된 종료 날짜 형식: {}", endDate);
+//        endDateTemp = null;
+//      }
+//    } else {
+//      endDateTemp = null;
+//    }
+//
+//    // 기본 조회 (체크박스 상태에 따라 쿼리 결정)
+//    filterStartDate = startDateTemp;
+//    filterEndDate = endDateTemp;
+//
+//    List<BoothExperience> experiences;
+//    if (isAvailable != null && isAvailable) {
+//      // "예약 가능한 것만 보기" 체크된 경우: 예약 활성화된 것만 조회
+//      log.info("예약 활성화된 체험만 조회 - isAvailable: {}", isAvailable);
+//      experiences = boothExperienceRepository.findAvailableExperiences(today);
+//    } else {
+//      // 체크 해제되거나 null인 경우: 모든 체험 조회
+//      log.info("모든 체험 조회 - isAvailable: {}", isAvailable);
+//      experiences = boothExperienceRepository.findAllExperiences(today);
+//    }
+//
+//    log.info("기본 쿼리 결과 - 조회된 체험 수: {} (활성화: {}, 비활성화: {})", experiences.size(),
+//        experiences.stream().mapToLong(exp -> exp.getIsReservationEnabled() ? 1 : 0).sum(),
+//        experiences.stream().mapToLong(exp -> exp.getIsReservationEnabled() ? 0 : 1).sum());
+//
+//    // 필터링 적용
+//    List<BoothExperience> filteredExperiences = experiences.stream().filter(exp -> {
+//      // 이벤트 ID 필터
+//      if (eventId != null && !exp.getBooth().getEvent().getEventId().equals(eventId)) {
+//        return false;
+//      }
+//
+//      // 날짜 기간 필터
+//      if (filterStartDate != null && exp.getExperienceDate().isAfter(filterStartDate)) {
+//        return false;
+//      }
+//      if (filterEndDate != null && exp.getExperienceDate().isAfter(filterEndDate)) {
+//        return false;
+//      }
+//
+//      // 부스명/체험명 검색
+//      if (boothName != null && !boothName.trim().isEmpty()) {
+//        String searchTerm = boothName.toLowerCase();
+//        boolean matches =
+//            exp.getTitle().toLowerCase().contains(searchTerm) || (exp.getDescription() != null
+//                && exp.getDescription().toLowerCase().contains(searchTerm)) || exp.getBooth()
+//                .getBoothTitle().toLowerCase().contains(searchTerm);
+//        if (!matches) {
+//          return false;
+//        }
+//      }
+//
+//      // 예약 활성화 여부 필터는 이미 쿼리 단계에서 처리됨
+//
+//      return true;
+//    }).collect(Collectors.toList());
+//
+//    // 정렬 적용
+//    sortExperiences(filteredExperiences, sortBy, sortDirection);
+//
+//    List<BoothExperienceResponseDto> result = filteredExperiences.stream()
+//        .map(BoothExperienceResponseDto::fromEntity).collect(Collectors.toList());
+//
+//    log.info("필터링된 체험 목록 조회 완료 - 총 {}개 (활성화: {}, 비활성화: {})", result.size(),
+//        result.stream().mapToLong(dto -> dto.getIsReservationEnabled() ? 1 : 0).sum(),
+//        result.stream().mapToLong(dto -> dto.getIsReservationEnabled() ? 0 : 1).sum());
 
-    // 날짜 파싱 - final 변수로 선언
-    final LocalDate filterStartDate;
-    final LocalDate filterEndDate;
-
-    LocalDate startDateTemp;
-    if (startDate != null && !startDate.trim().isEmpty()) {
-      try {
-        startDateTemp = LocalDate.parse(startDate);
-      } catch (Exception e) {
-        log.warn("잘못된 시작 날짜 형식: {}", startDate);
-        startDateTemp = null;
-      }
-    } else {
-      startDateTemp = null;
-    }
-
-    LocalDate endDateTemp;
-    if (endDate != null && !endDate.trim().isEmpty()) {
-      try {
-        endDateTemp = LocalDate.parse(endDate);
-      } catch (Exception e) {
-        log.warn("잘못된 종료 날짜 형식: {}", endDate);
-        endDateTemp = null;
-      }
-    } else {
-      endDateTemp = null;
-    }
-
-    // 기본 조회 (체크박스 상태에 따라 쿼리 결정)
-    filterStartDate = startDateTemp;
-    filterEndDate = endDateTemp;
-
-    List<BoothExperience> experiences;
-    if (isAvailable != null && isAvailable) {
-      // "예약 가능한 것만 보기" 체크된 경우: 예약 활성화된 것만 조회
-      log.info("예약 활성화된 체험만 조회 - isAvailable: {}", isAvailable);
-      experiences = boothExperienceRepository.findAvailableExperiences(today);
-    } else {
-      // 체크 해제되거나 null인 경우: 모든 체험 조회
-      log.info("모든 체험 조회 - isAvailable: {}", isAvailable);
-      experiences = boothExperienceRepository.findAllExperiences(today);
-    }
-
-    log.info("기본 쿼리 결과 - 조회된 체험 수: {} (활성화: {}, 비활성화: {})", experiences.size(),
-        experiences.stream().mapToLong(exp -> exp.getIsReservationEnabled() ? 1 : 0).sum(),
-        experiences.stream().mapToLong(exp -> exp.getIsReservationEnabled() ? 0 : 1).sum());
-
-    // 필터링 적용
-    List<BoothExperience> filteredExperiences = experiences.stream().filter(exp -> {
-      // 이벤트 ID 필터
-      if (eventId != null && !exp.getBooth().getEvent().getEventId().equals(eventId)) {
-        return false;
-      }
-
-      // 날짜 기간 필터
-      if (filterStartDate != null && exp.getExperienceDate().isBefore(filterStartDate)) {
-        return false;
-      }
-      if (filterEndDate != null && exp.getExperienceDate().isAfter(filterEndDate)) {
-        return false;
-      }
-
-      // 부스명/체험명 검색
-      if (boothName != null && !boothName.trim().isEmpty()) {
-        String searchTerm = boothName.toLowerCase();
-        boolean matches =
-            exp.getTitle().toLowerCase().contains(searchTerm) || (exp.getDescription() != null
-                && exp.getDescription().toLowerCase().contains(searchTerm)) || exp.getBooth()
-                .getBoothTitle().toLowerCase().contains(searchTerm);
-        if (!matches) {
-          return false;
-        }
-      }
-
-      // 예약 활성화 여부 필터는 이미 쿼리 단계에서 처리됨
-
-      return true;
-    }).collect(Collectors.toList());
-
-    // 정렬 적용
-    sortExperiences(filteredExperiences, sortBy, sortDirection);
-
-    List<BoothExperienceResponseDto> result = filteredExperiences.stream()
+    List<BoothExperience> booths = boothExperienceRepository.findAllExperiencesByBooth_Id(12L);
+        List<BoothExperienceResponseDto> result = booths.stream()
         .map(BoothExperienceResponseDto::fromEntity).collect(Collectors.toList());
-
-    log.info("필터링된 체험 목록 조회 완료 - 총 {}개 (활성화: {}, 비활성화: {})", result.size(),
-        result.stream().mapToLong(dto -> dto.getIsReservationEnabled() ? 1 : 0).sum(),
-        result.stream().mapToLong(dto -> dto.getIsReservationEnabled() ? 0 : 1).sum());
-
     return result;
   }
 
@@ -375,7 +379,8 @@ public class BoothExperienceService {
     BoothExperienceReservation savedReservation = reservationRepository.save(reservation);
     log.info("부스 체험 예약 완료 - 예약 ID: {}, 대기 순번: {}", savedReservation.getReservationId(),
         savedReservation.getQueuePosition());
-    waitingNotification(userId, savedReservation.getQueuePosition());
+    // 현재 내 예약의 순번 실시간 알림
+    waitingNotification(userId, savedReservation.getQueuePosition(),"");
     return BoothExperienceReservationResponseDto.fromEntity(savedReservation);
   }
 
@@ -425,6 +430,7 @@ public class BoothExperienceService {
 
     BoothExperienceReservation updatedReservation = reservationRepository.save(reservation);
     log.info("예약 상태 변경 완료 - 예약 ID: {}, 상태: {}", reservationId, newStatus.getCode());
+
 
     return BoothExperienceReservationResponseDto.fromEntity(updatedReservation);
   }
@@ -533,15 +539,21 @@ public class BoothExperienceService {
     switch (newStatus.getCode()) {
       case "READY":
         reservation.setReadyAt(now);
+        waitingNotification(reservation.getUser().getUserId(),reservation.getQueuePosition()-1,"입장 해주세요.");
         break;
       case "IN_PROGRESS":
         reservation.setStartedAt(now);
+        waitingNotification(reservation.getUser().getUserId(), 0, "체험중입니다!");
         // 다음 대기자를 READY 상태로 변경
-        processNextWaitingReservation(reservation.getBoothExperience());
+        // processNextWaitingReservation(reservation.getBoothExperience());
         break;
       case "COMPLETED":
+        log.info("COMPLETED: {}", reservation.getExperienceStatusCode().getCode());
+
+        // 사용자 상태 COMPLETED 변경 -> 상태 완료로 변경
         reservation.setCompletedAt(now);
         // 다음 대기자를 READY 상태로 변경
+        waitingNotification(reservation.getUser().getUserId(), 0, "예약된 체험 없음");
         processNextWaitingReservation(reservation.getBoothExperience());
         break;
       case "CANCELLED":
@@ -564,10 +576,8 @@ public class BoothExperienceService {
 
       nextReservation.setExperienceStatusCode(readyStatus);
       nextReservation.setReadyAt(LocalDateTime.now());
+      waitingNotification(nextReservation.getUser().getUserId(), 0, "입장해주세요!");
       reservationRepository.save(nextReservation);
-
-      waitingNotification(nextReservation.getUser().getUserId(),
-          nextReservation.getQueuePosition());
     }
   }
 
@@ -579,7 +589,8 @@ public class BoothExperienceService {
     for (int i = 0; i < waitingReservations.size(); i++) {
       BoothExperienceReservation reservation = waitingReservations.get(i);
       reservation.setQueuePosition(i + 1);
-      waitingNotification(reservation.getUser().getUserId(), reservation.getQueuePosition());
+      // 이후 대기자들 대기 순번 재알림
+      waitingNotification(reservation.getUser().getUserId(), reservation.getQueuePosition(),"");
     }
     reservationRepository.saveAll(waitingReservations);
   }
@@ -807,18 +818,37 @@ public class BoothExperienceService {
         eventId, userDetails.getUserId());
     Integer count = latest.map(reservation -> {
       String code = reservation.getExperienceStatusCode().getCode();
-      return "IN_PROGRESS".equals(code) ? -1
+      return "IN_PROGRESS".equals(code) ? 0
           : "READY".equals(code) ? 0 : reservation.getQueuePosition();
     }).orElse(0);
 
     String eventName = latest.map(reservation -> reservation.getBoothExperience().getTitle())
         .orElse(null);
 
-    return BoothUserRecentlyWaitingCount.builder().waitingCount(count).eventName(eventName)
+    String message = "예약된 체험 없음";
+    if(latest.isPresent()) {
+      String code = latest.map(reservation -> reservation.getExperienceStatusCode().getCode())
+          .orElse(null);
+      BoothExperienceStatusCode statusCode = boothExperienceStatusCodeRepository.findByCode(code).orElse(null);
+      log.info("statusCode:{}",statusCode.getCode());
+      if(statusCode.getCode().equals("READY")){
+        count=0;
+        message = "입장해주세요!";
+      }else if(statusCode.getCode().equals("IN_PROGRESS")){
+        count=0;
+        message = "체험 중";
+      } else if(statusCode.getCode().equals("COMPLETED") || statusCode.getCode().equals("CANCELLED")){
+        count=0;
+        message = "예약된 체험 없음";
+      }
+    }
+    waitingNotification(userDetails.getUserId(), count, message);
+    return BoothUserRecentlyWaitingCount.builder().waitingCount(count).eventName(eventName).message(message)
         .eventId(eventId).build();
   }
 
-  public void waitingNotification(Long userId, Integer waitingCount) {
-    messagingTemplate.convertAndSend("/queue/waiting/" + userId, waitingCount);
+  public void waitingNotification(Long userId, Integer waitingCount, String statusMessage) {
+    WaitingMessage msg = new WaitingMessage(waitingCount, statusMessage);
+    messagingTemplate.convertAndSend("/topic/waiting/" + userId, msg);
   }
 }
