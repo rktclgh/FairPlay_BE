@@ -34,6 +34,9 @@ public class AwsS3Service {
 
     @Value("${cloud.aws.cloudfront.domain:}")
     private String cloudfrontDomain;
+    
+    @Value("${app.base-url:https://fair-play.ink}")
+    private String baseUrl;
 
     // 파일 임시 저장
     public FileUploadResponseDto uploadTemp(MultipartFile file) {    // 백엔드 저장 전 임시 업로드
@@ -61,7 +64,7 @@ public class AwsS3Service {
                 key, file.getOriginalFilename(), file.getSize());
 
         // 미리보기용 URL
-        String downloadUrl = "/api/uploads/download?key=" + URLEncoder.encode(key, StandardCharsets.UTF_8);
+        String downloadUrl = baseUrl + "/api/uploads/download?key=" + URLEncoder.encode(key, StandardCharsets.UTF_8);
 
         // 이미지 여부
         boolean isImage = file.getContentType() != null && file.getContentType().startsWith("image/");

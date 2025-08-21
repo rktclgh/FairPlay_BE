@@ -821,7 +821,7 @@ public class EventService {
 
             fileService.createFileLink(savedFile, "EVENT", eventId);
 
-            String tempUrl = "/api/uploads/download?key=" + fileDto.getS3Key();
+            String tempUrl = "https://fair-play.ink/api/uploads/download?key=" + fileDto.getS3Key();
             String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
 
             switch (fileDto.getUsage()) {
