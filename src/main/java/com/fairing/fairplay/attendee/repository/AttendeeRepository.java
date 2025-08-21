@@ -15,6 +15,9 @@ public interface AttendeeRepository extends JpaRepository<Attendee, Long> {
 
   List<Attendee> findAllByReservation_ReservationIdOrderByIdAsc(Long reservationId);
 
+  // 해당 예약에 참석자가 존재하는지 확인
+  boolean existsByReservation_ReservationId(Long reservationId);
+
   Optional<Attendee> findByReservation_ReservationIdAndAttendeeTypeCode_Id(Long reservationId,
       Integer attendeeTypeCodeId);
 
