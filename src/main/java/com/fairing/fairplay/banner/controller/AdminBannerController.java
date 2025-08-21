@@ -1,11 +1,14 @@
 package com.fairing.fairplay.banner.controller;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.fairing.fairplay.banner.dto.*;
+import com.fairing.fairplay.banner.service.BannerApplicationService;
+import com.fairing.fairplay.banner.service.BannerService;
+import com.fairing.fairplay.core.etc.FunctionAuth;
+import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.history.etc.ChangeBanner;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,14 +16,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.fairing.fairplay.banner.service.BannerApplicationService;
-import com.fairing.fairplay.banner.service.BannerService;
-import com.fairing.fairplay.core.etc.FunctionAuth;
-import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.history.etc.ChangeBanner;
-
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/banners")
@@ -174,11 +173,10 @@ public class AdminBannerController {
             @AuthenticationPrincipal CustomUserDetails admin,
             @RequestParam(required = false) String status,     // PENDING | APPROVED | REJECTED
             @RequestParam(required = false) String type,       // HERO | SEARCH_TOP
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size
+            Pageable pageable
     ) {
                 requireAdmin(admin);
-                return ResponseEntity.ok(appService.listAdminApplications(status, type, page, size));
+                return ResponseEntity.ok(appService.listAdminApplications(status, type, pageable));
             }
 
 }

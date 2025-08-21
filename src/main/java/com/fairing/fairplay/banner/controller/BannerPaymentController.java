@@ -99,7 +99,7 @@ public class BannerPaymentController {
         }
         
         // 사용자 정보 조회
-        Users applicant = userRepository.findById(application.getApplicantId())
+        Users applicant = userRepository.findById(application.getApplicantId().getUserId())
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "신청자 정보를 찾을 수 없습니다."));
         
         BannerPaymentPageDto paymentInfo = BannerPaymentPageDto.builder()
@@ -143,7 +143,7 @@ public class BannerPaymentController {
                     .orElse(null);
             
             if (application != null) {
-                Users applicant = userRepository.findById(application.getApplicantId())
+                Users applicant = userRepository.findById(application.getApplicantId().getUserId())
                         .orElse(null);
                 
                 if (applicant != null) {

@@ -804,11 +804,11 @@ public class PaymentService {
             BannerApplication bannerApplication = bannerApplicationRepository.findById(paymentRequestDto.getTargetId())
                     .orElseThrow(() -> new IllegalArgumentException("배너 신청 정보를 찾을 수 없습니다."));
 
-            user = userRepository.findById(bannerApplication.getApplicantId())
+            user = userRepository.findById(bannerApplication.getApplicantId().getUserId())
                     .orElseThrow(() -> new IllegalArgumentException("배너 신청자 계정을 찾을 수 없습니다: " + bannerApplication.getApplicantId()));
 
             // 4-B. 이벤트 정보 설정 (배너 신청에서 가져오기)
-            paymentRequestDto.setEventId(bannerApplication.getEventId());
+            paymentRequestDto.setEventId(bannerApplication.getEvent().getEventId());
         }
 
         // 5. 기존 savePayment 메서드 활용
