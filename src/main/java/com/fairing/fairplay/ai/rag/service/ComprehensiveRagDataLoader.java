@@ -19,6 +19,12 @@ import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
+import com.fairing.fairplay.reservation.entity.Reservation;
+import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import com.fairing.fairplay.attendee.entity.Attendee;
+import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import jakarta.annotation.PostConstruct;
+import org.springframework.data.domain.PageRequest;
 
 /**
  * 민감정보/통계/운영자 영역을 제외한 모든 공개 데이터를 RAG에 로드하는 종합 로더
@@ -53,6 +60,9 @@ public class ComprehensiveRagDataLoader {
     private final ReviewRepository reviewRepository;
     private final TicketRepository ticketRepository;
     private final EventScheduleRepository eventScheduleRepository;
+    private final UserRepository userRepository;
+    private final ReservationRepository reservationRepository;
+    private final AttendeeRepository attendeeRepository;
     private final DocumentIngestService documentIngestService;
     
     /**
@@ -138,8 +148,16 @@ public class ComprehensiveRagDataLoader {
             List<EventSchedule> schedules = eventScheduleRepository.findAll();
             status.put("schedules", Map.of("count", schedules.size()));
             
-            log.info("데이터베이스 상태: Events={}, Booths={}, Reviews={}, Categories={}, Tickets={}, Schedules={}", 
-                events.size(), booths.size(), reviews.size(), categories.size(), tickets.size(), schedules.size());
+            // 사용자 데이터 확인
+            List<Users> users = userRepository.findAll();
+            status.put("users", Map.of("count", users.size()));
+            
+            // 예약 데이터 확인
+            List<Reservation> reservations = reservationRepository.findAll();
+            status.put("reservations", Map.of("count", reservations.size()));
+            
+            log.info("데이터베이스 상태: Events={}, Booths={}, Reviews={}, Categories={}, Tickets={}, Schedules={}, Users={}, Reservations={}", 
+                events.size(), booths.size(), reviews.size(), categories.size(), tickets.size(), schedules.size(), users.size(), reservations.size());
                 
         } catch (Exception e) {
             log.error("데이터베이스 상태 확인 오류", e);
@@ -175,9 +193,52 @@ public class ComprehensiveRagDataLoader {
         result.categoryResult = new LoadResult("Category", 0, 0, 0);
         log.info("카테고리 로딩 완전 비활성화: 예매/취소/환불 정책이 실제 이벤트 검색을 완전히 방해함");
         
+        // 6. 사용자별 개인정보 데이터 로드 (예약정보, 티켓정보)
+        result.userDataResult = loadUserData();
+        
         log.info("종합 공개 데이터 RAG 로드 완료: {}", result.getSummary());
         
         return result;
+    }
+    
+    /**
+     * 사용자별 개인정보 데이터 로드 (예약정보, 티켓정보, 개인정보)
+     */
+    private LoadResult loadUserData() {
+        log.info("사용자별 개인정보 데이터 로드 중...");
+        List<Users> users = userRepository.findAll();
+        int successCount = 0;
+        int failCount = 0;
+        
+        for (Users user : users) {
+            try {
+                // AI 봇 계정(999) 제외
+                if (user.getUserId() == 999) {
+                    continue;
+                }
+                
+                Document document = buildUserDataDocument(user);
+                
+                DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
+                if (result.isSuccess()) {
+                    successCount++;
+                    log.debug("사용자 데이터 임베딩 성공: {} ({})", user.getUserId(), user.getName());
+                } else {
+                    failCount++;
+                    log.warn("사용자 데이터 임베딩 실패: {} ({}) - 오류: {}", 
+                        user.getUserId(), user.getName(), result.getErrorMessage());
+                }
+            } catch (Exception e) {
+                failCount++;
+                log.error("사용자 데이터 로드 오류: {} ({}) - 예외: {}", 
+                    user.getUserId(), user.getName(), e.getMessage(), e);
+            }
+        }
+        
+        log.info("사용자별 개인정보 데이터 로드 완료: 총 {}개 중 {}개 성공, {}개 실패", 
+            users.size(), successCount, failCount);
+        
+        return new LoadResult("UserData", users.size(), successCount, failCount);
     }
     
     /**
@@ -589,12 +650,62 @@ public class ComprehensiveRagDataLoader {
             content.append("종료일: ").append(booth.getEndDate()).append("\n");
         }
         
+        // 부스 배너 정보
+        if (booth.getBoothBannerUrl() != null) {
+            content.append("부스 배너: ").append(booth.getBoothBannerUrl()).append("\n");
+        }
+        
+        // 부스 타입 정보
+        if (booth.getBoothType() != null) {
+            content.append("부스 타입: ").append(booth.getBoothType().getName()).append("\n");
+        }
+        
+        // 부스 관리자 정보
+        if (booth.getBoothAdmin() != null) {
+            content.append("부스 관리자 ID: ").append(booth.getBoothAdmin().getUserId()).append("\n");
+            if (booth.getBoothAdmin().getManagerName() != null) {
+                content.append("부스 관리자명: ").append(booth.getBoothAdmin().getManagerName()).append("\n");
+            }
+            if (booth.getBoothAdmin().getEmail() != null) {
+                content.append("부스 관리자 이메일: ").append(booth.getBoothAdmin().getEmail()).append("\n");
+            }
+        }
+        
         // 이벤트 정보 (부스가 속한 이벤트)
         if (booth.getEvent() != null) {
             content.append("\n=== 소속 이벤트 ===\n");
+            content.append("이벤트 ID: ").append(booth.getEvent().getEventId()).append("\n");
             if (booth.getEvent().getTitleKr() != null) {
                 content.append("이벤트명: ").append(booth.getEvent().getTitleKr()).append("\n");
             }
+            if (booth.getEvent().getTitleEng() != null) {
+                content.append("이벤트명(영어): ").append(booth.getEvent().getTitleEng()).append("\n");
+            }
+        }
+        
+        // 부스 체험 정보 추가
+        try {
+            List<BoothExperience> experiences = boothExperienceRepository.findByBooth_Id(booth.getId());
+            if (!experiences.isEmpty()) {
+                content.append("\n=== 부스 체험 프로그램 ===\n");
+                for (BoothExperience experience : experiences) {
+                    if (experience.getTitle() != null) {
+                        content.append("체험명: ").append(experience.getTitle()).append("\n");
+                    }
+                    if (experience.getDescription() != null) {
+                        content.append("  설명: ").append(experience.getDescription()).append("\n");
+                    }
+                    if (experience.getDurationMinutes() != null) {
+                        content.append("  소요시간: ").append(experience.getDurationMinutes()).append("분\n");
+                    }
+                    if (experience.getMaxCapacity() != null) {
+                        content.append("  최대 참가자: ").append(experience.getMaxCapacity()).append("명\n");
+                    }
+                    content.append("\n");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("부스 체험 정보 수집 중 오류: boothId={} - {}", booth.getId(), e.getMessage());
         }
         
         return Document.builder()
@@ -723,6 +834,113 @@ public class ComprehensiveRagDataLoader {
     }
     
     /**
+     * 사용자 개인정보를 RAG Document로 변환 (예약정보, 티켓정보, 개인정보)
+     */
+    private Document buildUserDataDocument(Users user) {
+        StringBuilder content = new StringBuilder();
+        
+        content.append("=== 사용자 개인정보 ===\n");
+        content.append("사용자 ID: ").append(user.getUserId()).append("\n");
+        content.append("이름: ").append(user.getName()).append("\n");
+        content.append("이메일: ").append(user.getEmail()).append("\n");
+        content.append("닉네임: ").append(user.getNickname()).append("\n");
+        
+        if (user.getPhone() != null) {
+            content.append("전화번호: ").append(user.getPhone()).append("\n");
+        }
+        if (user.getBirthday() != null) {
+            content.append("생년월일: ").append(user.getBirthday()).append("\n");
+        }
+        if (user.getGender() != null) {
+            content.append("성별: ").append(user.getGender()).append("\n");
+        }
+        if (user.getRoleCode() != null) {
+            content.append("사용자 권한: ").append(user.getRoleCode().getName()).append("\n");
+        }
+        if (user.getCreatedAt() != null) {
+            content.append("가입일: ").append(user.getCreatedAt()).append("\n");
+        }
+        
+        // 예약 정보 조회
+        try {
+            List<Reservation> reservations = reservationRepository.findByUser_userId(user.getUserId());
+            if (!reservations.isEmpty()) {
+                content.append("\n=== 예약 내역 ===\n");
+                for (Reservation reservation : reservations) {
+                    content.append("예약 ID: ").append(reservation.getReservationId()).append("\n");
+                    
+                    if (reservation.getEvent() != null) {
+                        content.append("  이벤트: ").append(reservation.getEvent().getTitleKr()).append("\n");
+                        content.append("  이벤트 ID: ").append(reservation.getEvent().getEventId()).append("\n");
+                    }
+                    
+                    if (reservation.getTicket() != null) {
+                        content.append("  티켓명: ").append(reservation.getTicket().getName()).append("\n");
+                        content.append("  티켓 가격: ").append(reservation.getTicket().getPrice()).append("원\n");
+                    }
+                    
+                    if (reservation.getReservationStatusCode() != null) {
+                        content.append("  예약 상태: ").append(reservation.getReservationStatusCode().getName()).append("\n");
+                    }
+                    content.append("  예약일: ").append(reservation.getCreatedAt()).append("\n");
+                    
+                    content.append("  수량: ").append(reservation.getQuantity()).append("매\n");
+                    content.append("  가격: ").append(String.format("%,d", reservation.getPrice())).append("원\n");
+                    
+                    content.append("\n");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("사용자 예약 정보 수집 중 오류: userId={} - {}", user.getUserId(), e.getMessage());
+        }
+        
+        // 참석자 정보 조회 (다른 사람 예약에 참석자로 등록된 경우)
+        try {
+            // 이메일로 Attendee를 찾는 로직 (사용자의 이메일과 attendee 테이블의 이메일이 일치하는 경우)
+            // 하지만 이는 복잡하므로 일단 생략하고 향후 필요시 추가
+            // List<Attendee> attendees = attendeeRepository.findByEmail(user.getEmail());
+            content.append("\n=== 참석자 정보 ===\n");
+            content.append("다른 사용자 예약의 참석자로 등록된 내역은 별도 조회 가능\n");
+        } catch (Exception e) {
+            log.warn("사용자 참석자 정보 수집 중 오류: userId={} - {}", user.getUserId(), e.getMessage());
+        }
+        
+        // 리뷰 작성 내역
+        try {
+            // Page 대신 List로 가져오기 위해 Pageable을 사용
+            org.springframework.data.domain.Page<Review> reviewPage = reviewRepository.findByUser(user, 
+                PageRequest.of(0, 100)); // 최대 100개 리뷰
+            List<Review> userReviews = reviewPage.getContent();
+            
+            if (!userReviews.isEmpty()) {
+                content.append("\n=== 작성한 리뷰 ===\n");
+                for (Review review : userReviews) {
+                    if (review.getReservation() != null && review.getReservation().getEvent() != null) {
+                        content.append("이벤트: ").append(review.getReservation().getEvent().getTitleKr()).append("\n");
+                    }
+                    content.append("  평점: ").append(review.getStar()).append("점\n");
+                    if (review.getComment() != null) {
+                        content.append("  리뷰: ").append(review.getComment()).append("\n");
+                    }
+                    content.append("  작성일: ").append(review.getCreatedAt()).append("\n");
+                    content.append("\n");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("사용자 리뷰 정보 수집 중 오류: userId={} - {}", user.getUserId(), e.getMessage());
+        }
+        
+        return Document.builder()
+            .docId("user_" + user.getUserId())
+            .title("사용자 " + user.getName() + "의 개인정보")
+            .content(content.toString())
+            .category("user_data")
+            .createdAt(System.currentTimeMillis())
+            .updatedAt(System.currentTimeMillis())
+            .build();
+    }
+    
+    /**
      * HTML 태그 제거
      */
     private String removeHtmlTags(String html) {
@@ -780,10 +998,11 @@ public class ComprehensiveRagDataLoader {
         public LoadResult boothExperienceResult;
         public LoadResult reviewResult;
         public LoadResult categoryResult;
+        public LoadResult userDataResult;
         
         public String getSummary() {
-            return String.format("Event: %s, Booth: %s, BoothExp: %s, Review: %s, Category: %s",
-                eventResult, boothResult, boothExperienceResult, reviewResult, categoryResult);
+            return String.format("Event: %s, Booth: %s, BoothExp: %s, Review: %s, Category: %s, UserData: %s",
+                eventResult, boothResult, boothExperienceResult, reviewResult, categoryResult, userDataResult);
         }
         
         public int getTotalSuccessCount() {
@@ -791,7 +1010,8 @@ public class ComprehensiveRagDataLoader {
                    boothResult.getSuccessCount() + 
                    boothExperienceResult.getSuccessCount() + 
                    reviewResult.getSuccessCount() + 
-                   categoryResult.getSuccessCount();
+                   categoryResult.getSuccessCount() +
+                   userDataResult.getSuccessCount();
         }
         
         public int getTotalFailCount() {
@@ -799,7 +1019,8 @@ public class ComprehensiveRagDataLoader {
                    boothResult.getFailCount() + 
                    boothExperienceResult.getFailCount() + 
                    reviewResult.getFailCount() + 
-                   categoryResult.getFailCount();
+                   categoryResult.getFailCount() +
+                   userDataResult.getFailCount();
         }
     }
 }
