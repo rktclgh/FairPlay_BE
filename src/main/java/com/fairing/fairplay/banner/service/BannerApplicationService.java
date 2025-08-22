@@ -7,14 +7,27 @@ import com.fairing.fairplay.banner.entity.BannerApplication;
 import com.fairing.fairplay.banner.entity.BannerApplicationSlot;
 import com.fairing.fairplay.banner.repository.BannerApplicationRepository;
 import com.fairing.fairplay.banner.repository.BannerApplicationSlotRepository;
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.service.BannerEmailService;
+import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.event.entity.ApplyStatusCode;
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.repository.ApplyStatusCodeRepository;
 import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.payment.entity.PaymentStatusCode;
+import com.fairing.fairplay.payment.entity.PaymentTargetType;
+import com.fairing.fairplay.payment.entity.PaymentTypeCode;
+import com.fairing.fairplay.payment.repository.PaymentRepository;
+import com.fairing.fairplay.payment.repository.PaymentStatusCodeRepository;
+import com.fairing.fairplay.payment.repository.PaymentTargetTypeRepository;
+import com.fairing.fairplay.payment.repository.PaymentTypeCodeRepository;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -24,6 +37,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -57,6 +71,12 @@ public class BannerApplicationService {
     private final BannerApplicationRepository bannerApplicationRepository;
     private final BannerApplicationSlotRepository bannerApplicationSlotRepository;
     private final EventRepository eventRepository;
+    private final AwsS3Service awsS3Service;
+    private final PaymentRepository paymentRepository;
+    private final PaymentStatusCodeRepository paymentStatusCodeRepository;
+    private final PaymentTargetTypeRepository paymentTargetTypeRepository;
+    private final PaymentTypeCodeRepository paymentTypeCodeRepository;
+    private final ApplyStatusCodeRepository applyStatusCodeRepository;
 
     @Value("${banner.lock.default-minutes:" + DEFAULT_LOCK_MINUTES + "}")
     private int configuredLockMinutes;
@@ -154,6 +174,20 @@ public class BannerApplicationService {
         int total = prices.stream().mapToInt(Integer::intValue).sum();
         Integer pendingId = statusId(STATUS_PENDING);
 
+        // 이미지 URL 처리: S3 키인 경우 영구 저장소로 이동 후 CDN URL 생성
+        String imageUrl = req.imageUrl();
+        if (imageUrl != null && !imageUrl.trim().isEmpty() && !imageUrl.startsWith("http")) {
+            // S3 키로 판단되는 경우 영구 저장소로 이동
+            try {
+                String permanentKey = awsS3Service.moveToPermanent(imageUrl, "banner");
+                imageUrl = awsS3Service.getCdnUrl(permanentKey);
+            } catch (Exception e) {
+                // 이동 실패 시 원본 키로 CDN URL 생성 시도
+                imageUrl = awsS3Service.getCdnUrl(imageUrl);
+            }
+        }
+        final String finalImageUrl = imageUrl;
+
         KeyHolder kh = new GeneratedKeyHolder();
         jdbc.update(con -> {
             var ps = con.prepareStatement("""
@@ -169,7 +203,7 @@ public class BannerApplicationService {
             ps.setLong(2, userId);
             ps.setLong(3, typeId);
             ps.setString(4, event.getTitleKr());
-            ps.setString(5, req.imageUrl());
+            ps.setString(5, finalImageUrl);
             ps.setString(6, "https://fair-play.ink/eventdetail/"+event.getEventId());
             ps.setInt(7, first.priority());
             ps.setTimestamp(8, Timestamp.valueOf(first.date().atStartOfDay()));
@@ -366,7 +400,43 @@ public class BannerApplicationService {
                     """, mapParams.addValue("sold", SLOT_STATUS_SOLD));
         }
 
-        // 3) 신청 상태 승인 처리
+        // 3) Payment 엔티티 생성 및 저장
+        BannerApplication bannerApplication = bannerApplicationRepository.findById(appId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배너 신청입니다: " + appId));
+        
+        PaymentTargetType bannerTargetType = paymentTargetTypeRepository.findByPaymentTargetCode("BANNER_APPLICATION")
+                .orElseThrow(() -> new IllegalStateException("BANNER 결제 타입이 존재하지 않습니다"));
+        
+        PaymentStatusCode paidStatusCode = paymentStatusCodeRepository.findByCode("COMPLETED")
+                .orElseThrow(() -> new IllegalStateException("COMPLETED 결제 상태가 존재하지 않습니다"));
+        
+        PaymentTypeCode bannerPaymentType = paymentTypeCodeRepository.findByCode("CARD")
+                .orElseThrow(() -> new IllegalStateException("CARD 결제 타입 코드가 존재하지 않습니다"));
+        
+        BigDecimal totalAmount = java.math.BigDecimal.valueOf(bannerApplication.getTotalAmount());
+        
+        Payment payment = Payment.builder()
+                .event(bannerApplication.getEvent())
+                .user(bannerApplication.getApplicantId())
+                .paymentTargetType(bannerTargetType)
+                .targetId(appId)
+                .merchantUid("banner_" + appId + "_" + System.currentTimeMillis())
+                .quantity(1)
+                .price(totalAmount)
+                .amount(totalAmount) // 총 결제 금액 (price * quantity)
+                .paymentTypeCode(bannerPaymentType)
+                .paymentStatusCode(paidStatusCode)
+                .requestedAt(LocalDateTime.now())
+                .paidAt(LocalDateTime.now())
+                .build();
+        
+        Payment savedPayment = paymentRepository.save(payment);
+        
+        // BannerApplication과 Payment 연결
+        bannerApplication.setPayment(savedPayment);
+        bannerApplicationRepository.save(bannerApplication);
+        
+        // 4) 신청 상태 승인 처리
         int updated = jdbc.update("""
                   UPDATE banner_application
                      SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='APPROVED'),
@@ -376,13 +446,34 @@ public class BannerApplicationService {
                 """, adminId, appId);
         if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 승인 처리에 실패했습니다.");
         
-        // 4) 승인 완료 이메일 발송
+        // 5) 승인 완료 이메일 발송
         try {
             sendApprovalEmail(appId, app);
         } catch (Exception e) {
             // 이메일 발송 실패 시 로그만 남기고 처리 계속 진행
             System.err.println("배너 승인 이메일 발송 실패 - appId: " + appId + ", error: " + e.getMessage());
         }
+    }
+
+    /** 실제 결제 완료 처리 → Payment 상태 업데이트 + 배너 활성화 */
+    @Transactional
+    public void completePayment(Long appId, String impUid) {
+        // Payment 조회 및 상태 업데이트
+        Payment payment = paymentRepository.findByTargetIdAndPaymentTargetType_PaymentTargetCode(appId, "BANNER_APPLICATION")
+                .orElseThrow(() -> new IllegalArgumentException("해당 배너 신청의 결제 정보를 찾을 수 없습니다: " + appId));
+        
+        PaymentStatusCode paidStatusCode = paymentStatusCodeRepository.findByCode("COMPLETED")
+                .orElseThrow(() -> new IllegalStateException("PAID 결제 상태가 존재하지 않습니다"));
+        
+        payment.setPaymentStatusCode(paidStatusCode);
+        payment.setImpUid(impUid);
+        payment.setPaidAt(LocalDateTime.now());
+        paymentRepository.save(payment);
+        
+        // 배너 슬롯 활성화 (기존 activateBannerSlots 메서드 활용)
+        activateBannerSlots(appId);
+        
+        System.out.println("배너 결제 완료 처리 완료 - appId: " + appId + ", impUid: " + impUid);
     }
 
         // com.fairing.fairplay.banner.service.BannerApplicationService
@@ -430,7 +521,7 @@ public class BannerApplicationService {
         }
     /* ===== 관리자 조회용: 목록 ===== */
     public List<AdminApplicationListItemDto> listAdminApplications(String status, String type, Pageable pageable) {
-        List<BannerApplication> bannerApplications = bannerApplicationRepository.findAllByOrderByCreatedAtDesc();
+        List<BannerApplication> bannerApplications = bannerApplicationRepository.findAllWithHostInfoOrderByCreatedAtDesc();
 
 
 //                var params = new MapSqlParameterSource()
@@ -490,13 +581,29 @@ public class BannerApplicationService {
                 slots.add(dto);
             }
 
-            String paymentStatusCode = bannerApplication.getPayment() != null
-                    ? bannerApplication.getPayment().getPaymentStatusCode().getCode()
-                    : "PENDING";  // 기본값
+            String paymentStatusCode = "PENDING";  // 기본값
+            if (bannerApplication.getPayment() != null) {
+                if (bannerApplication.getPayment().getPaymentStatusCode() != null) {
+                    paymentStatusCode = bannerApplication.getPayment().getPaymentStatusCode().getCode();
+                    System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment 상태: " + paymentStatusCode);
+                } else {
+                    System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment 존재하지만 PaymentStatusCode가 null");
+                }
+            } else {
+                System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment가 null");
+            }
+
+            // 호스트명을 올바르게 가져오기 (Event → EventAdmin → Users)
+            String hostName = "";
+            if (bannerApplication.getEvent() != null && 
+                bannerApplication.getEvent().getManager() != null && 
+                bannerApplication.getEvent().getManager().getUser() != null) {
+                hostName = bannerApplication.getEvent().getManager().getUser().getName();
+            }
 
             result.add(new AdminApplicationListItemDto(
                     bannerApplication.getId(),
-                    bannerApplication.getApplicantId().getName(),
+                    hostName,
                     bannerApplication.getEvent().getEventId(),
                     bannerApplication.getEvent().getTitleKr(),
                     bannerApplication.getBannerType().getCode(),
@@ -657,17 +764,49 @@ public class BannerApplicationService {
                         throw new IllegalStateException("승인할 수 없는 상태입니다.");
                     }
 
-                    // 2. 신청 상태를 APPROVED로 변경 (결제는 별도)
-                    int updated = jdbc.update("""
-                          UPDATE banner_application
-                             SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='APPROVED'),
-                                 approved_by=?, approved_at=NOW()
-                           WHERE banner_application_id=? 
-                             AND status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='PENDING')
-                        """, adminId, appId);
-                    if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 승인 처리에 실패했습니다.");
+                    // 2. Payment 엔티티 생성 (PENDING 상태)
+                    BannerApplication bannerApplication = bannerApplicationRepository.findById(appId)
+                            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배너 신청입니다: " + appId));
+                    
+                    PaymentTargetType bannerTargetType = paymentTargetTypeRepository.findByPaymentTargetCode("BANNER_APPLICATION")
+                            .orElseThrow(() -> new IllegalStateException("BANNER 결제 타입이 존재하지 않습니다"));
+                    
+                    PaymentStatusCode pendingPaymentStatus = paymentStatusCodeRepository.findByCode("PENDING")
+                            .orElseThrow(() -> new IllegalStateException("PENDING 결제 상태가 존재하지 않습니다"));
 
-                    // 3. 결제 링크가 포함된 승인 이메일 발송
+                    PaymentTypeCode bannerPaymentType = paymentTypeCodeRepository.findByCode("CARD")
+                            .orElseThrow(() -> new IllegalStateException("CARD 결제 타입 코드가 존재하지 않습니다"));
+
+                    BigDecimal totalAmount = java.math.BigDecimal.valueOf(bannerApplication.getTotalAmount());
+                    
+                    Payment payment = Payment.builder()
+                            .event(bannerApplication.getEvent())
+                            .user(bannerApplication.getApplicantId())
+                            .paymentTargetType(bannerTargetType)
+                            .targetId(appId)
+                            .merchantUid("banner_" + appId + "_" + System.currentTimeMillis())
+                            .quantity(1)
+                            .price(totalAmount)
+                            .amount(totalAmount) // 총 결제 금액 (price * quantity)
+                            .paymentTypeCode(bannerPaymentType)
+                            .paymentStatusCode(pendingPaymentStatus)
+                            .requestedAt(LocalDateTime.now())
+                            .build();
+                    
+                    Payment savedPayment = paymentRepository.save(payment);
+                    
+                    // BannerApplication과 Payment 연결
+                    bannerApplication.setPayment(savedPayment);
+
+
+                    // 3. 신청 상태를 APPROVED로 변경 (결제는 별도)
+                    ApplyStatusCode applyStatusCode = applyStatusCodeRepository.findByCode("APPROVED")
+                            .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "승인 신청 상태를 찾을 수 없습니다."));
+                    bannerApplication.setStatusCode(applyStatusCode);
+
+                    bannerApplicationRepository.save(bannerApplication);
+
+                    // 4. 결제 링크가 포함된 승인 이메일 발송
                     sendApprovalEmailWithPaymentLink(appId);
                     
                     System.out.println("배너 승인 완료 (결제 링크 발송) - appId: " + appId);

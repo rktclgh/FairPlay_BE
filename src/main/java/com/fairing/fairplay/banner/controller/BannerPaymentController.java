@@ -85,12 +85,26 @@ public class BannerPaymentController {
     // 배너 결제 페이지 정보 조회 (이메일 링크에서 접근 - 인증 불필요)
     @GetMapping("/payment-page/{applicationId}")
     public ResponseEntity<BannerPaymentPageDto> getBannerPaymentPage(@PathVariable Long applicationId) {
-        BannerApplication application = bannerApplicationRepository.findById(applicationId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "배너 신청 정보를 찾을 수 없습니다."));
+        System.out.println("=== 배너 결제 페이지 요청 수신 - ApplicationId: " + applicationId + " ===");
+        log.info("=== 배너 결제 페이지 요청 수신 - ApplicationId: {} ===", applicationId);
+        try {
+            BannerApplication application = bannerApplicationRepository.findByIdWithDetails(applicationId)
+                    .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "배너 신청 정보를 찾을 수 없습니다."));
+            
+            log.info("배너 결제 페이지 조회 - ApplicationId: {}, StatusCode: {}, BannerType: {}, Payment: {}", 
+                    applicationId, 
+                    application.getStatusCode() != null ? application.getStatusCode().getCode() : "null",
+                    application.getBannerType() != null ? application.getBannerType().getName() : "null",
+                    application.getPayment() != null ? "EXISTS" : "NULL");
         
         // 승인된 신청만 결제 가능
-        if (!"APPROVED".equals(application.getStatusCode().getCode())) {
-            throw new CustomException(HttpStatus.BAD_REQUEST, "승인되지 않은 배너 신청입니다.");
+        if (application.getStatusCode() == null || !"APPROVED".equals(application.getStatusCode().getCode())) {
+            log.error("배너 신청 상태 확인 실패 - ApplicationId: {}, 현재 상태: {}", 
+                    applicationId, 
+                    application.getStatusCode() != null ? application.getStatusCode().getCode() : "NULL");
+            throw new CustomException(HttpStatus.BAD_REQUEST, 
+                    String.format("승인되지 않은 배너 신청입니다. 현재 상태: %s", 
+                            application.getStatusCode() != null ? application.getStatusCode().getCode() : "NULL"));
         }
         
         // 이미 결제 완료된 경우 - 예외 대신 결제 완료 정보를 반환
@@ -100,6 +114,12 @@ public class BannerPaymentController {
         Users applicant = userRepository.findById(application.getApplicantId().getUserId())
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "신청자 정보를 찾을 수 없습니다."));
         
+        // Payment 엔티티에서 결제 상태 조회
+        String paymentStatus = "PENDING";
+        if (application.getPayment() != null && application.getPayment().getPaymentStatusCode() != null) {
+            paymentStatus = application.getPayment().getPaymentStatusCode().getCode();
+        }
+        
         BannerPaymentPageDto paymentInfo = BannerPaymentPageDto.builder()
                 .applicationId(application.getId())
                 .title(application.getTitle())
@@ -107,12 +127,16 @@ public class BannerPaymentController {
                 .totalAmount(application.getTotalAmount())
                 .applicantName(applicant.getName())
                 .applicantEmail(applicant.getEmail())
-                .paymentStatus(application.getPaymentStatus().name())
+                .paymentStatus(paymentStatus)
                 .startDate(application.getStartDate())
                 .endDate(application.getEndDate())
                 .build();
         
-        return ResponseEntity.ok(paymentInfo);
+            return ResponseEntity.ok(paymentInfo);
+        } catch (Exception e) {
+            log.error("배너 결제 페이지 조회 실패 - ApplicationId: {}, Error: {}", applicationId, e.getMessage(), e);
+            throw e;
+        }
     }
 
     // 배너 결제 요청 (이메일 링크에서 접근 - 인증 불필요)
