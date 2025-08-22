@@ -4,8 +4,10 @@ import com.fairing.fairplay.banner.dto.AdminApplicationListItemDto;
 import com.fairing.fairplay.banner.service.BannerApplicationService;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -27,15 +29,17 @@ public class AdminBannerApplicationController {
 
     //  관리자 목록: type/status 없거나 all이면 null로 전달 → 두 타입 모두 조회
     @GetMapping("/applications")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<List<AdminApplicationListItemDto>> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String type,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size
+            @RequestParam(defaultValue = "100") int size,
+            Pageable pageable
     ) {
         String s = normalizeStatus(status); // null | PENDING | APPROVED | REJECTED
         String t = normalizeType(type);     // null | HERO | SEARCH_TOP
-        return ResponseEntity.ok(appService.listAdminApplications(s, t, page, size));
+        return ResponseEntity.ok(appService.listAdminApplications(s, t, pageable));
     }
 
     //  광고 신청 승인(부스 방식처럼 승인 후 결제 링크 이메일 발송)

@@ -3,7 +3,6 @@ package com.fairing.fairplay.banner.dto;
 import com.fairing.fairplay.banner.entity.BannerSlotType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
-import org.hibernate.validator.constraints.URL;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -15,12 +14,10 @@ public record CreateApplicationRequestDto(
         @NotNull(message = "배너 타입은 필수입니다")
         BannerSlotType bannerType,       // "HERO" | "SEARCH_TOP"
 
-        @NotBlank(message = "제목은 필수입니다")
         @Size(max = 100, message = "제목은 100자를 초과할 수 없습니다")
         String title,
 
-        @NotBlank(message = "이미지 URL은 필수입니다")
-        String imageUrl,
+        String imageUrl, // MD PICK의 경우 빈 문자열 허용
 
         String linkUrl,
 

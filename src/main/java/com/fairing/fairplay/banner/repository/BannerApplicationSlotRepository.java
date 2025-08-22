@@ -1,12 +1,15 @@
 // BannerApplicationSlotRepository.java
 package com.fairing.fairplay.banner.repository;
 
+import com.fairing.fairplay.banner.entity.BannerApplication;
 import com.fairing.fairplay.banner.entity.BannerApplicationSlot;
 import com.fairing.fairplay.banner.entity.BannerSlot;
-import org.springframework.data.jpa.repository.*;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import jakarta.persistence.LockModeType;
 import java.util.List;
 
 public interface BannerApplicationSlotRepository extends JpaRepository<BannerApplicationSlot, Long> {
@@ -26,4 +29,5 @@ public interface BannerApplicationSlotRepository extends JpaRepository<BannerApp
 """)
     List<BannerSlot> lockSlotsByApplication(@Param("appId") Long applicationId);
 
+    List<BannerApplicationSlot> findAllByBannerApplication(BannerApplication bannerApplication);
 }
