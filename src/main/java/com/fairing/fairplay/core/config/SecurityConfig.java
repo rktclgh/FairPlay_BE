@@ -103,14 +103,18 @@ public class SecurityConfig {
                                                                 "/api/banners/payment/complete",
                                                                 "/api/event-popularity/**",
                                                                 "/api/banner/hot-picks",
-                                                                "/api/events/hot-picks",
                                                                 "/api/banner/search-top",
                                                                 "/api/admin/reservation/**",
                                                                 "/api/event-compare/**",
                                                                 "/api/popular-events/**",
                                                                 "/api/sales-statistics/**",
                                                                 "/api/reservation-statistics/**",
-                                                                "/api/banners/hero/active")
+                                                                "/api/banners/hero/active",
+                                                                "/api/event-compare/**",
+                                                                "/api/popular-events/**",
+                                                                "/api/reservation-statistics/**",
+                                                                "/api/sales-statistics/**",
+                                                                "/api/host/reservation/**")
 
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()

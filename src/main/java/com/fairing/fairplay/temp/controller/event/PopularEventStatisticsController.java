@@ -2,6 +2,10 @@ package com.fairing.fairplay.temp.controller.event;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,8 +33,9 @@ public class PopularEventStatisticsController {
     }
 
     @GetMapping("/get-category-statistics")
-    public ResponseEntity<List<EventCategoryStatisticsDto>> getCategoryStatistics() {
-        List<EventCategoryStatisticsDto> statistics = eventStatisticsRepository.getCategoryEventStatistics();
+    public ResponseEntity<Page<EventCategoryStatisticsDto>> getCategoryStatistics(
+            @PageableDefault(size = 5, sort = "totalViewCount", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<EventCategoryStatisticsDto> statistics = eventStatisticsRepository.getCategoryEventStatistics(pageable);
         return ResponseEntity.ok(statistics);
     }
 
@@ -39,4 +44,5 @@ public class PopularEventStatisticsController {
         List<Top5EventStatisticsDto> statistics = eventStatisticsRepository.getTop5Events(code);
         return ResponseEntity.ok(statistics);
     }
+
 }

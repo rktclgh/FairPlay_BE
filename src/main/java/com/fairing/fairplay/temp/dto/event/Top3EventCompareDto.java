@@ -13,7 +13,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Top3EventCompareDto {
-    List<EventCompareDto> top3Events;
+    private String eventName;
     private Long userCount;
     private Long reservationCount;
     private BigDecimal totalRevenue;

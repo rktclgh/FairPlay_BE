@@ -2,16 +2,22 @@ package com.fairing.fairplay.temp.repository.event;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import com.fairing.fairplay.event.entity.QEvent;
 import com.fairing.fairplay.event.entity.QEventDetail;
 import com.fairing.fairplay.event.entity.QMainCategory;
+import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.reservation.entity.QReservation;
+import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.temp.dto.event.EventCategoryStatisticsDto;
 import com.fairing.fairplay.temp.dto.event.PopularEventStatisticsDto;
 import com.fairing.fairplay.temp.dto.event.Top5EventStatisticsDto;
 import com.fairing.fairplay.wishlist.entity.QWishlist;
+import com.fairing.fairplay.wishlist.repository.WishlistRepository;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -27,6 +33,9 @@ public class PopularEventStatisticsRepository {
         private final QWishlist w = QWishlist.wishlist;
         private final QEventDetail ed = QEventDetail.eventDetail;
         private final QMainCategory mc = QMainCategory.mainCategory;
+        private final EventRepository eventRepository;
+        private final ReservationRepository reservationRepository;
+        private final WishlistRepository wishlistRepository;
 
         public PopularEventStatisticsDto getPopularEvents() {
                 Tuple result = queryFactory
@@ -79,8 +88,44 @@ public class PopularEventStatisticsRepository {
                                 .toList();
         }
 
+        public Page<EventCategoryStatisticsDto> getCategoryEventStatistics(Pageable pageable) {
+                List<Tuple> results = queryFactory
+                                .select(
+                                                ed.mainCategory.groupName,
+                                                e.viewCount.sum().castToNum(Long.class).coalesce(0L),
+                                                e.eventId.countDistinct().coalesce(0L),
+                                                w.wishlistId.countDistinct().coalesce(0L))
+                                .from(e)
+                                .join(e.eventDetail, ed)
+                                .join(ed.mainCategory, mc)
+                                .leftJoin(w).on(w.event.eventId.eq(e.eventId))
+                                .groupBy(ed.mainCategory.groupName)
+                                .orderBy(e.viewCount.sum().desc())
+                                .offset(pageable.getOffset())
+                                .limit(pageable.getPageSize())
+                                .fetch();
+
+                // 전체 카운트 계산
+                Long total = queryFactory
+                                .select(ed.mainCategory.groupName.countDistinct())
+                                .from(e)
+                                .join(e.eventDetail, ed)
+                                .join(ed.mainCategory, mc)
+                                .fetchOne();
+
+                List<EventCategoryStatisticsDto> content = results.stream()
+                                .map(tuple -> EventCategoryStatisticsDto.builder()
+                                                .categoryName(tuple.get(0, String.class))
+                                                .totalViewCount(tuple.get(1, Long.class))
+                                                .totalEventCount(tuple.get(2, Long.class))
+                                                .totalWishlistCount(tuple.get(3, Long.class))
+                                                .build())
+                                .toList();
+
+                return new PageImpl<>(content, pageable, total != null ? total : 0);
+        }
+
         public List<Top5EventStatisticsDto> getTop5Events(int code) {
-                // code 1: 조회수, code 2: 예약수, code 3: 위시리스트 수
                 NumberExpression<Long> target;
                 switch (code) {
                         case 1:

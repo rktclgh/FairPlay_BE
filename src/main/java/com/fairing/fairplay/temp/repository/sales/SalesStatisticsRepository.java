@@ -36,25 +36,28 @@ public class SalesStatisticsRepository {
     private NumberExpression<BigDecimal> totalRevenue = totalSales.subtract(totalRefund);
 
     public TotalSalesStatisticsDto getTotalSalesStatistics() {
-
         List<Tuple> results = queryFactory.select(
                 totalRevenue,
-                p.paymentId.count(),
-                totalRevenue.divide(p.paymentId.count()).coalesce(BigDecimal.ZERO))
+                p.paymentId.count())
                 .from(p)
+                .where(p.paidAt.isNotNull()) // null 체크 추가
                 .fetch();
 
-        if (results.isEmpty()) {
-            return new TotalSalesStatisticsDto();
+        if (results.isEmpty() || results.get(0) == null) {
+            return TotalSalesStatisticsDto.builder()
+                    .totalRevenue(BigDecimal.ZERO)
+                    .totalPayments(0L)
+                    .build();
         }
 
         Tuple tuple = results.get(0);
-        BigDecimal b = tuple.get(2, Double.class) == null ? BigDecimal.ZERO
-                : BigDecimal.valueOf(tuple.get(2, Double.class));
-        return new TotalSalesStatisticsDto(
-                tuple.get(0, BigDecimal.class),
-                tuple.get(1, Long.class),
-                b);
+        BigDecimal revenue = tuple.get(0, BigDecimal.class);
+        Long payments = tuple.get(1, Long.class);
+
+        return TotalSalesStatisticsDto.builder()
+                .totalRevenue(revenue != null ? revenue : BigDecimal.ZERO)
+                .totalPayments(payments != null ? payments : 0L)
+                .build();
     }
 
     public List<DailySalesDto> getDailySales(LocalDate startDate, LocalDate endDate) {
@@ -65,8 +68,10 @@ public class SalesStatisticsRepository {
                         p.amount.sum(),
                         p.paymentId.count())
                 .from(p)
-                .leftJoin(p.paymentTargetType, ptt)
+                .join(p.paymentTargetType, ptt)
                 .where(
+                        p.refundedAmount.loe(0.1),
+                        p.paidAt.isNotNull(), // NULL 체크 추가
                         startDate != null && endDate != null ? p.paidAt.between(
                                 startDate.atStartOfDay(),
                                 endDate.plusDays(1).atStartOfDay())
@@ -78,7 +83,9 @@ public class SalesStatisticsRepository {
                 .orderBy(Expressions.stringTemplate("DATE({0})", p.paidAt).asc())
                 .fetch();
 
+        // 날짜별로 결제 유형별 금액을 그룹화
         Map<LocalDate, Map<String, BigDecimal>> groupedByDate = results.stream()
+                .filter(tuple -> tuple.get(0, java.sql.Date.class) != null) // null 값 필터링
                 .collect(Collectors.groupingBy(
                         tuple -> tuple.get(0, java.sql.Date.class).toLocalDate(),
                         Collectors.toMap(
@@ -86,36 +93,37 @@ public class SalesStatisticsRepository {
                                 tuple -> tuple.get(2, BigDecimal.class),
                                 (existing, replacement) -> existing)));
 
+        // 날짜별로 총 결제 건수를 그룹화
         Map<LocalDate, Long> groupedCountByDate = results.stream()
+                .filter(tuple -> tuple.get(0, java.sql.Date.class) != null) // null 값 필터링
                 .collect(Collectors.groupingBy(
                         tuple -> tuple.get(0, java.sql.Date.class).toLocalDate(),
                         Collectors.summingLong(tuple -> tuple.get(3, Long.class))));
 
+        // 최종 결과 생성
         return groupedByDate.entrySet().stream()
                 .map(entry -> {
                     LocalDate date = entry.getKey();
                     Map<String, BigDecimal> typeAmounts = entry.getValue();
                     Long totalCount = groupedCountByDate.get(date);
 
-                    BigDecimal reservationAmount = typeAmounts.getOrDefault("예약", BigDecimal.ZERO);
+                    BigDecimal reservationAmount = typeAmounts.getOrDefault("티켓", BigDecimal.ZERO);
                     BigDecimal boothAmount = typeAmounts.getOrDefault("부스", BigDecimal.ZERO);
                     BigDecimal adAmount = typeAmounts.getOrDefault("광고", BigDecimal.ZERO);
-                    BigDecimal etcAmount = typeAmounts.entrySet().stream()
-                            .filter(e -> !List.of("예약", "부스", "광고").contains(e.getKey()))
-                            .map(Map.Entry::getValue)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-
+                    BigDecimal boothApplication = typeAmounts.getOrDefault("부스 신청", BigDecimal.ZERO);
+                    BigDecimal bannerApplication = typeAmounts.getOrDefault("배너 신청", BigDecimal.ZERO);
                     BigDecimal totalAmount = reservationAmount.add(boothAmount)
-                            .add(adAmount).add(etcAmount);
+                            .add(adAmount).add(boothApplication).add(bannerApplication);
 
                     return DailySalesDto.builder()
                             .date(date)
                             .reservationAmount(reservationAmount)
                             .boothAmount(boothAmount)
                             .adAmount(adAmount)
-                            .etcAmount(etcAmount)
+                            .boothApplication(boothApplication)
+                            .bannerApplication(bannerApplication)
                             .totalAmount(totalAmount)
-                            .totalCount(totalCount)
+                            .totalCount(totalCount != null ? totalCount : 0L)
                             .build();
                 })
                 .sorted((a, b) -> a.getDate().compareTo(b.getDate()))
@@ -133,8 +141,11 @@ public class SalesStatisticsRepository {
         BigDecimal adAmount = allData.stream()
                 .map(DailySalesDto::getAdAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal etcAmount = allData.stream()
-                .map(DailySalesDto::getEtcAmount)
+        BigDecimal boothApplication = allData.stream()
+                .map(DailySalesDto::getBoothApplication)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal bannerApplication = allData.stream()
+                .map(DailySalesDto::getBannerApplication)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalAmount = allData.stream()
                 .map(DailySalesDto::getTotalAmount)
@@ -148,44 +159,59 @@ public class SalesStatisticsRepository {
                 .reservationAmount(reservationAmount)
                 .boothAmount(boothAmount)
                 .adAmount(adAmount)
-                .etcAmount(etcAmount)
+                .boothApplication(boothApplication)
+                .bannerApplication(bannerApplication)
                 .totalAmount(totalAmount)
                 .totalCount(totalCount)
                 .build();
     }
 
     public Page<AllSalesDto> getAllSales(Pageable pageable) {
-
+        // 페이징된 결과 조회
         List<Tuple> results = queryFactory
                 .select(
-                        p.event.titleKr,
-                        p.event.eventDetail.startDate,
-                        p.event.eventDetail.endDate,
-                        p.amount.sum())
+                        e.eventId,
+                        e.titleKr,
+                        e.eventDetail.startDate,
+                        e.eventDetail.endDate,
+                        p.amount.sum(),
+                        p.refundedAmount.sum().coalesce(BigDecimal.ZERO))
                 .from(p)
-                .leftJoin(e).on(p.event.eventId.eq(e.eventId))
-                .groupBy(p.event.titleKr, p.event.eventDetail.startDate, p.event.eventDetail.endDate)
+                .join(p.event, e)
+                .where(
+                        e.titleKr.isNotNull(),
+                        p.amount.isNotNull())
+                .groupBy(e.eventId, e.titleKr, e.eventDetail.startDate, e.eventDetail.endDate)
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
 
+        // 전체 카운트 조회
         Long total = queryFactory
-                .select(p.event.titleKr.countDistinct())
+                .select(e.eventId.countDistinct())
                 .from(p)
-                .leftJoin(e).on(p.event.eventId.eq(e.eventId))
+                .join(p.event, e)
+                .where(
+                        e.titleKr.isNotNull(),
+                        p.amount.isNotNull())
                 .fetchOne();
 
-        List<AllSalesDto> content = results.stream().map(t -> {
-            BigDecimal totalAmount = t.get(3, BigDecimal.class);
-            return new AllSalesDto(
-                    t.get(0, String.class),
-                    t.get(1, LocalDate.class),
-                    t.get(2, LocalDate.class),
-                    totalAmount,
-                    totalAmount.multiply(BigDecimal.valueOf(0.08)),
-                    totalAmount.multiply(BigDecimal.valueOf(0.92)));
-        }).toList();
+        // DTO 변환
+        List<AllSalesDto> content = results.stream()
+                .filter(t -> t != null && t.get(1, String.class) != null)
+                .map(t -> {
+                    BigDecimal totalAmount = t.get(4, BigDecimal.class);
+                    BigDecimal refundAmount = t.get(5, BigDecimal.class);
+                    BigDecimal netAmount = totalAmount.subtract(refundAmount != null ? refundAmount : BigDecimal.ZERO);
 
+                    return new AllSalesDto(
+                            t.get(1, String.class),
+                            t.get(2, LocalDate.class),
+                            t.get(3, LocalDate.class),
+                            netAmount,
+                            netAmount.multiply(BigDecimal.valueOf(0.08)),
+                            netAmount.multiply(BigDecimal.valueOf(0.92)));
+                }).toList();
         return new PageImpl<>(content, pageable, total != null ? total : 0);
     }
 

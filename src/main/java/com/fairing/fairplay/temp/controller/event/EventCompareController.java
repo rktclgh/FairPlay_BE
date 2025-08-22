@@ -1,5 +1,7 @@
 package com.fairing.fairplay.temp.controller.event;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,10 +30,5 @@ public class EventCompareController {
             @RequestParam(value = "size", defaultValue = "5") int size) {
         Pageable pageable = PageRequest.of(page, size);
         return eventCompareRepository.getEventComparisonDataWithPaging(status, pageable);
-    }
-
-    @GetMapping("/top3")
-    public Top3EventCompareDto getTop3EventComparisonList() {
-        return eventCompareRepository.getTop3EventComparisonList();
     }
 }

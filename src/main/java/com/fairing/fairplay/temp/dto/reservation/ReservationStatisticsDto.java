@@ -1,5 +1,7 @@
 package com.fairing.fairplay.temp.dto.reservation;
 
+import java.math.BigDecimal;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,9 +15,9 @@ import lombok.Setter;
 @NoArgsConstructor
 public class ReservationStatisticsDto {
 
-    private Long totalQuantity;
-    private Long canceledCount;
-    private Long totalAmount;
-    private Long averagePrice;
+    private Integer totalQuantity;
+    private Integer canceledCount;
+    private BigDecimal totalAmount;
+    private BigDecimal averagePrice;
 
 }

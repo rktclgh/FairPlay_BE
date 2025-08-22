@@ -1,5 +1,7 @@
 package com.fairing.fairplay.temp.repository.reservation;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -9,9 +11,14 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import com.fairing.fairplay.event.entity.QEvent;
 import com.fairing.fairplay.event.entity.QEventDetail;
 import com.fairing.fairplay.event.entity.QMainCategory;
+import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.payment.entity.QPayment;
+import com.fairing.fairplay.payment.repository.PaymentRepository;
 import com.fairing.fairplay.reservation.entity.QReservation;
+import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.temp.dto.reservation.ReservationCategoryStatisticsDto;
 import com.fairing.fairplay.temp.dto.reservation.ReservationEventStatisticsDto;
 import com.fairing.fairplay.temp.dto.reservation.ReservationMonthlyStatisticsDto;
@@ -20,7 +27,7 @@ import com.fairing.fairplay.temp.dto.reservation.ReservationWeeklyStatisticsDto;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.NumberExpression;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import lombok.RequiredArgsConstructor;
@@ -31,21 +38,30 @@ public class ReservationStatisticsRepository {
         private final JPAQueryFactory queryFactory;
 
         private static QReservation r = QReservation.reservation;
+        private static QEvent e = QEvent.event;
         private static QEventDetail ed = QEventDetail.eventDetail;
         private static QMainCategory mc = QMainCategory.mainCategory;
+        private static QPayment p = QPayment.payment;
+        private final ReservationRepository reservationRepository;
+        private final PaymentRepository paymentRepository;
 
         public ReservationStatisticsDto getReservationDatas() {
-                NumberExpression<Integer> totalAmount = r.price.multiply(r.quantity)
-                                .subtract(r.price.multiply(r.canceled.when(true).then(1).otherwise(0))).sum();
-                return queryFactory
-                                .select(Projections.constructor(ReservationStatisticsDto.class,
-                                                r.quantity.sum().castToNum(Long.class).coalesce(0L),
-                                                r.canceled.when(true).then(1).otherwise(0).sum().castToNum(Long.class)
-                                                                .coalesce(0L),
-                                                totalAmount.longValue(),
-                                                r.price.avg().coalesce(0.0).longValue()))
-                                .from(r)
-                                .fetchOne();
+                int paymentCnt = paymentRepository.findAllByPaymentTargetType_PaymentTargetCode("RESERVATION").size();
+                int cancel = paymentRepository.findAllByRefundedAmountGreaterThanEqual(BigDecimal.ONE).size();
+                BigDecimal totalAmount = paymentRepository.findAllByPaymentTargetType_PaymentTargetCode("RESERVATION")
+                                .stream()
+                                .map(Payment::getAmount)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal averageAmount = paymentCnt > 0
+                                ? totalAmount.divide(BigDecimal.valueOf(paymentCnt), 2, RoundingMode.HALF_UP)
+                                : BigDecimal.ZERO;
+                return ReservationStatisticsDto.builder()
+                                .totalQuantity(paymentCnt)
+                                .canceledCount(cancel)
+                                .totalAmount(totalAmount)
+                                .averagePrice(averageAmount)
+                                .build();
+
         }
 
         public List<ReservationMonthlyStatisticsDto> getReservationDatasByMonth(LocalDate startOfMonth,
@@ -134,34 +150,58 @@ public class ReservationStatisticsRepository {
         public Page<ReservationEventStatisticsDto> getCategoryDatasByMainCategoryWithPaging(Integer categoryId,
                         Pageable pageable) {
                 Long total = queryFactory
-                                .select(ed.mainCategory.groupName.countDistinct())
-                                .from(r)
-                                .join(r.event.eventDetail, ed)
+                                .select(e.titleKr.countDistinct())
+                                .from(e)
+                                .join(e.eventDetail, ed)
                                 .join(ed.mainCategory, mc)
-                                .where(categoryId != null ? mc.groupId.eq(categoryId) : null)
+                                .join(p).on(p.event.eventId.eq(e.eventId))
+                                .where((categoryId != null ? mc.groupId.eq(categoryId) : null),
+                                                p.paymentTargetType.paymentTargetTypeId.eq(1L))
                                 .fetchOne();
 
-                List<Tuple> results = queryFactory
-                                .select(ed.mainCategory.groupName, mc.groupName, r.reservationId.count(),
-                                                r.quantity.multiply(r.price).sum())
-                                .from(r)
-                                .join(r.event.eventDetail, ed)
+                // 중복 합산을 피하기 위해 결제 합계와 예약 수를 서브쿼리로 분리
+                com.fairing.fairplay.payment.entity.QPayment p2 = new com.fairing.fairplay.payment.entity.QPayment(
+                                "p2");
+                com.fairing.fairplay.reservation.entity.QReservation r2 = new com.fairing.fairplay.reservation.entity.QReservation(
+                                "r2");
+
+                var amountExpr = JPAExpressions
+                                .select(p2.amount.sum().coalesce(java.math.BigDecimal.ZERO)
+                                                .subtract(p2.refundedAmount.sum()
+                                                                .coalesce(java.math.BigDecimal.ZERO)))
+                                .from(p2)
+                                .where(p2.event.eventId.eq(e.eventId)
+                                                .and(p2.paymentTargetType.paymentTargetTypeId.eq(1L)));
+
+                var reservationCntExpr = JPAExpressions
+                                .select(r2.reservationId.countDistinct())
+                                .from(r2)
+                                .where(r2.event.eventId.eq(e.eventId));
+
+                List<Tuple> paymentAgg = queryFactory
+                                .select(e.titleKr, mc.groupName, reservationCntExpr, amountExpr)
+                                .from(e)
+                                .join(e.eventDetail, ed)
                                 .join(ed.mainCategory, mc)
-                                .where(categoryId != null ? mc.groupId.eq(categoryId) : null)
-                                .groupBy(ed.mainCategory.groupName, mc.groupName)
-                                .orderBy(r.quantity.multiply(r.price).sum().desc())
-                                .offset(pageable.getOffset())
-                                .limit(pageable.getPageSize())
+                                .where((categoryId != null ? mc.groupId.eq(categoryId) : null))
+                                .groupBy(e.titleKr, mc.groupName)
+                                .orderBy(
+                                                com.querydsl.core.types.dsl.Expressions
+                                                                .numberTemplate(Long.class, "({0})", reservationCntExpr)
+                                                                .desc())
                                 .fetch();
 
-                List<ReservationEventStatisticsDto> content = results.stream()
+                List<ReservationEventStatisticsDto> content = paymentAgg.stream()
+                                .skip(pageable.getOffset())
+                                .limit(pageable.getPageSize())
                                 .map(tuple -> {
+                                        java.math.BigDecimal amount = tuple.get(3, java.math.BigDecimal.class);
                                         Long cnt = tuple.get(2, Long.class);
                                         return new ReservationEventStatisticsDto(
                                                         tuple.get(0, String.class),
                                                         tuple.get(1, String.class),
-                                                        cnt.intValue(),
-                                                        tuple.get(3, Integer.class));
+                                                        cnt != null ? cnt.intValue() : 0,
+                                                        amount != null ? amount.intValue() : 0);
                                 })
                                 .toList();
 

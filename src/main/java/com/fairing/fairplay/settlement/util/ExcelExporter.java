@@ -26,7 +26,7 @@ public class ExcelExporter {
 
             // 헤더 작성
             Row header = sheet.createRow(rowIdx++);
-            String[] headers = {"정산 ID", "행사 ID", "행사명", "최종 금액", "승인 상태", "이의 상태", "송금 상태"};
+            String[] headers = { "정산 ID", "행사 ID", "행사명", "최종 금액", "승인 상태", "이의 상태", "송금 상태" };
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = header.createCell(i);
                 cell.setCellValue(headers[i]);
@@ -74,7 +74,7 @@ public class ExcelExporter {
 
             // 헤더 작성
             Row header = sheet.createRow(rowIdx++);
-            String[] headers = {"이벤트명", "시작일", "종료일", "총 매출", "수수료 (8%)", "순수익 (92%)"};
+            String[] headers = { "이벤트명", "시작일", "종료일", "총 매출", "수수료 (8%)", "순수익 (92%)" };
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = header.createCell(i);
                 cell.setCellValue(headers[i]);
@@ -86,11 +86,13 @@ public class ExcelExporter {
             for (AllSalesDto dto : salesList) {
                 Row row = sheet.createRow(rowIdx++);
                 row.createCell(0).setCellValue(dto.getEventName());
-                row.createCell(1).setCellValue(dto.getStartDate() != null ? dto.getStartDate().format(dateFormatter) : "");
+                row.createCell(1)
+                        .setCellValue(dto.getStartDate() != null ? dto.getStartDate().format(dateFormatter) : "");
                 row.createCell(2).setCellValue(dto.getEndDate() != null ? dto.getEndDate().format(dateFormatter) : "");
                 row.createCell(3).setCellValue(dto.getTotalAmount() != null ? dto.getTotalAmount().doubleValue() : 0.0);
                 row.createCell(4).setCellValue(dto.getTotalFee() != null ? dto.getTotalFee().doubleValue() : 0.0);
-                row.createCell(5).setCellValue(dto.getTotalRevenue() != null ? dto.getTotalRevenue().doubleValue() : 0.0);
+                row.createCell(5)
+                        .setCellValue(dto.getTotalRevenue() != null ? dto.getTotalRevenue().doubleValue() : 0.0);
             }
 
             // AutoSize Columns
@@ -122,7 +124,7 @@ public class ExcelExporter {
 
             // 헤더 작성
             Row header = sheet.createRow(rowIdx++);
-            String[] headers = {"날짜", "예약 매출", "부스 매출", "광고 매출", "기타 매출", "총 매출", "총 건수"};
+            String[] headers = { "날짜", "예약 매출", "부스 매출", "광고 매출", "기타 매출", "총 매출", "총 건수" };
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = header.createCell(i);
                 cell.setCellValue(headers[i]);
@@ -134,12 +136,16 @@ public class ExcelExporter {
             for (DailySalesDto dto : salesList) {
                 Row row = sheet.createRow(rowIdx++);
                 row.createCell(0).setCellValue(dto.getDate() != null ? dto.getDate().format(dateFormatter) : "");
-                row.createCell(1).setCellValue(dto.getReservationAmount() != null ? dto.getReservationAmount().doubleValue() : 0.0);
+                row.createCell(1).setCellValue(
+                        dto.getReservationAmount() != null ? dto.getReservationAmount().doubleValue() : 0.0);
                 row.createCell(2).setCellValue(dto.getBoothAmount() != null ? dto.getBoothAmount().doubleValue() : 0.0);
                 row.createCell(3).setCellValue(dto.getAdAmount() != null ? dto.getAdAmount().doubleValue() : 0.0);
-                row.createCell(4).setCellValue(dto.getEtcAmount() != null ? dto.getEtcAmount().doubleValue() : 0.0);
-                row.createCell(5).setCellValue(dto.getTotalAmount() != null ? dto.getTotalAmount().doubleValue() : 0.0);
-                row.createCell(6).setCellValue(dto.getTotalCount() != null ? dto.getTotalCount() : 0L);
+                row.createCell(4).setCellValue(
+                        dto.getBoothApplication() != null ? dto.getBoothApplication().doubleValue() : 0.0);
+                row.createCell(5).setCellValue(
+                        dto.getBannerApplication() != null ? dto.getBannerApplication().doubleValue() : 0.0);
+                row.createCell(6).setCellValue(dto.getTotalAmount() != null ? dto.getTotalAmount().doubleValue() : 0.0);
+                row.createCell(7).setCellValue(dto.getTotalCount() != null ? dto.getTotalCount() : 0L);
             }
 
             // AutoSize Columns
@@ -155,4 +161,3 @@ public class ExcelExporter {
         }
     }
 }
-
