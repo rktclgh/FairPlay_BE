@@ -42,34 +42,30 @@ public class RagChatService {
                 return fallbackToZeroShot("어떤 점이 궁금하신가요? 질문을 조금만 더 자세히 알려주세요.", conversationHistory);
             }
             
-            // 벡터 검색으로 관련 컨텍스트 찾기
-            SearchResult searchResult = vectorSearchService.search(userQuestion);
-            
-            // 개인정보 관련 질문인지 확인하고 사용자별 검색 추가
+            // 개인정보 관련 질문인지 확인
             boolean isPersonalQuery = isPersonalInformationQuery(userQuestion);
-            SearchResult userSearchResult = null;
+            SearchResult searchResult;
             
             if (isPersonalQuery && userId != null) {
-                // 사용자 개인정보 검색
-                userSearchResult = vectorSearchService.searchUserData(userId, userQuestion);
-                log.info("사용자 개인정보 검색 수행: userId={}, 결과={}", userId, 
-                    userSearchResult.getChunks().size());
+                // 개인정보 질문 → 사용자별 검색만 수행
+                searchResult = vectorSearchService.searchUserData(userId, userQuestion);
+                log.info("개인정보 질문 감지 - 사용자 {}의 개인정보만 검색: 결과={}", userId, 
+                    searchResult.getChunks().size());
+            } else {
+                // 일반 질문 → 공개 정보 검색 (사용자 정보 제외)
+                searchResult = vectorSearchService.searchPublicOnly(userQuestion);
+                log.info("일반 질문 - 공개 정보만 검색: 결과={}", searchResult.getChunks().size());
             }
             
-            // 사용자 개인정보가 우선순위가 높음
-            boolean hasUserContext = userSearchResult != null && !userSearchResult.getChunks().isEmpty();
-            boolean hasRelevantContext = hasUserContext || 
-                (!searchResult.getChunks().isEmpty() && searchResult.getChunks().get(0).getSimilarity() > CONTEXT_REQUIRED_THRESHOLD);
-            
-            // 최종 컨텍스트 결정 (사용자 정보 우선)
-            SearchResult finalSearchResult = hasUserContext ? userSearchResult : searchResult;
+            boolean hasRelevantContext = !searchResult.getChunks().isEmpty() &&
+                (isPersonalQuery || searchResult.getChunks().get(0).getSimilarity() > CONTEXT_REQUIRED_THRESHOLD);
             
             // 프롬프트 구성
             List<ChatMessageDto> prompt = new ArrayList<>();
             
             if (hasRelevantContext) {
                 // RAG 시스템 프롬프트 (컨텍스트 포함)
-                prompt.add(ChatMessageDto.system(buildRagSystemPrompt(finalSearchResult.getContextText())));
+                prompt.add(ChatMessageDto.system(buildRagSystemPrompt(searchResult.getContextText())));
             } else {
                 // 일반 시스템 프롬프트
                 prompt.add(ChatMessageDto.system("""
@@ -104,7 +100,7 @@ public class RagChatService {
             response = response.replaceAll("\\*\\*([^*]+)\\*\\*", "$1");
             
             // 인용 정보 구성
-            List<CitedChunk> citedChunks = finalSearchResult.getChunks().stream()
+            List<CitedChunk> citedChunks = searchResult.getChunks().stream()
                 .map(chunk -> new CitedChunk(
                     chunk.getChunk().getChunkId(),
                     chunk.getChunk().getDocId(),
@@ -123,7 +119,7 @@ public class RagChatService {
                 .answer(response)
                 .hasContext(hasRelevantContext)
                 .citedChunks(citedChunks)
-                .totalSearched(finalSearchResult.getTotalChunks())
+                .totalSearched(searchResult.getTotalChunks())
                 .build();
                 
         } catch (Exception e) {
