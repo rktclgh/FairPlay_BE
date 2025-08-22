@@ -583,6 +583,8 @@ public class BannerApplicationService {
 
             String paymentStatusCode = "PENDING";  // 기본값
             if (bannerApplication.getPayment() != null) {
+                Long paymentId = bannerApplication.getPayment().getPaymentId();
+                System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment ID: " + paymentId);
                 if (bannerApplication.getPayment().getPaymentStatusCode() != null) {
                     paymentStatusCode = bannerApplication.getPayment().getPaymentStatusCode().getCode();
                     System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment 상태: " + paymentStatusCode);
@@ -591,6 +593,22 @@ public class BannerApplicationService {
                 }
             } else {
                 System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment가 null");
+                
+                // 직접 DB에서 Payment 조회해보기
+                try {
+                    Payment directPayment = paymentRepository.findByTargetIdAndPaymentTargetType_PaymentTargetCode(
+                            bannerApplication.getId(), "BANNER_APPLICATION").orElse(null);
+                    if (directPayment != null) {
+                        System.out.println("배너 신청 " + bannerApplication.getId() + " - 직접 조회된 Payment ID: " + 
+                                directPayment.getPaymentId() + ", 상태: " + 
+                                (directPayment.getPaymentStatusCode() != null ? directPayment.getPaymentStatusCode().getCode() : "NULL"));
+                        paymentStatusCode = directPayment.getPaymentStatusCode().getCode();
+                    } else {
+                        System.out.println("배너 신청 " + bannerApplication.getId() + " - 직접 조회해도 Payment 없음");
+                    }
+                } catch (Exception e) {
+                    System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment 직접 조회 실패: " + e.getMessage());
+                }
             }
 
             // 호스트명을 올바르게 가져오기 (Event → EventAdmin → Users)
