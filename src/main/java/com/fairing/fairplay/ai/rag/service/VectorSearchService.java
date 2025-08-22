@@ -158,6 +158,88 @@ public class VectorSearchService {
     }
     
     /**
+     * 사용자별 개인정보 검색 (특정 사용자 문서만 대상)
+     */
+    public SearchResult searchUserData(Long userId, String query) throws Exception {
+        if (userId == null || query == null || query.trim().isEmpty()) {
+            return SearchResult.builder()
+                .chunks(Collections.emptyList())
+                .contextText("")
+                .totalChunks(0)
+                .build();
+        }
+        
+        // 캐시 초기화
+        initializeCacheIfNeeded();
+        
+        // 해당 사용자의 문서만 필터링
+        String userDocPrefix = "user_" + userId;
+        List<Chunk> userChunks = chunkCache.values().stream()
+            .filter(chunk -> chunk.getDocId().equals(userDocPrefix))
+            .collect(Collectors.toList());
+        
+        log.info("사용자 {} 전용 청크 개수: {}", userId, userChunks.size());
+        
+        if (userChunks.isEmpty()) {
+            return SearchResult.builder()
+                .chunks(Collections.emptyList())
+                .contextText("해당 사용자의 정보를 찾을 수 없습니다.")
+                .totalChunks(0)
+                .build();
+        }
+        
+        // 질의 임베딩 생성
+        float[] queryEmbedding = embeddingService.embedQuery(query);
+        
+        // 사용자 청크와 유사도 계산
+        List<SearchResult.ScoredChunk> scoredChunks = new ArrayList<>();
+        
+        for (Chunk chunk : userChunks) {
+            if (chunk.getEmbedding() == null) {
+                log.warn("사용자 청크 {}에 임베딩이 없습니다.", chunk.getChunkId());
+                continue;
+            }
+            
+            double similarity = embeddingService.calculateCosineSimilarity(
+                queryEmbedding, chunk.getEmbedding()
+            );
+            
+            // 개인정보 검색은 임계값을 낮춤 (더 많은 관련 정보 반환)
+            if (similarity >= 0.05) {
+                scoredChunks.add(SearchResult.ScoredChunk.builder()
+                    .chunk(chunk)
+                    .similarity(similarity)
+                    .build());
+            }
+        }
+        
+        // 유사도 순 정렬 (개인정보는 모든 관련 정보 반환)
+        List<SearchResult.ScoredChunk> topChunks = scoredChunks.stream()
+            .sorted((a, b) -> Double.compare(b.getSimilarity(), a.getSimilarity()))
+            .collect(Collectors.toList());
+        
+        // 개인정보 컨텍스트 구성 (모든 사용자 정보 포함)
+        StringBuilder contextBuilder = new StringBuilder();
+        for (Chunk chunk : userChunks) {
+            contextBuilder.append(chunk.getText()).append("\n\n");
+        }
+        
+        String contextText = contextBuilder.toString();
+        if (contextText.length() > MAX_CONTEXT_LENGTH) {
+            contextText = contextText.substring(0, MAX_CONTEXT_LENGTH) + "\n... (내용이 더 있습니다)";
+        }
+        
+        log.info("사용자 {} 개인정보 검색 완료: 매칭 청크 {}, 컨텍스트 길이 {}", 
+            userId, topChunks.size(), contextText.length());
+        
+        return SearchResult.builder()
+            .chunks(topChunks)
+            .contextText(contextText)
+            .totalChunks(userChunks.size())
+            .build();
+    }
+    
+    /**
      * 캐시 초기화 (첫 요청 시 또는 수동)
      */
     public void initializeCache() {
@@ -495,6 +577,224 @@ public class VectorSearchService {
             .chunks(combinedChunks)
             .contextText(buildContextText(combinedChunks))
             .totalChunks(chunkCache.size())
+            .build();
+    }
+    
+    /**
+     * 공개 정보만 검색 (사용자 개인정보 제외)
+     * 일반 질문에 대해 공개된 이벤트, 부스 정보만 검색
+     */
+    public SearchResult searchPublicOnly(String query) throws Exception {
+        if (query == null || query.trim().isEmpty()) {
+            return SearchResult.builder()
+                .chunks(Collections.emptyList())
+                .contextText("")
+                .totalChunks(0)
+                .build();
+        }
+        
+        // 캐시 초기화
+        initializeCacheIfNeeded();
+        
+        // 사용자 개인정보(user_xxx) 문서를 제외한 공개 정보만 필터링
+        List<Chunk> publicChunks = chunkCache.values().stream()
+            .filter(chunk -> !chunk.getDocId().startsWith("user_"))
+            .collect(Collectors.toList());
+        
+        log.info("공개 정보 전용 청크 개수: {} (전체: {})", publicChunks.size(), chunkCache.size());
+        
+        if (publicChunks.isEmpty()) {
+            return SearchResult.builder()
+                .chunks(Collections.emptyList())
+                .contextText("검색할 수 있는 공개 정보가 없습니다.")
+                .totalChunks(0)
+                .build();
+        }
+        
+        // 질의 임베딩 생성
+        float[] queryEmbedding = embeddingService.embedQuery(query);
+        
+        // 공개 청크와 유사도 계산
+        List<SearchResult.ScoredChunk> scoredChunks = new ArrayList<>();
+        
+        for (Chunk chunk : publicChunks) {
+            if (chunk.getEmbedding() == null) {
+                log.warn("공개 청크 {}에 임베딩이 없습니다.", chunk.getChunkId());
+                continue;
+            }
+            
+            double similarity = embeddingService.calculateCosineSimilarity(
+                queryEmbedding, chunk.getEmbedding()
+            );
+            
+            if (similarity >= SIMILARITY_THRESHOLD) {
+                scoredChunks.add(SearchResult.ScoredChunk.builder()
+                    .chunk(chunk)
+                    .similarity(similarity)
+                    .build());
+            }
+        }
+        
+        // 공개 정보도 키워드 검색으로 보완 (한글 지원)
+        boolean needKeywordSearch = scoredChunks.size() < DEFAULT_TOP_K / 2;
+        if (!needKeywordSearch && !scoredChunks.isEmpty()) {
+            double maxSimilarity = scoredChunks.get(0).getSimilarity();
+            needKeywordSearch = maxSimilarity < 0.5;
+        }
+        
+        // 한글 쿼리는 항상 키워드 검색 추가
+        if (containsKorean(query)) {
+            needKeywordSearch = true;
+        }
+        
+        if (needKeywordSearch) {
+            // 공개 정보만 대상으로 키워드 검색
+            SearchResult keywordResult = performPublicKeywordSearch(query, publicChunks, DEFAULT_TOP_K);
+            return combinePublicSearchResults(scoredChunks, keywordResult, DEFAULT_TOP_K, query);
+        }
+        
+        // 유사도 순 정렬 및 Top-K 선택
+        List<SearchResult.ScoredChunk> topChunks = scoredChunks.stream()
+            .sorted((a, b) -> Double.compare(b.getSimilarity(), a.getSimilarity()))
+            .limit(DEFAULT_TOP_K)
+            .collect(Collectors.toList());
+        
+        String contextText = buildContextText(topChunks);
+        
+        log.info("공개 정보 검색 완료: 총 {} 청크 중 {} 개 반환", 
+            publicChunks.size(), topChunks.size());
+        
+        return SearchResult.builder()
+            .chunks(topChunks)
+            .contextText(contextText)
+            .totalChunks(publicChunks.size())
+            .build();
+    }
+    
+    /**
+     * 공개 정보만 대상으로 키워드 검색 수행
+     */
+    private SearchResult performPublicKeywordSearch(String query, List<Chunk> publicChunks, int topK) {
+        List<SearchResult.ScoredChunk> keywordMatches = new ArrayList<>();
+        
+        String normalizedQuery = query.trim();
+        String[] keywords = normalizedQuery.split("\\s+");
+        
+        for (Chunk chunk : publicChunks) {
+            String chunkText = chunk.getText();
+            double score = 0.0;
+            
+            // 키워드별 점수 계산 (기존 로직 재사용)
+            for (String keyword : keywords) {
+                if (keyword.length() < 1) continue;
+                
+                if (containsIgnoreCase(chunkText, keyword)) {
+                    score += 10.0;
+                    if (isInImportantField(chunkText, keyword)) {
+                        score += 20.0;
+                    }
+                }
+                
+                if (keyword.length() >= 2 && isKorean(keyword)) {
+                    for (int i = 0; i <= keyword.length() - 2; i++) {
+                        String partial = keyword.substring(i, Math.min(i + 2, keyword.length()));
+                        if (containsIgnoreCase(chunkText, partial)) {
+                            score += 2.0;
+                        }
+                    }
+                }
+                
+                if (keyword.length() >= 3 && isEnglish(keyword)) {
+                    for (int i = 0; i <= keyword.length() - 3; i++) {
+                        String partial = keyword.substring(i, Math.min(i + 3, keyword.length()));
+                        if (containsIgnoreCase(chunkText, partial)) {
+                            score += 1.0;
+                        }
+                    }
+                }
+            }
+            
+            if (containsIgnoreCase(chunkText, normalizedQuery)) {
+                score += 50.0;
+            }
+            
+            if (score > 0) {
+                double normalizedScore = Math.min(score / keywords.length, 100.0);
+                keywordMatches.add(SearchResult.ScoredChunk.builder()
+                    .chunk(chunk)
+                    .similarity(normalizedScore)
+                    .build());
+            }
+        }
+        
+        List<SearchResult.ScoredChunk> topKeywordChunks = keywordMatches.stream()
+            .sorted((a, b) -> Double.compare(b.getSimilarity(), a.getSimilarity()))
+            .limit(topK)
+            .collect(Collectors.toList());
+        
+        return SearchResult.builder()
+            .chunks(topKeywordChunks)
+            .contextText(buildContextText(topKeywordChunks))
+            .totalChunks(publicChunks.size())
+            .build();
+    }
+    
+    /**
+     * 공개 정보 벡터 검색과 키워드 검색 결과 결합
+     */
+    private SearchResult combinePublicSearchResults(List<SearchResult.ScoredChunk> vectorChunks, 
+                                                   SearchResult keywordResult, int topK, String query) {
+        Set<String> seenChunkIds = new HashSet<>();
+        List<SearchResult.ScoredChunk> combinedChunks = new ArrayList<>();
+        
+        boolean isKoreanQuery = containsKorean(query);
+        
+        if (isKoreanQuery && !keywordResult.getChunks().isEmpty()) {
+            // 한글 쿼리: 키워드 검색 우선
+            for (SearchResult.ScoredChunk chunk : keywordResult.getChunks()) {
+                if (!seenChunkIds.contains(chunk.getChunk().getChunkId())) {
+                    SearchResult.ScoredChunk boostedChunk = SearchResult.ScoredChunk.builder()
+                        .chunk(chunk.getChunk())
+                        .similarity(Math.min(chunk.getSimilarity() * 1.5, 1.0))
+                        .build();
+                    combinedChunks.add(boostedChunk);
+                    seenChunkIds.add(chunk.getChunk().getChunkId());
+                }
+            }
+            
+            // 벡터 검색 결과 추가
+            for (SearchResult.ScoredChunk chunk : vectorChunks) {
+                if (!seenChunkIds.contains(chunk.getChunk().getChunkId()) && combinedChunks.size() < topK) {
+                    combinedChunks.add(chunk);
+                    seenChunkIds.add(chunk.getChunk().getChunkId());
+                }
+            }
+        } else {
+            // 영어 쿼리: 벡터 검색 우선
+            for (SearchResult.ScoredChunk chunk : vectorChunks) {
+                if (!seenChunkIds.contains(chunk.getChunk().getChunkId())) {
+                    combinedChunks.add(chunk);
+                    seenChunkIds.add(chunk.getChunk().getChunkId());
+                }
+            }
+            
+            for (SearchResult.ScoredChunk chunk : keywordResult.getChunks()) {
+                if (!seenChunkIds.contains(chunk.getChunk().getChunkId()) && combinedChunks.size() < topK) {
+                    combinedChunks.add(chunk);
+                    seenChunkIds.add(chunk.getChunk().getChunkId());
+                }
+            }
+        }
+        
+        combinedChunks = combinedChunks.stream()
+            .sorted((a, b) -> Double.compare(b.getSimilarity(), a.getSimilarity()))
+            .limit(topK)
+            .collect(Collectors.toList());
+        
+        return SearchResult.builder()
+            .chunks(combinedChunks)
+            .contextText(buildContextText(combinedChunks))
+            .totalChunks(keywordResult.getTotalChunks())
             .build();
     }
     

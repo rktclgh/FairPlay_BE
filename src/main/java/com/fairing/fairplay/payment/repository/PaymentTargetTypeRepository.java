@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface PaymentTargetTypeRepository extends JpaRepository<PaymentTargetType, Long> {
     
     Optional<PaymentTargetType> findByPaymentTargetCode(String paymentTargetCode);
+
 }

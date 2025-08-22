@@ -1,6 +1,9 @@
 package com.fairing.fairplay.banner.entity;
 
 import com.fairing.fairplay.event.entity.ApplyStatusCode;
+import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.user.entity.Users;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,11 +23,13 @@ public class BannerApplication {
     @Column(name = "banner_application_id")
     private Long id;
 
-    @Column(name = "event_id", nullable = false)
-    private Long eventId;                   // 외부 도메인: Long으로 보유
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", nullable = false)
+    private Event event;
 
-    @Column(name = "applicant_id", nullable = false)
-    private Long applicantId;               // users.user_id
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "applicant_id", nullable = false)
+    private Users applicantId;               // users.user_id
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "banner_type_id", nullable = false)
@@ -56,8 +61,9 @@ public class BannerApplication {
     @Column(name = "admin_comment")
     private String adminComment;
 
-    @Column(name = "payment_id")
-    private Long paymentId;
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_id")
+    private Payment payment;
 
     @Column(name = "total_amount", nullable = false)
     private Integer totalAmount;
