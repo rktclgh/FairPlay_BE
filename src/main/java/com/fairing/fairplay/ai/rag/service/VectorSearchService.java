@@ -158,6 +158,88 @@ public class VectorSearchService {
     }
     
     /**
+     * 사용자별 개인정보 검색 (특정 사용자 문서만 대상)
+     */
+    public SearchResult searchUserData(Long userId, String query) throws Exception {
+        if (userId == null || query == null || query.trim().isEmpty()) {
+            return SearchResult.builder()
+                .chunks(Collections.emptyList())
+                .contextText("")
+                .totalChunks(0)
+                .build();
+        }
+        
+        // 캐시 초기화
+        initializeCacheIfNeeded();
+        
+        // 해당 사용자의 문서만 필터링
+        String userDocPrefix = "user_" + userId;
+        List<Chunk> userChunks = chunkCache.values().stream()
+            .filter(chunk -> chunk.getDocId().equals(userDocPrefix))
+            .collect(Collectors.toList());
+        
+        log.info("사용자 {} 전용 청크 개수: {}", userId, userChunks.size());
+        
+        if (userChunks.isEmpty()) {
+            return SearchResult.builder()
+                .chunks(Collections.emptyList())
+                .contextText("해당 사용자의 정보를 찾을 수 없습니다.")
+                .totalChunks(0)
+                .build();
+        }
+        
+        // 질의 임베딩 생성
+        float[] queryEmbedding = embeddingService.embedQuery(query);
+        
+        // 사용자 청크와 유사도 계산
+        List<SearchResult.ScoredChunk> scoredChunks = new ArrayList<>();
+        
+        for (Chunk chunk : userChunks) {
+            if (chunk.getEmbedding() == null) {
+                log.warn("사용자 청크 {}에 임베딩이 없습니다.", chunk.getChunkId());
+                continue;
+            }
+            
+            double similarity = embeddingService.calculateCosineSimilarity(
+                queryEmbedding, chunk.getEmbedding()
+            );
+            
+            // 개인정보 검색은 임계값을 낮춤 (더 많은 관련 정보 반환)
+            if (similarity >= 0.05) {
+                scoredChunks.add(SearchResult.ScoredChunk.builder()
+                    .chunk(chunk)
+                    .similarity(similarity)
+                    .build());
+            }
+        }
+        
+        // 유사도 순 정렬 (개인정보는 모든 관련 정보 반환)
+        List<SearchResult.ScoredChunk> topChunks = scoredChunks.stream()
+            .sorted((a, b) -> Double.compare(b.getSimilarity(), a.getSimilarity()))
+            .collect(Collectors.toList());
+        
+        // 개인정보 컨텍스트 구성 (모든 사용자 정보 포함)
+        StringBuilder contextBuilder = new StringBuilder();
+        for (Chunk chunk : userChunks) {
+            contextBuilder.append(chunk.getText()).append("\n\n");
+        }
+        
+        String contextText = contextBuilder.toString();
+        if (contextText.length() > MAX_CONTEXT_LENGTH) {
+            contextText = contextText.substring(0, MAX_CONTEXT_LENGTH) + "\n... (내용이 더 있습니다)";
+        }
+        
+        log.info("사용자 {} 개인정보 검색 완료: 매칭 청크 {}, 컨텍스트 길이 {}", 
+            userId, topChunks.size(), contextText.length());
+        
+        return SearchResult.builder()
+            .chunks(topChunks)
+            .contextText(contextText)
+            .totalChunks(userChunks.size())
+            .build();
+    }
+    
+    /**
      * 캐시 초기화 (첫 요청 시 또는 수동)
      */
     public void initializeCache() {
