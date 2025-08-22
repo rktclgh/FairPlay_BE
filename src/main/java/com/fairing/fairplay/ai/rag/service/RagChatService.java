@@ -29,17 +29,36 @@ public class RagChatService {
      * RAG 기반 질의 응답
      */
     public RagResponse chat(String userQuestion, List<ChatMessageDto> conversationHistory) {
+        return chat(userQuestion, conversationHistory, null);
+    }
+    
+    /**
+     * RAG 기반 질의 응답 (사용자 ID 포함)
+     */
+    public RagResponse chat(String userQuestion, List<ChatMessageDto> conversationHistory, Long userId) {
         try {
             if (userQuestion == null || userQuestion.trim().isEmpty()) {
                 log.warn("빈 사용자 질문 수신: RAG 검색 생략");
                 return fallbackToZeroShot("어떤 점이 궁금하신가요? 질문을 조금만 더 자세히 알려주세요.", conversationHistory);
             }
             
-            // 벡터 검색으로 관련 컨텍스트 찾기
-            SearchResult searchResult = vectorSearchService.search(userQuestion);
+            // 개인정보 관련 질문인지 확인
+            boolean isPersonalQuery = isPersonalInformationQuery(userQuestion);
+            SearchResult searchResult;
+            
+            if (isPersonalQuery && userId != null) {
+                // 개인정보 질문 → 사용자별 검색만 수행
+                searchResult = vectorSearchService.searchUserData(userId, userQuestion);
+                log.info("개인정보 질문 감지 - 사용자 {}의 개인정보만 검색: 결과={}", userId, 
+                    searchResult.getChunks().size());
+            } else {
+                // 일반 질문 → 공개 정보 검색 (사용자 정보 제외)
+                searchResult = vectorSearchService.searchPublicOnly(userQuestion);
+                log.info("일반 질문 - 공개 정보만 검색: 결과={}", searchResult.getChunks().size());
+            }
             
             boolean hasRelevantContext = !searchResult.getChunks().isEmpty() &&
-                searchResult.getChunks().get(0).getSimilarity() > CONTEXT_REQUIRED_THRESHOLD;
+                (isPersonalQuery || searchResult.getChunks().get(0).getSimilarity() > CONTEXT_REQUIRED_THRESHOLD);
             
             // 프롬프트 구성
             List<ChatMessageDto> prompt = new ArrayList<>();
@@ -112,34 +131,61 @@ public class RagChatService {
     }
     
     /**
+     * 개인정보 관련 질문인지 확인
+     */
+    private boolean isPersonalInformationQuery(String question) {
+        if (question == null) return false;
+        
+        String lowerQuestion = question.toLowerCase();
+        return lowerQuestion.contains("내 ") || 
+               lowerQuestion.contains("나의 ") ||
+               lowerQuestion.contains("내가 ") ||
+               lowerQuestion.contains("예약") ||
+               lowerQuestion.contains("티켓") ||
+               lowerQuestion.contains("개인정보") ||
+               lowerQuestion.contains("프로필") ||
+               lowerQuestion.contains("내정보");
+    }
+    
+    /**
      * RAG 시스템 프롬프트 구성
      */
     private String buildRagSystemPrompt(String contextText) {
         return String.format("""
-            안녕! 나는 '페어링'이야, FairPlay 플랫폼의 친근한 AI 도우미야. 
-            사용자가 이벤트나 공연에 대해 궁금해하면, 마치 현지 가이드처럼 자연스럽고 도움이 되는 정보를 제공해줄게!
+            안녕! 나는 '페어링'이야, FairPlay 플랫폼의 친근한 AI 도우미야! 
+            사용자가 이벤트, 예약, 개인정보 등에 대해 궁금해하면 도움이 되는 정보를 제공해줄게!
             
-            **참고할 이벤트 정보:**
+            **참고할 정보:**
             %s
             
-            **중요한 답변 규칙:**
-            ⚠️ **반드시 위의 참고 정보와 사용자 질문의 관련성을 먼저 확인해야 합니다!**
+            **답변 가이드라인:**
             
-            1. **관련성 확인**: 위 참고 정보가 사용자가 묻는 이벤트/축제와 직접적으로 관련이 있나요?
-               - 만약 사용자가 "송도 맥주축제"를 물어봤는데 참고 정보가 예매/취소/환불 정책만 있다면 → "관련 없음"
-               - 만약 사용자가 물어본 이벤트명이 참고 정보에 명시적으로 포함되어 있다면 → "관련 있음"
+            📋 **개인정보 관련 질문 (내 예약, 내 티켓, 내 정보 등)**:
+            - "내 예약 내역", "내 티켓 정보", "내 개인정보" 등의 질문 시
+            - 위 참고 정보에서 해당 사용자의 정보를 찾아 정확히 제공
+            - 예약 상태, 이벤트명, 날짜, 가격 등 상세 정보 포함
+            - 개인정보는 해당 사용자에게만 제공 (보안 유지)
             
-            2. **관련 있을 때**: 위 정보를 바탕으로 자연스럽게 답변
-               - 날짜, 장소, 주요 내용을 중심으로 간결하게 정리
-               - 예약이나 참가 방법 같은 실용적인 팁도 함께 제공
+            🎪 **이벤트 정보 관련 질문**:
+            - 특정 이벤트, 축제, 부스에 대한 질문 시
+            - 위 참고 정보에서 관련 내용을 찾아 제공
+            - 날짜, 장소, 설명, 티켓 정보, 부스 정보 등 포함
             
-            3. **관련 없을 때**: 다음과 같이 정직하게 답변
-               "죄송해요! 현재 제가 가지고 있는 정보에서는 [사용자가 물어본 이벤트명]에 대한 구체적인 정보를 찾을 수 없어요. 
-               정확한 정보는 해당 이벤트의 공식 홈페이지나 주최측에 직접 문의하시는 것을 추천드려요! 😊"
+            🎫 **부스 및 체험 정보**:
+            - 특정 이벤트의 부스 정보나 체험 프로그램 질문 시
+            - 부스명, 위치, 체험 내용, 소요시간, 참가자 수 등 제공
             
-            **절대 하지 말 것:**
-            - 참고 정보에 없는 내용을 추측해서 만들어내지 말 것
-            - 일반적인 축제 정보로 대충 답변하지 말 것
+            ✅ **답변 원칙**:
+            1. 참고 정보에 있는 내용만 정확히 제공
+            2. 개인정보는 해당 사용자 것만 표시
+            3. 정보가 없으면 솔직히 "찾을 수 없어요" 안내
+            4. 친근하고 자연스러운 한국어로 답변
+            5. 중요 정보는 구조화해서 보기 쉽게 정리
+            
+            ❌ **금지사항**:
+            - 참고 정보에 없는 내용 추측하지 말 것
+            - 다른 사용자의 개인정보 노출하지 말 것
+            - 부정확한 정보 제공하지 말 것
             """, contextText);
     }
     
