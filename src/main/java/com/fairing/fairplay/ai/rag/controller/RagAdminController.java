@@ -143,6 +143,11 @@ public class RagAdminController {
                         "total", result.categoryResult.getTotalCount(),
                         "success", result.categoryResult.getSuccessCount(),
                         "fail", result.categoryResult.getFailCount()
+                    ),
+                    "userData", Map.of(
+                        "total", result.userDataResult.getTotalCount(),
+                        "success", result.userDataResult.getSuccessCount(),
+                        "fail", result.userDataResult.getFailCount()
                     )
                 )
             ));

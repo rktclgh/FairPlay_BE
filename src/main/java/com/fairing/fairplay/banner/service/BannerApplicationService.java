@@ -3,12 +3,31 @@ package com.fairing.fairplay.banner.service;
 import com.fairing.fairplay.banner.dto.AdminApplicationListItemDto;
 import com.fairing.fairplay.banner.dto.AdminApplicationSlotDto;
 import com.fairing.fairplay.banner.dto.CreateApplicationRequestDto;
+import com.fairing.fairplay.banner.entity.BannerApplication;
+import com.fairing.fairplay.banner.entity.BannerApplicationSlot;
+import com.fairing.fairplay.banner.repository.BannerApplicationRepository;
+import com.fairing.fairplay.banner.repository.BannerApplicationSlotRepository;
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.service.BannerEmailService;
-import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.event.entity.ApplyStatusCode;
+import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.repository.ApplyStatusCodeRepository;
+import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.payment.entity.PaymentStatusCode;
+import com.fairing.fairplay.payment.entity.PaymentTargetType;
+import com.fairing.fairplay.payment.entity.PaymentTypeCode;
+import com.fairing.fairplay.payment.repository.PaymentRepository;
+import com.fairing.fairplay.payment.repository.PaymentStatusCodeRepository;
+import com.fairing.fairplay.payment.repository.PaymentTargetTypeRepository;
+import com.fairing.fairplay.payment.repository.PaymentTypeCodeRepository;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -18,6 +37,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -48,6 +68,15 @@ public class BannerApplicationService {
     private final NamedParameterJdbcTemplate namedJdbc;
     private final BannerEmailService bannerEmailService;
     private final UserRepository userRepository;
+    private final BannerApplicationRepository bannerApplicationRepository;
+    private final BannerApplicationSlotRepository bannerApplicationSlotRepository;
+    private final EventRepository eventRepository;
+    private final AwsS3Service awsS3Service;
+    private final PaymentRepository paymentRepository;
+    private final PaymentStatusCodeRepository paymentStatusCodeRepository;
+    private final PaymentTargetTypeRepository paymentTargetTypeRepository;
+    private final PaymentTypeCodeRepository paymentTypeCodeRepository;
+    private final ApplyStatusCodeRepository applyStatusCodeRepository;
 
     @Value("${banner.lock.default-minutes:" + DEFAULT_LOCK_MINUTES + "}")
     private int configuredLockMinutes;
@@ -90,6 +119,9 @@ public class BannerApplicationService {
     public Long createApplicationAndLock(CreateApplicationRequestDto req, Long userId) {
         long typeId = typeId(req.bannerType().name());
         int lockMinutes = Optional.ofNullable(req.lockMinutes()).orElse(configuredLockMinutes);
+
+        List<Event> events = eventRepository.findByManager_User_UserId(userId);
+        Event event = events.getFirst();
 
         // 1) 대상 슬롯 잠그기 위해 slot_id, price 조회 (FOR UPDATE)
         List<Long> slotIds = new ArrayList<>();
@@ -142,6 +174,20 @@ public class BannerApplicationService {
         int total = prices.stream().mapToInt(Integer::intValue).sum();
         Integer pendingId = statusId(STATUS_PENDING);
 
+        // 이미지 URL 처리: S3 키인 경우 영구 저장소로 이동 후 CDN URL 생성
+        String imageUrl = req.imageUrl();
+        if (imageUrl != null && !imageUrl.trim().isEmpty() && !imageUrl.startsWith("http")) {
+            // S3 키로 판단되는 경우 영구 저장소로 이동
+            try {
+                String permanentKey = awsS3Service.moveToPermanent(imageUrl, "banner");
+                imageUrl = awsS3Service.getCdnUrl(permanentKey);
+            } catch (Exception e) {
+                // 이동 실패 시 원본 키로 CDN URL 생성 시도
+                imageUrl = awsS3Service.getCdnUrl(imageUrl);
+            }
+        }
+        final String finalImageUrl = imageUrl;
+
         KeyHolder kh = new GeneratedKeyHolder();
         jdbc.update(con -> {
             var ps = con.prepareStatement("""
@@ -156,9 +202,9 @@ public class BannerApplicationService {
             ps.setLong(1, req.eventId());
             ps.setLong(2, userId);
             ps.setLong(3, typeId);
-            ps.setString(4, req.title());
-            ps.setString(5, req.imageUrl());
-            ps.setString(6, req.linkUrl());
+            ps.setString(4, event.getTitleKr());
+            ps.setString(5, finalImageUrl);
+            ps.setString(6, "https://fair-play.ink/eventdetail/"+event.getEventId());
             ps.setInt(7, first.priority());
             ps.setTimestamp(8, Timestamp.valueOf(first.date().atStartOfDay()));
             ps.setTimestamp(9, Timestamp.valueOf(lastDate(req.items()).atTime(END_OF_DAY)));
@@ -170,12 +216,17 @@ public class BannerApplicationService {
         long appId = Objects.requireNonNull(kh.getKey()).longValue();
 
         // 4) 신청-슬롯 매핑 + 가격 스냅샷
-        String sql = "INSERT INTO banner_application_slot (banner_application_id, slot_id, item_price) VALUES (?, ?, ?)";
-        List<Object[]> batchArgs = new ArrayList<>();
-        for (int i = 0; i < slotIds.size(); i++) {
-            batchArgs.add(new Object[]{appId, slotIds.get(i), prices.get(i)});
+        try {
+            String sql = "INSERT INTO banner_application_slot (banner_application_id, slot_id, item_price) VALUES (?, ?, ?)";
+            List<Object[]> batchArgs = new ArrayList<>();
+            for (int i = 0; i < slotIds.size(); i++) {
+                batchArgs.add(new Object[]{appId, slotIds.get(i), prices.get(i)});
+            }
+            jdbc.batchUpdate(sql, batchArgs);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 이미 신청된 슬롯이 있는 경우
+            throw new IllegalStateException("선택한 날짜에 이미 신청된 광고가 있습니다. 다른 날짜를 선택해주세요.", e);
         }
-        jdbc.batchUpdate(sql, batchArgs);
 
         return appId;
     }
@@ -349,7 +400,43 @@ public class BannerApplicationService {
                     """, mapParams.addValue("sold", SLOT_STATUS_SOLD));
         }
 
-        // 3) 신청 상태 승인 처리
+        // 3) Payment 엔티티 생성 및 저장
+        BannerApplication bannerApplication = bannerApplicationRepository.findById(appId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배너 신청입니다: " + appId));
+        
+        PaymentTargetType bannerTargetType = paymentTargetTypeRepository.findByPaymentTargetCode("BANNER_APPLICATION")
+                .orElseThrow(() -> new IllegalStateException("BANNER 결제 타입이 존재하지 않습니다"));
+        
+        PaymentStatusCode paidStatusCode = paymentStatusCodeRepository.findByCode("COMPLETED")
+                .orElseThrow(() -> new IllegalStateException("COMPLETED 결제 상태가 존재하지 않습니다"));
+        
+        PaymentTypeCode bannerPaymentType = paymentTypeCodeRepository.findByCode("CARD")
+                .orElseThrow(() -> new IllegalStateException("CARD 결제 타입 코드가 존재하지 않습니다"));
+        
+        BigDecimal totalAmount = java.math.BigDecimal.valueOf(bannerApplication.getTotalAmount());
+        
+        Payment payment = Payment.builder()
+                .event(bannerApplication.getEvent())
+                .user(bannerApplication.getApplicantId())
+                .paymentTargetType(bannerTargetType)
+                .targetId(appId)
+                .merchantUid("banner_" + appId + "_" + System.currentTimeMillis())
+                .quantity(1)
+                .price(totalAmount)
+                .amount(totalAmount) // 총 결제 금액 (price * quantity)
+                .paymentTypeCode(bannerPaymentType)
+                .paymentStatusCode(paidStatusCode)
+                .requestedAt(LocalDateTime.now())
+                .paidAt(LocalDateTime.now())
+                .build();
+        
+        Payment savedPayment = paymentRepository.save(payment);
+        
+        // BannerApplication과 Payment 연결
+        bannerApplication.setPayment(savedPayment);
+        bannerApplicationRepository.save(bannerApplication);
+        
+        // 4) 신청 상태 승인 처리
         int updated = jdbc.update("""
                   UPDATE banner_application
                      SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='APPROVED'),
@@ -359,13 +446,34 @@ public class BannerApplicationService {
                 """, adminId, appId);
         if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 승인 처리에 실패했습니다.");
         
-        // 4) 승인 완료 이메일 발송
+        // 5) 승인 완료 이메일 발송
         try {
             sendApprovalEmail(appId, app);
         } catch (Exception e) {
             // 이메일 발송 실패 시 로그만 남기고 처리 계속 진행
             System.err.println("배너 승인 이메일 발송 실패 - appId: " + appId + ", error: " + e.getMessage());
         }
+    }
+
+    /** 실제 결제 완료 처리 → Payment 상태 업데이트 + 배너 활성화 */
+    @Transactional
+    public void completePayment(Long appId, String impUid) {
+        // Payment 조회 및 상태 업데이트
+        Payment payment = paymentRepository.findByTargetIdAndPaymentTargetType_PaymentTargetCode(appId, "BANNER_APPLICATION")
+                .orElseThrow(() -> new IllegalArgumentException("해당 배너 신청의 결제 정보를 찾을 수 없습니다: " + appId));
+        
+        PaymentStatusCode paidStatusCode = paymentStatusCodeRepository.findByCode("COMPLETED")
+                .orElseThrow(() -> new IllegalStateException("PAID 결제 상태가 존재하지 않습니다"));
+        
+        payment.setPaymentStatusCode(paidStatusCode);
+        payment.setImpUid(impUid);
+        payment.setPaidAt(LocalDateTime.now());
+        paymentRepository.save(payment);
+        
+        // 배너 슬롯 활성화 (기존 activateBannerSlots 메서드 활용)
+        activateBannerSlots(appId);
+        
+        System.out.println("배너 결제 완료 처리 완료 - appId: " + appId + ", impUid: " + impUid);
     }
 
         // com.fairing.fairplay.banner.service.BannerApplicationService
@@ -412,69 +520,121 @@ public class BannerApplicationService {
 
         }
     /* ===== 관리자 조회용: 목록 ===== */
-    public List<AdminApplicationListItemDto> listAdminApplications(String status, String type, int page, int size) {
-                var params = new MapSqlParameterSource()
-                                .addValue("status", status)
-                                .addValue("type", type)
-                                .addValue("limit", size)
-                                .addValue("offset", page * size);
+    public List<AdminApplicationListItemDto> listAdminApplications(String status, String type, Pageable pageable) {
+        List<BannerApplication> bannerApplications = bannerApplicationRepository.findAllWithHostInfoOrderByCreatedAtDesc();
 
-                        // 1) 신청서 기본 정보
-                                var rows = namedJdbc.query("""
-                SELECT
-                  ba.banner_application_id   AS application_id,
-                  ba.event_id                AS event_id,
-                  ba.title                   AS event_name,
-                  bt.code                    AS banner_type,
-                  ba.created_at              AS applied_at,
-                  asc2.code                  AS apply_status,
-                  ba.image_url               AS image_url,
-                  ba.total_amount            AS total_amount
-                FROM banner_application ba
-                JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id
-                JOIN apply_status_code asc2 ON asc2.apply_status_code_id = ba.status_code_id
-                WHERE (:status IS NULL OR asc2.code = :status)
-                  AND (:type   IS NULL OR bt.code   = :type)
-                ORDER BY ba.banner_application_id DESC
-                LIMIT :limit OFFSET :offset
-                """, params,
-                                (rs, i) -> Map.of(
-                                                "applicationId", rs.getLong("application_id"),
-                                                "eventId", rs.getLong("event_id"),
-                                                "eventName", rs.getString("event_name"),
-                                                "bannerType", rs.getString("banner_type"),
-                                                "appliedAt", rs.getTimestamp("applied_at").toLocalDateTime(),
-                                                "applyStatus", rs.getString("apply_status"),
-                                                "imageUrl", rs.getString("image_url"),
-                                                "totalAmount", rs.getInt("total_amount")
-                                                ));
 
-                        if (rows.isEmpty()) return List.of();
+//                var params = new MapSqlParameterSource()
+//                                .addValue("status", status)
+//                                .addValue("type", type)
+//                                .addValue("limit", size)
+//                                .addValue("offset", page * size);
+//
+//                        // 1) 신청서 기본 정보
+//                                var rows = namedJdbc.query("""
+//                SELECT
+//                  ba.banner_application_id   AS application_id,
+//                  ba.event_id                AS event_id,
+//                  ba.title                   AS event_name,
+//                  bt.code                    AS banner_type,
+//                  ba.created_at              AS applied_at,
+//                  asc2.code                  AS apply_status,
+//                  ba.image_url               AS image_url,
+//                  ba.total_amount            AS total_amount
+//                FROM banner_application ba
+//                JOIN banner_type bt ON bt.banner_type_id = ba.banner_type_id
+//                JOIN apply_status_code asc2 ON asc2.apply_status_code_id = ba.status_code_id
+//                WHERE (:status IS NULL OR asc2.code = :status)
+//                  AND (:type   IS NULL OR bt.code   = :type)
+//                ORDER BY ba.banner_application_id DESC
+//                LIMIT :limit OFFSET :offset
+//                """, params,
+//                                (rs, i) -> Map.of(
+//                                                "applicationId", rs.getLong("application_id"),
+//                                                "eventId", rs.getLong("event_id"),
+//                                                "eventName", rs.getString("event_name"),
+//                                                "bannerType", rs.getString("banner_type"),
+//                                                "appliedAt", rs.getTimestamp("applied_at").toLocalDateTime(),
+//                                                "applyStatus", rs.getString("apply_status"),
+//                                                "imageUrl", rs.getString("image_url"),
+//                                                "totalAmount", rs.getInt("total_amount")
+//                                                ));
+//
+//                        if (rows.isEmpty()) return List.of();
+//
+//                        // 2) 슬롯 일괄 조회
+//                                var appIds = rows.stream().map(m -> (Long) m.get("applicationId")).toList();
+//                var slotMap = fetchSlotsByApplicationIds(appIds);
 
-                        // 2) 슬롯 일괄 조회
-                                var appIds = rows.stream().map(m -> (Long) m.get("applicationId")).toList();
-                var slotMap = fetchSlotsByApplicationIds(appIds);
 
-                        // 3) DTO 매핑
-                                List<AdminApplicationListItemDto> result = new ArrayList<>();
-                for (var m : rows) {
-                        Long appId = (Long) m.get("applicationId");
-                        result.add(new AdminApplicationListItemDto(
-                                        appId,
-                                        "", // hostName: 별도 user/org 조인 없으면 빈값
-                                        (Long) m.get("eventId"),
-                                        (String) m.get("eventName"),
-                                        (String) m.get("bannerType"),
-                                        (LocalDateTime) m.get("appliedAt"),
-                                        (String) m.get("applyStatus"),
-                                        mapPaymentStatus((String) m.get("applyStatus")), // 간단 매핑
-                                        (String) m.get("imageUrl"),
-                                        (Integer) m.get("totalAmount"),
-                                        slotMap.getOrDefault(appId, List.of())
-                                        ));
-                    }
-                return result;
+        // 3) DTO 매핑
+        List<AdminApplicationListItemDto> result = new ArrayList<>();
+        for (BannerApplication bannerApplication : bannerApplications) {
+            List<BannerApplicationSlot> applicationSlots = bannerApplicationSlotRepository.findAllByBannerApplication(bannerApplication);
+            List<AdminApplicationSlotDto> slots = new ArrayList<>();
+            for (BannerApplicationSlot slot : applicationSlots) {
+                AdminApplicationSlotDto dto = AdminApplicationSlotDto.builder()
+                        .slotDate(slot.getSlot().getSlotDate())
+                        .priority(slot.getSlot().getPriority())
+                        .price(slot.getItemPrice())
+                        .build();
+                slots.add(dto);
             }
+
+            String paymentStatusCode = "PENDING";  // 기본값
+            if (bannerApplication.getPayment() != null) {
+                Long paymentId = bannerApplication.getPayment().getPaymentId();
+                System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment ID: " + paymentId);
+                if (bannerApplication.getPayment().getPaymentStatusCode() != null) {
+                    paymentStatusCode = bannerApplication.getPayment().getPaymentStatusCode().getCode();
+                    System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment 상태: " + paymentStatusCode);
+                } else {
+                    System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment 존재하지만 PaymentStatusCode가 null");
+                }
+            } else {
+                System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment가 null");
+                
+                // 직접 DB에서 Payment 조회해보기
+                try {
+                    Payment directPayment = paymentRepository.findByTargetIdAndPaymentTargetType_PaymentTargetCode(
+                            bannerApplication.getId(), "BANNER_APPLICATION").orElse(null);
+                    if (directPayment != null) {
+                        System.out.println("배너 신청 " + bannerApplication.getId() + " - 직접 조회된 Payment ID: " + 
+                                directPayment.getPaymentId() + ", 상태: " + 
+                                (directPayment.getPaymentStatusCode() != null ? directPayment.getPaymentStatusCode().getCode() : "NULL"));
+                        paymentStatusCode = directPayment.getPaymentStatusCode().getCode();
+                    } else {
+                        System.out.println("배너 신청 " + bannerApplication.getId() + " - 직접 조회해도 Payment 없음");
+                    }
+                } catch (Exception e) {
+                    System.out.println("배너 신청 " + bannerApplication.getId() + " - Payment 직접 조회 실패: " + e.getMessage());
+                }
+            }
+
+            // 호스트명을 올바르게 가져오기 (Event → EventAdmin → Users)
+            String hostName = "";
+            if (bannerApplication.getEvent() != null && 
+                bannerApplication.getEvent().getManager() != null && 
+                bannerApplication.getEvent().getManager().getUser() != null) {
+                hostName = bannerApplication.getEvent().getManager().getUser().getName();
+            }
+
+            result.add(new AdminApplicationListItemDto(
+                    bannerApplication.getId(),
+                    hostName,
+                    bannerApplication.getEvent().getEventId(),
+                    bannerApplication.getEvent().getTitleKr(),
+                    bannerApplication.getBannerType().getCode(),
+                    bannerApplication.getCreatedAt(),
+                    bannerApplication.getStatusCode().getCode(),
+                    paymentStatusCode,
+                    bannerApplication.getImageUrl(),
+                    bannerApplication.getTotalAmount(),
+                    slots
+            ));
+        }
+        return result;
+    }
 
             /* ===== 관리자 조회용: 단건 뷰 ===== */
             public AdminApplicationListItemDto getAdminApplicationView(Long appId) {
@@ -584,18 +744,18 @@ public class BannerApplicationService {
                     String title = (String) applicantInfo.get("title");
                     String bannerType = (String) applicantInfo.get("banner_type_name");
                     Integer totalAmount = (Integer) applicantInfo.get("total_amount");
-                    
+
                     // 배너는 승인과 동시에 결제 완료되므로 결제 링크 대신 완료 알림 발송
                     bannerEmailService.sendApprovalWithPaymentEmail(
-                        eventAdminEmail, 
-                        title, 
-                        bannerType, 
-                        totalAmount, 
-                        appId, 
+                        eventAdminEmail,
+                        title,
+                        bannerType,
+                        totalAmount,
+                        appId,
                         applicantName
                     );
-                    
-                    System.out.println("배너 승인 이메일 발송 완료 - appId: " + appId + 
+
+                    System.out.println("배너 승인 이메일 발송 완료 - appId: " + appId +
                                      ", recipient: " + eventAdminEmail);
                     
                 } catch (Exception e) {
@@ -622,17 +782,49 @@ public class BannerApplicationService {
                         throw new IllegalStateException("승인할 수 없는 상태입니다.");
                     }
 
-                    // 2. 신청 상태를 APPROVED로 변경 (결제는 별도)
-                    int updated = jdbc.update("""
-                          UPDATE banner_application
-                             SET status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='APPROVED'),
-                                 approved_by=?, approved_at=NOW()
-                           WHERE banner_application_id=? 
-                             AND status_code_id = (SELECT apply_status_code_id FROM apply_status_code WHERE code='PENDING')
-                        """, adminId, appId);
-                    if (updated != 1) throw new IllegalStateException("신청 상태가 변경되어 승인 처리에 실패했습니다.");
+                    // 2. Payment 엔티티 생성 (PENDING 상태)
+                    BannerApplication bannerApplication = bannerApplicationRepository.findById(appId)
+                            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배너 신청입니다: " + appId));
+                    
+                    PaymentTargetType bannerTargetType = paymentTargetTypeRepository.findByPaymentTargetCode("BANNER_APPLICATION")
+                            .orElseThrow(() -> new IllegalStateException("BANNER 결제 타입이 존재하지 않습니다"));
+                    
+                    PaymentStatusCode pendingPaymentStatus = paymentStatusCodeRepository.findByCode("PENDING")
+                            .orElseThrow(() -> new IllegalStateException("PENDING 결제 상태가 존재하지 않습니다"));
 
-                    // 3. 결제 링크가 포함된 승인 이메일 발송
+                    PaymentTypeCode bannerPaymentType = paymentTypeCodeRepository.findByCode("CARD")
+                            .orElseThrow(() -> new IllegalStateException("CARD 결제 타입 코드가 존재하지 않습니다"));
+
+                    BigDecimal totalAmount = java.math.BigDecimal.valueOf(bannerApplication.getTotalAmount());
+                    
+                    Payment payment = Payment.builder()
+                            .event(bannerApplication.getEvent())
+                            .user(bannerApplication.getApplicantId())
+                            .paymentTargetType(bannerTargetType)
+                            .targetId(appId)
+                            .merchantUid("banner_" + appId + "_" + System.currentTimeMillis())
+                            .quantity(1)
+                            .price(totalAmount)
+                            .amount(totalAmount) // 총 결제 금액 (price * quantity)
+                            .paymentTypeCode(bannerPaymentType)
+                            .paymentStatusCode(pendingPaymentStatus)
+                            .requestedAt(LocalDateTime.now())
+                            .build();
+                    
+                    Payment savedPayment = paymentRepository.save(payment);
+                    
+                    // BannerApplication과 Payment 연결
+                    bannerApplication.setPayment(savedPayment);
+
+
+                    // 3. 신청 상태를 APPROVED로 변경 (결제는 별도)
+                    ApplyStatusCode applyStatusCode = applyStatusCodeRepository.findByCode("APPROVED")
+                            .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "승인 신청 상태를 찾을 수 없습니다."));
+                    bannerApplication.setStatusCode(applyStatusCode);
+
+                    bannerApplicationRepository.save(bannerApplication);
+
+                    // 4. 결제 링크가 포함된 승인 이메일 발송
                     sendApprovalEmailWithPaymentLink(appId);
                     
                     System.out.println("배너 승인 완료 (결제 링크 발송) - appId: " + appId);
@@ -667,18 +859,18 @@ public class BannerApplicationService {
                     String title = (String) applicantInfo.get("title");
                     String bannerType = (String) applicantInfo.get("banner_type_name");
                     Integer totalAmount = (Integer) applicantInfo.get("total_amount");
-                    
+
                     // 부스와 동일한 방식으로 결제 링크가 포함된 이메일 발송
                     bannerEmailService.sendApprovalWithPaymentEmail(
-                        eventAdminEmail, 
-                        title, 
-                        bannerType, 
-                        totalAmount, 
-                        appId, 
+                        eventAdminEmail,
+                        title,
+                        bannerType,
+                        totalAmount,
+                        appId,
                         applicantName
                     );
-                    
-                    System.out.println("배너 승인 이메일 발송 완료 (결제 링크 포함) - appId: " + appId + 
+
+                    System.out.println("배너 승인 이메일 발송 완료 (결제 링크 포함) - appId: " + appId +
                                      ", recipient: " + eventAdminEmail);
                     
                 } catch (Exception e) {
@@ -740,7 +932,7 @@ public class BannerApplicationService {
                     Integer activeStatusCodeId = jdbc.queryForObject("""
                         SELECT banner_status_code_id FROM banner_status_code WHERE code = 'ACTIVE'
                         """, Integer.class);
-                    
+
                     // 각 슬롯에 대해 배너 생성
                     for (var slot : slots) {
                         // MySQL 호환을 위해 KeyHolder 사용
@@ -765,16 +957,16 @@ public class BannerApplicationService {
                             ps.setInt(9, activeStatusCodeId);
                             return ps;
                         }, keyHolder);
-                        
+
                         Long bannerId = Objects.requireNonNull(keyHolder.getKey()).longValue();
-                            
+
                         // 슬롯에 배너 ID 연결
                         jdbc.update("""
                             UPDATE banner_slot SET sold_banner_id = ? WHERE slot_id = ?
                             """, bannerId, slot.get("slotId"));
                     }
-                    
-                    System.out.println("배너 슬롯 활성화 및 배너 생성 완료 - appId: " + appId + 
+
+                    System.out.println("배너 슬롯 활성화 및 배너 생성 완료 - appId: " + appId +
                                      ", 활성화된 슬롯 수: " + sold + ", 생성된 배너 수: " + slots.size());
                     
                 } catch (Exception e) {

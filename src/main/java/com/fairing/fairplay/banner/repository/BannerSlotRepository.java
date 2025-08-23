@@ -105,4 +105,31 @@ where s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.SOLD
                                     @Param("from") LocalDate from,
                                     @Param("to") LocalDate to);
 
+    // 만료된 LOCK 상태를 AVAILABLE로 변경
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update BannerSlot s
+                  set s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.AVAILABLE,
+                          s.lockedBy = null,
+                          s.lockedUntil = null
+                  where s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.LOCKED
+                        and s.lockedUntil < CURRENT_TIMESTAMP
+           """)
+    int updateExpiredLocksToAvailable();
+
+    // banner_application_slot에 해당 슬롯이 이미 있는지 확인
+    @Query(value = """
+            SELECT CASE WHEN COUNT(*) > 0 THEN true ELSE false END
+            FROM banner_application_slot bas
+            WHERE bas.slot_id = :slotId
+            """, nativeQuery = true)
+    boolean existsInApplicationSlot(@Param("slotId") Long slotId);
+
+    // banner_application_slot에 이미 있는 모든 슬롯 ID들 조회
+    @Query(value = """
+            SELECT DISTINCT bas.slot_id
+            FROM banner_application_slot bas
+            """, nativeQuery = true)
+    List<Long> findReservedSlotIds();
+
 }

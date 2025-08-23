@@ -40,10 +40,10 @@ public class AdminReservationDashboardController {
     @GetMapping("/list")
     @FunctionAuth("getAggregatedPopularity")
     public Page<AdminReservationStatsListDto> getAggregatedPopularity(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(required = false) String mainCategory,
-            @RequestParam(required = false) String subCategory,
+            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "mainCategory", required = false) String mainCategory,
+            @RequestParam(value = "subCategory", required = false) String subCategory,
             @PageableDefault(size = 10, sort = "rank", direction = Sort.Direction.ASC) Pageable pageable) {
         return adminReservationService.getEventsByCategory(startDate, endDate, mainCategory, subCategory, pageable);
     }
@@ -51,8 +51,8 @@ public class AdminReservationDashboardController {
     @GetMapping("/trend-month")
     @FunctionAuth("getMonthlyTrend")
     public List<ReservationMonthlyTrendDto> getMonthTrend(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
 
     ) {
         return adminReservationService.monthlyTrend(startDate, endDate);
@@ -61,8 +61,8 @@ public class AdminReservationDashboardController {
     @GetMapping("/trend-daily")
     @FunctionAuth("getDailyTrend")
     public List<ReservationDailyTrendDto> getDailyTrend(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
 
     ) {
         return adminReservationService.dailyTrend(startDate, endDate);
@@ -71,11 +71,11 @@ public class AdminReservationDashboardController {
     @GetMapping("/search")
     @FunctionAuth("searchEvents")
     public Page<AdminReservationStatsListDto> getSearchReservation(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(required = false) String mainCategory,
-            @RequestParam(required = false) String subCategory,
-            @RequestParam(required = true) String keyword,
+            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "mainCategory", required = false) String mainCategory,
+            @RequestParam(value = "subCategory", required = false) String subCategory,
+            @RequestParam("keyword") String keyword,
             @PageableDefault(size = 10, sort = "rank", direction = Sort.Direction.ASC) Pageable pageable // 기본 페이징 조건
     ) {
         return adminReservationService.searchEvents(startDate, endDate, keyword, mainCategory, subCategory, pageable);
@@ -84,8 +84,8 @@ public class AdminReservationDashboardController {
     @GetMapping("/summary")
     @FunctionAuth("getReportPopularity")
     public AdminReservationSummaryDto getReportPopularity(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return adminReservationService.getReservationSummary(startDate, endDate);
     }
 

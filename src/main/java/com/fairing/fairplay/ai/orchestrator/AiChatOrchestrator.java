@@ -102,11 +102,11 @@ public class AiChatOrchestrator {
             return;
         }
 
-        // RAG 기반 응답 생성
+        // RAG 기반 응답 생성 (사용자 ID 포함)
         String reply;
         try {
-            System.out.println("RAG 채팅 호출 시작...");
-            RagChatService.RagResponse ragResponse = ragChatService.chat(userQuestion, conversationHistory);
+            System.out.println("RAG 채팅 호출 시작... (사용자 ID: " + room.getUserId() + ")");
+            RagChatService.RagResponse ragResponse = ragChatService.chat(userQuestion, conversationHistory, room.getUserId());
             
             reply = ragResponse.getAnswer();
             

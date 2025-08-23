@@ -1,6 +1,7 @@
 package com.fairing.fairplay.banner.service;
 
 import com.fairing.fairplay.banner.dto.SlotResponseDto;
+import com.fairing.fairplay.banner.entity.BannerSlot;
 import com.fairing.fairplay.banner.entity.BannerSlotStatus;
 import com.fairing.fairplay.banner.entity.BannerSlotType;
 import com.fairing.fairplay.banner.repository.BannerSlotRepository;
@@ -8,10 +9,12 @@ import com.fairing.fairplay.common.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
-import org.springframework.transaction.annotation.Transactional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -19,7 +22,7 @@ public class BannerSlotService {
 
     private final BannerSlotRepository bannerSlotRepository;
 
-    @Transactional(readOnly = true) //  읽기 전용
+    @Transactional(readOnly = true) //  읽기 전용으로 되돌림
     public List<SlotResponseDto> getSlots(BannerSlotType type, LocalDate from, LocalDate to) {
         if (type == null) {
             throw new CustomException(HttpStatus.BAD_REQUEST, "배너 타입이 비었습니다.", null);
@@ -28,12 +31,45 @@ public class BannerSlotService {
             throw new CustomException(HttpStatus.BAD_REQUEST, "날짜 범위가 올바르지 않습니다.", null);
         }
 
-        // 기존 리포지토리 메서드가 bannerType.code(String)을 받으므로 name()으로 전달
-        return bannerSlotRepository
-                .findByBannerType_CodeAndSlotDateBetweenOrderBySlotDateAscPriorityAsc(type.name(), from, to)
-                .stream()
-                .map(s -> new SlotResponseDto(s.getSlotDate(), s.getPriority(), s.getStatus(), s.getPrice()))
+        // 슬롯 데이터 조회
+        List<BannerSlot> slots = bannerSlotRepository
+                .findByBannerType_CodeAndSlotDateBetweenOrderBySlotDateAscPriorityAsc(type.name(), from, to);
+        
+        // banner_application_slot에 이미 있는 슬롯들 조회 (Native Query로 안전하게)
+        Set<Long> reservedSlotIds = getReservedSlotIds();
+        
+        return slots.stream()
+                .map(s -> {
+                    // 이미 신청된 슬롯은 SOLD로 표시
+                    BannerSlotStatus status = reservedSlotIds.contains(s.getId()) ? 
+                        BannerSlotStatus.SOLD : s.getStatus();
+                    return new SlotResponseDto(s.getSlotDate(), s.getPriority(), status, s.getPrice());
+                })
                 .toList();
+    }
+
+    /**
+     * 만료된 LOCK 상태를 AVAILABLE로 변경
+     */
+    public void cleanupExpiredLocks() {
+        try {
+            bannerSlotRepository.updateExpiredLocksToAvailable();
+        } catch (Exception e) {
+            // 만료된 락 정리 실패는 무시하고 계속 진행
+            System.err.println("만료된 락 정리 실패: " + e.getMessage());
+        }
+    }
+
+    /**
+     * banner_application_slot에 이미 있는 슬롯 ID들을 조회
+     */
+    private Set<Long> getReservedSlotIds() {
+        try {
+            return new HashSet<>(bannerSlotRepository.findReservedSlotIds());
+        } catch (Exception e) {
+            // 조회 실패 시 빈 Set 반환 (기본 상태 유지)
+            return new HashSet<>();
+        }
     }
 
 
