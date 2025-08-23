@@ -11,6 +11,10 @@ import com.fairing.fairplay.shareticket.dto.TokenResponseDto;
 import com.fairing.fairplay.shareticket.entity.ShareTicket;
 import com.fairing.fairplay.shareticket.repository.ShareTicketRepository;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.nio.ByteBuffer;
+import java.util.Base64;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -37,12 +41,23 @@ public class ShareTicketService {
         () -> new CustomException(HttpStatus.NOT_FOUND, "예약이 조회되지 않습니다.")
     );
 
-    ShareTicket shareTicket = shareTicketRepository.findByReservation(reservation).orElseThrow(
-        () -> new CustomException(HttpStatus.NOT_FOUND,"해당 예약에 조회되는 참석자 등록 폼은 없습니다.")
-    );
-
     if(!reservation.getUser().getUserId().equals(userDetails.getUserId())) {
       throw new CustomException(HttpStatus.FORBIDDEN,"해당 예약에 대한 권한이 없습니다.");
+    }
+
+    ShareTicket shareTicket = shareTicketRepository.findByReservation(reservation).orElse(null);
+    
+    // ShareTicket이 없으면 자동 생성
+    if (shareTicket == null) {
+      log.info("ShareTicket이 없어 자동 생성 - reservationId: {}, quantity: {}", 
+          reservationId, reservation.getQuantity());
+      
+      // 단건 예약(quantity = 1)이면 폼 링크가 필요하지 않음
+      if (reservation.getQuantity() <= 1) {
+        throw new CustomException(HttpStatus.BAD_REQUEST, "단건 예약은 참석자 등록 폼이 필요하지 않습니다.");
+      }
+      
+      shareTicket = createShareTicketForReservation(reservation);
     }
 
     if (shareTicket.getExpired()) {
@@ -94,5 +109,48 @@ public class ShareTicketService {
     if (shareTicket.getSubmittedCount() >= shareTicket.getTotalAllowed()) {
       shareTicket.setExpired(true);
     }
+  }
+
+  // 예약에 대한 ShareTicket 자동 생성
+  private ShareTicket createShareTicketForReservation(Reservation reservation) {
+    // 토큰 생성 (중복 방지)
+    String token;
+    do {
+      UUID uuid = UUID.randomUUID();
+      byte[] bytes = new byte[16];
+      ByteBuffer.wrap(bytes)
+          .putLong(uuid.getMostSignificantBits())
+          .putLong(uuid.getLeastSignificantBits());
+      token = Base64.getUrlEncoder().withoutPadding()
+          .encodeToString(bytes);
+    } while (shareTicketRepository.existsByLinkToken(token));
+
+    // 만료 시간 계산
+    LocalDate scheduleDate = reservation.getSchedule().getDate();
+    LocalDate today = LocalDateTime.now().toLocalDate();
+
+    LocalDateTime expiredAt;
+    // 행사 시작일이 오늘 기준 -1일 또는 당일일 경우 => 공유폼 만료 기한 당일 시작시간까지
+    if (today.equals(scheduleDate.minusDays(1)) || today.equals(scheduleDate)) {
+      expiredAt = LocalDateTime.of(scheduleDate, reservation.getSchedule().getStartTime());
+    } else {
+      // 그외 행사 시작 전날
+      expiredAt = scheduleDate.minusDays(1).atStartOfDay();
+    }
+
+    // ShareTicket 생성
+    ShareTicket shareTicket = ShareTicket.builder()
+        .linkToken(token)
+        .totalAllowed(reservation.getQuantity())
+        .expired(false)
+        .submittedCount(1) // 대표자 이미 제출됨 (기존 attendee가 있다고 가정)
+        .reservation(reservation)
+        .expiredAt(expiredAt)
+        .build();
+
+    log.info("ShareTicket 자동 생성 완료 - reservationId: {}, token: {}", 
+        reservation.getReservationId(), token);
+
+    return shareTicketRepository.save(shareTicket);
   }
 }
