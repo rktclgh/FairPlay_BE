@@ -117,7 +117,6 @@ public class SecurityConfig {
                                                                 "/api/host/reservation/**",
                                                                 "/participant-form",    
                                                                 "/participant-form/**")
-
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
 
