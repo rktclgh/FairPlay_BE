@@ -5,6 +5,8 @@ import com.fairing.fairplay.banner.entity.*;
 import com.fairing.fairplay.banner.repository.*;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.entity.EventDetail;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
 import com.fairing.fairplay.file.entity.File;
@@ -20,12 +22,10 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Comparator;
-import com.fairing.fairplay.event.entity.Event;
-
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -385,6 +385,9 @@ public class BannerService {
     }
 
     private BannerResponseDto toDto(Banner banner) {
+        Event event = banner.getEventId() == null ? null : eventRepository.findById(banner.getEventId()).orElse(null);
+        EventDetail eventDetail = event == null ? null : event.getEventDetail();
+
         return BannerResponseDto.builder()
                 .id(banner.getId())
                 .title(banner.getTitle())
@@ -396,6 +399,7 @@ public class BannerService {
                 .statusCode(banner.getBannerStatusCode().getCode())
                 .bannerTypeCode(banner.getBannerType().getCode())
                 .eventId(banner.getEventId())
+                .smallImageUrl(eventDetail == null ? null : eventDetail.getThumbnailUrl())
                 .build();
     }
 
