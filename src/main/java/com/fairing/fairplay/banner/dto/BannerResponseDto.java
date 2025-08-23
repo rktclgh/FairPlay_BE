@@ -21,5 +21,6 @@ public class BannerResponseDto {
     private boolean hot;
     private boolean mdPick;
     private Long eventId;
+    private String smallImageUrl;
 
 }
