@@ -31,13 +31,13 @@ public class ShareTicketController {
   private final ShareTicketAttendeeService shareTicketAttendeeService;
 
   // 공유 폼 링크 및 참석자 생성
-  @PostMapping
-  public ResponseEntity<ShareTicketSaveResponseDto> saveShareTicketAndAttendee(
-      @RequestBody ShareTicketSaveRequestDto dto,
-      @AuthenticationPrincipal CustomUserDetails userDetails) {
-    return ResponseEntity.ok(
-        shareTicketAttendeeService.saveShareTicketAndAttendee(userDetails, dto));
-  }
+//  @PostMapping
+//  public ResponseEntity<ShareTicketSaveResponseDto> saveShareTicketAndAttendee(
+//      @RequestBody ShareTicketSaveRequestDto dto,
+//      @AuthenticationPrincipal CustomUserDetails userDetails) {
+//    return ResponseEntity.ok(
+//        shareTicketAttendeeService.saveShareTicketAndAttendee(userDetails, dto));
+//  }
 
   // 공유폼조회
   // 폼링크 조회 시 기본 정보 세팅
