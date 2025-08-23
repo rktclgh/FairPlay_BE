@@ -114,7 +114,9 @@ public class SecurityConfig {
                                                                 "/api/popular-events/**",
                                                                 "/api/reservation-statistics/**",
                                                                 "/api/sales-statistics/**",
-                                                                "/api/host/reservation/**")
+                                                                "/api/host/reservation/**",
+                                                                "/participant-form",    
+                                                                "/participant-form/**")
 
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
