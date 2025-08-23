@@ -99,6 +99,10 @@ public class PaymentService {
     // 결제 요청 정보 저장 (예약/부스/광고 통합)
     @Transactional
     public PaymentResponseDto savePayment(PaymentRequestDto paymentRequestDto, Long userId) {
+        // 디버깅용 로그
+        System.out.println("🔵 [PaymentService] savePayment - scheduleId: " + paymentRequestDto.getScheduleId() + 
+                ", ticketId: " + paymentRequestDto.getTicketId());
+        
         // 1. 요청 데이터 유효성 검증
         validatePaymentRequest(paymentRequestDto);
 
@@ -180,8 +184,8 @@ public class PaymentService {
 
         Payment savedPaymentEntity = paymentRepository.save(payment);
 
-        // 6. 결제 완료 후 후속 처리 (예약 생성 등)
-        processPaymentCompletionActions(savedPaymentEntity);
+        // 6. 결제 완료 후 후속 처리 (예약 생성 등) - PaymentRequestDto의 scheduleId, ticketId 전달
+        processPaymentCompletionActions(savedPaymentEntity, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
 
         return PaymentResponseDto.fromEntity(savedPaymentEntity);
     }
@@ -230,8 +234,10 @@ public class PaymentService {
 
         Payment savedPayment = paymentRepository.save(payment);
 
-        // 6. 결제 완료 후 후속 처리
-        processPaymentCompletionActions(savedPayment);
+        // 6. 결제 완료 후 후속 처리 (PaymentRequestDto의 scheduleId, ticketId 사용)
+        System.out.println("🔵 [PaymentService] completePayment - 받은 scheduleId: " + paymentRequestDto.getScheduleId() + 
+                ", ticketId: " + paymentRequestDto.getTicketId());
+        processPaymentCompletionActions(savedPayment, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
 
         // 7. 후속 처리로 업데이트된 payment 정보를 다시 조회하여 반환
         Payment updatedPayment = paymentRepository.findById(savedPayment.getPaymentId())
@@ -342,12 +348,19 @@ public class PaymentService {
      * - 알림 전송 등
      */
     private void processPaymentCompletionActions(Payment payment) {
+        processPaymentCompletionActions(payment, null, null);
+    }
+    
+    /**
+     * 결제 완료 후 후속 처리 로직 (scheduleId, ticketId 전달)
+     */
+    private void processPaymentCompletionActions(Payment payment, Long scheduleId, Long ticketId) {
         String targetType = payment.getPaymentTargetType().getPaymentTargetCode();
 
         try {
             switch (targetType) {
                 case "RESERVATION":
-                    processReservationPaymentCompletion(payment);
+                    processReservationPaymentCompletion(payment, scheduleId, ticketId);
                     break;
                 case "BOOTH":
                     processBoothPaymentCompletion(payment);
@@ -373,9 +386,9 @@ public class PaymentService {
     }
 
     /**
-     * 결제 완료 후 예매 생성 (방식 A)
+     * 결제 완료 후 예매 생성 (scheduleId, ticketId 직접 전달)
      */
-    private Long createReservationAfterPayment(Payment payment) {
+    private Long createReservationAfterPayment(Payment payment, Long scheduleId, Long ticketId) {
         try {
             System.out.println("결제 완료 후 예매 생성 시작 - paymentId: " + payment.getPaymentId());
             
@@ -395,19 +408,38 @@ public class PaymentService {
             }
             
 
-            List<EventSchedule> schedules = eventScheduleRepository.findByEvent_EventId(event.getEventId());
-            if (schedules.isEmpty()) {
-                throw new IllegalStateException("이벤트에 스케줄이 없습니다.");
+            EventSchedule schedule = null;
+            Ticket ticket = null;
+            
+            // scheduleId가 직접 전달된 경우 해당 스케줄 사용
+            if (scheduleId != null) {
+                schedule = eventScheduleRepository.findById(scheduleId)
+                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 스케줄 ID: " + scheduleId));
+                System.out.println("🟢 [PaymentService] 전달받은 scheduleId 사용: " + scheduleId);
+            } else {
+                // 기존 로직: 첫 번째 스케줄 사용
+                List<EventSchedule> schedules = eventScheduleRepository.findByEvent_EventId(event.getEventId());
+                if (schedules.isEmpty()) {
+                    throw new IllegalStateException("이벤트에 스케줄이 없습니다.");
+                }
+                schedule = schedules.get(0);
+                System.out.println("🟡 [PaymentService] 기본 스케줄 사용: " + schedule.getScheduleId());
             }
             
-            EventSchedule schedule = schedules.get(0); // 첫 번째 스케줄 사용
-            
-            List<Ticket> tickets = ticketRepository.findTicketsByEventId(event.getEventId());
-            if (tickets.isEmpty()) {
-                throw new IllegalStateException("이벤트에 티켓이 없습니다.");
+            // ticketId가 직접 전달된 경우 해당 티켓 사용
+            if (ticketId != null) {
+                ticket = ticketRepository.findById(ticketId)
+                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + ticketId));
+                System.out.println("🟢 [PaymentService] 전달받은 ticketId 사용: " + ticketId);
+            } else {
+                // 기존 로직: 첫 번째 티켓 사용
+                List<Ticket> tickets = ticketRepository.findTicketsByEventId(event.getEventId());
+                if (tickets.isEmpty()) {
+                    throw new IllegalStateException("이벤트에 티켓이 없습니다.");
+                }
+                ticket = tickets.get(0);
+                System.out.println("🟡 [PaymentService] 기본 티켓 사용: " + ticket.getTicketId());
             }
-            
-            Ticket ticket = tickets.get(0); // 첫 번째 티켓 사용
             
             // ReservationRequestDto 생성
             ReservationRequestDto reservationRequest = new ReservationRequestDto();
@@ -442,11 +474,18 @@ public class PaymentService {
      * - 결제 완료 후 예약 생성 (방식 A)
      */
     private void processReservationPaymentCompletion(Payment payment) {
+        processReservationPaymentCompletion(payment, null, null);
+    }
+    
+    /**
+     * 예약 결제 완료 처리 (scheduleId, ticketId 전달)
+     */
+    private void processReservationPaymentCompletion(Payment payment, Long scheduleId, Long ticketId) {
         try {
             // 방식 A: 결제 완료 후 예매 생성 (targetId가 null인 경우만)
             if (payment.getTargetId() == null) {
                 // targetId가 null이면 결제 후 예매 생성해야 하는 상황
-                Long reservationId = createReservationAfterPayment(payment);
+                Long reservationId = createReservationAfterPayment(payment, scheduleId, ticketId);
 
                 System.out.println("🔴 [PaymentService] 예매 생성 완료 - reservationId: " + reservationId);
                 
