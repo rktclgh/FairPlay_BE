@@ -86,7 +86,8 @@ public class BusinessCardService {
         Users user = getUserById(userId);
         
         // 전자명함이 있는지 확인
-        if (!businessCardRepository.existsByUser(user)) {
+        BusinessCard businessCard = businessCardRepository.findByUser(user).orElse(null);
+        if (businessCard == null) {
             throw new CustomException(HttpStatus.NOT_FOUND, "전자명함을 먼저 생성해주세요.");
         }
         
@@ -106,7 +107,8 @@ public class BusinessCardService {
         Users cardOwner = getUserById(cardOwnerId);
         
         // 명함이 존재하는지 확인
-        if (!businessCardRepository.existsByUser(cardOwner)) {
+        BusinessCard cardOwnerBusinessCard = businessCardRepository.findByUser(cardOwner).orElse(null);
+        if (cardOwnerBusinessCard == null) {
             throw new CustomException(HttpStatus.NOT_FOUND, "해당 사용자의 전자명함이 존재하지 않습니다.");
         }
         
