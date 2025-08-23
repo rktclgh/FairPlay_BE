@@ -25,6 +25,9 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.reservation.repository.ReservationStatusCodeRepository;
 import com.fairing.fairplay.reservation.service.ReservationService;
+import com.fairing.fairplay.shareticket.dto.ShareTicketSaveRequestDto;
+import com.fairing.fairplay.shareticket.dto.ShareTicketSaveResponseDto;
+import com.fairing.fairplay.shareticket.service.ShareTicketAttendeeService;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
@@ -88,6 +91,9 @@ public class PaymentService {
     
     // 배너 신청 정보 조회를 위한 레포지토리
     private final BannerApplicationRepository bannerApplicationRepository;
+
+    // 참석자 생성 및 폼 링크 생성
+    private final ShareTicketAttendeeService shareTicketAttendeeService;
 
     // 아임포트 API 설정
     @Value("${iamport.api-key}")
@@ -464,7 +470,19 @@ public class PaymentService {
             
             System.out.println("예매 생성 성공 - reservationId: " + reservation.getReservationId() +
                               ", ticketId: " + ticket.getTicketId() + ", quantity: " + payment.getQuantity());
-            
+
+            ShareTicketSaveRequestDto shareTicketSaveRequestDto = ShareTicketSaveRequestDto.builder()
+                .reservationId(reservation.getReservationId())
+                .totalAllowed(reservation.getQuantity())
+                .build();
+
+            // 참석자 저장 및 참석자 링크 폼 생성
+            ShareTicketSaveResponseDto shareTicketSaveResponseDto =
+                shareTicketAttendeeService.saveShareTicketAndAttendee(user.getUserId(), shareTicketSaveRequestDto);
+
+            System.out.println("참석자 생성 성공 - reservationId: " + reservation.getReservationId() +
+                ", 폼 링크 (티켓 매수 1 이상 시: " + shareTicketSaveResponseDto.getToken() + ", quantity: " + payment.getQuantity());
+
             return reservation.getReservationId();
             
         } catch (Exception e) {

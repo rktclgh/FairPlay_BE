@@ -42,9 +42,9 @@ public class ShareTicketAttendeeService {
 
   // 대표자 저장 및 참석자 폼 링크 생성해 반환
   @Transactional
-  public ShareTicketSaveResponseDto saveShareTicketAndAttendee(CustomUserDetails userDetails,
+  public ShareTicketSaveResponseDto saveShareTicketAndAttendee(Long userId,
       ShareTicketSaveRequestDto dto) {
-    if (userDetails == null || dto.getReservationId() == null) {
+    if (userId == null || dto.getReservationId() == null) {
       throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인 후 이용해주세요");
     }
     
@@ -52,7 +52,7 @@ public class ShareTicketAttendeeService {
         dto.getReservationId(), dto.getTotalAllowed());
 
     // 1. attendee 저장
-    Users buyUser = userRepository.findByUserId(userDetails.getUserId()).orElseThrow(
+    Users buyUser = userRepository.findByUserId(userId).orElseThrow(
         () -> new CustomException(HttpStatus.UNAUTHORIZED, "회원을 조회할 수 없습니다.")
     );
 
