@@ -286,7 +286,13 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public List<PaymentResponseDto> getMyPayments(Long userId) {
         List<Payment> payments = paymentRepository.findByUserIdWithEventInfo(userId);
-        return PaymentResponseDto.fromEntityList(payments);
+        
+        // 환불된 결제 제외
+        List<Payment> activePayments = payments.stream()
+                .filter(payment -> !"REFUNDED".equals(payment.getPaymentStatusCode().getCode()))
+                .toList();
+        
+        return PaymentResponseDto.fromEntityList(activePayments);
     }
 
     // merchantUid로 결제 정보 조회
