@@ -115,44 +115,44 @@ public class SecurityConfig {
                                 "/api/reservation-statistics/**",
                                 "/api/sales-statistics/**",
                                 "/api/host/reservation/**",
-                                "/participant-form",        // ★ 추가
+                                "/participant-form",
                                 "/participant-form/**",
                                 "/booth/cancel",
                                 "/booth/cancel/**")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
 
-                        .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/attendees").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/events/*/schedule").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/events/*/tickets").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/events/schedule/*/tickets")
-                        .permitAll()
-                        .requestMatchers("/api/chat/presence/connect",
-                                "/api/chat/presence/disconnect")
-                        .authenticated() // JWT 인증
-                        .anyRequest().authenticated())
-                .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(401);
-                            response.getWriter().write(
-                                    "{\"error\":\"Unauthorized\",\"message\":\""
-                                            + authException.getMessage()
-                                            + "\"}");
-                        })
-                        .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            response.setStatus(403);
-                            response.getWriter().write(
-                                    "{\"error\":\"Access Denied\",\"message\":\""
-                                            + accessDeniedException
-                                            .getMessage()
-                                            + "\"}");
-                        }))
-                .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
-                        UsernamePasswordAuthenticationFilter.class);
+                                                .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/api/attendees").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/events/*/schedule").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/events/*/tickets").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/events/schedule/*/tickets")
+                                                .permitAll()
+                                                .requestMatchers("/api/chat/presence/connect",
+                                                                "/api/chat/presence/disconnect")
+                                                .authenticated() // JWT 인증
+                                                .anyRequest().authenticated())
+                                .exceptionHandling(exceptions -> exceptions
+                                                .authenticationEntryPoint((request, response, authException) -> {
+                                                        response.setStatus(401);
+                                                        response.getWriter().write(
+                                                                        "{\"error\":\"Unauthorized\",\"message\":\""
+                                                                                        + authException.getMessage()
+                                                                                        + "\"}");
+                                                })
+                                                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                                                        response.setStatus(403);
+                                                        response.getWriter().write(
+                                                                        "{\"error\":\"Access Denied\",\"message\":\""
+                                                                                        + accessDeniedException
+                                                                                                        .getMessage()
+                                                                                        + "\"}");
+                                                }))
+                                .addFilterBefore(
+                                                new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
+                                                UsernamePasswordAuthenticationFilter.class);
 
-        return http.build();
-    }
+                return http.build();
+        }
 }
