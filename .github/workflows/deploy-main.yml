@@ -25,7 +25,7 @@ jobs:
       - name: Checkout FE (FairPlay_FE)
         uses: actions/checkout@v4
         with:
-          repository: Fairing-15th/FairPlay_FE
+          repository: rktclgh/FairPlay_FE
           ref: main
           path: fe-src
           token: ${{ secrets.CI_GITHUB_TOKEN }}  # PAT(repo read) 필요
