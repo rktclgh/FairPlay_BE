@@ -11,7 +11,8 @@ import com.fairing.fairplay.booth.repository.BoothExternalLinkRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.booth.repository.BoothTypeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
+// import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
@@ -44,7 +45,8 @@ public class BoothService {
     private final BoothTypeRepository boothTypeRepository;
     private final BoothApplicationRepository boothApplicationRepository;
     private final FileService fileService;
-    private final AwsS3Service awsS3Service;
+    // private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
     private final BoothExternalLinkRepository boothExternalLinkRepository;
     private final BoothAdminRepository boothAdminRepository;
     private final UserRepository userRepository;
@@ -202,10 +204,19 @@ public class BoothService {
 
                 // 배너 파일인 경우 boothBannerUrl 업데이트
                 if ("banner".equals(usage)) {
+                    String cdnUrl = localFileService.getCdnUrl(savedFile.getFileUrl());
+                    booth.setBoothBannerUrl(cdnUrl);
+                    log.info("부스 배너 URL 업데이트: {}", cdnUrl);
+                }
+                
+                /* S3 버전 (롤백용 주석처리)
+                // 배너 파일인 경우 boothBannerUrl 업데이트
+                if ("banner".equals(usage)) {
                     String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
                     booth.setBoothBannerUrl(cdnUrl);
                     log.info("부스 배너 URL 업데이트: {}", cdnUrl);
                 }
+                */
             });
         }
 

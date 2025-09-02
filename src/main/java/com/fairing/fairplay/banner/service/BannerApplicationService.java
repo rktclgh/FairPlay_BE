@@ -9,7 +9,8 @@ import com.fairing.fairplay.banner.repository.BannerApplicationRepository;
 import com.fairing.fairplay.banner.repository.BannerApplicationSlotRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.service.BannerEmailService;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
+// import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.entity.ApplyStatusCode;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.ApplyStatusCodeRepository;
@@ -71,7 +72,8 @@ public class BannerApplicationService {
     private final BannerApplicationRepository bannerApplicationRepository;
     private final BannerApplicationSlotRepository bannerApplicationSlotRepository;
     private final EventRepository eventRepository;
-    private final AwsS3Service awsS3Service;
+    // private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
     private final PaymentRepository paymentRepository;
     private final PaymentStatusCodeRepository paymentStatusCodeRepository;
     private final PaymentTargetTypeRepository paymentTargetTypeRepository;
@@ -174,6 +176,20 @@ public class BannerApplicationService {
         int total = prices.stream().mapToInt(Integer::intValue).sum();
         Integer pendingId = statusId(STATUS_PENDING);
 
+        // 이미지 URL 처리: Local 파일 키인 경우 영구 저장소로 이동 후 CDN URL 생성
+        String imageUrl = req.imageUrl();
+        if (imageUrl != null && !imageUrl.trim().isEmpty() && !imageUrl.startsWith("http")) {
+            // Local 파일 키로 판단되는 경우 영구 저장소로 이동
+            try {
+                String permanentKey = localFileService.moveToPermanent(imageUrl, "banner");
+                imageUrl = localFileService.getCdnUrl(permanentKey);
+            } catch (Exception e) {
+                // 이동 실패 시 원본 키로 CDN URL 생성 시도
+                imageUrl = localFileService.getCdnUrl(imageUrl);
+            }
+        }
+        
+        /* S3 버전 (롤백용 주석처리)
         // 이미지 URL 처리: S3 키인 경우 영구 저장소로 이동 후 CDN URL 생성
         String imageUrl = req.imageUrl();
         if (imageUrl != null && !imageUrl.trim().isEmpty() && !imageUrl.startsWith("http")) {
@@ -186,6 +202,7 @@ public class BannerApplicationService {
                 imageUrl = awsS3Service.getCdnUrl(imageUrl);
             }
         }
+        */
         final String finalImageUrl = imageUrl;
 
         KeyHolder kh = new GeneratedKeyHolder();

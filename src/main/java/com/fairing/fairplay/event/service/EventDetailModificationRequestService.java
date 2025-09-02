@@ -1,7 +1,8 @@
 package com.fairing.fairplay.event.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
+// import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.core.util.JsonUtil;
 import com.fairing.fairplay.event.dto.EventDetailModificationDto;
 import com.fairing.fairplay.event.dto.EventDetailRequestDto;
@@ -43,7 +44,8 @@ public class EventDetailModificationRequestService {
     private final ExternalLinkRepository externalLinkRepository;
     private final EventStatusCodeRepository statusCodeRepository;
     private final EventVersionService eventVersionService;
-    private final AwsS3Service awsS3Service;
+    // private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
     private final FileService fileService;
 
     private static final String NOT_FOUND_STATUS = "해당 상태 코드 없음";
@@ -70,6 +72,15 @@ public class EventDetailModificationRequestService {
             for (EventDetailRequestDto.FileUploadDto fileDto : modificationDto.getTempFiles()) {
                 try {
                     String directory = "events/" + eventId + "/" + fileDto.getUsage();
+                    String newKey = localFileService.moveToPermanent(fileDto.getS3Key(), directory);
+                    String cdnUrl = localFileService.getCdnUrl(newKey);
+                    newFileKeys.add(newKey);
+
+                    // 임시 URL과 영구 URL 매핑 저장
+                    String tempCdnUrl = localFileService.getCdnUrl(fileDto.getS3Key());
+                    urlMappings.put(tempCdnUrl, cdnUrl);
+                    
+                    /* S3 버전 (롤백용 주석처리)
                     String newKey = awsS3Service.moveToPermanent(fileDto.getS3Key(), directory);
                     String cdnUrl = awsS3Service.getCdnUrl(newKey);
                     newFileKeys.add(newKey);
@@ -77,6 +88,7 @@ public class EventDetailModificationRequestService {
                     // 임시 URL과 영구 URL 매핑 저장
                     String tempCdnUrl = awsS3Service.getCdnUrl(fileDto.getS3Key());
                     urlMappings.put(tempCdnUrl, cdnUrl);
+                    */
 
                     switch (fileDto.getUsage().toLowerCase()) {
                         case "banner":
@@ -169,6 +181,23 @@ public class EventDetailModificationRequestService {
         Long eventId = request.getEvent().getEventId();
         
         if (modifiedData.getThumbnailUrl() != null && modifiedData.getThumbnailUrl().contains("/tmp")) {
+            String staticKey = localFileService.getStaticKeyFromPublicUrl(modifiedData.getThumbnailUrl());
+            if (staticKey != null && staticKey.contains("/tmp")) {
+                try {
+                    String directory = "events/" + eventId + "/banner_vertical";
+                    String newKey = localFileService.moveToPermanent(staticKey, directory);
+                    String permanentUrl = localFileService.getCdnUrl(newKey);
+                    modifiedData.setThumbnailUrl(permanentUrl);
+                    log.info("승인 시점에서 임시 썸네일을 영구 저장소로 이동: {} -> {}", staticKey, newKey);
+                    log.info("업데이트된 썸네일 URL: {}", permanentUrl);
+                } catch (Exception e) {
+                    log.error("승인 시점에서 임시 썸네일 이동 실패: {}", e.getMessage());
+                }
+            }
+        }
+        
+        /* S3 버전 (롤백용 주석처리)
+        if (modifiedData.getThumbnailUrl() != null && modifiedData.getThumbnailUrl().contains("/tmp")) {
             String s3Key = awsS3Service.getS3KeyFromPublicUrl(modifiedData.getThumbnailUrl());
             if (s3Key != null && s3Key.contains("/tmp")) {
                 try {
@@ -183,7 +212,25 @@ public class EventDetailModificationRequestService {
                 }
             }
         }
+        */
         
+        if (modifiedData.getBannerUrl() != null && modifiedData.getBannerUrl().contains("/tmp")) {
+            String staticKey = localFileService.getStaticKeyFromPublicUrl(modifiedData.getBannerUrl());
+            if (staticKey != null && staticKey.contains("/tmp")) {
+                try {
+                    String directory = "events/" + eventId + "/banner_horizontal";
+                    String newKey = localFileService.moveToPermanent(staticKey, directory);
+                    String permanentUrl = localFileService.getCdnUrl(newKey);
+                    modifiedData.setBannerUrl(permanentUrl);
+                    log.info("승인 시점에서 임시 배너를 영구 저장소로 이동: {} -> {}", staticKey, newKey);
+                    log.info("업데이트된 배너 URL: {}", permanentUrl);
+                } catch (Exception e) {
+                    log.error("승인 시점에서 임시 배너 이동 실패: {}", e.getMessage());
+                }
+            }
+        }
+        
+        /* S3 버전 (롤백용 주석처리)
         if (modifiedData.getBannerUrl() != null && modifiedData.getBannerUrl().contains("/tmp")) {
             String s3Key = awsS3Service.getS3KeyFromPublicUrl(modifiedData.getBannerUrl());
             if (s3Key != null && s3Key.contains("/tmp")) {
@@ -199,6 +246,7 @@ public class EventDetailModificationRequestService {
                 }
             }
         }
+        */
         
         // 업데이트된 modifiedData를 다시 저장
         request.setModifiedDataFromDto(modifiedData);
@@ -225,12 +273,23 @@ public class EventDetailModificationRequestService {
             List<String> fileKeysToDelete = JsonUtil.fromJson(request.getNewFileKeysJson(), List.class);
             for (String key : fileKeysToDelete) {
                 try {
+                    localFileService.deleteFile(key);
+                    log.info("Deleted orphaned local file from rejected request: {}", key);
+                } catch (Exception e) {
+                    log.error("Failed to delete orphaned local file {}: {}", key, e.getMessage());
+                }
+            }
+            
+            /* S3 버전 (롤백용 주석처리)
+            for (String key : fileKeysToDelete) {
+                try {
                     awsS3Service.deleteFile(key);
                     log.info("Deleted orphaned S3 file from rejected request: {}", key);
                 } catch (Exception e) {
                     log.error("Failed to delete orphaned S3 file {}: {}", key, e.getMessage());
                 }
             }
+            */
         }
 
         UpdateStatusCode rejectedStatus = updateStatusCodeRepository.findByCode("REJECTED")

@@ -7,7 +7,8 @@ import com.fairing.fairplay.booth.mapper.BoothApplicationMapper;
 import com.fairing.fairplay.booth.repository.*;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.service.BoothEmailService;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
+// import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
@@ -56,7 +57,8 @@ public class BoothApplicationService {
     private final UserService userService;
     private final SuperAdminService superAdminService;
     private final PasswordEncoder passwordEncoder;
-    private final AwsS3Service awsS3Service;
+    // private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
     private final FileService fileService;
     private final FileRepository fileRepository;
     private final BoothEmailService boothEmailService;
@@ -192,8 +194,13 @@ public class BoothApplicationService {
 
             fileService.createFileLink(savedFile, "BOOTH_APPLICATION", boothApply.getId());
 
+            String cdnUrl = localFileService.getCdnUrl(savedFile.getFileUrl());
+            boothApply.setBoothBannerUrl(cdnUrl);
+            
+            /* S3 버전 (롤백용 주석처리)
             String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
             boothApply.setBoothBannerUrl(cdnUrl);
+            */
 
         } catch (Exception e) {
             log.error("Error processing temporary file with key {}: {}", tempFile.getS3Key(), e.getMessage(), e);
