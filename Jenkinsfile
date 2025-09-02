@@ -14,7 +14,7 @@ pipeline {
         stage('Checkout Frontend') {
             steps {
                 sh 'rm -rf fairplay-fe'
-                sh 'git clone https://github.com/Fairing-15th/FairPlay_FE.git fairplay-fe'
+                sh 'git clone https://github.com/rktclgh/FairPlay_FE.git fairplay-fe'
             }
         }
         stage('Prepare Frontend Environment') {
