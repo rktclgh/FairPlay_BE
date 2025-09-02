@@ -4,7 +4,8 @@ import com.fairing.fairplay.admin.service.SuperAdminService;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.service.EventEmailService;
 import com.fairing.fairplay.core.email.service.TemporaryPasswordEmailService;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
+// import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.EventApplyRequestDto;
 import com.fairing.fairplay.event.dto.EventApplyResponseDto;
 import com.fairing.fairplay.event.entity.*;
@@ -57,7 +58,8 @@ public class EventApplyService {
     private final PasswordEncoder passwordEncoder;
     private final Hashids hashids;
     private final TemporaryPasswordEmailService temporaryPasswordEmailService; // Keep for now, will remove helper
-    private final AwsS3Service awsS3Service;
+    // private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
     private final UserService userService;
     private final FileRepository fileRepository;
     private final FileService fileService;
@@ -159,7 +161,11 @@ public class EventApplyService {
 
                 fileService.createFileLink(savedFile, "EVENT_APPLY", eventApply.getEventApplyId());
 
+                String cdnUrl = localFileService.getCdnUrl(savedFile.getFileUrl());
+                
+                /* S3 버전 (롤백용 주석처리)
                 String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
+                */
 
                 switch (fileDto.getUsage().toLowerCase()) {
                     case "file":

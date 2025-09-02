@@ -2,6 +2,7 @@ package com.fairing.fairplay.file.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
 import com.fairing.fairplay.file.dto.S3UploadRequestDto;
 import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.entity.FileLink;
@@ -23,12 +24,20 @@ public class FileService {
 
     private final FileRepository fileRepository;
     private final FileLinkRepository fileLinkRepository;
-    private final AwsS3Service awsS3Service;
+    // S3 서비스 (주석처리 - 롤백 가능)
+    // private final AwsS3Service awsS3Service;
+    
+    // 로컬 파일 서비스
+    private final LocalFileService localFileService;
 
     @Transactional
     public File uploadFile(S3UploadRequestDto requestDto) {
         String directory = requestDto.getDirectoryPrefix();
-        String newKey = awsS3Service.moveToPermanent(requestDto.getS3Key(), directory);
+        // S3 파일 이동 (주석처리)
+        // String newKey = awsS3Service.moveToPermanent(requestDto.getS3Key(), directory);
+        
+        // 로컬 파일 이동
+        String newKey = localFileService.moveToPermanent(requestDto.getS3Key(), directory);
         log.info("FileService: Uploaded file to newKey: {}", newKey);
 
         File file = File.builder()
@@ -65,7 +74,11 @@ public class FileService {
         List<FileLink> fileLinks = fileLinkRepository.findByFileId(fileId);
         fileLinkRepository.deleteAll(fileLinks);
 
-        awsS3Service.deleteFile(file.getFileUrl());
+        // S3 파일 삭제 (주석처리)
+        // awsS3Service.deleteFile(file.getFileUrl());
+        
+        // 로컬 파일 삭제
+        localFileService.deleteFile(file.getFileUrl());
         fileRepository.delete(file);
     }
 
@@ -78,7 +91,11 @@ public class FileService {
         List<FileLink> fileLinks = fileLinkRepository.findByFileId(file.getId());
         fileLinkRepository.deleteAll(fileLinks);
 
-        awsS3Service.deleteFile(file.getFileUrl());
+        // S3 파일 삭제 (주석처리)
+        // awsS3Service.deleteFile(file.getFileUrl());
+        
+        // 로컬 파일 삭제
+        localFileService.deleteFile(file.getFileUrl());
         fileRepository.delete(file);
     }
 
@@ -90,10 +107,13 @@ public class FileService {
         
         // S3에서 파일 존재 여부 확인
         try {
-            if (!awsS3Service.fileExists(currentS3Key)) {
+            // S3 파일 존재 확인 (주석처리)
+            // if (!awsS3Service.fileExists(currentS3Key)) {
+            if (!localFileService.fileExists(currentS3Key)) {
                 log.warn("S3 파일이 존재하지 않음 - Key: {}, 파일 이동 건너뜀", currentS3Key);
                 // 파일이 이미 이동되었거나 삭제된 경우, CDN URL 반환
-                return awsS3Service.getCdnUrl(currentS3Key);
+                // return awsS3Service.getCdnUrl(currentS3Key);
+                return localFileService.getCdnUrl(currentS3Key);
             }
         } catch (Exception e) {
             log.error("S3 파일 존재 확인 실패 - Key: {}, 오류: {}", currentS3Key, e.getMessage());
@@ -103,7 +123,11 @@ public class FileService {
         
         // 새 경로 생성 (events/{eventId}/{usage})
         String newDirectoryPrefix = "events/" + eventId + "/" + usage;
-        String newS3Key = awsS3Service.moveToPermanent(currentS3Key, newDirectoryPrefix);
+        // S3 파일 이동 (주석처리)
+        // String newS3Key = awsS3Service.moveToPermanent(currentS3Key, newDirectoryPrefix);
+        
+        // 로컬 파일 이동
+        String newS3Key = localFileService.moveToPermanent(currentS3Key, newDirectoryPrefix);
         
         // 새로운 File 엔티티 생성 (기존 정보 복사 + 새 정보 설정)
         File newFile = File.builder()
@@ -131,7 +155,8 @@ public class FileService {
         createFileLink(savedNewFile, "EVENT", eventId);
         
         log.info("파일 이동 완료 - EventId: {}, 기존 Key: {}, 새 Key: {}", eventId, currentS3Key, newS3Key);
-        return awsS3Service.getCdnUrl(newS3Key);
+        // return awsS3Service.getCdnUrl(newS3Key);
+        return localFileService.getCdnUrl(newS3Key);
     }
 
     @Transactional
@@ -142,10 +167,13 @@ public class FileService {
 
         // S3에서 파일 존재 여부 확인
         try {
-            if (!awsS3Service.fileExists(currentS3Key)) {
+            // S3 파일 존재 확인 (주석처리)
+            // if (!awsS3Service.fileExists(currentS3Key)) {
+            if (!localFileService.fileExists(currentS3Key)) {
                 log.warn("S3 파일이 존재하지 않음 - Key: {}, 파일 이동 건너뜀", currentS3Key);
                 // 파일이 이미 이동되었거나 삭제된 경우, CDN URL 반환
-                return awsS3Service.getCdnUrl(currentS3Key);
+                // return awsS3Service.getCdnUrl(currentS3Key);
+                return localFileService.getCdnUrl(currentS3Key);
             }
         } catch (Exception e) {
             log.error("S3 파일 존재 확인 실패 - Key: {}, 오류: {}", currentS3Key, e.getMessage());
@@ -155,7 +183,11 @@ public class FileService {
 
         // 새 경로 생성
         String newDirectoryPrefix = "events/" + eventId + "/booths/" + boothId + "/" + usage;
-        String newS3Key = awsS3Service.moveToPermanent(currentS3Key, newDirectoryPrefix);
+        // S3 파일 이동 (주석처리)
+        // String newS3Key = awsS3Service.moveToPermanent(currentS3Key, newDirectoryPrefix);
+        
+        // 로컬 파일 이동
+        String newS3Key = localFileService.moveToPermanent(currentS3Key, newDirectoryPrefix);
 
         // 새로운 File 엔티티 생성 (기존 정보 복사 + 새 정보 설정)
         File newFile = File.builder()
@@ -183,7 +215,8 @@ public class FileService {
         createFileLink(savedNewFile, "BOOTH", boothId);
 
         log.info("파일 이동 완료 - 기존 Key: {}, 새 Key: {}", currentS3Key, newS3Key);
-        return awsS3Service.getCdnUrl(newS3Key);
+        // return awsS3Service.getCdnUrl(newS3Key);
+        return localFileService.getCdnUrl(newS3Key);
     }
 
     private String extractFileName(String key) {

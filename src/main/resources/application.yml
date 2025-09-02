@@ -99,6 +99,8 @@ cloud:
 # 애플리케이션 기본 URL
 app:
   base-url: ${APP_BASE_URL:https://fair-play.ink}
+  upload:
+    path: ${UPLOAD_PATH:/app/uploads}  # Docker 컨테이너 내부 업로드 경로
 
 # 아임포트 설정
 iamport:

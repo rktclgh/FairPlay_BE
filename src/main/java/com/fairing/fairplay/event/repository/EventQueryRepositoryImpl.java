@@ -1,6 +1,7 @@
 package com.fairing.fairplay.event.repository;
 
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
+// import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.EventSummaryDto;
 import com.fairing.fairplay.event.dto.QEventSummaryDto;
 import com.fairing.fairplay.event.entity.QEvent;
@@ -29,7 +30,8 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
 
     private final JPAQueryFactory queryFactory;
     private final FileRepository fileRepository;
-    private final AwsS3Service awsS3Service;
+    // private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
 
     @Override
     public Page<EventSummaryDto> findEventSummaries(Pageable pageable) {
@@ -194,10 +196,20 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
             dto.setFiles(files.stream()
                     .map(file -> EventSummaryDto.FileDto.builder()
                             .id(file.getId())
+                            .fileUrl(localFileService.getCdnUrl(file.getFileUrl()))
+                            .originalFileName(file.getOriginalFileName())
+                            .build())
+                    .collect(Collectors.toList()));
+                    
+            /* S3 버전 (롤백용 주석처리)
+            dto.setFiles(files.stream()
+                    .map(file -> EventSummaryDto.FileDto.builder()
+                            .id(file.getId())
                             .fileUrl(awsS3Service.getCdnUrl(file.getFileUrl()))
                             .originalFileName(file.getOriginalFileName())
                             .build())
                     .collect(Collectors.toList()));
+            */
 
             // File 테이블에서 썸네일을 가져오는 대신 EventDetail의 thumbnailUrl 사용 (이미 최신 버전임)
             // 기존 QueryDSL에서 이미 detail.thumbnailUrl을 가져오므로 추가 처리 불필요
