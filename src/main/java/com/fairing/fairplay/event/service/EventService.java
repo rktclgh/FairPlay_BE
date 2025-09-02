@@ -4,7 +4,8 @@ import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
+// import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
 import com.fairing.fairplay.event.repository.*;
@@ -62,7 +63,8 @@ public class EventService {
     private final ReservationRepository reservationRepository;
     private final EventScheduleRepository eventScheduleRepository;
     private final S3Client s3client;
-    private final AwsS3Service awsS3Service;
+    // private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
     private final FileService fileService;
 
     @Value("${cloud.aws.s3.bucket-name}")
@@ -343,11 +345,21 @@ public class EventService {
 
             // 기존 썸네일 삭제
             if (eventDetail.getThumbnailUrl() != null && !eventDetail.getThumbnailUrl().isEmpty()) {
+                String existingStaticKey = localFileService.getStaticKeyFromPublicUrl(eventDetail.getThumbnailUrl());
+                if (existingStaticKey != null) {
+                    localFileService.deleteFile(existingStaticKey);
+                }
+            }
+            
+            /* S3 버전 (롤백용 주석처리)
+            // 기존 썸네일 삭제
+            if (eventDetail.getThumbnailUrl() != null && !eventDetail.getThumbnailUrl().isEmpty()) {
                 String existingS3Key = awsS3Service.getS3KeyFromPublicUrl(eventDetail.getThumbnailUrl());
                 if (existingS3Key != null) {
                     fileService.deleteFileByS3Key(existingS3Key);
                 }
             }
+            */
 
             File savedFile = fileService.uploadFile(S3UploadRequestDto.builder()
                     .s3Key(fileDto.getS3Key())
@@ -360,7 +372,11 @@ public class EventService {
 
             fileService.createFileLink(savedFile, "EVENT", eventId);
 
+            eventDetail.setThumbnailUrl(localFileService.getCdnUrl(savedFile.getFileUrl()));
+            
+            /* S3 버전 (롤백용 주석처리)
             eventDetail.setThumbnailUrl(awsS3Service.getCdnUrl(savedFile.getFileUrl()));
+            */
             log.info("썸네일 변경 완료");
         }
 
@@ -822,7 +838,11 @@ public class EventService {
             fileService.createFileLink(savedFile, "EVENT", eventId);
 
             String tempUrl = "/api/uploads/download?key=" + fileDto.getS3Key();
+            String cdnUrl = localFileService.getCdnUrl(savedFile.getFileUrl());
+            
+            /* S3 버전 (롤백용 주석처리)
             String cdnUrl = awsS3Service.getCdnUrl(savedFile.getFileUrl());
+            */
 
             switch (fileDto.getUsage()) {
                 case "thumbnail":

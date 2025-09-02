@@ -4,7 +4,8 @@ import com.fairing.fairplay.banner.dto.*;
 import com.fairing.fairplay.banner.entity.*;
 import com.fairing.fairplay.banner.repository.*;
 import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
+// import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.entity.EventDetail;
 import com.fairing.fairplay.event.repository.EventRepository;
@@ -45,7 +46,8 @@ public class BannerService {
     private final BannerActionCodeRepository bannerActionCodeRepository;
     private final BannerLogRepository bannerLogRepository;
     private final FileService fileService;
-    private final AwsS3Service awsS3Service;
+    // private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
     private final BannerTypeRepository bannerTypeRepository;
     private final EventRepository eventRepository;
     private final BannerSlotRepository bannerSlotRepository;
@@ -231,10 +233,17 @@ public class BannerService {
             // 기존 파일이 있다면 삭제
             if (StringUtils.hasText(banner.getImageUrl())) {
                 try {
+                    String staticKey = localFileService.getStaticKeyFromPublicUrl(banner.getImageUrl());
+                    if (staticKey != null) {
+                        localFileService.deleteFile(staticKey);
+                    }
+                    
+                    /* S3 버전 (롤백용 주석처리)
                     String s3Key = awsS3Service.getS3KeyFromPublicUrl(banner.getImageUrl());
                     if (s3Key != null) {
                         fileService.deleteFileByS3Key(s3Key);
                     }
+                    */
                 } catch (Exception e) {
                     log.warn("기존 배너 이미지 S3 삭제 실패 - URL: {}, Error: {}", banner.getImageUrl(), e.getMessage());
                 }
@@ -259,7 +268,8 @@ public class BannerService {
                         .build()
         );
         fileService.createFileLink(savedFile, "BANNER", bannerId);
-        return awsS3Service.getCdnUrl(savedFile.getFileUrl());
+        // return awsS3Service.getCdnUrl(savedFile.getFileUrl());
+        return localFileService.getCdnUrl(savedFile.getFileUrl());
     }
 
     private void logBannerAction(Banner banner, Long adminId, String actionCodeStr) {
