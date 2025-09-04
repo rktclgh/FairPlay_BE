@@ -1,7 +1,7 @@
 package com.fairing.fairplay.core.config;
 
-import com.fairing.fairplay.core.security.JwtAuthenticationFilter;
-import com.fairing.fairplay.core.util.JwtTokenProvider;
+import com.fairing.fairplay.core.security.SessionAuthenticationFilter;
+import com.fairing.fairplay.core.service.SessionService;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -20,8 +20,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
+    private final SessionService sessionService;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -149,8 +149,9 @@ public class SecurityConfig {
                                                                                                         .getMessage()
                                                                                         + "\"}");
                                                 }))
+                                // 쿠키 기반 세션 인증 필터 추가
                                 .addFilterBefore(
-                                                new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
+                                                new SessionAuthenticationFilter(sessionService, userRepository),
                                                 UsernamePasswordAuthenticationFilter.class);
 
                 return http.build();

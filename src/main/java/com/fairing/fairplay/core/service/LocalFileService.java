@@ -28,7 +28,7 @@ public class LocalFileService {
     @Value("${app.base-url:https://fair-play.ink}")
     private String baseUrl;
 
-    @Value("${app.upload.path:/app/uploads}")
+    @Value("${app.upload.path:${user.home}/fairplay-uploads}")
     private String uploadBasePath;
 
     // 파일 임시 저장

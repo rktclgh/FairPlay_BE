@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -70,7 +71,7 @@ public class PaymentCompletionEmailService extends AbstractEmailService {
             // 템플릿 데이터 준비
             String userName = payment.getUser().getName();
             String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
-            String amountText = isFreeTicket ? "무료" : payment.getAmount().toString();
+            String amountText = isFreeTicket ? "무료" : formatPrice(payment.getAmount());
             String paidDateTime = formatDateTime(payment.getPaidAt());
             String reservationIdText = reservationId != null ? reservationId.toString() : "처리중";
             String merchantUid = payment.getMerchantUid();
@@ -116,5 +117,14 @@ public class PaymentCompletionEmailService extends AbstractEmailService {
             return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy년 MM월 dd일 HH:mm"));
         }
         return dateTime.format(DateTimeFormatter.ofPattern("yyyy년 MM월 dd일 HH:mm"));
+    }
+
+    /**
+     * 가격 포맷팅 (천 단위 구분자 추가, 소수점 제거)
+     */
+    private String formatPrice(BigDecimal amount) {
+        if (amount == null) return "0";
+        DecimalFormat formatter = new DecimalFormat("#,###");
+        return formatter.format(amount.longValue());
     }
 }

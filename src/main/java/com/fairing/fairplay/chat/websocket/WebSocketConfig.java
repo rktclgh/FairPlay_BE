@@ -13,40 +13,38 @@ import org.springframework.web.socket.config.annotation.*;
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
-    private final StompChannelInterceptor stompChannelInterceptor;
+    private final SessionHandshakeInterceptor sessionHandshakeInterceptor;
+    private final SessionStompChannelInterceptor sessionStompChannelInterceptor;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // WebSocket 엔드포인트 (SockJS 없이)
         registry.addEndpoint("/ws/chat")
                 .setAllowedOriginPatterns("*")
-                .addInterceptors(jwtHandshakeInterceptor);
+                .addInterceptors(sessionHandshakeInterceptor);
 
         // SockJS fallback 엔드포인트 (JSONP 비활성화)
         registry.addEndpoint("/ws/chat-sockjs")
-                .setAllowedOriginPatterns("*")
-                .addInterceptors(jwtHandshakeInterceptor)
+                .setAllowedOriginPatterns("http://localhost:5173", "https://fair-play.ink")
+                .addInterceptors(sessionHandshakeInterceptor)
                 .withSockJS()
-                .setSessionCookieNeeded(false)
+                .setSessionCookieNeeded(true)
                 .setHeartbeatTime(25000)
-                .setDisconnectDelay(30000)
-                .setSuppressCors(false);
+                .setDisconnectDelay(30000);
 
         // 알림 전용 WebSocket 엔드포인트
         registry.addEndpoint("/ws/notifications")
                 .setAllowedOriginPatterns("*")
-                .addInterceptors(jwtHandshakeInterceptor);
+                .addInterceptors(sessionHandshakeInterceptor);
 
         // 알림 전용 SockJS fallback 엔드포인트
         registry.addEndpoint("/ws/notifications-sockjs")
-                .setAllowedOriginPatterns("*")
-                .addInterceptors(jwtHandshakeInterceptor)
+                .setAllowedOriginPatterns("http://localhost:5173", "https://fair-play.ink")
+                .addInterceptors(sessionHandshakeInterceptor)
                 .withSockJS()
-                .setSessionCookieNeeded(false)
+                .setSessionCookieNeeded(true)
                 .setHeartbeatTime(25000)
-                .setDisconnectDelay(30000)
-                .setSuppressCors(false);
+                .setDisconnectDelay(30000);
 
         // 체크인/체크아웃 전용 SockJS fallback 엔드포인트
         registry.addEndpoint("/ws/qr-sockjs")
@@ -86,7 +84,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(org.springframework.messaging.simp.config.ChannelRegistration registration) {
-        registration.interceptors(stompChannelInterceptor);
+        registration.interceptors(sessionStompChannelInterceptor);
     }
 
     @Bean
