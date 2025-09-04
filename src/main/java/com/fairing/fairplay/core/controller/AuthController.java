@@ -46,7 +46,7 @@ public class AuthController {
         // HTTP-only 쿠키 설정
         Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, sessionId);
         sessionCookie.setHttpOnly(true);
-        sessionCookie.setSecure(false); // 로컬 개발환경에서는 false
+        sessionCookie.setSecure(true); // HTTPS 환경에서는 true
         sessionCookie.setPath("/");
         sessionCookie.setMaxAge(COOKIE_MAX_AGE);
         
@@ -78,7 +78,7 @@ public class AuthController {
         // 쿠키 삭제
         Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, "");
         sessionCookie.setHttpOnly(true);
-        sessionCookie.setSecure(false); // 로컬 개발환경에서는 false
+        sessionCookie.setSecure(true); // HTTPS 환경에서는 true
         sessionCookie.setPath("/");
         sessionCookie.setMaxAge(0); // 즉시 만료
         response.addCookie(sessionCookie);
@@ -107,7 +107,7 @@ public class AuthController {
         // HTTP-only 쿠키 설정
         Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, sessionId);
         sessionCookie.setHttpOnly(true);
-        sessionCookie.setSecure(false); // 로컬 개발환경에서는 false
+        sessionCookie.setSecure(true); // HTTPS 환경에서는 true
         sessionCookie.setPath("/");
         sessionCookie.setMaxAge(COOKIE_MAX_AGE);
         
