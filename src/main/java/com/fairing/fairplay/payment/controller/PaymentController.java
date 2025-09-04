@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.core.service.SessionService;
 import com.fairing.fairplay.payment.dto.PaymentRequestDto;
 import com.fairing.fairplay.payment.dto.PaymentResponseDto;
 import com.fairing.fairplay.payment.service.PaymentService;
@@ -27,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final SessionService sessionService;
 
     // 결제 요청 정보 저장
     @PostMapping("/request")
@@ -34,8 +36,26 @@ public class PaymentController {
     public ResponseEntity<PaymentResponseDto> requestPayment(@RequestBody PaymentRequestDto paymentRequestDto,
                                                              @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        PaymentResponseDto savedPayment = paymentService.savePayment(paymentRequestDto, userDetails.getUserId());
-        return ResponseEntity.ok(savedPayment);
+        Long userId = userDetails.getUserId();
+        
+        // 사용자별 결제 중복 방지 체크
+        if (sessionService.isPaymentLocked(userId)) {
+            throw new IllegalStateException("이미 진행 중인 결제가 있습니다. 잠시 후 다시 시도해주세요.");
+        }
+        
+        // 결제 락 설정
+        if (!sessionService.setPaymentLock(userId, paymentRequestDto.getMerchantUid())) {
+            throw new IllegalStateException("결제를 시작할 수 없습니다. 이미 진행 중인 결제가 있습니다.");
+        }
+        
+        try {
+            PaymentResponseDto savedPayment = paymentService.savePayment(paymentRequestDto, userId);
+            return ResponseEntity.ok(savedPayment);
+        } catch (Exception e) {
+            // 실패 시 락 해제
+            sessionService.clearPaymentLock(userId);
+            throw e;
+        }
     }
 
     // 무료 티켓 처리 (PG사 연동 없이 직접 처리)
@@ -44,16 +64,58 @@ public class PaymentController {
     public ResponseEntity<PaymentResponseDto> processFreeTicket(
             @RequestBody PaymentRequestDto paymentRequestDto,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        PaymentResponseDto freeTicketPayment = paymentService.processFreeTicket(paymentRequestDto, userDetails.getUserId());
-        return ResponseEntity.ok(freeTicketPayment);
+        
+        Long userId = userDetails.getUserId();
+        
+        // 사용자별 결제 중복 방지 체크
+        if (sessionService.isPaymentLocked(userId)) {
+            throw new IllegalStateException("이미 진행 중인 결제가 있습니다. 잠시 후 다시 시도해주세요.");
+        }
+        
+        // 결제 락 설정
+        if (!sessionService.setPaymentLock(userId, paymentRequestDto.getMerchantUid())) {
+            throw new IllegalStateException("결제를 시작할 수 없습니다. 이미 진행 중인 결제가 있습니다.");
+        }
+        
+        try {
+            PaymentResponseDto freeTicketPayment = paymentService.processFreeTicket(paymentRequestDto, userId);
+            
+            // 무료 티켓 처리 완료 시 락 해제
+            sessionService.clearPaymentLock(userId);
+            
+            return ResponseEntity.ok(freeTicketPayment);
+        } catch (Exception e) {
+            // 실패 시 락 해제
+            sessionService.clearPaymentLock(userId);
+            throw e;
+        }
     }
 
     // 결제 완료 처리 (PG사 결제 후 호출)
     @PostMapping("/complete")
     @FunctionAuth("completePayment")
-    public ResponseEntity<PaymentResponseDto> completePayment(@RequestBody PaymentRequestDto paymentRequestDto) {
-        PaymentResponseDto completedPayment = paymentService.completePayment(paymentRequestDto);
-        return ResponseEntity.ok(completedPayment);
+    public ResponseEntity<PaymentResponseDto> completePayment(@RequestBody PaymentRequestDto paymentRequestDto,
+                                                              @AuthenticationPrincipal CustomUserDetails userDetails) {
+        try {
+            PaymentResponseDto completedPayment = paymentService.completePayment(paymentRequestDto);
+            
+            // 결제 완료 시 락 해제 (사용자별 + merchantUid별 모두)
+            if (userDetails != null) {
+                sessionService.clearPaymentLock(userDetails.getUserId());
+            }
+            sessionService.clearPaymentLockByMerchantUid(paymentRequestDto.getMerchantUid());
+            
+            return ResponseEntity.ok(completedPayment);
+        } catch (Exception e) {
+            // 결제 실패 시에도 락 해제
+            if (userDetails != null) {
+                sessionService.clearPaymentLock(userDetails.getUserId());
+            }
+            if (paymentRequestDto.getMerchantUid() != null) {
+                sessionService.clearPaymentLockByMerchantUid(paymentRequestDto.getMerchantUid());
+            }
+            throw e;
+        }
     }
 
     // 결제 전체 조회 (전체 관리자, 행사 관리자)
@@ -90,6 +152,30 @@ public class PaymentController {
         return ResponseEntity.ok(merchantUid);
     }
 
+    // 결제 진행 상태 확인
+    @GetMapping("/status")
+    public ResponseEntity<PaymentStatusResponse> checkPaymentStatus(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        
+        if (userDetails == null) {
+            return ResponseEntity.ok(new PaymentStatusResponse(false));
+        }
+        
+        boolean inProgress = sessionService.isPaymentLocked(userDetails.getUserId());
+        return ResponseEntity.ok(new PaymentStatusResponse(inProgress));
+    }
+
+    // 결제 진행 상태 강제 해제 (디버깅/복구용)
+    @PostMapping("/status/clear")
+    public ResponseEntity<Void> clearPaymentLock(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        
+        if (userDetails != null) {
+            sessionService.clearPaymentLock(userDetails.getUserId());
+        }
+        return ResponseEntity.ok().build();
+    }
+
     // 결제 target_id 업데이트 API
     @PutMapping("/{merchantUid}/target-id")
     @FunctionAuth("updatePaymentTargetId")
@@ -110,6 +196,22 @@ public class PaymentController {
         
         public void setTargetId(Long targetId) {
             this.targetId = targetId;
+        }
+    }
+
+    public static class PaymentStatusResponse {
+        private boolean inProgress;
+        
+        public PaymentStatusResponse(boolean inProgress) {
+            this.inProgress = inProgress;
+        }
+        
+        public boolean isInProgress() {
+            return inProgress;
+        }
+        
+        public void setInProgress(boolean inProgress) {
+            this.inProgress = inProgress;
         }
     }
 

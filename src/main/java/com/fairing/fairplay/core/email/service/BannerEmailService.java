@@ -5,6 +5,7 @@ import com.fairing.fairplay.core.util.EmailSender;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
+import java.text.DecimalFormat;
 
 @Service
 @Slf4j
@@ -47,7 +48,7 @@ public class BannerEmailService extends AbstractEmailService {
             
             subject = "[FairPlay] 배너 광고 신청이 승인되었습니다! 결제를 진행해주세요.";
             htmlContent = buildHtmlContent("banner-approval.html", "logo", title, bannerType,
-                    totalAmount, paymentUrl, applicantName);
+                    formatPrice(totalAmount), paymentUrl, applicantName);
         } else {
             throw new IllegalArgumentException("Unsupported email type: " + type);
         }
@@ -58,5 +59,14 @@ public class BannerEmailService extends AbstractEmailService {
     private String buildHtmlContent(String templateFileName, Object... args) {
         String template = loadTemplate(templateFileName);
         return String.format(template, args);
+    }
+
+    /**
+     * 가격 포맷팅 (천 단위 구분자 추가)
+     */
+    private String formatPrice(Integer amount) {
+        if (amount == null) return "0";
+        DecimalFormat formatter = new DecimalFormat("#,###");
+        return formatter.format(amount);
     }
 }
