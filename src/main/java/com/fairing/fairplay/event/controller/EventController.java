@@ -85,6 +85,10 @@ public class EventController {
     @GetMapping("/user/role")
     public ResponseEntity<Map<String, Object>> getCurrentUserRole(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
         Map<String, Object> roleInfo = Map.of(
                 "roleCode", userDetails.getRoleCode(),
                 "userId", userDetails.getUserId(),

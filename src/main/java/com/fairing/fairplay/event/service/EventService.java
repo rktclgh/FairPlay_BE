@@ -322,7 +322,7 @@ public class EventService {
 
         if (shouldIncrement) {
             event.incrementViewCount();
-            log.info("행사 조회 성공 및 조회 수 증가: {}", event.getViewCount());
+            log.debug("행사 조회 성공 및 조회 수 증가: {}", event.getViewCount());
         }
 
         int versionNumber = eventVersionRepository.findTopByEventOrderByVersionNumberDesc(event)

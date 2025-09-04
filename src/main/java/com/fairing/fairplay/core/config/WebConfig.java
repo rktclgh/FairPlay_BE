@@ -20,7 +20,15 @@ public class WebConfig implements WebMvcConfigurer {
             .allowedOrigins(
                 "http://localhost:3000", // 프론트 개발 주소
                 "http://localhost:5173", // Vite(React)
-                "https://fair-play.ink" // 배포용 도메인
+                "https://fair-play.ink", // 배포용 도메인
+                "https://service.iamport.kr", // 아임포트 서비스
+                "https://pg.uplus.co.kr", // LG U+ PG
+                "https://mobile.uplus.co.kr", // LG U+ 모바일
+                "https://m.uplus.co.kr", // LG U+ 모바일 단축
+                "https://payment.uplus.co.kr", // LG U+ 결제
+                "https://webapp.uplus.co.kr", // LG U+ 웹앱
+                "https://pg.lguplus.co.kr", // LG U+ PG 구버전
+                "https://mobile-pay.uplus.co.kr" // LG U+ 모바일 결제
             )
             .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("*")

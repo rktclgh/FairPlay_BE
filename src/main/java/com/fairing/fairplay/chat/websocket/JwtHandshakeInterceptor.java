@@ -14,12 +14,6 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 import java.security.Principal;
 import java.util.Map;
 
-// Principal 구현
-class StompPrincipal implements Principal {
-    private final String name;
-    public StompPrincipal(String name) { this.name = name; }
-    @Override public String getName() { return name; }
-}
 
 @Slf4j
 @Component
@@ -39,7 +33,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
         if (token != null && jwtTokenProvider.validateToken(token)) {
             try {
                 Long userId = jwtTokenProvider.getUserId(token);
-                attributes.put("user", new StompPrincipal(userId.toString()));
+                attributes.put("user", new com.fairing.fairplay.chat.websocket.StompPrincipal(userId.toString()));
                 attributes.put("userId", userId);
                 
                 // 사용자를 온라인 상태로 설정 (Redis)

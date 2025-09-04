@@ -5,6 +5,7 @@ import com.fairing.fairplay.core.util.EmailSender;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
+import java.text.DecimalFormat;
 
 @Service
 @Slf4j
@@ -49,7 +50,7 @@ public class BoothEmailService extends AbstractEmailService {
             Integer price = (Integer) params[7];
             Long applicationId = (Long) params[8];
             subject = "[FairPlay] 부스 등록 신청이 승인되었습니다! 계정 안내 및 결제 요청";
-            htmlContent = buildHtmlContent("booth-approval.html", "logo", eventTitle, boothTitle, boothEmail, tempPassword, boothTypeName, boothSize, price, applicationId);
+            htmlContent = buildHtmlContent("booth-approval.html", "logo", eventTitle, boothTitle, boothEmail, tempPassword, boothTypeName, boothSize, formatPrice(price), applicationId);
 
         } else if ("cancel".equals(type)) {
             String cancelReason = HtmlUtils.htmlEscape((String) params[3]);
@@ -75,5 +76,14 @@ public class BoothEmailService extends AbstractEmailService {
                      templateFileName, e.getMessage(), template);
             throw new RuntimeException("이메일 템플릿 처리 오류: " + templateFileName, e);
         }
+    }
+
+    /**
+     * 가격 포맷팅 (천 단위 구분자 추가)
+     */
+    private String formatPrice(Integer amount) {
+        if (amount == null) return "0";
+        DecimalFormat formatter = new DecimalFormat("#,###");
+        return formatter.format(amount);
     }
 }
