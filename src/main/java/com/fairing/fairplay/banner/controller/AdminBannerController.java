@@ -166,6 +166,20 @@ public class AdminBannerController {
         requireAdmin(user);
         return ResponseEntity.ok(bannerService.getOne(id));
     }
+    
+    // 배너 하드 삭제 (슬롯을 AVAILABLE로 되돌림)
+    @DeleteMapping("/{id}")
+    @FunctionAuth("deleteBanner")
+    @ChangeBanner("배너 삭제")
+    public ResponseEntity<Map<String, String>> deleteBanner(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long id) {
+        requireAdmin(user);
+        String result = bannerService.hardDeleteBanner(id, user.getUserId());
+        Map<String, String> response = new HashMap<>();
+        response.put("message", result);
+        return ResponseEntity.ok(response);
+    }
 
     // 관리자용 신청서 목록 조회
     @GetMapping(value = "/applications", params = "!id")

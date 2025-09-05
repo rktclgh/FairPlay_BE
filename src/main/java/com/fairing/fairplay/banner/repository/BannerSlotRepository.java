@@ -131,5 +131,8 @@ where s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.SOLD
             FROM banner_application_slot bas
             """, nativeQuery = true)
     List<Long> findReservedSlotIds();
+    
+    // 특정 배너 ID와 연결된 슬롯들 조회 (하드 딜리트용)
+    List<BannerSlot> findBySoldBanner_Id(Long bannerId);
 
 }

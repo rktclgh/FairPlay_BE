@@ -39,18 +39,19 @@ public class BannerService {
     private static final String ACTION_CREATE = "CREATE";
     private static final String ACTION_UPDATE = "UPDATE";
     private static final String ACTION_PRIORITY_CHANGE = "PRIORITY_CHANGE";
+    private static final String ACTION_DELETE = "DELETE";
     private static final String STATUS_INACTIVE = "INACTIVE";
 
     private final BannerRepository bannerRepository;
     private final BannerStatusCodeRepository bannerStatusCodeRepository;
     private final BannerActionCodeRepository bannerActionCodeRepository;
     private final BannerLogRepository bannerLogRepository;
+    private final BannerSlotRepository bannerSlotRepository;
     private final FileService fileService;
     // private final AwsS3Service awsS3Service;
     private final LocalFileService localFileService;
     private final BannerTypeRepository bannerTypeRepository;
     private final EventRepository eventRepository;
-    private final BannerSlotRepository bannerSlotRepository;
 
 
     @Value("${cloud.aws.s3.banner-dir:banner}")
@@ -718,6 +719,64 @@ public class BannerService {
                     .createdAt(createdAt)
                     .build();
         }).toList();
+    }
+
+    /**
+     * 배너 하드 딜리트 - 배너를 완전히 삭제하고 연결된 슬롯을 AVAILABLE로 되돌림
+     */
+    @Transactional
+    public String hardDeleteBanner(Long bannerId, Long adminId) {
+        // 1. 배너 조회
+        Banner banner = bannerRepository.findById(bannerId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "배너를 찾을 수 없습니다: " + bannerId));
+        
+        log.info("배너 하드 딜리트 시작 - 배너 ID: {}, 제목: {}, 관리자 ID: {}", 
+                bannerId, banner.getTitle(), adminId);
+        
+        try {
+            // 2. 배너와 연결된 슬롯들 조회 및 상태 복구
+            List<BannerSlot> connectedSlots = bannerSlotRepository.findBySoldBanner_Id(bannerId);
+            
+            String slotsInfo = "";
+            if (!connectedSlots.isEmpty()) {
+                for (BannerSlot slot : connectedSlots) {
+                    // 슬롯을 AVAILABLE 상태로 되돌림
+                    slot.setStatus(BannerSlotStatus.AVAILABLE);
+                    slot.setSoldBanner(null);
+                    slot.setLockedBy(null);
+                    slot.setLockedUntil(null);
+                    
+                    bannerSlotRepository.save(slot);
+                    log.info("슬롯 복구됨 - 슬롯 ID: {}, 날짜: {}, 우선순위: {}", 
+                            slot.getId(), slot.getSlotDate(), slot.getPriority());
+                }
+                slotsInfo = String.format(" (복구된 슬롯: %d개)", connectedSlots.size());
+            }
+            
+            // 3. 배너 로그 기록 (삭제 전)
+            try {
+                logBannerAction(banner, adminId, ACTION_DELETE);
+                log.info("배너 삭제 로그 기록 완료 - 배너 ID: {}, 제목: {}{}", 
+                        bannerId, banner.getTitle(), slotsInfo);
+            } catch (Exception logException) {
+                // 로그 기록 실패해도 삭제는 진행
+                log.warn("배너 삭제 로그 기록 실패 - 배너 ID: {}, 오류: {}", 
+                        bannerId, logException.getMessage());
+            }
+            
+            // 4. 배너 완전 삭제
+            bannerRepository.delete(banner);
+            
+            String result = String.format("배너가 완전히 삭제되었습니다%s", slotsInfo);
+            log.info("배너 하드 딜리트 완료 - 배너 ID: {}, 결과: {}", bannerId, result);
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("배너 하드 딜리트 실패 - 배너 ID: {}, 오류: {}", bannerId, e.getMessage(), e);
+            throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "배너 삭제 중 오류가 발생했습니다: " + e.getMessage());
+        }
     }
 
 }
