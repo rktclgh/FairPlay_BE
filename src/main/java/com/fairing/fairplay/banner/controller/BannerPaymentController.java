@@ -114,10 +114,10 @@ public class BannerPaymentController {
         Users applicant = userRepository.findById(application.getApplicantId().getUserId())
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "신청자 정보를 찾을 수 없습니다."));
         
-        // Payment 엔티티에서 결제 상태 조회
+        // BannerApplication의 paymentStatus 사용
         String paymentStatus = "PENDING";
-        if (application.getPayment() != null && application.getPayment().getPaymentStatusCode() != null) {
-            paymentStatus = application.getPayment().getPaymentStatusCode().getCode();
+        if (application.getPaymentStatus() != null) {
+            paymentStatus = application.getPaymentStatus().name(); // PAID, PENDING, CANCELLED
         }
         
         BannerPaymentPageDto paymentInfo = BannerPaymentPageDto.builder()
@@ -171,7 +171,7 @@ public class BannerPaymentController {
                 if (applicant != null) {
                     NotificationRequestDto notificationDto = new NotificationRequestDto();
                     notificationDto.setUserId(applicant.getUserId());
-                    notificationDto.setTypeCode("BANNER_PAYMENT_COMPLETED");
+                    notificationDto.setTypeCode("PAYMENT");
                     notificationDto.setMethodCode("WEB");
                     notificationDto.setTitle("배너 광고 결제 완료");
                     notificationDto.setMessage(String.format("'%s' 배너 광고 결제가 완료되었습니다.", application.getTitle()));

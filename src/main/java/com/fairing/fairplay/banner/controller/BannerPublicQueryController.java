@@ -25,4 +25,13 @@ public class BannerPublicQueryController {
         LocalDate d = (date != null) ? date : LocalDate.now();
         return searchTopQueryService.getFixedTwo(d);
     }
+    
+    @GetMapping("/hero")
+    public List<FixedTopDto> getHeroBanners(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    ) {
+        LocalDate d = (date != null) ? date : LocalDate.now();
+        return searchTopQueryService.getHeroBanners(d);
+    }
 }

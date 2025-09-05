@@ -764,7 +764,16 @@ public class BannerService {
                         bannerId, logException.getMessage());
             }
             
-            // 4. 배너 완전 삭제
+            // 4. 배너 관련 로그 삭제 (외래키 제약조건 해결)
+            try {
+                int deletedLogs = bannerLogRepository.deleteByBanner_Id(bannerId);
+                log.info("배너 관련 로그 삭제 완료 - 배너 ID: {}, 삭제된 로그 수: {}", bannerId, deletedLogs);
+            } catch (Exception logDeleteException) {
+                log.warn("배너 관련 로그 삭제 실패 - 배너 ID: {}, 오류: {}", 
+                        bannerId, logDeleteException.getMessage());
+            }
+            
+            // 5. 배너 완전 삭제
             bannerRepository.delete(banner);
             
             String result = String.format("배너가 완전히 삭제되었습니다%s", slotsInfo);

@@ -20,4 +20,11 @@ public class SearchTopQueryService {
                 .map(r -> new FixedTopDto(r.getEventId(), r.getPriority(), true))
                 .toList();
     }
+    
+    public List<FixedTopDto> getHeroBanners(LocalDate date) {
+        return slotRepo.findActiveHeroBanners("HERO", date)
+                .stream()
+                .map(r -> new FixedTopDto(r.getEventId(), r.getPriority(), true))
+                .toList();
+    }
 }
