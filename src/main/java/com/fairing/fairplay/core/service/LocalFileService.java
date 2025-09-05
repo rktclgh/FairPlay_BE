@@ -130,7 +130,9 @@ public class LocalFileService {
     }
 
     public String getPublicUrl(String key) {
-        return baseUrl + "/uploads/" + key;
+        // baseUrl이 이미 /uploads로 끝나는 경우 중복 방지
+        String normalizedBaseUrl = baseUrl.endsWith("/uploads") ? baseUrl : baseUrl + "/uploads";
+        return normalizedBaseUrl + "/" + key;
     }
 
     /**
@@ -142,7 +144,9 @@ public class LocalFileService {
         }
         
         String cleanKey = key.startsWith("/") ? key.substring(1) : key;
-        return baseUrl + "/uploads/" + cleanKey;
+        // baseUrl이 이미 /uploads로 끝나는 경우 중복 방지
+        String normalizedBaseUrl = baseUrl.endsWith("/uploads") ? baseUrl : baseUrl + "/uploads";
+        return normalizedBaseUrl + "/" + cleanKey;
     }
 
     public String getStaticKeyFromPublicUrl(String publicUrl) {

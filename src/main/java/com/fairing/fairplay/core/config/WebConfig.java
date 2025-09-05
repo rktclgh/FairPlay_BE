@@ -38,6 +38,13 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // 업로드 파일 정적 서빙 (S3 대체)
+        String uploadPath = System.getProperty("app.upload.path", System.getProperty("user.home") + "/fairplay-uploads");
+        registry.addResourceHandler("/uploads/**")
+            .addResourceLocations("file:" + uploadPath + "/")
+            .setCachePeriod(3600) // 1시간 캐시
+            .resourceChain(false); // 캐시 체인 비활성화로 실시간 파일 변경 반영
+        
         // SPA를 위한 정적 리소스 핸들링
         registry.addResourceHandler("/**")
             .addResourceLocations("classpath:/static/")
@@ -47,8 +54,8 @@ public class WebConfig implements WebMvcConfigurer {
                 protected Resource getResource(String resourcePath, Resource location) throws IOException {
                     Resource requestedResource = location.createRelative(resourcePath);
 
-                    // API 요청은 처리하지 않음
-                    if (resourcePath.startsWith("api/")) {
+                    // API 요청과 업로드 파일 요청은 처리하지 않음
+                    if (resourcePath.startsWith("api/") || resourcePath.startsWith("uploads/")) {
                         return null;
                     }
 

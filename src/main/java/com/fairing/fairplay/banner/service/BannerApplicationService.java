@@ -952,35 +952,69 @@ public class BannerApplicationService {
 
                     // 각 슬롯에 대해 배너 생성
                     for (var slot : slots) {
-                        // MySQL 호환을 위해 KeyHolder 사용
-                        KeyHolder keyHolder = new GeneratedKeyHolder();
-                        jdbc.update(con -> {
-                            PreparedStatement ps = con.prepareStatement("""
-                                INSERT INTO banner (event_id, title, image_url, link_url, banner_type_id, 
-                                                   priority, start_date, end_date, banner_status_code_id, created_at)
-                                SELECT ?, ?, ?, ?, ?, ?, 
-                                       (SELECT start_date FROM banner_application WHERE banner_application_id = ?),
-                                       (SELECT end_date FROM banner_application WHERE banner_application_id = ?),
-                                       ?, NOW()
-                                """, Statement.RETURN_GENERATED_KEYS);
-                            ps.setObject(1, app.get("event_id"));
-                            ps.setObject(2, app.get("title"));
-                            ps.setObject(3, app.get("image_url"));
-                            ps.setObject(4, app.get("link_url"));
-                            ps.setObject(5, slot.get("typeId"));
-                            ps.setObject(6, slot.get("priority"));
-                            ps.setLong(7, appId);
-                            ps.setLong(8, appId);
-                            ps.setInt(9, activeStatusCodeId);
-                            return ps;
-                        }, keyHolder);
+                        Long bannerId = null;
+                        
+                        try {
+                            // 먼저 기존 배너가 있는지 확인
+                            List<Long> existingBanners = jdbc.queryForList("""
+                                SELECT banner_id FROM banner 
+                                WHERE banner_type_id = ? AND priority = ? 
+                                AND start_date = (SELECT start_date FROM banner_application WHERE banner_application_id = ?)
+                                AND end_date = (SELECT end_date FROM banner_application WHERE banner_application_id = ?)
+                                """, Long.class, 
+                                slot.get("typeId"), slot.get("priority"), appId, appId);
+                            
+                            if (!existingBanners.isEmpty()) {
+                                // 기존 배너가 있으면 첫 번째 것을 재사용
+                                bannerId = existingBanners.get(0);
+                                System.out.println("기존 배너 재사용 - bannerId: " + bannerId + ", typeId: " + slot.get("typeId") + ", priority: " + slot.get("priority"));
+                                
+                                // 기존 배너 정보를 업데이트
+                                jdbc.update("""
+                                    UPDATE banner SET 
+                                        event_id = ?, title = ?, image_url = ?, link_url = ?, 
+                                        banner_status_code_id = ?, created_at = NOW()
+                                    WHERE banner_id = ?
+                                    """, 
+                                    app.get("event_id"), app.get("title"), app.get("image_url"), 
+                                    app.get("link_url"), activeStatusCodeId, bannerId);
+                            } else {
+                                // 새 배너 생성
+                                KeyHolder keyHolder = new GeneratedKeyHolder();
+                                jdbc.update(con -> {
+                                    PreparedStatement ps = con.prepareStatement("""
+                                        INSERT INTO banner (event_id, title, image_url, link_url, banner_type_id, 
+                                                           priority, start_date, end_date, banner_status_code_id, created_at)
+                                        SELECT ?, ?, ?, ?, ?, ?, 
+                                               (SELECT start_date FROM banner_application WHERE banner_application_id = ?),
+                                               (SELECT end_date FROM banner_application WHERE banner_application_id = ?),
+                                               ?, NOW()
+                                        """, Statement.RETURN_GENERATED_KEYS);
+                                    ps.setObject(1, app.get("event_id"));
+                                    ps.setObject(2, app.get("title"));
+                                    ps.setObject(3, app.get("image_url"));
+                                    ps.setObject(4, app.get("link_url"));
+                                    ps.setObject(5, slot.get("typeId"));
+                                    ps.setObject(6, slot.get("priority"));
+                                    ps.setLong(7, appId);
+                                    ps.setLong(8, appId);
+                                    ps.setInt(9, activeStatusCodeId);
+                                    return ps;
+                                }, keyHolder);
 
-                        Long bannerId = Objects.requireNonNull(keyHolder.getKey()).longValue();
-
-                        // 슬롯에 배너 ID 연결
-                        jdbc.update("""
-                            UPDATE banner_slot SET sold_banner_id = ? WHERE slot_id = ?
-                            """, bannerId, slot.get("slotId"));
+                                bannerId = Objects.requireNonNull(keyHolder.getKey()).longValue();
+                                System.out.println("새 배너 생성 - bannerId: " + bannerId + ", typeId: " + slot.get("typeId") + ", priority: " + slot.get("priority"));
+                            }
+                            
+                            // 슬롯에 배너 ID 연결
+                            jdbc.update("""
+                                UPDATE banner_slot SET sold_banner_id = ? WHERE slot_id = ?
+                                """, bannerId, slot.get("slotId"));
+                                
+                        } catch (Exception e) {
+                            System.out.println("배너 생성/업데이트 실패 - slot: " + slot + ", error: " + e.getMessage());
+                            throw e;
+                        }
                     }
 
                     System.out.println("배너 슬롯 활성화 및 배너 생성 완료 - appId: " + appId +
