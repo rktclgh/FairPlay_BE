@@ -131,5 +131,23 @@ where s.status = com.fairing.fairplay.banner.entity.BannerSlotStatus.SOLD
             FROM banner_application_slot bas
             """, nativeQuery = true)
     List<Long> findReservedSlotIds();
+    
+    // 특정 배너 ID와 연결된 슬롯들 조회 (하드 딜리트용)
+    List<BannerSlot> findBySoldBanner_Id(Long bannerId);
+    
+    // 활성 히어로 배너 조회 (ACTIVE 상태만)
+    @Query(value = """
+        SELECT b.event_id as eventId, s.priority as priority
+        FROM banner_slot s
+        LEFT JOIN banner b ON s.sold_banner_id = b.banner_id
+        LEFT JOIN banner_status_code bsc ON b.banner_status_code_id = bsc.banner_status_code_id
+        LEFT JOIN banner_type bt ON b.banner_type_id = bt.banner_type_id
+        WHERE s.status = 'SOLD'
+          AND bt.code = :bannerTypeCode
+          AND s.slot_date = :date
+          AND (bsc.code = 'ACTIVE' OR bsc.code IS NULL)
+        ORDER BY s.priority ASC
+        """, nativeQuery = true)
+    List<FixedRow> findActiveHeroBanners(@Param("bannerTypeCode") String bannerTypeCode, @Param("date") LocalDate date);
 
 }

@@ -738,10 +738,10 @@ public class PaymentService {
             throw new IllegalArgumentException("결제 금액이 유효하지 않습니다: " + amount);
         }
 
-        // 최대 결제 금액 제한 (예: 1000만원)
-        BigDecimal maxAmount = new BigDecimal("10000000");
+        // 최대 결제 금액 제한 (배너 광고 고려하여 1억원으로 상향 조정)
+        BigDecimal maxAmount = new BigDecimal("100000000");
         if (amount.compareTo(maxAmount) > 0) {
-            throw new IllegalArgumentException("결제 금액이 최대 한도를 초과했습니다: " + amount);
+            throw new IllegalArgumentException("결제 금액이 최대 한도를 초과했습니다 (최대 1억원): " + amount);
         }
     }
 
