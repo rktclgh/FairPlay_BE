@@ -32,9 +32,11 @@ public interface AttendeeFormRepository extends JpaRepository<AttendeeForm, Long
 
   boolean existsByLinkToken(String token);
 
-  boolean existsByReservation_ReservationId(Long reservationId);
+  boolean existsByReservation_ReservationIdAndExpiredFalse(Long reservationId);
 
   Optional<AttendeeForm> findByReservation_ReservationId(Long reservationId);
 
   Optional<AttendeeForm> findByReservation(Reservation reservation);
+
+  boolean existsByReservation_ReservationIdAndExpiredFalse(Long reservationReservationId, Boolean expired);
 }

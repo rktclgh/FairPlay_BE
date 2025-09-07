@@ -84,7 +84,15 @@ public class AttendeeFormAttendeeService {
         attendeeSaveRequestDto, dto.getReservationId());
 
     // 2. attendeeForm 저장 -> 단건 예매면 token은 Null
-    String token = dto.getTotalAllowed() > 1 ? generateToken(dto) : null;
+    Integer totalAllowed = dto.getTotalAllowed();
+    if(totalAllowed == null) {
+      throw new CustomException(HttpStatus.BAD_REQUEST,"허용 인원은 필수입니다.");
+    }
+    if(totalAllowed <= 0){
+      throw new CustomException(HttpStatus.BAD_REQUEST,"허용 인원은 1명 이상이어야 합니다.");
+    }
+    String token = totalAllowed > 1 ? generateToken(dto) : null;
+
 
     // 3. QR 티켓 생성
     Attendee attendee = attendeeService.findById(attendeeInfoResponseDto.getAttendeeId());
@@ -109,7 +117,7 @@ public class AttendeeFormAttendeeService {
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다."));
 
     // 예약 ID 기준 폼이 생성되어있는지 조회
-    if (attendeeFormRepository.existsByReservation_ReservationId(dto.getReservationId())) {
+    if (attendeeFormRepository.existsByReservation_ReservationIdAndExpiredFalse(dto.getReservationId())) {
       throw new CustomException(HttpStatus.CONFLICT, "이미 폼 링크가 생성되었습니다.");
     }
 
