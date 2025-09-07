@@ -39,8 +39,7 @@ public class AttendeeFormAttendeeService {
 
   // 대표자 저장 및 참석자 폼 링크 생성해 반환
   @Transactional
-  public AttendeeFormSaveResponseDto saveAttendeeFormAndAttendee(Long userId,
-                                                                                                      AttendeeFormSaveRequestDto dto) {
+  public AttendeeFormSaveResponseDto saveAttendeeFormAndAttendee(Long userId, AttendeeFormSaveRequestDto dto) {
     if (userId == null || dto.getReservationId() == null) {
       throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인 후 이용해주세요");
     }
