@@ -1,5 +1,7 @@
 package com.fairing.fairplay.payment.service;
 
+import com.fairing.fairplay.attendeeform.dto.AttendeeFormSaveRequestDto;
+import com.fairing.fairplay.attendeeform.dto.AttendeeFormSaveResponseDto;
 import com.fairing.fairplay.banner.entity.BannerApplication;
 import com.fairing.fairplay.banner.repository.BannerApplicationRepository;
 import com.fairing.fairplay.booth.entity.Booth;
@@ -25,9 +27,7 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.reservation.repository.ReservationStatusCodeRepository;
 import com.fairing.fairplay.reservation.service.ReservationService;
-import com.fairing.fairplay.attendeeform.dto.ShareTicketSaveRequestDto;
-import com.fairing.fairplay.attendeeform.dto.ShareTicketSaveResponseDto;
-import com.fairing.fairplay.attendeeform.service.ShareTicketAttendeeService;
+import com.fairing.fairplay.attendeeform.service.AttendeeFormAttendeeService;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
@@ -93,7 +93,7 @@ public class PaymentService {
     private final BannerApplicationRepository bannerApplicationRepository;
 
     // 참석자 생성 및 폼 링크 생성
-    private final ShareTicketAttendeeService shareTicketAttendeeService;
+    private final AttendeeFormAttendeeService attendeeFormAttendeeService;
 
     // 아임포트 API 설정
     @Value("${iamport.api-key}")
@@ -471,17 +471,17 @@ public class PaymentService {
             System.out.println("예매 생성 성공 - reservationId: " + reservation.getReservationId() +
                               ", ticketId: " + ticket.getTicketId() + ", quantity: " + payment.getQuantity());
 
-            ShareTicketSaveRequestDto shareTicketSaveRequestDto = ShareTicketSaveRequestDto.builder()
+            AttendeeFormSaveRequestDto attendeeFormSaveRequestDto = AttendeeFormSaveRequestDto.builder()
                 .reservationId(reservation.getReservationId())
                 .totalAllowed(reservation.getQuantity())
                 .build();
 
             // 참석자 저장 및 참석자 링크 폼 생성
-            ShareTicketSaveResponseDto shareTicketSaveResponseDto =
-                shareTicketAttendeeService.saveShareTicketAndAttendee(user.getUserId(), shareTicketSaveRequestDto);
+            AttendeeFormSaveResponseDto attendeeFormSaveResponseDto =
+                attendeeFormAttendeeService.saveAttendeeFormAndAttendee(user.getUserId(), attendeeFormSaveRequestDto);
 
             System.out.println("참석자 생성 성공 - reservationId: " + reservation.getReservationId() +
-                ", 폼 링크 (티켓 매수 1 이상 시: " + shareTicketSaveResponseDto.getToken() + ", quantity: " + payment.getQuantity());
+                ", 폼 링크 (티켓 매수 1 이상 시: " + attendeeFormSaveResponseDto.getToken() + ", quantity: " + payment.getQuantity());
 
             return reservation.getReservationId();
             

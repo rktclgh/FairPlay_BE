@@ -9,9 +9,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ShareTicketInfoResponseDto {
+public class AttendeeFormSaveRequestDto {
 
-  private Long formId;
-  private Long eventId;
-  private String eventName;
+  private Long reservationId; // 예약ID
+  private Integer totalAllowed; // 구매한 티켓 총 개수
 }

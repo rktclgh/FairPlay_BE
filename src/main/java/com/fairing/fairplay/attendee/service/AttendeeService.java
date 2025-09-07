@@ -15,8 +15,7 @@ import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
-import com.fairing.fairplay.attendeeform.entity.ShareTicket;
-import com.fairing.fairplay.attendeeform.service.ShareTicketService;
+import com.fairing.fairplay.attendeeform.service.AttendeeFormService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
@@ -35,7 +34,7 @@ public class AttendeeService {
   private final AttendeeRepository attendeeRepository;
   private final AttendeeTypeCodeRepository attendeeTypeCodeRepository;
   private final AttendeeRepositoryCustom attendeeRepositoryCustom;
-  private final ShareTicketService shareTicketService;
+  private final AttendeeFormService attendeeFormService;
   private final ReservationRepository reservationRepository;
 
   private final QrTicketService qrTicketService;
@@ -52,17 +51,17 @@ public class AttendeeService {
   // 동반자 정보 저장
   @Transactional
   public AttendeeInfoResponseDto saveGuest(String token, AttendeeSaveRequestDto dto) {
-    ShareTicket shareTicket = shareTicketService.validateAndUseToken(token);
+    com.fairing.fairplay.attendeeform.entity.AttendeeForm attendeeForm = attendeeFormService.validateAndUseToken(token);
     if (dto.getAgreeToTerms() == null || !dto.getAgreeToTerms()) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "약관에 대해 동의하지 않았으므로 참석자 등록을 할 수 없습니다.");
     }
     AttendeeInfoResponseDto attendeeInfoResponseDto = saveAttendee("GUEST", dto,
-        shareTicket.getReservation().getReservationId());
-    shareTicketService.updateShareTicket(shareTicket);
+        attendeeForm.getReservation().getReservationId());
+    attendeeFormService.updateAttendeeForm(attendeeForm);
 
     LocalDate today = LocalDate.now();
-    LocalDate reservationDate = shareTicket.getReservation().getCreatedAt().toLocalDate();
-    LocalDate scheduleDate = shareTicket.getReservation().getSchedule().getDate();
+    LocalDate reservationDate = attendeeForm.getReservation().getCreatedAt().toLocalDate();
+    LocalDate scheduleDate = attendeeForm.getReservation().getSchedule().getDate();
     if(reservationDate.isEqual(today) && scheduleDate.isEqual(today)) {
       QrTicketEmailTodayRequestDto qrTicketEmailTodayRequestDto = QrTicketEmailTodayRequestDto
           .builder()

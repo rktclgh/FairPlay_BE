@@ -1,10 +1,10 @@
 package com.fairing.fairplay.attendeeform.controller;
 
+import com.fairing.fairplay.attendeeform.dto.AttendeeFormInfoResponseDto;
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.attendeeform.dto.ShareTicketInfoResponseDto;
 import com.fairing.fairplay.attendeeform.dto.TokenResponseDto;
-import com.fairing.fairplay.attendeeform.service.ShareTicketAttendeeService;
-import com.fairing.fairplay.attendeeform.service.ShareTicketService;
+import com.fairing.fairplay.attendeeform.service.AttendeeFormAttendeeService;
+import com.fairing.fairplay.attendeeform.service.AttendeeFormService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -21,10 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Slf4j
 @RequestMapping("/api/form")
-public class ShareTicketController {
+public class AttendeeFormController {
 
-  private final ShareTicketService shareTicketService;
-  private final ShareTicketAttendeeService shareTicketAttendeeService;
+  private final AttendeeFormService attendeeFormService;
+  private final AttendeeFormAttendeeService attendeeFormAttendeeService;
 
   // 공유 폼 링크 및 참석자 생성
 //  @PostMapping
@@ -38,8 +38,8 @@ public class ShareTicketController {
   // 공유폼조회
   // 폼링크 조회 시 기본 정보 세팅
   @GetMapping
-  public ResponseEntity<ShareTicketInfoResponseDto> getFormInfo(@RequestParam String token) {
-    return ResponseEntity.status(HttpStatus.OK).body(shareTicketService.getFormInfo(token));
+  public ResponseEntity<AttendeeFormInfoResponseDto> getFormInfo(@RequestParam String token) {
+    return ResponseEntity.status(HttpStatus.OK).body(attendeeFormService.getFormInfo(token));
   }
 
   @GetMapping("{reservationId}")
@@ -47,6 +47,6 @@ public class ShareTicketController {
       @AuthenticationPrincipal CustomUserDetails userDetails,
       @PathVariable Long reservationId) {
     return ResponseEntity.status(HttpStatus.OK)
-        .body(shareTicketService.getFormLink(userDetails, reservationId));
+        .body(attendeeFormService.getFormLink(userDetails, reservationId));
   }
 }

@@ -1,8 +1,7 @@
 package com.fairing.fairplay.attendeeform.service;
 
-import com.fairing.fairplay.reservation.repository.ReservationRepository;
-import com.fairing.fairplay.attendeeform.entity.ShareTicket;
-import com.fairing.fairplay.attendeeform.repository.ShareTicketRepository;
+import com.fairing.fairplay.attendeeform.entity.AttendeeForm;
+import com.fairing.fairplay.attendeeform.repository.AttendeeFormRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,13 +15,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ShareTicketBatchService {
+public class AttendeeFormBatchService {
 
-  private final ShareTicketRepository shareTicketRepository;
+  private final AttendeeFormRepository attendeeFormRepository;
 
   // 만료 날짜가 오늘이고 아직 만료처리되지 않은 공유 폼 링크 조회
   // 당일 예약이거나 행사 전날 예약했을 경우엔 제외
-  public List<ShareTicket> fetchExpiredBatch(int page, int size) {
+  public List<AttendeeForm> fetchExpiredBatch(int page, int size) {
     Pageable pageable = PageRequest.of(page, size);
 
     LocalDate now = LocalDate.now(); // 2025-08-10
@@ -30,27 +29,27 @@ public class ShareTicketBatchService {
     LocalDateTime endDate = now.plusDays(1).atStartOfDay(); // 11
     log.info("fetchExpiredBatch startDate: {}, endDate: {}", startDate, endDate);
 
-    return shareTicketRepository.findAllExpiredExceptTodayReservations(endDate, now,  pageable);
+    return attendeeFormRepository.findAllExpiredExceptTodayReservations(endDate, now,  pageable);
   }
 
   // 공유 폼 링크 만료 -> 스케줄러 자동 실행
   @Transactional
-  public void expiredToken(List<ShareTicket> shareTickets) {
+  public void expiredToken(List<AttendeeForm> attendeeForms) {
     // 폼링크 자동 만료
-    shareTickets.forEach(shareTicket -> {
-      shareTicket.setExpired(true);
+    attendeeForms.forEach(attendeeForm -> {
+      attendeeForm.setExpired(true);
     });
 
-    log.info("expiredToken: {}", shareTickets.size());
-    shareTicketRepository.saveAll(shareTickets);
-    shareTicketRepository.flush();
+    log.info("expiredToken: {}", attendeeForms.size());
+    attendeeFormRepository.saveAll(attendeeForms);
+    attendeeFormRepository.flush();
   }
 
   // 만료된 정보 삭제
-  public void deleteShareTicket(ShareTicket shareTicket) {
+  public void deleteAttendeeForm(AttendeeForm attendeeForm) {
     // 취소된 티켓일 경우
-    if (shareTicket.getReservation().isCanceled()) {
-      shareTicket.setExpired(true);
+    if (attendeeForm.getReservation().isCanceled()) {
+      attendeeForm.setExpired(true);
     }
   }
 }

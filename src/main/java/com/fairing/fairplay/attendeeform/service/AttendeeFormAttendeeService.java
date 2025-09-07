@@ -3,25 +3,22 @@ package com.fairing.fairplay.attendeeform.service;
 import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeSaveRequestDto;
 import com.fairing.fairplay.attendee.entity.Attendee;
-import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.service.AttendeeService;
+import com.fairing.fairplay.attendeeform.dto.AttendeeFormSaveRequestDto;
+import com.fairing.fairplay.attendeeform.dto.AttendeeFormSaveResponseDto;
+import com.fairing.fairplay.attendeeform.entity.AttendeeForm;
+import com.fairing.fairplay.attendeeform.repository.AttendeeFormRepository;
 import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.security.CustomUserDetails;
 
 import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
-import com.fairing.fairplay.attendeeform.dto.ShareTicketSaveRequestDto;
-import com.fairing.fairplay.attendeeform.dto.ShareTicketSaveResponseDto;
-import com.fairing.fairplay.attendeeform.entity.ShareTicket;
-import com.fairing.fairplay.attendeeform.repository.ShareTicketRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,23 +29,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ShareTicketAttendeeService {
+public class AttendeeFormAttendeeService {
 
   private final UserRepository userRepository;
   private final AttendeeService attendeeService;
-  private final ShareTicketRepository shareTicketRepository;
+  private final AttendeeFormRepository attendeeFormRepository;
   private final ReservationRepository reservationRepository;
   private final QrTicketService qrTicketService;
 
   // 대표자 저장 및 참석자 폼 링크 생성해 반환
   @Transactional
-  public ShareTicketSaveResponseDto saveShareTicketAndAttendee(Long userId,
-      ShareTicketSaveRequestDto dto) {
+  public AttendeeFormSaveResponseDto saveAttendeeFormAndAttendee(Long userId,
+                                                                                                      AttendeeFormSaveRequestDto dto) {
     if (userId == null || dto.getReservationId() == null) {
       throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인 후 이용해주세요");
     }
     
-    log.info("[ShareTicketAttendeeService] 시작 - 전달받은 reservationId: {}, totalAllowed: {}", 
+    log.info("[AttendeeFormAttendeeService] 시작 - 전달받은 reservationId: {}, totalAllowed: {}",
         dto.getReservationId(), dto.getTotalAllowed());
 
     // 1. attendee 저장
@@ -66,12 +63,12 @@ public class ShareTicketAttendeeService {
 
     // 해당 예약에 attendee가 이미 존재하는지 확인 (예약별 독립 처리)
     if (attendeeService.existsByReservationId(dto.getReservationId())) {
-      log.info("[ShareTicketAttendeeService] 이미 참석자가 등록된 예약입니다 - reservationId: {}", dto.getReservationId());
+      log.info("[AttendeeFormAttendeeService] 이미 참석자가 등록된 예약입니다 - reservationId: {}", dto.getReservationId());
       // 기존 데이터 반환
-      String existingToken = shareTicketRepository.findByReservation_ReservationId(dto.getReservationId())
-          .map(shareTicket -> shareTicket.getLinkToken())
+      String existingToken = attendeeFormRepository.findByReservation_ReservationId(dto.getReservationId())
+          .map(attendeeForm -> attendeeForm.getLinkToken())
           .orElse(null);
-      return ShareTicketSaveResponseDto.builder()
+      return AttendeeFormSaveResponseDto.builder()
           .reservationId(dto.getReservationId())
           .token(existingToken)
           .build();
@@ -86,23 +83,23 @@ public class ShareTicketAttendeeService {
     AttendeeInfoResponseDto attendeeInfoResponseDto = attendeeService.savePrimary(
         attendeeSaveRequestDto, dto.getReservationId());
 
-    // 2. shareTicket 저장 -> 단건 예매면 token은 Null
+    // 2. attendeeForm 저장 -> 단건 예매면 token은 Null
     String token = dto.getTotalAllowed() > 1 ? generateToken(dto) : null;
 
     // 3. QR 티켓 생성
     Attendee attendee = attendeeService.findById(attendeeInfoResponseDto.getAttendeeId());
     qrTicketService.generateQrTicket(attendee, reservation);
 
-    log.info("[ShareTicketAttendeeService] qr티켓 생성 완료");
+    log.info("[AttendeeFormAttendeeService] qr티켓 생성 완료");
 
-    return ShareTicketSaveResponseDto.builder()
+    return AttendeeFormSaveResponseDto.builder()
         .reservationId(dto.getReservationId())
         .token(token)
         .build();
   }
 
   // 공유 폼 링크 생성
-  private String generateToken(ShareTicketSaveRequestDto dto) {
+  private String generateToken(AttendeeFormSaveRequestDto dto) {
     if (dto == null) {
       throw new CustomException(HttpStatus.NOT_FOUND, "유효하지 않은 요청입니다.");
     }
@@ -112,7 +109,7 @@ public class ShareTicketAttendeeService {
         .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "예약을 찾을 수 없습니다."));
 
     // 예약 ID 기준 폼이 생성되어있는지 조회
-    if (shareTicketRepository.existsByReservation_ReservationId(dto.getReservationId())) {
+    if (attendeeFormRepository.existsByReservation_ReservationId(dto.getReservationId())) {
       throw new CustomException(HttpStatus.CONFLICT, "이미 폼 링크가 생성되었습니다.");
     }
 
@@ -125,7 +122,7 @@ public class ShareTicketAttendeeService {
           .putLong(uuid.getLeastSignificantBits());
       token = Base64.getUrlEncoder().withoutPadding()
           .encodeToString(bytes); //5B3Ej0AdRMqrqY7xV6k9tw 형태
-    } while (shareTicketRepository.existsByLinkToken(token));
+    } while (attendeeFormRepository.existsByLinkToken(token));
 
     if (dto.getTotalAllowed() == null || dto.getTotalAllowed() <= 1) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "허용 인원은 2명 이상이어야 합니다.");
@@ -143,7 +140,7 @@ public class ShareTicketAttendeeService {
       expiredAt = scheduleDate.minusDays(1).atStartOfDay();
     }
 
-    ShareTicket shareTicket = ShareTicket.builder()
+    AttendeeForm attendeeForm = AttendeeForm.builder()
         .linkToken(token) // 폼 링크 토큰
         .totalAllowed(dto.getTotalAllowed()) //대표자 제출 O
         .expired(false) // 만료 여부
@@ -152,7 +149,7 @@ public class ShareTicketAttendeeService {
         .expiredAt(expiredAt) // 폼 만료 기한 (행사 시작일 하루 전 또는 시작시간까지)
         .build();
 
-    shareTicketRepository.saveAndFlush(shareTicket);
+    attendeeFormRepository.saveAndFlush(attendeeForm);
     return token;
   }
 }

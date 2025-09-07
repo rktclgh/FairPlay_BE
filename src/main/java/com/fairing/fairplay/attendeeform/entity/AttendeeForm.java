@@ -25,12 +25,12 @@ import org.hibernate.annotations.CreationTimestamp;
 @Getter
 @Setter
 @Builder
-@Table(name = "share_ticket")
-public class ShareTicket {
+@Table(name = "attendee_form")
+public class AttendeeForm {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "share_ticket_id")
+  @Column(name = "attendee_form_id")
   private Long id;
 
   @ManyToOne(fetch = FetchType.LAZY)
