@@ -64,7 +64,7 @@ public class DailyStatsCustomRepositoryImpl implements DailyStatsCustomRepositor
                 .join(r).on(a.reservation.eq(r))
                 .join(qrt).on(qrt.attendee.eq(a))           // QrTicket 조인 추가
                 .join(q).on(q.qrTicket.eq(qrt))
-                .where(a.checkedIn.isTrue()
+                .where(a.status.isTrue()
                         .and(q.createdAt.goe(start).and(q.createdAt.lt(end))))
                 .groupBy(r.event.eventId)
                 .fetch();
