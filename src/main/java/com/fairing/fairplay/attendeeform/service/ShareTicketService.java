@@ -1,4 +1,4 @@
-package com.fairing.fairplay.shareticket.service;
+package com.fairing.fairplay.attendeeform.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.common.exception.LinkExpiredException;
@@ -6,10 +6,10 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
-import com.fairing.fairplay.shareticket.dto.ShareTicketInfoResponseDto;
-import com.fairing.fairplay.shareticket.dto.TokenResponseDto;
-import com.fairing.fairplay.shareticket.entity.ShareTicket;
-import com.fairing.fairplay.shareticket.repository.ShareTicketRepository;
+import com.fairing.fairplay.attendeeform.dto.ShareTicketInfoResponseDto;
+import com.fairing.fairplay.attendeeform.dto.TokenResponseDto;
+import com.fairing.fairplay.attendeeform.entity.ShareTicket;
+import com.fairing.fairplay.attendeeform.repository.ShareTicketRepository;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.nio.ByteBuffer;

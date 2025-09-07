@@ -1,4 +1,4 @@
-package com.fairing.fairplay.shareticket.entity;
+package com.fairing.fairplay.attendeeform.entity;
 
 import com.fairing.fairplay.reservation.entity.Reservation;
 import jakarta.persistence.Column;

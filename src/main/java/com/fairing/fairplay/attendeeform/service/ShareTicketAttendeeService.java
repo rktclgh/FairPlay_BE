@@ -1,4 +1,4 @@
-package com.fairing.fairplay.shareticket.service;
+package com.fairing.fairplay.attendeeform.service;
 
 import com.fairing.fairplay.attendee.dto.AttendeeInfoResponseDto;
 import com.fairing.fairplay.attendee.dto.AttendeeSaveRequestDto;
@@ -11,10 +11,10 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
-import com.fairing.fairplay.shareticket.dto.ShareTicketSaveRequestDto;
-import com.fairing.fairplay.shareticket.dto.ShareTicketSaveResponseDto;
-import com.fairing.fairplay.shareticket.entity.ShareTicket;
-import com.fairing.fairplay.shareticket.repository.ShareTicketRepository;
+import com.fairing.fairplay.attendeeform.dto.ShareTicketSaveRequestDto;
+import com.fairing.fairplay.attendeeform.dto.ShareTicketSaveResponseDto;
+import com.fairing.fairplay.attendeeform.entity.ShareTicket;
+import com.fairing.fairplay.attendeeform.repository.ShareTicketRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import java.nio.ByteBuffer;

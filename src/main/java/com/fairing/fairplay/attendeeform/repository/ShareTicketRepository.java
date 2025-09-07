@@ -1,7 +1,7 @@
-package com.fairing.fairplay.shareticket.repository;
+package com.fairing.fairplay.attendeeform.repository;
 
 import com.fairing.fairplay.reservation.entity.Reservation;
-import com.fairing.fairplay.shareticket.entity.ShareTicket;
+import com.fairing.fairplay.attendeeform.entity.ShareTicket;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;

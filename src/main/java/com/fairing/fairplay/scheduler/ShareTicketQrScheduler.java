@@ -1,8 +1,8 @@
 package com.fairing.fairplay.scheduler;
 
 import com.fairing.fairplay.qr.service.QrTicketBatchService;
-import com.fairing.fairplay.shareticket.entity.ShareTicket;
-import com.fairing.fairplay.shareticket.service.ShareTicketBatchService;
+import com.fairing.fairplay.attendeeform.entity.ShareTicket;
+import com.fairing.fairplay.attendeeform.service.ShareTicketBatchService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
