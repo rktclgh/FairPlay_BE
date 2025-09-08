@@ -1,13 +1,11 @@
 package com.fairing.fairplay.scheduler;
 
 import com.fairing.fairplay.qr.service.QrTicketBatchService;
-import com.fairing.fairplay.shareticket.entity.ShareTicket;
-import com.fairing.fairplay.shareticket.service.ShareTicketBatchService;
+import com.fairing.fairplay.attendeeform.service.AttendeeFormBatchService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -16,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class ShareTicketQrScheduler {
 
-  private final ShareTicketBatchService shareTicketBatchService;
+  private final AttendeeFormBatchService attendeeFormBatchService;
   private final QrTicketBatchService qrTicketBatchService;
 
   // 공유 폼 링크 만료
@@ -35,13 +33,13 @@ public class ShareTicketQrScheduler {
       }
 
       try {
-        List<ShareTicket> batch = shareTicketBatchService.fetchExpiredBatch(page, batchSize);
+        List<com.fairing.fairplay.attendeeform.entity.AttendeeForm> batch = attendeeFormBatchService.fetchExpiredBatch(page, batchSize);
         if (batch.isEmpty()) {
           log.info("No share tickets found");
           break;
         }
 
-        shareTicketBatchService.expiredToken(batch);
+        attendeeFormBatchService.expiredToken(batch);
         page++;
 
       } catch (Exception e) {
