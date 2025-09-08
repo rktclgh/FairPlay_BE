@@ -39,11 +39,12 @@ public class AttendeeFormAttendeeService {
 
   // 대표자 저장 및 참석자 폼 링크 생성해 반환
   @Transactional
-  public AttendeeFormSaveResponseDto saveAttendeeFormAndAttendee(Long userId, AttendeeFormSaveRequestDto dto) {
+  public AttendeeFormSaveResponseDto saveAttendeeFormAndAttendee(Long userId,
+      AttendeeFormSaveRequestDto dto) {
     if (userId == null || dto.getReservationId() == null) {
       throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인 후 이용해주세요");
     }
-    
+
     log.info("[AttendeeFormAttendeeService] 시작 - 전달받은 reservationId: {}, totalAllowed: {}",
         dto.getReservationId(), dto.getTotalAllowed());
 
@@ -62,10 +63,12 @@ public class AttendeeFormAttendeeService {
 
     // 해당 예약에 attendee가 이미 존재하는지 확인 (예약별 독립 처리)
     if (attendeeService.existsByReservationId(dto.getReservationId())) {
-      log.info("[AttendeeFormAttendeeService] 이미 참석자가 등록된 예약입니다 - reservationId: {}", dto.getReservationId());
+      log.info("[AttendeeFormAttendeeService] 이미 참석자가 등록된 예약입니다 - reservationId: {}",
+          dto.getReservationId());
       // 기존 데이터 반환
-      String existingToken = attendeeFormRepository.findByReservation_ReservationId(dto.getReservationId())
-          .map(attendeeForm -> attendeeForm.getLinkToken())
+      String existingToken = attendeeFormRepository.findByReservation_ReservationId(
+              dto.getReservationId())
+          .map(AttendeeForm::getLinkToken)
           .orElse(null);
       return AttendeeFormSaveResponseDto.builder()
           .reservationId(dto.getReservationId())
@@ -73,10 +76,20 @@ public class AttendeeFormAttendeeService {
           .build();
     }
 
+    LocalDate userBirthday = buyUser.getBirthday();
+    if (userBirthday == null) {
+      log.warn("[AttendeeFormAttendeeService] User birthday 없음 - userId: {}",
+          buyUser.getUserId());
+      throw new CustomException(HttpStatus.BAD_REQUEST, "예약자의 생년월일 정보가 누락되었습니다.");
+    }
+    log.info("[AttendeeFormAttendeeService] User birthday 매핑 성공 - userId: {}, birthday: {}",
+        buyUser.getUserId(), userBirthday);
+
     AttendeeSaveRequestDto attendeeSaveRequestDto = AttendeeSaveRequestDto.builder()
         .name(buyUser.getName())
         .email(buyUser.getEmail())
         .phone(buyUser.getPhone())
+        .birth(buyUser.getBirthday())
         .agreeToTerms(true)
         .build();
     AttendeeInfoResponseDto attendeeInfoResponseDto = attendeeService.savePrimary(
@@ -84,14 +97,13 @@ public class AttendeeFormAttendeeService {
 
     // 2. attendeeForm 저장 -> 단건 예매면 token은 Null
     Integer totalAllowed = dto.getTotalAllowed();
-    if(totalAllowed == null) {
-      throw new CustomException(HttpStatus.BAD_REQUEST,"허용 인원은 필수입니다.");
+    if (totalAllowed == null) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "허용 인원은 필수입니다.");
     }
-    if(totalAllowed <= 0){
-      throw new CustomException(HttpStatus.BAD_REQUEST,"허용 인원은 1명 이상이어야 합니다.");
+    if (totalAllowed <= 0) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "허용 인원은 1명 이상이어야 합니다.");
     }
     String token = totalAllowed > 1 ? generateToken(dto) : null;
-
 
     // 3. QR 티켓 생성
     Attendee attendee = attendeeService.findById(attendeeInfoResponseDto.getAttendeeId());
@@ -120,7 +132,7 @@ public class AttendeeFormAttendeeService {
       throw new CustomException(HttpStatus.CONFLICT, "이미 폼 링크가 생성되었습니다.");
     }
 
-    String token;
+    String token = null;
     do {
       UUID uuid = UUID.randomUUID();
       byte[] bytes = new byte[16];
