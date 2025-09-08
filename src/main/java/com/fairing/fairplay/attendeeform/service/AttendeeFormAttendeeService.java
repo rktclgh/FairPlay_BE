@@ -86,7 +86,7 @@ public class AttendeeFormAttendeeService {
         .name(buyUser.getName())
         .email(buyUser.getEmail())
         .phone(buyUser.getPhone())
-        .birth(buyUser.getBirthday())
+        .birth(userBirthday)
         .agreeToTerms(true)
         .build();
     AttendeeInfoResponseDto attendeeInfoResponseDto = attendeeService.savePrimary(

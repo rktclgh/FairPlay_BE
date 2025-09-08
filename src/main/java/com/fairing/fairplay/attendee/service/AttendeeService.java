@@ -62,7 +62,7 @@ public class AttendeeService {
     LocalDate today = LocalDate.now();
     LocalDate reservationDate = attendeeForm.getReservation().getCreatedAt().toLocalDate();
     LocalDate scheduleDate = attendeeForm.getReservation().getSchedule().getDate();
-    if(reservationDate.isEqual(today) && scheduleDate.isEqual(today)) {
+    if (reservationDate.isEqual(today) && scheduleDate.isEqual(today)) {
       QrTicketEmailTodayRequestDto qrTicketEmailTodayRequestDto = QrTicketEmailTodayRequestDto
           .builder()
           .attendeeId(attendeeInfoResponseDto.getAttendeeId())
@@ -176,29 +176,33 @@ public class AttendeeService {
   private AttendeeInfoResponseDto saveAttendee(String attendeeType, AttendeeSaveRequestDto dto,
       Long reservationId) {
     log.info("[AttendeeService] saveAttendee 시작 - 요청된 reservationId: {}", reservationId);
-    
+
     AttendeeTypeCode attendeeTypeCode = attendeeTypeCodeRepository.findByCode(attendeeType)
         .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST,
             "잘못된 참석자 유형 값입니다. 입력값: " + attendeeType));
 
     // 폼과 연결된 예약건
     Reservation reservation = findReservation(reservationId);
-    
-    log.info("[AttendeeService] 찾은 reservation - reservationId: {}, eventId: {}, scheduleId: {}", 
-        reservation.getReservationId(), reservation.getEvent().getEventId(), 
+
+    log.info("[AttendeeService] 찾은 reservation - reservationId: {}, eventId: {}, scheduleId: {}",
+        reservation.getReservationId(), reservation.getEvent().getEventId(),
         reservation.getSchedule() != null ? reservation.getSchedule().getScheduleId() : null);
 
-    if(dto.getBirth() == null){
-      throw new CustomException(HttpStatus.BAD_REQUEST,"참석자의 생년월일 정보가 누락되었습니다.");
+    if (dto.getBirth() == null) {
+      throw new CustomException(HttpStatus.BAD_REQUEST, "참석자의 생년월일 정보가 누락되었습니다.");
     }
 
     // 회원일 경우 - 예약과 회원 연결 확인
-    if(attendeeTypeCode.getCode().equals("PRIMARY")) {
+    if (attendeeTypeCode.getCode().equals("PRIMARY")) {
       if (reservation.getUser() == null || reservation.getUser().getUserId() == null) {
         throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "예약과 연결된 회원 정보가 없습니다.");
       }
-      if(!reservation.getUser().getBirthday().isEqual(dto.getBirth())) {
-        throw new CustomException(HttpStatus.BAD_REQUEST,"저장된 회원의 생년월일 정보와 일치하지 않습니다.");
+      LocalDate reservationUserBirthday = reservation.getUser().getBirthday();
+      if (reservationUserBirthday == null) {
+        throw new CustomException(HttpStatus.BAD_REQUEST, "예약자의 생년월일 정보가 누락되었습니다.");
+      }
+      if (!reservationUserBirthday.isEqual(dto.getBirth())) {
+        throw new CustomException(HttpStatus.BAD_REQUEST, "저장된 회원의 생년월일 정보와 일치하지 않습니다.");
       }
     }
 
@@ -212,10 +216,10 @@ public class AttendeeService {
         .reservation(reservation)
         .build();
     Attendee savedAttendee = attendeeRepository.save(attendee);
-    
-    log.info("[AttendeeService] attendee 저장 완료 - attendeeId: {}, reservationId: {}", 
+
+    log.info("[AttendeeService] attendee 저장 완료 - attendeeId: {}, reservationId: {}",
         savedAttendee.getId(), savedAttendee.getReservation().getReservationId());
-    
+
     return buildAttendeeInfoResponse(savedAttendee);
   }
 
