@@ -9,6 +9,7 @@ import com.fairing.fairplay.attendee.entity.AttendeeTypeCode;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.attendee.repository.AttendeeRepositoryCustom;
 import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
+import com.fairing.fairplay.attendeeform.entity.AttendeeForm;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
@@ -16,8 +17,6 @@ import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.attendeeform.service.AttendeeFormService;
-import com.fairing.fairplay.user.entity.Users;
-import com.fairing.fairplay.user.repository.UserRepository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
@@ -38,11 +37,6 @@ public class AttendeeService {
   private final AttendeeRepositoryCustom attendeeRepositoryCustom;
   private final AttendeeFormService attendeeFormService;
   private final ReservationRepository reservationRepository;
-  
-  // ================================= 결제 시 User birthday 매핑용 추가 =================================
-  private final UserRepository userRepository;
-  // ================================================================================================
-
   private final QrTicketService qrTicketService;
 
   // 대표자 정보 저장
@@ -57,7 +51,7 @@ public class AttendeeService {
   // 동반자 정보 저장
   @Transactional
   public AttendeeInfoResponseDto saveGuest(String token, AttendeeSaveRequestDto dto) {
-    com.fairing.fairplay.attendeeform.entity.AttendeeForm attendeeForm = attendeeFormService.validateAndUseToken(token);
+    AttendeeForm attendeeForm = attendeeFormService.validateAndUseToken(token);
     if (dto.getAgreeToTerms() == null || !dto.getAgreeToTerms()) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "약관에 대해 동의하지 않았으므로 참석자 등록을 할 수 없습니다.");
     }
@@ -186,38 +180,33 @@ public class AttendeeService {
         .orElseThrow(() -> new CustomException(HttpStatus.BAD_REQUEST,
             "잘못된 참석자 유형 값입니다. 입력값: " + attendeeType));
 
+    // 폼과 연결된 예약건
     Reservation reservation = findReservation(reservationId);
     
     log.info("[AttendeeService] 찾은 reservation - reservationId: {}, eventId: {}, scheduleId: {}", 
         reservation.getReservationId(), reservation.getEvent().getEventId(), 
         reservation.getSchedule() != null ? reservation.getSchedule().getScheduleId() : null);
 
-    // ================================= User birthday를 Attendee birth로 매핑 =================================
-    LocalDate userBirthday = null;
-    try {
-      if (reservation.getUser() != null && reservation.getUser().getUserId() != null) {
-        Users user = userRepository.findById(reservation.getUser().getUserId())
-            .orElse(null);
-        if (user != null && user.getBirthday() != null) {
-          userBirthday = user.getBirthday();
-          log.info("[AttendeeService] User birthday 매핑 성공 - userId: {}, birthday: {}", 
-              user.getUserId(), userBirthday);
-        } else {
-          log.warn("[AttendeeService] User birthday 없음 - userId: {}", 
-              reservation.getUser().getUserId());
-        }
-      }
-    } catch (Exception e) {
-      log.error("[AttendeeService] User birthday 매핑 중 오류: {}", e.getMessage());
+    if(dto.getBirth() == null){
+      throw new CustomException(HttpStatus.BAD_REQUEST,"참석자의 생년월일 정보가 누락되었습니다.");
     }
-    // ===============================================================================================
+
+    // 회원일 경우 - 예약과 회원 연결 확인
+    if(attendeeTypeCode.getCode().equals("PRIMARY")) {
+      if (reservation.getUser() == null || reservation.getUser().getUserId() == null) {
+        throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "예약과 연결된 회원 정보가 없습니다.");
+      }
+      if(!reservation.getUser().getBirthday().isEqual(dto.getBirth())) {
+        throw new CustomException(HttpStatus.BAD_REQUEST,"저장된 회원의 생년월일 정보와 일치하지 않습니다.");
+      }
+    }
 
     Attendee attendee = Attendee.builder()
         .name(dto.getName())
         .attendeeTypeCode(attendeeTypeCode)
         .phone(dto.getPhone())
         .email(dto.getEmail())
-        .birth(userBirthday)  // User의 birthday를 Attendee의 birth로 매핑
+        .birth(dto.getBirth())  // User의 birthday를 Attendee의 birth로 매핑
         .agreeToTerms(dto.getAgreeToTerms())
         .reservation(reservation)
         .build();
