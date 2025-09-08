@@ -61,7 +61,7 @@ public class SessionStatsCustomRepositoryImpl implements SessionStatsCustomRepos
                                 .join(s).on(r.schedule.scheduleId.eq(s.scheduleId))
                                 .join(st).on(r.schedule.scheduleId.eq(st.eventSchedule.scheduleId)
                                                 .and(r.ticket.ticketId.eq(st.ticket.ticketId)))
-                                .where(a.checkedIn.isTrue()
+                                .where(a.status.isTrue()
                                                 .and(r.createdAt.between(start, end)))
                                 .groupBy(r.event.eventId, r.schedule.scheduleId, t.name, s.date, s.startTime, s.endTime,
                                                 st.remainingStock)

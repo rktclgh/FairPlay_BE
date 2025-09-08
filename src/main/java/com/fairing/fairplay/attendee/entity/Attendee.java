@@ -9,6 +9,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
@@ -25,6 +27,10 @@ import org.hibernate.annotations.ColumnDefault;
 @Getter
 @Setter
 @Builder
+@Table(
+    name = "attendee",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"reservation_id", "email"})
+)
 public class Attendee {
 
   @Id
@@ -36,22 +42,22 @@ public class Attendee {
   @JoinColumn(name = "reservation_id")
   private Reservation reservation;
 
-  @Column(name = "name", nullable = true)
+  @Column(name = "name", nullable = false)
   private String name;
 
-  @Column(name = "phone", nullable = true)
+  @Column(name = "phone", nullable = false)
   private String phone;
 
-  @Column(name = "email", nullable = true)
+  @Column(name = "email", nullable = false)
   private String email;
 
-  @Column(name = "birth", nullable = true)
+  @Column(name = "birth", nullable = false)
   private LocalDate birth;
 
-  @Column(name = "checked_in", nullable = false)
+  @Column(name = "status", nullable = false)
   @ColumnDefault("false")
   @Builder.Default
-  private Boolean checkedIn = false;
+  private Boolean status = false;
 
   @Column(name = "agree_to_terms", nullable = false)
   @ColumnDefault("false")

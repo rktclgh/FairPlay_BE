@@ -142,8 +142,8 @@ public class QrTicketExitService {
     //체크아웃 알림
     checkOutQrTicket(qrTicket);
     // 체크인 (입장 시 false면 변경)
-    if(!attendee.getCheckedIn()){
-      attendee.setCheckedIn(true);
+    if(!attendee.getStatus()){
+      attendee.setStatus(true);
     }
     return CheckResponseDto.builder()
         .message("체크아웃 완료되었습니다.")

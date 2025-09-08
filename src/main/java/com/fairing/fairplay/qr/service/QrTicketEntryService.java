@@ -188,8 +188,8 @@ public class QrTicketEntryService {
     // 웹소켓 알림
     checkInQrTicket(qrTicket);
     // 체크인 (입장 시 false면 변경)
-    if(!attendee.getCheckedIn()){
-      attendee.setCheckedIn(true);
+    if(!attendee.getStatus()){
+      attendee.setStatus(true);
     }
     return CheckResponseDto.builder()
         .message("체크인 완료되었습니다.")

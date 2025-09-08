@@ -1,4 +1,4 @@
-package com.fairing.fairplay.shareticket.dto;
+package com.fairing.fairplay.attendeeform.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ShareTicketSaveResponseDto {
+public class AttendeeFormSaveResponseDto {
 
   private Long reservationId;
   private String token;
