@@ -38,5 +38,5 @@ public interface AttendeeFormRepository extends JpaRepository<AttendeeForm, Long
 
   Optional<AttendeeForm> findByReservation(Reservation reservation);
 
-  boolean existsByReservation_ReservationIdAndExpiredFalse(Long reservationReservationId, Boolean expired);
+//  boolean existsByReservation_ReservationIdAndExpiredFalse(Long reservationReservationId, Boolean expired);
 }
