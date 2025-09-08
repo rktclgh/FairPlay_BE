@@ -85,7 +85,6 @@ public class SecurityConfig {
                                 "/api/payments/complete", // PG사에서 호출하는 결제 완료 웹훅
                                 "/api/events/apply", // 행사 등록 신청
                                 "/api/events/apply/check",
-                                "/api/events/user/role",
                                 "/api/super-admin/**",
                                 "/api/qr-tickets/reissue/guest",
                                 "/api/qr-tickets/admin/issue", // QR 티켓 강제 재발급 (테스트용)
