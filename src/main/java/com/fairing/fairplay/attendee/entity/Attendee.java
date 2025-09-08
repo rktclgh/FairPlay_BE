@@ -51,7 +51,7 @@ public class Attendee {
   @Column(name = "email", nullable = false)
   private String email;
 
-  @Column(name = "birth", nullable = false)
+  @Column(name = "birth", nullable = true)
   private LocalDate birth;
 
   @Column(name = "status", nullable = false)

@@ -16,6 +16,8 @@ import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.attendeeform.service.AttendeeFormService;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
@@ -36,6 +38,10 @@ public class AttendeeService {
   private final AttendeeRepositoryCustom attendeeRepositoryCustom;
   private final AttendeeFormService attendeeFormService;
   private final ReservationRepository reservationRepository;
+  
+  // ================================= 결제 시 User birthday 매핑용 추가 =================================
+  private final UserRepository userRepository;
+  // ================================================================================================
 
   private final QrTicketService qrTicketService;
 
@@ -186,11 +192,32 @@ public class AttendeeService {
         reservation.getReservationId(), reservation.getEvent().getEventId(), 
         reservation.getSchedule() != null ? reservation.getSchedule().getScheduleId() : null);
 
+    // ================================= User birthday를 Attendee birth로 매핑 =================================
+    LocalDate userBirthday = null;
+    try {
+      if (reservation.getUser() != null && reservation.getUser().getUserId() != null) {
+        Users user = userRepository.findById(reservation.getUser().getUserId())
+            .orElse(null);
+        if (user != null && user.getBirthday() != null) {
+          userBirthday = user.getBirthday();
+          log.info("[AttendeeService] User birthday 매핑 성공 - userId: {}, birthday: {}", 
+              user.getUserId(), userBirthday);
+        } else {
+          log.warn("[AttendeeService] User birthday 없음 - userId: {}", 
+              reservation.getUser().getUserId());
+        }
+      }
+    } catch (Exception e) {
+      log.error("[AttendeeService] User birthday 매핑 중 오류: {}", e.getMessage());
+    }
+    // ===============================================================================================
+
     Attendee attendee = Attendee.builder()
         .name(dto.getName())
         .attendeeTypeCode(attendeeTypeCode)
         .phone(dto.getPhone())
         .email(dto.getEmail())
+        .birth(userBirthday)  // User의 birthday를 Attendee의 birth로 매핑
         .agreeToTerms(dto.getAgreeToTerms())
         .reservation(reservation)
         .build();
