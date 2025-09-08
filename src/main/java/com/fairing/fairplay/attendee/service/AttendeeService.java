@@ -143,6 +143,7 @@ public class AttendeeService {
     attendee.setEmail(dto.getEmail());
     attendee.setPhone(dto.getPhone());
     attendee.setName(dto.getName());
+    attendee.setBirth(dto.getBirth());
 
     return buildAttendeeInfoResponse(attendee);
   }
@@ -225,6 +226,7 @@ public class AttendeeService {
         .name(attendee.getName())
         .email(attendee.getEmail())
         .phone(attendee.getPhone())
+        .birth(attendee.getBirth())
         .agreeToTerms(attendee.getAgreeToTerms())
         .build();
   }
