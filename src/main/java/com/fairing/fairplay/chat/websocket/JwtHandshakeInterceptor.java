@@ -7,12 +7,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 
 import java.security.Principal;
 import java.util.Map;
+import jakarta.servlet.http.HttpSession;
 
 
 @Slf4j
@@ -27,34 +33,59 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
-        String token = extractToken(request);
-        log.debug("WebSocket handshake - URI: {}, Token: {}", request.getURI(), token != null ? "EXISTS" : "NULL");
         
-        if (token != null && jwtTokenProvider.validateToken(token)) {
-            try {
+        // ================================= HTTP-only 쿠키 기반 인증으로 변경 =================================
+        try {
+            // 1. HTTP 세션에서 사용자 정보 추출
+            if (request instanceof ServletServerHttpRequest) {
+                ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
+                HttpSession session = servletRequest.getServletRequest().getSession(false);
+                
+                if (session != null) {
+                    // 세션에서 SecurityContext 추출
+                    SecurityContext securityContext = (SecurityContext) session.getAttribute("SPRING_SECURITY_CONTEXT");
+                    if (securityContext != null) {
+                        Authentication authentication = securityContext.getAuthentication();
+                        if (authentication != null && authentication.getPrincipal() instanceof CustomUserDetails) {
+                            CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+                            Long userId = userDetails.getUserId();
+                            
+                            // WebSocket 세션에 사용자 정보 설정
+                            attributes.put("user", new com.fairing.fairplay.chat.websocket.StompPrincipal(userId.toString()));
+                            attributes.put("userId", userId);
+                            
+                            // 사용자를 온라인 상태로 설정 (Redis)
+                            userPresenceService.setUserOnline(userId);
+                            log.info("WebSocket 인증 성공 (HTTP 세션): 사용자 ID {} 설정", userId);
+                            return true;
+                        }
+                    }
+                }
+            }
+            
+            // 2. Fallback: JWT 토큰 방식 (기존 로직 유지)
+            String token = extractToken(request);
+            log.debug("WebSocket handshake - URI: {}, Token: {}", request.getURI(), token != null ? "EXISTS" : "NULL");
+            
+            if (token != null && jwtTokenProvider.validateToken(token)) {
                 Long userId = jwtTokenProvider.getUserId(token);
                 attributes.put("user", new com.fairing.fairplay.chat.websocket.StompPrincipal(userId.toString()));
                 attributes.put("userId", userId);
                 
                 // 사용자를 온라인 상태로 설정 (Redis)
                 userPresenceService.setUserOnline(userId);
-                log.info("WebSocket 인증 성공: 사용자 ID {} 설정", userId);
+                log.info("WebSocket 인증 성공 (JWT): 사용자 ID {} 설정", userId);
                 return true;
-            } catch (Exception e) {
-                log.warn("WebSocket 연결 실패: 토큰에서 사용자 ID 추출 실패 - {}", e.getMessage());
-                return false;
             }
-        }
-        
-        // 토큰이 없는 경우는 조용히 거부 (로그인하지 않은 사용자는 정상)
-        if (token == null) {
-            log.debug("WebSocket 연결 실패: 토큰 없음");
+            
+            log.debug("WebSocket 연결 실패: 인증 정보 없음 (HTTP 세션 및 JWT 토큰 모두 없음)");
+            return false;
+            
+        } catch (Exception e) {
+            log.warn("WebSocket 연결 실패: 인증 처리 중 오류 - {}", e.getMessage());
             return false;
         }
-        
-        // 토큰이 유효하지 않은 경우 DEBUG 레벨로 로그
-        log.debug("WebSocket 연결 실패: 토큰 만료 또는 유효하지 않음");
-        return false;
+        // ===============================================================================================
     }
     
     /**
