@@ -65,7 +65,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             
             // 2. Fallback: JWT 토큰 방식 (기존 로직 유지)
             String token = extractToken(request);
-            log.debug("WebSocket handshake - URI: {}, Token: {}", request.getURI(), token != null ? "EXISTS" : "NULL");
+            log.debug("WebSocket handshake - path: {}, Token: {}", request.getURI().getPath(), token != null ? "EXISTS" : "NULL");
             
             if (token != null && jwtTokenProvider.validateToken(token)) {
                 Long userId = jwtTokenProvider.getUserId(token);

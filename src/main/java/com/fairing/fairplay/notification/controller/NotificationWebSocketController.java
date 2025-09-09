@@ -155,9 +155,20 @@ public class NotificationWebSocketController {
             }
         }
         
-        // 2. Principal이 이메일 형식인 경우 DB에서 userId 조회
+        // 2. Principal에서 userId 추출 시도
         if (principal != null && principal.getName() != null) {
             String principalName = principal.getName();
+            
+            // 2-1. 숫자 형태인 경우 (StompPrincipal에서 userId)
+            try {
+                Long userId = Long.parseLong(principalName);
+                log.info("✅ Principal에서 숫자형 userId 추출 성공: {}", userId);
+                return userId;
+            } catch (NumberFormatException e) {
+                // 숫자가 아닌 경우 계속 진행
+            }
+            
+            // 2-2. 이메일 형식인 경우 DB에서 userId 조회
             if (principalName.contains("@")) {
                 log.debug("Principal이 이메일 형식: {}, DB에서 userId 조회 시도", principalName);
                 try {
