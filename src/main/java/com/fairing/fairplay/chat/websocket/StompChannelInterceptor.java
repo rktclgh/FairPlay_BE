@@ -28,7 +28,19 @@ public class StompChannelInterceptor implements ChannelInterceptor {
             log.debug("STOMP Message - Command: {}, Headers: {}", accessor.getCommand(), accessor.toNativeHeaderMap());
             
             if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-                // CONNECT 프레임에서 인증 처리
+                // ================================= HTTP-only 쿠키 기반 인증 우선 처리 =================================
+                // HandshakeInterceptor에서 이미 userId를 설정했는지 확인
+                if (accessor.getSessionAttributes() != null) {
+                    Object existingUserId = accessor.getSessionAttributes().get("userId");
+                    if (existingUserId instanceof Long) {
+                        Long userId = (Long) existingUserId;
+                        accessor.setUser(new StompPrincipal(userId.toString()));
+                        log.info("STOMP CONNECT - HandshakeInterceptor에서 설정된 사용자 ID {} 사용", userId);
+                        return message; // 이미 설정되어 있으므로 추가 처리 불필요
+                    }
+                }
+                
+                // Fallback: JWT 토큰 방식 (기존 로직)
                 String token = extractTokenFromHeaders(accessor);
                 log.info("STOMP CONNECT - Token: {}", token != null ? "EXISTS" : "NULL");
                 log.info("STOMP CONNECT - All Native Headers: {}", accessor.toNativeHeaderMap());
@@ -41,7 +53,7 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                         // SessionAttributes에 직접 설정
                         if (accessor.getSessionAttributes() != null) {
                             accessor.getSessionAttributes().put("userId", userId);
-                            log.info("STOMP CONNECT - 사용자 ID {} 설정 완료", userId);
+                            log.info("STOMP CONNECT - 사용자 ID {} 설정 완료 (JWT)", userId);
                         } else {
                             log.warn("STOMP CONNECT - SessionAttributes가 null");
                         }
@@ -49,8 +61,9 @@ public class StompChannelInterceptor implements ChannelInterceptor {
                         log.warn("STOMP CONNECT - 토큰에서 사용자 ID 추출 실패: {}", e.getMessage());
                     }
                 } else {
-                    log.warn("STOMP CONNECT - 유효하지 않은 토큰 또는 토큰 없음");
+                    log.debug("STOMP CONNECT - 유효하지 않은 토큰 또는 토큰 없음 (HTTP 세션으로 이미 인증되었을 수 있음)");
                 }
+                // ===============================================================================================
             }
         }
         

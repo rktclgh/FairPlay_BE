@@ -65,7 +65,7 @@ public class AttendeeFormAttendeeService {
       log.info("[AttendeeFormAttendeeService] 이미 참석자가 등록된 예약입니다 - reservationId: {}", dto.getReservationId());
       // 기존 데이터 반환
       String existingToken = attendeeFormRepository.findByReservation_ReservationId(dto.getReservationId())
-          .map(attendeeForm -> attendeeForm.getLinkToken())
+          .map(AttendeeForm::getLinkToken)
           .orElse(null);
       return AttendeeFormSaveResponseDto.builder()
           .reservationId(dto.getReservationId())
@@ -73,10 +73,20 @@ public class AttendeeFormAttendeeService {
           .build();
     }
 
+    LocalDate userBirthday = buyUser.getBirthday();
+    if (userBirthday == null) {
+      log.warn("[AttendeeFormAttendeeService] User birthday 없음 - userId: {}",
+          buyUser.getUserId());
+      throw new CustomException(HttpStatus.BAD_REQUEST, "예약자의 생년월일 정보가 누락되었습니다.");
+    }
+    log.info("[AttendeeFormAttendeeService] User birthday 매핑 성공 - userId: {}, birthday: {}",
+        buyUser.getUserId(), userBirthday);
+
     AttendeeSaveRequestDto attendeeSaveRequestDto = AttendeeSaveRequestDto.builder()
         .name(buyUser.getName())
         .email(buyUser.getEmail())
         .phone(buyUser.getPhone())
+        .birth(userBirthday)
         .agreeToTerms(true)
         .build();
     AttendeeInfoResponseDto attendeeInfoResponseDto = attendeeService.savePrimary(
@@ -120,7 +130,7 @@ public class AttendeeFormAttendeeService {
       throw new CustomException(HttpStatus.CONFLICT, "이미 폼 링크가 생성되었습니다.");
     }
 
-    String token;
+    String token = null;
     do {
       UUID uuid = UUID.randomUUID();
       byte[] bytes = new byte[16];

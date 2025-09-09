@@ -1,5 +1,6 @@
 package com.fairing.fairplay.attendee.dto;
 
+import java.time.LocalDate;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,5 +17,6 @@ public class AttendeeInfoResponseDto {
   private String name;
   private String email;
   private String phone;
+  private LocalDate birth;
   private Boolean agreeToTerms;
 }

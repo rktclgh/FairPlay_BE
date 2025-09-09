@@ -63,20 +63,35 @@ public class ChatWebSocketController {
      */
     private Long determineSenderId(Principal principal, ChatMessageRequestDto message, 
                                   SimpMessageHeaderAccessor headerAccessor) {
-        // 1. Principal에서 추출 (가장 신뢰할 수 있음)
-        if (principal != null && principal.getName() != null) {
-            try {
-                return Long.parseLong(principal.getName());
-            } catch (NumberFormatException e) {
-                log.warn("Principal에서 사용자 ID 파싱 실패: {}", principal.getName());
-            }
-        }
-        
-        // 2. 헤더 속성에서 추출
+        // 1. 세션 속성에서 직접 추출 (가장 확실한 방법)
         if (headerAccessor.getSessionAttributes() != null) {
             Object userId = headerAccessor.getSessionAttributes().get("userId");
             if (userId instanceof Long) {
+                log.debug("세션 속성에서 userId 추출 성공: {}", userId);
                 return (Long) userId;
+            }
+        }
+        
+        // 2. Principal에서 추출 (fallback)
+        if (principal != null && principal.getName() != null) {
+            // StompPrincipal인 경우 (SessionHandshakeInterceptor에서 설정한 userId 문자열)
+            if ("StompPrincipal".equals(principal.getClass().getSimpleName())) {
+                try {
+                    Long userId = Long.parseLong(principal.getName());
+                    log.debug("StompPrincipal에서 userId 추출 성공: {}", userId);
+                    return userId;
+                } catch (NumberFormatException e) {
+                    log.warn("StompPrincipal에서 userId 파싱 실패: {}", principal.getName());
+                }
+            } else {
+                // 일반 Principal인 경우, userId 문자열 시도
+                try {
+                    Long userId = Long.parseLong(principal.getName());
+                    log.debug("Principal.getName()에서 userId 추출 성공: {}", userId);
+                    return userId;
+                } catch (NumberFormatException e) {
+                    log.debug("Principal.getName()을 userId로 파싱할 수 없음 (이메일 형식): {}", principal.getName());
+                }
             }
         }
         
@@ -86,6 +101,7 @@ public class ChatWebSocketController {
             return message.getSenderId();
         }
         
+        log.warn("모든 방법으로 사용자 ID를 찾을 수 없음");
         return null;
     }
 
