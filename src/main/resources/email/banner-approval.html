@@ -2,214 +2,159 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>FairPlay 광고 신청 승인 안내</title>
-    <style>
-        body {
-            font-family: "Segoe UI", "Apple SD Gothic Neo", Arial, sans-serif;
-            background: #f1f5f9;
-            margin: 0;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-            padding: 40px 24px 32px 24px;
-            background: #ffffff;
-        }
-
-        .logo {
-            text-align: center;
-            margin-bottom: 24px;
-        }
-
-        .logo-icon {
-            width: 64px;
-            height: 64px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 16px;
-        }
-
-        .logo-icon span {
-            font-size: 28px;
-        }
-
-        h2 {
-            color: #1f2937;
-            text-align: center;
-            font-size: 24px;
-            font-weight: 600;
-            margin: 0;
-        }
-
-        h3 {
-            color: #171717;
-        }
-
-        .brand {
-            color: #3b82f6;
-            font-weight: 700;
-        }
-
-        .message-box {
-            background: #F8F9FD;
-            background: linear-gradient(0deg, rgb(255, 255, 255) 0%%, rgb(244, 247, 251) 100%%);
-            border-radius: 40px;
-            padding: 25px 35px;
-            border: 5px solid rgb(255, 255, 255);
-            margin: 20px;
-        }
-
-        .message-box p {
-            font-size: 15px;
-            color: #475569;
-            text-align: center;
-            margin: 0;
-            line-height: 1.6;
-        }
-
-        .message-box .message {
-            text-align: left;
-        }
-
-        .account-box {
-            margin-top: 20px;
-        }
-
-        .account-box p {
-            background: white;
-            border: none;
-            padding: 15px 20px;
-            border-radius: 20px;
-            margin-top: 15px;
-            box-shadow: #cff0ff 0px 10px 10px -5px;
-            border-inline: 2px solid transparent;
-            text-align: left;
-        }
-
-        .payment-box {
-            background: #fdf4d6;
-            border-radius: 20px;
-            padding: 25px 35px;
-            margin: 20px;
-            margin-top: 50px;
-        }
-
-        .info-box {
-            background: #f8f9fa;
-            border-radius: 20px;
-            padding: 25px 35px;
-            margin: 20px;
-            margin-top: 30px;
-        }
-
-        .login-btn {
-            display: inline-block;
-            padding: 10px 20px;
-            margin-top: 20px;
-            background-color: #8e7bd1;
-            color: #ffffff;
-            text-decoration: none;
-            border-radius: 5px;
-        }
-
-        .warning-box {
-            color: #6c757d;
-            margin-top: 20px;
-            font-size: 14px;
-        }
-
-
-        .footer {
-            margin-top: 32px;
-            text-align: center;
-            padding-top: 20px;
-            border-top: 1px solid #f1f5f9;
-        }
-
-        .footer span {
-            font-size: 12px;
-            color: #9ca3af;
-        }
-
-        button {
-            display: flex;
-            align-items: center;
-            font-family: inherit;
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 17px;
-            padding: 0.8em 1.3em 0.8em 0.9em;
-            color: white;
-            background: #93a5e7;
-            border: none;
-            letter-spacing: 0.05em;
-            border-radius: 16px;
-            transition: background 0.3s ease;
-        }
-
-        button:hover {
-            background: #31479d;
-        }
-
-        a {
-            color: #fff;
-            text-decoration: none;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FairPlay 배너 광고 승인 안내</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
 </head>
-<body>
-<div class="container">
-    <div class="logo">
-        <div class="logo-icon">
-            <img
-                    src="cid:%s"
-                    alt="FairPlay Logo"
-                    style="width: 64px; height: 64px; object-fit: contain"
-            />
-        </div>
-        <h2><span class="brand">FairPlay</span> 광고 신청 승인 안내</h2>
-    </div>
-    <div class="message-box">
-        <h3>광고 신청이 승인되었습니다!</h3>
-        <p class="message">안녕하세요.</p>
-        <p class="message">신청하신 광고 '%s'의 '%s'  등록 신청이 최종 승인되었음을 알려드립니다.</p>
-
-        <div style="align-items: center; display: flex; justify-content: center; margin-top: 20px;">
-            <button>
-                <span><a href="https://fair-play.ink/" style="color: white">로그인 페이지로 이동</a></span>
-            </button>
-        </div>
-        <p style="margin-top: 30px;">FairPlay와 함께 성공적인 부스를 만들어보세요!</p>
-        <p>감사합니다.</p>
-    </div>
-    <div>
-        <div class="payment-box">
-            <h3 style="color: #856404; margin: 0 0 15px 0;">📋 결제 금액 안내</h3>
-            <p style="color: #856404; margin: 0 0 15px 0;"><strong>결제 금액:</strong> %s</p>
-            <p style="color: #856404; margin: 15px 0 0 0; font-size: 14px;">승인된 광고는 위 금액의 결제가 필요합니다.</p>
-            <p style="color: #856404; margin: 10px 0 0 0; font-size: 14px;"><strong>결제 URL:</strong> %s</p>
-            <p style="color: #856404; margin: 15px 0 0 0; font-size: 14px;">광고 신청자: %s</p>
-        </div>
-
-        <div class="info-box">
-            <div class="warning-box">
-                <span> 📞 문의: </span>
-                <a href="mailto:support@fairplay.com" class="contact-link"
-                >support@fair-play.ink</a
-                >
-            </div>
-        </div>
-
-    </div>
-    <div class="footer">
-        <p>&copy; 2025 FairPlay. All rights reserved.</p>
-    </div>
-</div>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: Arial, 'Apple SD Gothic Neo', sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f1f5f9;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" 
+                       style="background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="padding: 40px 24px 24px 24px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td align="center">
+                                        <img src="cid:%s" alt="FairPlay Logo" 
+                                             style="width: 64px; height: 64px; display: block; margin-bottom: 16px;" />
+                                        <h2 style="margin: 0; color: #1f2937; font-size: 24px; font-weight: 600; text-align: center;">
+                                            <span style="color: #3b82f6; font-weight: 700;">FairPlay</span> 배너 광고 승인 안내
+                                        </h2>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 0 24px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" 
+                                   style="background-color: #f8f9fd; border-radius: 20px; border: 3px solid #ffffff;">
+                                <tr>
+                                    <td style="padding: 25px 35px;">
+                                        <h3 style="margin: 0 0 15px 0; color: #171717; font-size: 20px; font-weight: 600;">
+                                            🎉 배너 광고 신청이 승인되었습니다!
+                                        </h3>
+                                        <p style="margin: 15px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+                                            안녕하세요, <strong>%s</strong>님
+                                        </p>
+                                        <p style="margin: 15px 0; color: #475569; font-size: 15px; line-height: 1.6;">
+                                            신청하신 '<strong>%s</strong>' 배너의 '<strong>%s</strong>' 광고 등록 신청이 최종 승인되었음을 알려드립니다.
+                                        </p>
+                                        
+                                        <!-- Button -->
+                                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                            <tr>
+                                                <td align="center" style="padding: 20px 0;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                                                        <tr>
+                                                            <td style="background-color: #93a5e7; border-radius: 16px; padding: 12px 24px;">
+                                                                <a href="%s" 
+                                                                   style="color: #ffffff; text-decoration: none; font-weight: 500; font-size: 16px; display: block;">
+                                                                    💳 결제하기
+                                                                </a>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <p style="margin: 15px 0; color: #475569; font-size: 15px; line-height: 1.6; text-align: center;">
+                                            FairPlay와 함께 성공적인 광고를 만들어보세요!
+                                        </p>
+                                        <p style="margin: 15px 0 0 0; color: #475569; font-size: 15px; line-height: 1.6; text-align: center;">
+                                            감사합니다.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Payment Information -->
+                    <tr>
+                        <td style="padding: 20px 24px 0 24px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" 
+                                   style="background-color: #fef3c7; border-radius: 20px; border: 2px solid #fbbf24;">
+                                <tr>
+                                    <td style="padding: 25px 35px;">
+                                        <h3 style="margin: 0 0 15px 0; color: #92400e; font-size: 18px; font-weight: 600;">
+                                            💰 결제 정보
+                                        </h3>
+                                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #92400e; font-size: 14px; font-weight: 600;">
+                                                    결제 금액:
+                                                </td>
+                                                <td style="padding: 8px 0; color: #92400e; font-size: 16px; font-weight: 700; text-align: right;">
+                                                    %,d원
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" style="padding: 15px 0 0 0;">
+                                                    <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.4;">
+                                                        ⚠️ <strong>중요:</strong> 승인된 배너 광고는 위 금액의 결제가 완료되어야 실제 노출됩니다.
+                                                    </p>
+                                                    <p style="margin: 10px 0 0 0; color: #92400e; font-size: 13px; line-height: 1.4;">
+                                                        📅 결제 완료 후 즉시 광고가 시작됩니다.
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Contact Information -->
+                    <tr>
+                        <td style="padding: 20px 24px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" 
+                                   style="background-color: #f8f9fa; border-radius: 16px;">
+                                <tr>
+                                    <td style="padding: 20px 25px; text-align: center;">
+                                        <p style="margin: 0; color: #6c757d; font-size: 14px;">
+                                            📞 문의사항이 있으시면 언제든 연락주세요
+                                        </p>
+                                        <p style="margin: 10px 0 0 0; font-size: 14px;">
+                                            <a href="mailto:support@fair-play.ink" 
+                                               style="color: #3b82f6; text-decoration: none; font-weight: 500;">
+                                                support@fair-play.ink
+                                            </a>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 20px 24px 40px 24px; border-top: 1px solid #f1f5f9;">
+                            <p style="margin: 0; color: #9ca3af; font-size: 12px; text-align: center;">
+                                &copy; 2025 FairPlay. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>

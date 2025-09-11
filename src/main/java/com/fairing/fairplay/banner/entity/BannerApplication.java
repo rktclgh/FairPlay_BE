@@ -112,4 +112,68 @@ public class BannerApplication {
             this.paidAt = LocalDateTime.now();
         }
     }
+
+    // 비즈니스 메소드들
+    public void approve(Long approverId) {
+        this.approvedBy = approverId;
+        this.approvedAt = LocalDateTime.now();
+    }
+
+    public void reject(String reason) {
+        this.adminComment = reason;
+    }
+
+    public void markAsPaid() {
+        this.paymentStatus = BannerPaymentStatus.PAID;
+        this.paidAt = LocalDateTime.now();
+    }
+
+    // 상태 체크 메소드들
+    public boolean isPending() {
+        return this.statusCode != null && "PENDING".equals(this.statusCode.getCode());
+    }
+
+    public boolean isApproved() {
+        return this.statusCode != null && "APPROVED".equals(this.statusCode.getCode());
+    }
+
+    public boolean isRejected() {
+        return this.statusCode != null && "REJECTED".equals(this.statusCode.getCode());
+    }
+
+    public boolean isPaid() {
+        return this.paymentStatus == BannerPaymentStatus.PAID;
+    }
+
+    public boolean canCancel() {
+        return isPending() || (isApproved() && !isPaid());
+    }
+
+    public boolean canPay() {
+        return isApproved() && !isPaid();
+    }
+
+    // 편의 메소드들
+    public String getStatusDisplay() {
+        if (isPaid()) return "결제 완료";
+        if (isRejected()) return "반려됨";
+        if (isApproved()) return "결제 대기";
+        return "승인 대기";
+    }
+
+    public String getBannerTypeName() {
+        return this.bannerType != null ? this.bannerType.getName() : "";
+    }
+
+    public String getApplicantName() {
+        return this.applicantId != null ? this.applicantId.getName() : "";
+    }
+
+    public String getApplicantEmail() {
+        return this.applicantId != null ? this.applicantId.getEmail() : "";
+    }
+
+    public String getEventTitle() {
+        return this.event != null ? this.event.getTitleKr() : "";
+    }
 }
