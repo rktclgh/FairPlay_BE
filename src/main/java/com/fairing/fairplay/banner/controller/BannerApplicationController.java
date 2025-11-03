@@ -54,4 +54,13 @@ public class BannerApplicationController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/applications/my")
+    public ResponseEntity<?> getMyApplications(
+            @AuthenticationPrincipal CustomUserDetails user) {
+
+        requireLogin(user);
+        var applications = appService.getUserApplications(user.getUserId());
+        return ResponseEntity.ok(applications);
+    }
+
 }

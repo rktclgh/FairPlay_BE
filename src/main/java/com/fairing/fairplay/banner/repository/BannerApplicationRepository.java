@@ -33,4 +33,12 @@ public interface BannerApplicationRepository extends JpaRepository<BannerApplica
            "WHERE ba.id = :id")
     Optional<BannerApplication> findByIdWithDetails(@Param("id") Long id);
 
+    @Query("SELECT ba FROM BannerApplication ba " +
+           "LEFT JOIN FETCH ba.event e " +
+           "LEFT JOIN FETCH ba.bannerType bt " +
+           "LEFT JOIN FETCH ba.statusCode sc " +
+           "WHERE ba.applicantId.userId = :userId " +
+           "ORDER BY ba.createdAt DESC")
+    List<BannerApplication> findByApplicantIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+
 }
