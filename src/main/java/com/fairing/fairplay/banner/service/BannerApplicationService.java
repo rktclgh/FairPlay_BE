@@ -1021,8 +1021,51 @@ public class BannerApplicationService {
                                      ", 활성화된 슬롯 수: " + sold + ", 생성된 배너 수: " + slots.size());
                     
                 } catch (Exception e) {
-                    System.err.println("배너 슬롯 활성화 실패 - appId: " + appId + 
+                    System.err.println("배너 슬롯 활성화 실패 - appId: " + appId +
                                      ", error: " + e.getMessage());
                 }
             }
+
+    /**
+     * 사용자별 광고 신청 목록 조회
+     */
+    public List<com.fairing.fairplay.banner.dto.UserApplicationListDto> getUserApplications(Long userId) {
+        List<BannerApplication> applications = bannerApplicationRepository
+                .findByApplicantIdOrderByCreatedAtDesc(userId);
+
+        List<com.fairing.fairplay.banner.dto.UserApplicationListDto> result = new ArrayList<>();
+
+        for (BannerApplication app : applications) {
+            // 슬롯 정보 조회
+            List<BannerApplicationSlot> slots = bannerApplicationSlotRepository
+                    .findAllByBannerApplication(app);
+
+            List<com.fairing.fairplay.banner.dto.UserApplicationItemDto> items = new ArrayList<>();
+            for (BannerApplicationSlot slot : slots) {
+                items.add(com.fairing.fairplay.banner.dto.UserApplicationItemDto.builder()
+                        .date(slot.getSlot().getSlotDate())
+                        .priority(slot.getSlot().getPriority())
+                        .price(slot.getItemPrice())
+                        .build());
+            }
+
+            result.add(com.fairing.fairplay.banner.dto.UserApplicationListDto.builder()
+                    .id(app.getId())
+                    .eventId(app.getEvent().getEventId())
+                    .eventTitle(app.getEvent().getTitleKr())
+                    .bannerType(app.getBannerType().getCode())
+                    .title(app.getTitle())
+                    .imageUrl(app.getImageUrl())
+                    .linkUrl(app.getLinkUrl())
+                    .status(app.getStatusCode().getCode())
+                    .totalAmount(app.getTotalAmount())
+                    .createdAt(app.getCreatedAt())
+                    .updatedAt(app.getApprovedAt())
+                    .items(items)
+                    .rejectionReason(app.getAdminComment())
+                    .build());
+        }
+
+        return result;
+    }
     }
