@@ -24,9 +24,7 @@ public class NotificationService {
     private final NotificationLogRepository notificationLogRepository;
     private final NotificationEmailService notificationEmailService;
     private final UserRepository userRepository;
-    
-    @Autowired
-    private ApplicationContext applicationContext;
+    private final NotificationSseService sseService; // SSE 서비스 (웹소켓 완전 대체)
 
     // 알림 생성 (이메일 발송+로그)
     @Transactional
@@ -61,14 +59,12 @@ public class NotificationService {
                     dto.getUrl()
             );
         } else if ("WEB".equalsIgnoreCase(dto.getMethodCode())) {
-            // 웹소켓으로 실시간 알림 전송 (지연 로딩으로 순환 참조 해결)
+            // SSE로 실시간 알림 전송 (HTTP-only 쿠키 기반, 웹소켓 완전 대체)
             try {
-                com.fairing.fairplay.notification.controller.NotificationWebSocketController webSocketController = 
-                    applicationContext.getBean(com.fairing.fairplay.notification.controller.NotificationWebSocketController.class);
-                webSocketController.sendNotificationToUser(dto.getUserId(), responseDto);
+                sseService.sendNotification(dto.getUserId(), responseDto);
             } catch (Exception e) {
-                // 웹소켓 전송 실패 시에도 알림은 DB에 저장됨
-                System.err.println("웹소켓 알림 전송 실패: " + e.getMessage());
+                // SSE 전송 실패 시에도 알림은 DB에 저장됨
+                System.err.println("SSE 알림 전송 실패: " + e.getMessage());
             }
         }
         
