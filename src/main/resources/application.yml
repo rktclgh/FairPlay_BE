@@ -18,11 +18,12 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 6
-      minimum-idle: 2
-      idle-timeout: 600000
-      max-lifetime: 1800000
-      connection-timeout: 30000
+      maximum-pool-size: 20          # 최대 커넥션 수 증가 (6 -> 20)
+      minimum-idle: 5                # 최소 유휴 커넥션 증가 (2 -> 5)
+      idle-timeout: 300000           # 유휴 타임아웃 5분 (10분 -> 5분)
+      max-lifetime: 1800000          # 최대 수명 30분 유지
+      connection-timeout: 20000      # 커넥션 획득 타임아웃 20초 (30초 -> 20초)
+      leak-detection-threshold: 60000 # 커넥션 누수 감지 (60초)
 
   jpa:
     hibernate:
