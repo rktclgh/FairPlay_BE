@@ -16,6 +16,8 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,8 +30,30 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
 
     private final SessionService sessionService;
     private final UserRepository userRepository;
-    
+
     private static final String SESSION_COOKIE_NAME = "FAIRPLAY_SESSION";
+
+    // DB 조회가 불필요한 공개 경로 패턴
+    private static final List<String> PUBLIC_PATHS = Arrays.asList(
+        "/api/creators",
+        "/api/events",
+        "/api/banners",
+        "/api/reviews",
+        "/api/calendar",
+        "/static/",
+        "/assets/",
+        "/images/",
+        "/favicon.ico",
+        "/index.html",
+        "/api/auth/",
+        "/api/users/signup",
+        "/api/users/check-",
+        "/api/email/",
+        "/ws/",
+        "/api/qr-tickets/",
+        "/api/uploads/",
+        "/uploads/"
+    );
 
     @Override
     protected void doFilterInternal(
@@ -37,9 +61,19 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        
+
+        String requestURI = request.getRequestURI();
         String sessionId = resolveSessionId(request);
-        log.debug("요청 URI: {}, sessionId: {}", request.getRequestURI(), sessionId);
+        log.debug("요청 URI: {}, sessionId: {}", requestURI, sessionId);
+
+        // 세션이 없고 공개 경로인 경우 DB 조회 스킵
+        if (sessionId == null || isPublicPath(requestURI)) {
+            if (sessionId == null) {
+                log.debug("세션 없음 - 공개 경로 접근: {}", requestURI);
+                filterChain.doFilter(request, response);
+                return;
+            }
+        }
 
         if (sessionId != null) {
             Map<String, Object> sessionData = sessionService.getSessionData(sessionId);
@@ -94,5 +128,12 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         return null;
+    }
+
+    /**
+     * 공개 경로 여부 확인 (GET 요청만)
+     */
+    private boolean isPublicPath(String requestURI) {
+        return PUBLIC_PATHS.stream().anyMatch(requestURI::startsWith);
     }
 }
