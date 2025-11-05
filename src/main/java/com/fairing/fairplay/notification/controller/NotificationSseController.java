@@ -36,9 +36,16 @@ public class NotificationSseController {
         Long userId = (Long) session.getAttribute("userId");
 
         if (userId == null) {
-            log.warn("SSE 연결 시도했으나 세션에 userId 없음 - 비로그인 상태");
-            // 401 에러를 반환하면 프론트엔드에서 로그인 페이지로 리다이렉트
-            throw new RuntimeException("인증되지 않은 사용자입니다.");
+            log.debug("SSE 연결 시도했으나 세션에 userId 없음 - 비로그인 상태, 빈 emitter 반환 후 즉시 종료");
+            // 🔒 비로그인 사용자: 예외를 던지지 않고 빈 emitter를 생성해서 즉시 완료 처리
+            // EventSource는 자동 재연결을 시도하지 않고 조용히 종료됨
+            SseEmitter emitter = new SseEmitter(1000L); // 1초 타임아웃
+            try {
+                emitter.complete(); // 즉시 연결 종료
+            } catch (Exception e) {
+                log.error("빈 SSE emitter 종료 실패:", e);
+            }
+            return emitter;
         }
 
         log.info("✅ SSE 스트림 연결: userId={}", userId);
