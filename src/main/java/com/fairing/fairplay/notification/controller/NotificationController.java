@@ -3,9 +3,8 @@ package com.fairing.fairplay.notification.controller;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.notification.dto.*;
 import com.fairing.fairplay.notification.service.NotificationService;
+import com.fairing.fairplay.notification.service.NotificationSseService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -17,9 +16,7 @@ import java.util.List;
 public class NotificationController {
 
     private final NotificationService notificationService;
-    
-    @Autowired
-    private ApplicationContext applicationContext;
+    private final NotificationSseService sseService; // SSE 서비스 (웹소켓 완전 대체)
 
     // 내 알림 리스트
     @GetMapping
@@ -27,11 +24,16 @@ public class NotificationController {
         return ResponseEntity.ok(notificationService.getNotifications(userDetails.getUserId()));
     }
 
-    // 알림 읽음 처리
+    // 알림 읽음 처리 (SSE로 실시간 알림)
     @PatchMapping("/{notificationId}/read")
     public ResponseEntity<Void> markAsRead(@PathVariable Long notificationId,
                                            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        notificationService.markAsReadByUser(notificationId, userDetails.getUserId());
+        Long userId = userDetails.getUserId();
+        notificationService.markAsReadByUser(notificationId, userId);
+
+        // SSE로 읽음 확인 이벤트 전송
+        sseService.sendReadConfirmation(userId, notificationId);
+
         return ResponseEntity.ok().build();
     }
 
@@ -42,22 +44,16 @@ public class NotificationController {
         return ResponseEntity.ok(notificationService.getNotificationByUser(notificationId, userDetails.getUserId()));
     }
 
-    // 내 알림 삭제
+    // 내 알림 삭제 (SSE로 실시간 알림)
     @DeleteMapping("/{notificationId}")
     public ResponseEntity<Void> delete(@PathVariable Long notificationId,
                                        @AuthenticationPrincipal CustomUserDetails userDetails) {
-        notificationService.deleteNotificationByUser(notificationId, userDetails.getUserId());
-        
-        // WebSocket으로 실시간 삭제 알림 전송
-        try {
-            NotificationWebSocketController webSocketController = 
-                    applicationContext.getBean(NotificationWebSocketController.class);
-            webSocketController.sendNotificationDeleted(userDetails.getUserId(), notificationId);
-        } catch (Exception e) {
-            // WebSocket 전송 실패해도 삭제는 완료됨
-            System.err.println("WebSocket 삭제 알림 전송 실패: " + e.getMessage());
-        }
-        
+        Long userId = userDetails.getUserId();
+        notificationService.deleteNotificationByUser(notificationId, userId);
+
+        // SSE로 삭제 확인 이벤트 전송
+        sseService.sendDeleteConfirmation(userId, notificationId);
+
         return ResponseEntity.noContent().build();
     }
 
@@ -77,7 +73,7 @@ public class NotificationController {
         return ResponseEntity.ok(notificationService.getLogsByUser(notificationId, userDetails.getUserId()));
     }
 
-    // 테스트용 웹소켓 알림 생성 (개발/테스트 환경에서만 사용)
+    // 테스트용 SSE 알림 생성 (개발/테스트 환경에서만 사용)
     @PostMapping("/test")
     public ResponseEntity<NotificationResponseDto> createTestNotification(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -85,11 +81,11 @@ public class NotificationController {
                 .userId(userDetails.getUserId())
                 .typeCode("SYSTEM")
                 .methodCode("WEB")
-                .title("테스트 웹소켓 알림")
-                .message("웹소켓 알림 시스템이 정상적으로 작동합니다!")
+                .title("테스트 SSE 알림")
+                .message("SSE 알림 시스템이 정상적으로 작동합니다!")
                 .url("/mypage/info")
                 .build();
-        
+
         NotificationResponseDto result = notificationService.createNotification(testDto);
         return ResponseEntity.ok(result);
     }

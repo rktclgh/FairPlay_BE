@@ -26,7 +26,7 @@ public class SessionService {
 
     private static final String SESSION_PREFIX = "session:";
     private static final String PAYMENT_LOCK_PREFIX = "payment_lock:";
-    private static final Duration SESSION_TIMEOUT = Duration.ofHours(2); // 2시간
+    private static final Duration SESSION_TIMEOUT = Duration.ofDays(7); // 7일 (슬라이딩 세션)
     private static final Duration PAYMENT_LOCK_TIMEOUT = Duration.ofMinutes(15); // 15분
 
     /**
