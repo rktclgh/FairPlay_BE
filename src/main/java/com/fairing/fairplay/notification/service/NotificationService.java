@@ -2,6 +2,7 @@ package com.fairing.fairplay.notification.service;
 
 import com.fairing.fairplay.core.email.service.NotificationEmailService;
 import com.fairing.fairplay.notification.entity.*;
+import com.fairing.fairplay.notification.event.NotificationCreatedEvent;
 import com.fairing.fairplay.notification.repository.*;
 import com.fairing.fairplay.notification.dto.*;
 import com.fairing.fairplay.user.entity.Users;
@@ -9,6 +10,7 @@ import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -25,6 +27,7 @@ public class NotificationService {
     private final NotificationEmailService notificationEmailService;
     private final UserRepository userRepository;
     private final NotificationSseService sseService; // SSE 서비스 (웹소켓 완전 대체)
+    private final ApplicationEventPublisher eventPublisher; // 이벤트 발행용
 
     // 알림 생성 (이메일 발송+로그)
     @Transactional
@@ -45,29 +48,26 @@ public class NotificationService {
                 .build();
         notificationRepository.save(notification);
 
-        // METHOD에 따른 처리
+        // ✅ DB 저장 완료 후 DTO 생성
         NotificationResponseDto responseDto = toResponseDto(notification);
-        
+
+        // ✅ 이메일 전송이 필요한 경우 사용자 이메일 조회
+        String userEmail = null;
         if ("EMAIL".equalsIgnoreCase(dto.getMethodCode())) {
             Users user = userRepository.findByUserId(dto.getUserId())
                     .orElseThrow(() -> new IllegalArgumentException("유저를 찾을 수 없습니다."));
-            notificationEmailService.sendEmailNotification(
-                    notification.getNotificationId(),
-                    user.getEmail(),
-                    dto.getTitle(),
-                    dto.getMessage(),
-                    dto.getUrl()
-            );
-        } else if ("WEB".equalsIgnoreCase(dto.getMethodCode())) {
-            // SSE로 실시간 알림 전송 (HTTP-only 쿠키 기반, 웹소켓 완전 대체)
-            try {
-                sseService.sendNotification(dto.getUserId(), responseDto);
-            } catch (Exception e) {
-                // SSE 전송 실패 시에도 알림은 DB에 저장됨
-                System.err.println("SSE 알림 전송 실패: " + e.getMessage());
-            }
+            userEmail = user.getEmail();
         }
-        
+
+        // ✅ 트랜잭션 커밋 후 SSE/이메일 전송을 위한 이벤트 발행
+        // 이벤트 리스너가 AFTER_COMMIT 시점에 실제 전송 수행
+        eventPublisher.publishEvent(new NotificationCreatedEvent(
+                dto.getUserId(),
+                dto.getMethodCode(),
+                responseDto,
+                userEmail
+        ));
+
         return responseDto;
     }
 
