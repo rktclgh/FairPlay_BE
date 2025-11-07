@@ -18,14 +18,12 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 20          # 최대 커넥션 수
-      minimum-idle: 5                # 최소 유휴 커넥션
-      idle-timeout: 180000           # 유휴 타임아웃 3분 (5분 -> 3분으로 더 짧게)
-      max-lifetime: 600000           # 최대 수명 10분 (30분 -> 10분으로 짧게, 커넥션 주기적 갱신)
-      connection-timeout: 20000      # 커넥션 획득 타임아웃 20초
-      leak-detection-threshold: 30000 # 커넥션 누수 감지 30초 (60초 -> 30초로 더 빠르게 감지)
-      validation-timeout: 5000       # 커넥션 유효성 검사 타임아웃 5초
-      connection-test-query: SELECT 1 # 커넥션 테스트 쿼리
+      maximum-pool-size: 20          # 최대 커넥션 수 증가 (6 -> 20)
+      minimum-idle: 5                # 최소 유휴 커넥션 증가 (2 -> 5)
+      idle-timeout: 300000           # 유휴 타임아웃 5분 (10분 -> 5분)
+      max-lifetime: 1800000          # 최대 수명 30분 유지
+      connection-timeout: 20000      # 커넥션 획득 타임아웃 20초 (30초 -> 20초)
+      leak-detection-threshold: 60000 # 커넥션 누수 감지 (60초)
 
   jpa:
     hibernate:
@@ -34,18 +32,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        connection:
-          provider_disables_autocommit: true  # 성능 향상
-        query:
-          in_clause_parameter_padding: true   # 쿼리 캐시 효율 향상
-      jakarta:
-        persistence:
-          query:
-            timeout: 30000  # 쿼리 타임아웃 30초
-
-  # 전역 트랜잭션 타임아웃
-  transaction:
-    default-timeout: 30  # 30초
 
   hashids:
     salt: ${HASHIDS_SALT}
