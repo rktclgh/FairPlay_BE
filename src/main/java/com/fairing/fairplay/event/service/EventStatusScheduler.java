@@ -6,12 +6,12 @@ import com.fairing.fairplay.event.entity.EventDetail;
 import com.fairing.fairplay.event.entity.EventStatusCode;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.event.repository.EventStatusCodeRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
