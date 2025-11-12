@@ -23,7 +23,9 @@ spring:
       idle-timeout: 300000           # 유휴 타임아웃 5분 (10분 -> 5분)
       max-lifetime: 1800000          # 최대 수명 30분 유지
       connection-timeout: 20000      # 커넥션 획득 타임아웃 20초 (30초 -> 20초)
-      leak-detection-threshold: 60000 # 커넥션 누수 감지 (60초)
+      leak-detection-threshold: 30000 # 커넥션 누수 감지 (30초 - 더 빠른 감지)
+      validation-timeout: 5000       # 커넥션 검증 타임아웃 (5초)
+      keepalive-time: 300000         # Keepalive 체크 (5분)
 
   jpa:
     hibernate:

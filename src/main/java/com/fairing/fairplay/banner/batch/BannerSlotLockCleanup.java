@@ -7,7 +7,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -17,6 +16,7 @@ public class BannerSlotLockCleanup {
 
     // 5분마다 만료 락 해제
     @Scheduled(fixedDelayString = "${banner.lock.cleanup.delay:300000}")
+    @Transactional(timeout = 10) // 메서드 레벨 트랜잭션, 10초 타임아웃
     public void releaseExpiredLocks() {
         try {
             int n = bannerSlotRepository.releaseExpiredLocks();
@@ -26,7 +26,8 @@ public class BannerSlotLockCleanup {
                 log.debug("No expired banner slot locks to release");
             }
         } catch (Exception e) {
-            log.warn("Failed to release expired banner slot locks", e);
+            log.error("Failed to release expired banner slot locks", e);
+            // 트랜잭션 롤백되도록 예외를 다시 던지지 않음 (다음 스케줄 실행을 위해)
         }
     }
 }
