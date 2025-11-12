@@ -23,9 +23,10 @@ spring:
       idle-timeout: 300000           # 유휴 타임아웃 5분 (10분 -> 5분)
       max-lifetime: 1800000          # 최대 수명 30분 유지
       connection-timeout: 20000      # 커넥션 획득 타임아웃 20초 (30초 -> 20초)
-      leak-detection-threshold: 30000 # 커넥션 누수 감지 (30초 - 더 빠른 감지)
+      leak-detection-threshold: 10000 # 커넥션 누수 감지 (10초 - 더 빠른 감지, 30초 -> 10초)
       validation-timeout: 5000       # 커넥션 검증 타임아웃 (5초)
       keepalive-time: 300000         # Keepalive 체크 (5분)
+      register-mbeans: true          # JMX MBean 등록 (모니터링용)
 
   jpa:
     hibernate:
@@ -133,6 +134,11 @@ logging:
   level:
     com.fairing.fairplay.ai.client.GoogleGeminiClient: DEBUG
     com.fairing.fairplay.ai.rag.service: DEBUG
+    com.zaxxer.hikari: DEBUG  # HikariCP 상세 로깅
+    com.zaxxer.hikari.pool.HikariPool: DEBUG  # 커넥션 풀 상태 로깅
+    org.hibernate.SQL: DEBUG  # SQL 쿼리 로깅
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE  # SQL 파라미터 로깅
+    org.springframework.transaction: DEBUG  # 트랜잭션 로깅
 
 # QR 티켓 조회 주소
 qr:
@@ -144,7 +150,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,metrics,hikaricp
       base-path: /actuator
   endpoint:
     health:
@@ -153,3 +159,6 @@ management:
     tags:
       application: fairplay       # 앱 이름 태그
       instance: ${HOSTNAME:local} # 인스턴스 태그
+    enable:
+      hikaricp: true  # HikariCP 메트릭 활성화
+      jdbc: true      # JDBC 메트릭 활성화
