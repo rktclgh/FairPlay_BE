@@ -6,6 +6,7 @@ import com.fairing.fairplay.notification.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -102,9 +103,12 @@ public class NotificationSseService {
     /**
      * 연결 즉시 기존 알림 목록 전송
      *
+     * 커넥션 누수 방지: @Transactional(readOnly = true)로 DB 조회 후 즉시 트랜잭션 종료 및 커넥션 반환
+     *
      * @param userId  사용자 ID
      * @param emitter SseEmitter
      */
+    @Transactional(readOnly = true)
     public void sendInitialNotifications(Long userId, SseEmitter emitter) {
         try {
             // DB에서 기존 알림 조회 (Repository 직접 사용 - 순환 참조 방지)
