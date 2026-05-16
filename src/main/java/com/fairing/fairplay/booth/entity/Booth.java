@@ -51,7 +51,7 @@ public class Booth {
     @Column(length = 100)
     private String location;
 
-    @Column(name = "created_at", updatable = false, columnDefinition = "DATETIME DEFAULT CURRENT_TIMESTAMP")
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name="booth_banner_url", length=512)
@@ -65,4 +65,11 @@ public class Booth {
 
     @OneToMany(mappedBy = "booth", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<BoothExternalLink> boothExternalLinks = new HashSet<>();
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
 }

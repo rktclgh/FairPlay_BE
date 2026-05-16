@@ -43,7 +43,7 @@ public class EventSchedule {
     @Column(name = "weekday")
     private Integer weekday;
 
-    @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @QueryTransient
@@ -59,5 +59,12 @@ public class EventSchedule {
         eventSchedule.setWeekday(dto.getDate().getDayOfWeek().getValue() % 7);
         eventSchedule.setCreatedAt(LocalDateTime.now());
         return eventSchedule;
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 }

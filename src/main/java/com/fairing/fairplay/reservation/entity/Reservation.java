@@ -46,12 +46,10 @@ public class Reservation {
     private int quantity;
     private int price;
 
-    @Column(name = "created_at", nullable = false,
-            columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at",
-            columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     private boolean canceled;
@@ -65,5 +63,18 @@ public class Reservation {
         this.quantity = quantity;
         this.price = price;
         this.createdAt = LocalDateTime.now();
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }
