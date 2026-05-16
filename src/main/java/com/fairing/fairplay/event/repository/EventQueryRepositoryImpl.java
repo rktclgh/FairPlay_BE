@@ -66,7 +66,22 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                         event.hidden.eq(false),
                         detail.eventDetailId.isNotNull()
                 )
-                .groupBy(event.eventId)
+                .groupBy(
+                        event.eventId,
+                        event.eventCode,
+                        event.hidden,
+                        event.titleKr,
+                        detail.mainCategory.groupName,
+                        detail.location.placeName,
+                        detail.location.latitude,
+                        detail.location.longitude,
+                        detail.startDate,
+                        detail.endDate,
+                        detail.thumbnailUrl,
+                        detail.regionCode.name,
+                        event.statusCode.code,
+                        event.titleEng
+                )
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -158,7 +173,22 @@ public class EventQueryRepositoryImpl implements EventQueryRepository {
                 .leftJoin(event.eventTickets, eventTicket)
                 .leftJoin(eventTicket.ticket, ticket)
                 .where(builder)
-                .groupBy(event.eventId)
+                .groupBy(
+                        event.eventId,
+                        event.eventCode,
+                        event.hidden,
+                        event.titleKr,
+                        detail.mainCategory.groupName,
+                        detail.location.placeName,
+                        detail.location.latitude,
+                        detail.location.longitude,
+                        detail.startDate,
+                        detail.endDate,
+                        detail.thumbnailUrl,
+                        detail.regionCode.name,
+                        event.statusCode.code,
+                        event.titleEng
+                )
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .orderBy(event.eventId.desc())
