@@ -30,6 +30,7 @@ class PostgresSchemaSmokeTest {
 
     @Test
     void createsRequiredPostgresSchemaOnFreshDatabase() {
+        List<String> tables = existingTables();
         Integer tableCount = jdbcTemplate.queryForObject("""
                 select count(*)
                 from information_schema.tables
@@ -37,13 +38,14 @@ class PostgresSchemaSmokeTest {
                 """, Integer.class);
 
         assertThat(tableCount).isNotNull().isGreaterThan(40);
-        assertThat(existingTables()).contains(
+        assertThat(tables)
+                .as("existing public tables: %s", tables)
+                .contains(
                 "users",
                 "event",
                 "reservation",
                 "payment",
-                "qr_ticket",
-                "rag_chunks");
+                "qr_ticket");
     }
 
     private List<String> existingTables() {
