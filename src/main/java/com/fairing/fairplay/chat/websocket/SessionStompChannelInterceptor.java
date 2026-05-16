@@ -9,14 +9,22 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
+import java.util.Set;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SessionStompChannelInterceptor implements ChannelInterceptor {
+
+    private static final Set<String> PUBLIC_SUBSCRIBE_PREFIXES = Set.of(
+            "/topic/check-in/",
+            "/topic/check-out/",
+            "/topic/booth/qr/",
+            "/topic/waiting/");
 
     private final SessionService sessionService;
 
@@ -49,9 +57,57 @@ public class SessionStompChannelInterceptor implements ChannelInterceptor {
                     log.debug("STOMP CONNECT - 세션 ID 없음");
                 }
             }
+
+            enforceDestinationAccess(accessor);
         }
         
         return message;
+    }
+
+    private void enforceDestinationAccess(StompHeaderAccessor accessor) {
+        StompCommand command = accessor.getCommand();
+        if (command == null) {
+            return;
+        }
+
+        String destination = accessor.getDestination();
+        if (StompCommand.SEND.equals(command) && destination != null && destination.startsWith("/app/")) {
+            requireAuthenticated(accessor, command, destination);
+            return;
+        }
+
+        if (StompCommand.SUBSCRIBE.equals(command) && destination != null && !isPublicSubscribeDestination(destination)) {
+            requireAuthenticated(accessor, command, destination);
+        }
+    }
+
+    private boolean isPublicSubscribeDestination(String destination) {
+        return PUBLIC_SUBSCRIBE_PREFIXES.stream().anyMatch(destination::startsWith);
+    }
+
+    private void requireAuthenticated(StompHeaderAccessor accessor, StompCommand command, String destination) {
+        if (authenticatedUserId(accessor) != null) {
+            return;
+        }
+        log.warn("STOMP {} denied for unauthenticated destination {}", command, destination);
+        throw new AccessDeniedException("Authentication is required for " + destination);
+    }
+
+    private Long authenticatedUserId(StompHeaderAccessor accessor) {
+        Principal principal = accessor.getUser();
+        if (principal != null && principal.getName() != null) {
+            try {
+                return Long.parseLong(principal.getName());
+            } catch (NumberFormatException e) {
+                log.debug("STOMP principal is not a numeric user id: {}", principal.getName());
+            }
+        }
+
+        if (accessor.getSessionAttributes() == null) {
+            return null;
+        }
+        Object userId = accessor.getSessionAttributes().get("userId");
+        return userId instanceof Long ? (Long) userId : null;
     }
 
     private String extractSessionIdFromHeaders(StompHeaderAccessor accessor) {

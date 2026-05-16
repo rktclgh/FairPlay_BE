@@ -35,12 +35,8 @@ public class AiChatWebSocketController {
         
         try {
             // 사용자 ID 추출
-            Long senderId;
-            if (principal != null) {
-                senderId = Long.parseLong(principal.getName());
-            } else if (message.getSenderId() != null) {
-                senderId = message.getSenderId();
-            } else {
+            Long senderId = authenticatedSenderId(principal);
+            if (senderId == null) {
                 sendErrorMessage(message.getChatRoomId(), "인증이 필요합니다.");
                 return;
             }
@@ -128,5 +124,17 @@ public class AiChatWebSocketController {
         
         String topic = "/topic/ai-chat." + chatRoomId;
         messagingTemplate.convertAndSend(topic, errorResponse);
+    }
+
+    private Long authenticatedSenderId(Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(principal.getName());
+        } catch (NumberFormatException e) {
+            log.warn("AI WebSocket principal user id parsing failed: {}", principal.getName());
+            return null;
+        }
     }
 }

@@ -4,7 +4,6 @@ import com.fairing.fairplay.chat.dto.ChatMessageRequestDto;
 import com.fairing.fairplay.chat.dto.ChatMessageResponseDto;
 import com.fairing.fairplay.chat.service.ChatMessageService;
 import com.fairing.fairplay.chat.service.ChatPresenceService;
-import com.fairing.fairplay.chat.service.ChatRoomService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.*;
@@ -20,7 +19,6 @@ import java.security.Principal;
 public class ChatWebSocketController {
 
     private final SimpMessagingTemplate messagingTemplate;
-    private final ChatRoomService chatRoomService;
     private final ChatMessageService chatMessageService;
     private final ChatPresenceService chatPresenceService;
 
@@ -32,7 +30,7 @@ public class ChatWebSocketController {
                            SimpMessageHeaderAccessor headerAccessor) {
         try {
             // 사용자 ID 결정
-            Long senderId = determineSenderId(principal, message, headerAccessor);
+            Long senderId = determineSenderId(principal, headerAccessor);
             if (senderId == null) {
                 log.warn("메시지 전송 실패: 사용자 ID를 확인할 수 없음. Room: {}", message.getChatRoomId());
                 return;
@@ -61,8 +59,7 @@ public class ChatWebSocketController {
     /**
      * 다양한 소스에서 사용자 ID를 결정
      */
-    private Long determineSenderId(Principal principal, ChatMessageRequestDto message, 
-                                  SimpMessageHeaderAccessor headerAccessor) {
+    private Long determineSenderId(Principal principal, SimpMessageHeaderAccessor headerAccessor) {
         // 1. 세션 속성에서 직접 추출 (가장 확실한 방법)
         if (headerAccessor.getSessionAttributes() != null) {
             Object userId = headerAccessor.getSessionAttributes().get("userId");
@@ -94,13 +91,7 @@ public class ChatWebSocketController {
                 }
             }
         }
-        
-        // 3. 메시지 페이로드에서 추출 (보안상 권장하지 않음)
-        if (message.getSenderId() != null) {
-            log.debug("메시지에서 사용자 ID 사용: {}", message.getSenderId());
-            return message.getSenderId();
-        }
-        
+
         log.warn("모든 방법으로 사용자 ID를 찾을 수 없음");
         return null;
     }

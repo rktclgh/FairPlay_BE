@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.fairing.fairplay.chat.event.ChatMessageCreatedEvent;
@@ -32,6 +33,7 @@ public class ChatMessageService {
     public ChatMessageResponseDto sendMessage(Long chatRoomId, Long senderId, String content) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+        assertSenderCanPost(chatRoom, senderId);
 
         ChatMessage message = ChatMessage.builder()
                 .chatRoom(chatRoom)
@@ -63,6 +65,16 @@ public class ChatMessageService {
         eventPublisher.publishEvent(new ChatMessageCreatedEvent(chatRoomId, senderId));
 
         return responseDto;
+    }
+
+    private void assertSenderCanPost(ChatRoom chatRoom, Long senderId) {
+        if (senderId == null) {
+            throw new AccessDeniedException("인증된 사용자만 채팅 메시지를 보낼 수 있습니다.");
+        }
+        if (senderId.equals(chatRoom.getUserId()) || senderId.equals(chatRoom.getTargetId())) {
+            return;
+        }
+        throw new AccessDeniedException("채팅방에 참여하지 않은 사용자는 메시지를 보낼 수 없습니다.");
     }
 
     public List<ChatMessageResponseDto> getMessages(Long chatRoomId) {
