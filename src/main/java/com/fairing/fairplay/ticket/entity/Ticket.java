@@ -47,7 +47,7 @@ public class Ticket {
     @Column(name = "max_purchase")
     private Integer maxPurchase;
 
-    @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
@@ -57,7 +57,7 @@ public class Ticket {
     private Boolean deleted = false;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "ENUM('EVENT', 'BOOTH')")
+    @Column(nullable = false, length = 20)
     private TypesEnum types;
 
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -71,4 +71,11 @@ public class Ticket {
 
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<ScheduleTicket> scheduleTickets = new HashSet<>();
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
 }
