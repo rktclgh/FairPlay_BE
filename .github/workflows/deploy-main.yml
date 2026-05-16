@@ -8,8 +8,14 @@ on:
 
 env:
   BACKEND_DIR: .                           # BE 프로젝트 루트 경로
-  IMAGE_NAME: songchih/fairplay-backend:latest
+  IMAGE_REPOSITORY: songchih/fairplay-backend
+  IMAGE_NAME: songchih/fairplay-backend:${{ github.sha }}
+  IMAGE_LATEST: songchih/fairplay-backend:latest
   FE_REF: ${{ github.event.client_payload.fe_ref || 'main' }}
+
+concurrency:
+  group: fairplay-prod-deploy
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -46,18 +52,28 @@ jobs:
       - name: Create FE .env from Secrets
         working-directory: fe-src
         run: |
+          set -euo pipefail
           rm -f .env
           {
             echo "VITE_BACKEND_BASE_URL=${{ secrets.VITE_BACKEND_BASE_URL }}"
             echo "VITE_FRONTEND_BASE_URL=${{ secrets.VITE_FRONTEND_BASE_URL }}"
             echo "VITE_CDN_BASE_URL=${{ secrets.VITE_CDN_BASE_URL }}"
+            echo "VITE_ENABLE_NEW_PICKS=${{ secrets.VITE_ENABLE_NEW_PICKS || 'false' }}"
             echo "VITE_KAKAO_CLIENT_ID=${{ secrets.VITE_KAKAO_CLIENT_ID }}"
             echo "VITE_KAKAO_MAP_ID=${{ secrets.VITE_KAKAO_MAP_ID }}"
             echo "VITE_BUSINESS_SERVICE_KEY=${{ secrets.VITE_BUSINESS_SERVICE_KEY }}"
           } >> .env
+          for key in VITE_BACKEND_BASE_URL VITE_FRONTEND_BASE_URL VITE_CDN_BASE_URL; do
+            value="$(grep -E "^${key}=" .env | cut -d= -f2-)"
+            if [ -z "${value}" ]; then
+              echo "Missing required frontend secret: ${key}"
+              exit 1
+            fi
+          done
 
       - name: Build FE
         working-directory: fe-src
+        timeout-minutes: 10
         run: npm run build
 
       - name: Inject FE dist into BE static
@@ -80,7 +96,7 @@ jobs:
 
       - name: Build Spring Boot jar
         working-directory: ${{ env.BACKEND_DIR }}
-        run: ./gradlew clean bootJar --no-daemon
+        run: ./gradlew clean test bootJar --no-daemon
 
       # ---------- Docker build & push ----------
       - name: Verify DockerHub secrets
@@ -100,13 +116,16 @@ jobs:
         with:
           context: ${{ env.BACKEND_DIR }}
           push: true
-          tags: ${{ env.IMAGE_NAME }}
+          tags: |
+            ${{ env.IMAGE_NAME }}
+            ${{ env.IMAGE_LATEST }}
 
   deploy-miniserver:
     needs: build-and-push
     runs-on: [self-hosted, linux, x64, fairplay, miniserver]
     env:
       MINI_SERVER_DEPLOY_PATH: ${{ secrets.MINI_SERVER_DEPLOY_PATH || '/home/song/Desktop/fairplay-deploy' }}
+      FAIRPLAY_BACKEND_IMAGE: ${{ env.IMAGE_NAME }}
     steps:
       - name: Checkout deploy files
         uses: actions/checkout@v4
@@ -125,9 +144,12 @@ jobs:
           # .env 정규화 및 자격 추출
           test -f .env || { echo "Missing ${DEPLOY_PATH}/.env. Use deploy/.env.miniserver.example as the template."; exit 1; }
           sed -i 's/\r$//' .env
+          grep -Ev '^(DOCKERHUB_USERNAME|DOCKERHUB_TOKEN)=' .env > app.env
           DU=$(grep -E '^DOCKERHUB_USERNAME=' .env | sed -E 's/^DOCKERHUB_USERNAME=//; s/^"//; s/"$//; s/[[:space:]]+$//')
           DT=$(grep -E '^DOCKERHUB_TOKEN=' .env     | sed -E 's/^DOCKERHUB_TOKEN=//;     s/^"//; s/"$//; s/[[:space:]]+$//')
           [ -n "$DU" ] && [ -n "$DT" ] || { echo "DOCKERHUB creds missing in .env"; exit 1; }
+          [ -n "${FAIRPLAY_BACKEND_IMAGE}" ] || { echo "FAIRPLAY_BACKEND_IMAGE missing"; exit 1; }
+          export FAIRPLAY_BACKEND_IMAGE
           
           echo "$DT" | docker login -u "$DU" --password-stdin
           

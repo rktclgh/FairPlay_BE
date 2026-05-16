@@ -10,18 +10,20 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class HermesGatewayClient implements LlmClient {
 
-    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
-
     private final String baseUrl;
     private final String apiKey;
     private final String model;
     private final Integer waitTimeoutSeconds;
+    private final Integer connectTimeoutSeconds;
+    private final Integer requestTimeoutSeconds;
+    private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public HermesGatewayClient(LlmProperties props) {
@@ -29,6 +31,11 @@ public class HermesGatewayClient implements LlmClient {
         this.apiKey = props.getHermesApiKey();
         this.model = props.getHermesModel();
         this.waitTimeoutSeconds = props.getHermesWaitTimeoutSeconds();
+        this.connectTimeoutSeconds = props.getHermesConnectTimeoutSeconds();
+        this.requestTimeoutSeconds = props.getHermesRequestTimeoutSeconds();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(Math.max(1, connectTimeoutSeconds)))
+                .build();
         if (this.baseUrl == null || this.baseUrl.isBlank()) {
             throw new IllegalStateException("Hermes gateway base URL is empty. Set llm.hermes.base-url.");
         }
@@ -47,13 +54,14 @@ public class HermesGatewayClient implements LlmClient {
                 .uri(URI.create(baseUrl + "/generate"))
                 .header("Content-Type", "application/json; charset=UTF-8")
                 .header("X-HRG-Service", "fairplay-be")
+                .timeout(Duration.ofSeconds(Math.max(1, requestTimeoutSeconds)))
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body), StandardCharsets.UTF_8));
 
         if (apiKey != null && !apiKey.isBlank()) {
             requestBuilder.header("Authorization", "Bearer " + apiKey);
         }
 
-        HttpResponse<String> response = HTTP_CLIENT.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() / 100 != 2) {
             throw new RuntimeException("Hermes gateway error: HTTP " + response.statusCode() + " - " + response.body());
         }

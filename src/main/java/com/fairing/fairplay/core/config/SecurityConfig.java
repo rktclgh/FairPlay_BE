@@ -85,13 +85,7 @@ public class SecurityConfig {
                                 "/api/payments/complete", // PG사에서 호출하는 결제 완료 웹훅
                                 "/api/events/apply", // 행사 등록 신청
                                 "/api/events/apply/check",
-                                "/api/super-admin/**",
                                 "/api/qr-tickets/reissue/guest",
-                                "/api/qr-tickets/admin/issue", // QR 티켓 강제 재발급 (테스트용)
-                                "/api/rag/**", // RAG API (개발/테스트용)
-                                "/api/qr-tickets/check-in/*", // 테스트 후 수정 예정
-                                "/api/qr-tickets/check-out/*", // 테스트 후 수정 예정
-                                "/api/qr-tickets/test/schedule", // 참석자 이메일 전송 개발 테스트용
                                 "/api/events/*/booths/**",
                                 "/api/events/{eventId}/booths/apply",
                                 "/api/booths/cancel/**",
@@ -123,6 +117,17 @@ public class SecurityConfig {
                                 "/creators",
                                 "/creators/**")
                         .permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(
+                                "/api/super-admin/**",
+                                "/api/rag/**",
+                                "/api/qr-tickets/admin/issue",
+                                "/api/qr-tickets/test/schedule")
+                        .hasAuthority("ADMIN")
+                        .requestMatchers(
+                                "/api/qr-tickets/check-in/*",
+                                "/api/qr-tickets/check-out/*")
+                        .hasAnyAuthority("ADMIN", "EVENT_MANAGER", "BOOTH_MANAGER")
                         // 제작자 API - GET 요청은 공개, 관리 기능은 ADMIN만
                         .requestMatchers(HttpMethod.GET, "/api/creators/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()

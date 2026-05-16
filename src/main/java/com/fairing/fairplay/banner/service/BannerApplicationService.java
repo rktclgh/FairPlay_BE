@@ -159,7 +159,7 @@ public class BannerApplicationService {
                 UPDATE banner_slot
                    SET status=:locked,
                        locked_by=:userId,
-                       locked_until = DATE_ADD(NOW(), INTERVAL :lockMinutes MINUTE)
+                       locked_until = NOW() + (:lockMinutes * INTERVAL '1 minute')
                  WHERE slot_id IN (:slotIds)
                    AND status=:available
                 """, new MapSqlParameterSource(params)

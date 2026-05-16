@@ -70,7 +70,7 @@ public class VectorSearchService {
 
         return SearchResult.builder()
             .chunks(combined)
-            .contextText(buildContextText(userChunks))
+            .contextText(buildContextTextFromScored(combined))
             .totalChunks(userChunks.size())
             .build();
     }

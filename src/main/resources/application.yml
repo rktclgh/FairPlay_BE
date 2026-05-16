@@ -56,6 +56,9 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
 
 # 웹소켓 설정 (배포환경 최적화)
 websocket:
@@ -108,8 +111,15 @@ cloud:
 app:
   environment: ${APP_ENVIRONMENT:dev}  # dev, prod (로컬 개발: dev, 배포: prod)
   base-url: ${APP_BASE_URL:https://fair-play.ink}
+  postgres:
+    auto-init-constraints: ${APP_POSTGRES_AUTO_INIT_CONSTRAINTS:true}
   upload:
     path: ${UPLOAD_PATH:/app/uploads}  # Docker 컨테이너 내부 업로드 경로
+  bootstrap:
+    admin:
+      enabled: ${APP_BOOTSTRAP_ADMIN_ENABLED:false}
+      email: ${APP_BOOTSTRAP_ADMIN_EMAIL:admin@fair-play.ink}
+      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:}
 
 # 아임포트 설정
 iamport:
@@ -130,6 +140,8 @@ llm:
     api-key: ${HERMES_GATEWAY_API_KEY:}
     model: ${HERMES_GATEWAY_MODEL:gpt-5.4-mini}
     wait-timeout-seconds: ${HERMES_GATEWAY_WAIT_TIMEOUT_SECONDS:60}
+    connect-timeout-seconds: ${HERMES_GATEWAY_CONNECT_TIMEOUT_SECONDS:5}
+    request-timeout-seconds: ${HERMES_GATEWAY_REQUEST_TIMEOUT_SECONDS:75}
 
 banner:
   lock:
@@ -141,19 +153,21 @@ banner:
 # 로깅 설정
 logging:
   level:
-    com.fairing.fairplay.ai.client.GoogleGeminiClient: DEBUG
-    com.fairing.fairplay.ai.rag.service: DEBUG
-    com.zaxxer.hikari: DEBUG  # HikariCP 상세 로깅
-    com.zaxxer.hikari.pool.HikariPool: DEBUG  # 커넥션 풀 상태 로깅
-    org.hibernate.SQL: DEBUG  # SQL 쿼리 로깅
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE  # SQL 파라미터 로깅
-    org.springframework.transaction: DEBUG  # 트랜잭션 로깅
+    com.fairing.fairplay.ai.client.GoogleGeminiClient: ${LOG_LEVEL_GEMINI_CLIENT:INFO}
+    com.fairing.fairplay.ai.rag.service: ${LOG_LEVEL_RAG_SERVICE:INFO}
+    com.zaxxer.hikari: ${LOG_LEVEL_HIKARI:INFO}
+    com.zaxxer.hikari.pool.HikariPool: ${LOG_LEVEL_HIKARI_POOL:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_HIBERNATE_BIND:OFF}
+    org.springframework.transaction: ${LOG_LEVEL_TRANSACTION:INFO}
 
 # QR 티켓 조회 주소
 qr:
   url: ${QR_TICKET_REACT_URL}
 
 rag:
+  embedding:
+    fallback-enabled: ${RAG_EMBEDDING_FALLBACK_ENABLED:false}
   pgvector:
     auto-init: ${RAG_PGVECTOR_AUTO_INIT:true}
 

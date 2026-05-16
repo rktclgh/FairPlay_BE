@@ -1,9 +1,9 @@
 services:
   fairplay-backend:
-    image: songchih/fairplay-backend:latest
+    image: ${FAIRPLAY_BACKEND_IMAGE:-songchih/fairplay-backend:latest}
     container_name: fairplay-backend
     env_file:
-      - .env
+      - app.env
     environment:
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: >-

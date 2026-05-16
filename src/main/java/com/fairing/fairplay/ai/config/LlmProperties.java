@@ -33,6 +33,12 @@ public class LlmProperties {
     @Value("${llm.hermes.wait-timeout-seconds:60}")
     private Integer hermesWaitTimeoutSeconds;
 
+    @Value("${llm.hermes.connect-timeout-seconds:5}")
+    private Integer hermesConnectTimeoutSeconds;
+
+    @Value("${llm.hermes.request-timeout-seconds:75}")
+    private Integer hermesRequestTimeoutSeconds;
+
     public String getProvider() { return provider; }
     public String getGeminiApiKey() { return geminiApiKey; }
     public String getGeminiModel() { return geminiModel; }
@@ -42,4 +48,6 @@ public class LlmProperties {
     public String getHermesApiKey() { return hermesApiKey; }
     public String getHermesModel() { return hermesModel; }
     public Integer getHermesWaitTimeoutSeconds() { return hermesWaitTimeoutSeconds; }
+    public Integer getHermesConnectTimeoutSeconds() { return hermesConnectTimeoutSeconds; }
+    public Integer getHermesRequestTimeoutSeconds() { return hermesRequestTimeoutSeconds; }
 }
