@@ -6,7 +6,6 @@ import com.fairing.fairplay.chat.dto.ChatMessageResponseDto;
 import com.fairing.fairplay.chat.dto.ChatRoomResponseDto;
 import com.fairing.fairplay.chat.entity.ChatRoom;
 import com.fairing.fairplay.chat.entity.TargetType;
-import com.fairing.fairplay.chat.repository.ChatRoomRepository;
 import com.fairing.fairplay.chat.service.ChatEventHelperService;
 import com.fairing.fairplay.chat.service.ChatMessageService;
 import com.fairing.fairplay.chat.service.ChatRoomService;
@@ -14,6 +13,7 @@ import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,7 +31,6 @@ public class ChatRestController {
     private final ChatRoomService chatRoomService;
     private final ChatMessageService chatMessageService;
     private final ChatEventHelperService chatEventHelperService;
-    private final ChatRoomRepository chatRoomRepository;
     private final UserRepository userRepository;
 
     @Value("${llm.bot-user-id:999}")
@@ -125,9 +124,14 @@ public class ChatRestController {
     // [관리자] 내가 관리하는 채팅방 리스트 (인증 없이 테스트)
     @GetMapping("/rooms/manager")
     public List<ChatRoomResponseDto> getChatRoomsByManager(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam String targetType,
             @RequestParam Long targetId
     ) {
+        if (!"ADMIN".equals(userDetails.getRoleCode()) && !userDetails.getUserId().equals(targetId)) {
+            throw new AccessDeniedException("다른 관리자의 채팅방을 조회할 수 없습니다.");
+        }
+
         System.out.println("=== 관리자 채팅방 조회 API 호출 ===");
         System.out.println("targetType: " + targetType);
         System.out.println("targetId: " + targetId);
@@ -199,8 +203,11 @@ public class ChatRestController {
 
     // 채팅방 내 메시지 전체(시간순)
     @GetMapping("/messages")
-    public List<ChatMessageResponseDto> getMessages(@RequestParam Long chatRoomId) {
-        return chatMessageService.getMessages(chatRoomId);
+    public List<ChatMessageResponseDto> getMessages(
+            @RequestParam Long chatRoomId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        return chatMessageService.getMessages(chatRoomId, userDetails.getUserId());
     }
 
     // 페이징된 메시지 조회 (페이지 기반)
@@ -208,9 +215,10 @@ public class ChatRestController {
     public ChatMessagePageResponseDto getMessagesPaged(
             @RequestParam Long chatRoomId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        return chatMessageService.getMessagesPaged(chatRoomId, page, size);
+        return chatMessageService.getMessagesPaged(chatRoomId, userDetails.getUserId(), page, size);
     }
 
     // 커서 기반 무한스크롤 메시지 조회
@@ -218,9 +226,10 @@ public class ChatRestController {
     public ChatMessagePageResponseDto getMessagesWithCursor(
             @RequestParam Long chatRoomId,
             @RequestParam(required = false) Long lastMessageId,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        return chatMessageService.getMessagesWithCursor(chatRoomId, lastMessageId, size);
+        return chatMessageService.getMessagesWithCursor(chatRoomId, userDetails.getUserId(), lastMessageId, size);
     }
 
     // 메시지 전송
@@ -252,41 +261,6 @@ public class ChatRestController {
         Long myUserId = userDetails.getUserId();
         chatMessageService.markRoomMessagesAsRead(chatRoomId, myUserId);
     }
-
-
-    // 디버깅용: 모든 채팅방 조회
-    @GetMapping("/debug/all-rooms")
-    public List<ChatRoomResponseDto> getAllRoomsForDebug() {
-        List<ChatRoom> allRooms = chatRoomRepository.findAll();
-        System.out.println("=== 전체 채팅방 디버깅 ===");
-        System.out.println("총 채팅방 수: " + allRooms.size());
-        
-        for (ChatRoom room : allRooms) {
-            System.out.println("Room ID: " + room.getChatRoomId() + 
-                               ", User ID: " + room.getUserId() + 
-                               ", Target Type: " + room.getTargetType() + 
-                               ", Target ID: " + room.getTargetId() + 
-                               ", Event ID: " + room.getEventId() +
-                               ", Created: " + room.getCreatedAt());
-        }
-        System.out.println("=======================");
-        
-        return allRooms.stream()
-                .map(room -> ChatRoomResponseDto.builder()
-                        .chatRoomId(room.getChatRoomId())
-                        .eventId(room.getEventId())
-                        .userId(room.getUserId())
-                        .targetType(room.getTargetType().name())
-                        .targetId(room.getTargetId())
-                        .createdAt(room.getCreatedAt())
-                        .closedAt(room.getClosedAt())
-                        .eventTitle(room.getEventId() != null ? 
-                            chatEventHelperService.getEventTitle(room.getEventId()) : 
-                            "전체 관리자 문의")
-                        .build())
-                .collect(Collectors.toList());
-    }
-
 
     // 👉 이벤트 담당자 문의용 API
     @PostMapping("/event-inquiry")

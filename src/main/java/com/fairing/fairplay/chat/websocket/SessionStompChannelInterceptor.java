@@ -1,5 +1,7 @@
 package com.fairing.fairplay.chat.websocket;
 
+import com.fairing.fairplay.chat.entity.ChatRoom;
+import com.fairing.fairplay.chat.repository.ChatRoomRepository;
 import com.fairing.fairplay.core.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,7 @@ public class SessionStompChannelInterceptor implements ChannelInterceptor {
             "/topic/waiting/");
 
     private final SessionService sessionService;
+    private final ChatRoomRepository chatRoomRepository;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -77,7 +80,8 @@ public class SessionStompChannelInterceptor implements ChannelInterceptor {
         }
 
         if (StompCommand.SUBSCRIBE.equals(command) && destination != null && !isPublicSubscribeDestination(destination)) {
-            requireAuthenticated(accessor, command, destination);
+            Long userId = requireAuthenticated(accessor, command, destination);
+            requirePrivateSubscribeAccess(userId, destination);
         }
     }
 
@@ -85,9 +89,10 @@ public class SessionStompChannelInterceptor implements ChannelInterceptor {
         return PUBLIC_SUBSCRIBE_PREFIXES.stream().anyMatch(destination::startsWith);
     }
 
-    private void requireAuthenticated(StompHeaderAccessor accessor, StompCommand command, String destination) {
-        if (authenticatedUserId(accessor) != null) {
-            return;
+    private Long requireAuthenticated(StompHeaderAccessor accessor, StompCommand command, String destination) {
+        Long userId = authenticatedUserId(accessor);
+        if (userId != null) {
+            return userId;
         }
         log.warn("STOMP {} denied for unauthenticated destination {}", command, destination);
         throw new AccessDeniedException("Authentication is required for " + destination);
@@ -108,6 +113,39 @@ public class SessionStompChannelInterceptor implements ChannelInterceptor {
         }
         Object userId = accessor.getSessionAttributes().get("userId");
         return userId instanceof Long ? (Long) userId : null;
+    }
+
+    private void requirePrivateSubscribeAccess(Long userId, String destination) {
+        Long chatRoomId = chatRoomIdFromDestination(destination);
+        if (chatRoomId == null) {
+            return;
+        }
+
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new AccessDeniedException("Chat room not found."));
+        if (userId.equals(chatRoom.getUserId()) || userId.equals(chatRoom.getTargetId())) {
+            return;
+        }
+        log.warn("STOMP SUBSCRIBE denied. userId={}, destination={}", userId, destination);
+        throw new AccessDeniedException("Chat room subscription is not allowed.");
+    }
+
+    private Long chatRoomIdFromDestination(String destination) {
+        if (destination.startsWith("/topic/chat.")) {
+            return parseTrailingId(destination.substring("/topic/chat.".length()));
+        }
+        if (destination.startsWith("/topic/ai-chat.")) {
+            return parseTrailingId(destination.substring("/topic/ai-chat.".length()));
+        }
+        return null;
+    }
+
+    private Long parseTrailingId(String value) {
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            throw new AccessDeniedException("Invalid chat room destination.");
+        }
     }
 
     private String extractSessionIdFromHeaders(StompHeaderAccessor accessor) {

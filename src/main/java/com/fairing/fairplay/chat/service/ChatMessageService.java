@@ -33,7 +33,7 @@ public class ChatMessageService {
     public ChatMessageResponseDto sendMessage(Long chatRoomId, Long senderId, String content) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
-        assertSenderCanPost(chatRoom, senderId);
+        assertRoomParticipant(chatRoom, senderId, "채팅방에 참여하지 않은 사용자는 메시지를 보낼 수 없습니다.");
 
         ChatMessage message = ChatMessage.builder()
                 .chatRoom(chatRoom)
@@ -67,20 +67,23 @@ public class ChatMessageService {
         return responseDto;
     }
 
-    private void assertSenderCanPost(ChatRoom chatRoom, Long senderId) {
-        if (senderId == null) {
-            throw new AccessDeniedException("인증된 사용자만 채팅 메시지를 보낼 수 있습니다.");
+    private void assertRoomParticipant(ChatRoom chatRoom, Long userId, String message) {
+        if (userId == null) {
+            throw new AccessDeniedException("인증된 사용자만 채팅방에 접근할 수 있습니다.");
         }
-        if (senderId.equals(chatRoom.getUserId()) || senderId.equals(chatRoom.getTargetId())) {
+        if (userId.equals(chatRoom.getUserId()) || userId.equals(chatRoom.getTargetId())) {
             return;
         }
-        throw new AccessDeniedException("채팅방에 참여하지 않은 사용자는 메시지를 보낼 수 없습니다.");
+        throw new AccessDeniedException(message);
     }
 
-    public List<ChatMessageResponseDto> getMessages(Long chatRoomId) {
+    public List<ChatMessageResponseDto> getMessages(Long chatRoomId, Long viewerId) {
         // 먼저 Redis 캐시에서 확인
         List<ChatMessageResponseDto> cachedMessages = chatCacheService.getCachedMessages(chatRoomId);
-        
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+        assertRoomParticipant(chatRoom, viewerId, "채팅방에 참여하지 않은 사용자는 메시지를 읽을 수 없습니다.");
+
         if (!cachedMessages.isEmpty()) {
             System.out.println("Redis 캐시에서 메시지 조회: roomId=" + chatRoomId + ", count=" + cachedMessages.size());
             return cachedMessages;
@@ -88,8 +91,6 @@ public class ChatMessageService {
         
         // 캐시가 없으면 DB에서 조회하고 캐싱
         System.out.println("DB에서 메시지 조회: roomId=" + chatRoomId);
-        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
         
         List<ChatMessageResponseDto> messages = chatMessageRepository.findByChatRoomOrderBySentAtAsc(chatRoom)
                 .stream()
@@ -118,9 +119,10 @@ public class ChatMessageService {
      * @param size 페이지 크기 (기본 20)
      * @return 페이징된 메시지 응답
      */
-    public ChatMessagePageResponseDto getMessagesPaged(Long chatRoomId, int page, int size) {
+    public ChatMessagePageResponseDto getMessagesPaged(Long chatRoomId, Long viewerId, int page, int size) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+        assertRoomParticipant(chatRoom, viewerId, "채팅방에 참여하지 않은 사용자는 메시지를 읽을 수 없습니다.");
         
         Pageable pageable = PageRequest.of(page, size);
         Page<ChatMessage> messagePage = chatMessageRepository.findByChatRoomOrderBySentAtDesc(chatRoom, pageable);
@@ -161,9 +163,10 @@ public class ChatMessageService {
      * @param size 가져올 메시지 수 (기본 20)
      * @return 페이징된 메시지 응답
      */
-    public ChatMessagePageResponseDto getMessagesWithCursor(Long chatRoomId, Long lastMessageId, int size) {
+    public ChatMessagePageResponseDto getMessagesWithCursor(Long chatRoomId, Long viewerId, Long lastMessageId, int size) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+        assertRoomParticipant(chatRoom, viewerId, "채팅방에 참여하지 않은 사용자는 메시지를 읽을 수 없습니다.");
         
         Pageable pageable = PageRequest.of(0, size);
         Page<ChatMessage> messagePage;
@@ -227,6 +230,7 @@ public class ChatMessageService {
         // 캐시가 없으면 DB에서 조회하고 캐싱
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+        assertRoomParticipant(chatRoom, myUserId, "채팅방에 참여하지 않은 사용자는 읽지 않은 메시지 수를 볼 수 없습니다.");
         Long count = chatMessageRepository.countByChatRoomAndIsReadFalseAndSenderIdNot(chatRoom, myUserId);
         
         // 결과를 Redis에 캐싱
@@ -239,6 +243,7 @@ public class ChatMessageService {
     public void markRoomMessagesAsRead(Long chatRoomId, Long myUserId) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+        assertRoomParticipant(chatRoom, myUserId, "채팅방에 참여하지 않은 사용자는 메시지를 읽음 처리할 수 없습니다.");
         
         // 내가 보낸 메시지가 아닌 읽지 않은 메시지들을 읽음으로 처리
         List<ChatMessage> unreadMessages = chatMessageRepository.findByChatRoomAndIsReadFalseAndSenderIdNot(chatRoom, myUserId);
