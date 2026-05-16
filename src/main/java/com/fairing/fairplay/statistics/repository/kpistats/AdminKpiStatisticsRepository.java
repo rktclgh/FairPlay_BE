@@ -23,11 +23,11 @@ public interface AdminKpiStatisticsRepository extends JpaRepository<AdminKpiStat
     @Query(value = """
     INSERT INTO admin_kpi_statistics (stat_date, total_events, total_users, total_reservations, total_sales) 
     VALUES (:#{#stats.statDate}, :#{#stats.totalEvents}, :#{#stats.totalUsers}, :#{#stats.totalReservations}, :#{#stats.totalSales})
-    ON DUPLICATE KEY UPDATE 
-        total_events = VALUES(total_events),
-        total_users = VALUES(total_users),
-        total_reservations = VALUES(total_reservations),
-        total_sales = VALUES(total_sales)
+    ON CONFLICT (stat_date) DO UPDATE SET
+        total_events = EXCLUDED.total_events,
+        total_users = EXCLUDED.total_users,
+        total_reservations = EXCLUDED.total_reservations,
+        total_sales = EXCLUDED.total_sales
     """, nativeQuery = true)
     void upsertAdminKpiStatistics(@Param("stats") AdminKpiStatistics stats);
 }

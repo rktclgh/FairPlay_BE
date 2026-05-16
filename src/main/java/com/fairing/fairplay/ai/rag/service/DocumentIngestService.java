@@ -2,7 +2,7 @@ package com.fairing.fairplay.ai.rag.service;
 
 import com.fairing.fairplay.ai.rag.domain.Chunk;
 import com.fairing.fairplay.ai.rag.domain.Document;
-import com.fairing.fairplay.ai.rag.repository.RagRedisRepository;
+import com.fairing.fairplay.ai.rag.repository.RagChunkRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,7 @@ public class DocumentIngestService {
 
     private final ChunkingService chunkingService;
     private final EmbeddingService embeddingService;
-    private final RagRedisRepository repository;
+    private final RagChunkRepository repository;
     private final VectorSearchService vectorSearchService;
     private final ThreadPoolTaskExecutor taskExecutor;
 
@@ -78,7 +78,7 @@ public class DocumentIngestService {
                     }
                 }
                 
-                // 성공한 청크들을 배치로 Redis에 저장
+                // 성공한 청크들을 pgvector 저장소에 배치 저장
                 if (!processedChunkList.isEmpty()) {
                     repository.saveChunks(processedChunkList);
                 }
@@ -169,7 +169,7 @@ public class DocumentIngestService {
     public void clearAllDocuments() {
         log.warn("전체 문서 삭제 시작");
         
-        // Redis의 모든 RAG 데이터 삭제
+        // pgvector RAG 데이터 삭제
         repository.clearAllData();
         
         // 캐시 무효화

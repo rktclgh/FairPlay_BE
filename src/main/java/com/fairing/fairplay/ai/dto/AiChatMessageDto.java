@@ -15,7 +15,7 @@ public class AiChatMessageDto {
     private Long chatRoomId;
     private Long senderId;
     private String timestamp;
-    private String provider; // "gemini", "openai"
+    private String provider; // "hermes", "gemini", "openai"
     private Double temperature;
     private Integer maxOutputTokens;
 }

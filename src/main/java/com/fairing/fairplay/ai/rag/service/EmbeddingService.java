@@ -1,7 +1,6 @@
 package com.fairing.fairplay.ai.rag.service;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -24,14 +23,16 @@ public class EmbeddingService {
 
     private final WebClient webClient;
     private final String apiKey;
-    private final ObjectMapper objectMapper;
+    private final boolean fallbackEnabled;
     
     private static final int VECTOR_DIMENSION = 768; // Gemini embedding-001 차원
     private static final String GEMINI_EMBEDDING_URL = "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent";
 
-    public EmbeddingService(@Value("${gemini.api-key}") String apiKey) {
+    public EmbeddingService(
+            @Value("${gemini.api-key}") String apiKey,
+            @Value("${rag.embedding.fallback-enabled:false}") boolean fallbackEnabled) {
         this.apiKey = apiKey;
-        this.objectMapper = new ObjectMapper();
+        this.fallbackEnabled = fallbackEnabled;
         this.webClient = WebClient.builder()
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(10 * 1024 * 1024)) // 10MB
@@ -44,6 +45,10 @@ public class EmbeddingService {
     public float[] embedText(String text) throws Exception {
         if (text == null || text.trim().isEmpty()) {
             throw new IllegalArgumentException("텍스트가 비어있습니다.");
+        }
+
+        if (apiKey == null || apiKey.isBlank()) {
+            return failOrFallback(text, "Gemini API key is empty.");
         }
 
         try {
@@ -85,10 +90,7 @@ public class EmbeddingService {
 
         } catch (Exception e) {
             log.error("Gemini 임베딩 실패: {}", e.getMessage(), e);
-            
-            // Fallback: 간단한 해시 기반 벡터 (오류 시에만)
-            log.warn("Gemini 임베딩 실패로 해시 기반 벡터로 대체");
-            return generateFallbackVector(text);
+            return failOrFallback(text, "Gemini embedding failed: " + e.getMessage());
         }
     }
 
@@ -98,6 +100,10 @@ public class EmbeddingService {
     public float[] embedQuery(String query) throws Exception {
         if (query == null || query.trim().isEmpty()) {
             throw new IllegalArgumentException("질의가 비어있습니다.");
+        }
+
+        if (apiKey == null || apiKey.isBlank()) {
+            return failOrFallback(query, "Gemini API key is empty.");
         }
 
         try {
@@ -137,8 +143,8 @@ public class EmbeddingService {
             return embedding;
 
         } catch (Exception e) {
-            log.error("Gemini 질의 임베딩 실패, 일반 임베딩으로 대체: {}", e.getMessage(), e);
-            return embedText(query);
+            log.error("Gemini 질의 임베딩 실패: {}", e.getMessage(), e);
+            return failOrFallback(query, "Gemini query embedding failed: " + e.getMessage());
         }
     }
 
@@ -149,6 +155,14 @@ public class EmbeddingService {
         return text
             .replaceAll("\\s+", " ")
             .trim();
+    }
+
+    private float[] failOrFallback(String text, String message) {
+        if (fallbackEnabled) {
+            log.warn("{} Using deterministic fallback vector because rag.embedding.fallback-enabled=true.", message);
+            return generateFallbackVector(text);
+        }
+        throw new IllegalStateException(message + " Refusing to store/search deterministic fallback vectors.");
     }
 
     /**

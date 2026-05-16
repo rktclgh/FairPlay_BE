@@ -13,10 +13,10 @@ spring:
       max-request-size: 100MB  # 전체 요청 최대 크기 (다중 파일 업로드 고려)
 
   datasource:
-    url: ${DB_URL}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/fairplay}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20          # 최대 커넥션 수 증가 (6 -> 20)
       minimum-idle: 5                # 최소 유휴 커넥션 증가 (2 -> 5)
@@ -30,7 +30,8 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: ${JPA_DDL_AUTO:none}
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
     properties:
       hibernate:
@@ -55,6 +56,9 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
 
 # 웹소켓 설정 (배포환경 최적화)
 websocket:
@@ -78,7 +82,7 @@ jwt:
 
 # Google Gemini API
 gemini:
-  api-key: ${GEMINI_API_KEY}
+  api-key: ${GEMINI_API_KEY:}
 
 kakao:
   client-id: ${KAKAO_CLIENT_ID}
@@ -88,15 +92,18 @@ kakao:
 cloud:
   aws:
     s3:
+      enabled: ${AWS_S3_ENABLED:false}
       bucket-name: ${AWS_S3_BUCKET_NAME} # S3 버킷 이름
+      endpoint: ${AWS_S3_ENDPOINT:}
+      path-style-access: ${AWS_S3_PATH_STYLE_ACCESS:false}
     region:
       static: ap-northeast-2 # ← 한국(서울) 리전으로 고정
       auto: false
     stack:
       auto: false # CloudFormation 스택 자동 생성 비활성화
     credentials:
-      access-key: ${AWS_ACCESS_KEY}
-      secret-key: ${AWS_SECRET_KEY}
+      access-key: ${AWS_ACCESS_KEY:}
+      secret-key: ${AWS_SECRET_KEY:}
     cloudfront:
       domain: ${AWS_CLOUDFRONT_DOMAIN}
 
@@ -104,8 +111,15 @@ cloud:
 app:
   environment: ${APP_ENVIRONMENT:dev}  # dev, prod (로컬 개발: dev, 배포: prod)
   base-url: ${APP_BASE_URL:https://fair-play.ink}
+  postgres:
+    auto-init-constraints: ${APP_POSTGRES_AUTO_INIT_CONSTRAINTS:true}
   upload:
     path: ${UPLOAD_PATH:/app/uploads}  # Docker 컨테이너 내부 업로드 경로
+  bootstrap:
+    admin:
+      enabled: ${APP_BOOTSTRAP_ADMIN_ENABLED:false}
+      email: ${APP_BOOTSTRAP_ADMIN_EMAIL:admin@fair-play.ink}
+      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:}
 
 # 아임포트 설정
 iamport:
@@ -113,7 +127,7 @@ iamport:
   secret-key: ${IAMPORT_SECRET_KEY}
   base-url: ${IAMPORT_BASE_URL:https://api.iamport.kr}
 llm:
-  provider: GEMINI # 이후 OPENAI 로 바꾸면 OpenAI로 전환됨
+  provider: ${LLM_PROVIDER:HERMES}
   bot-user-id: 999    # AI 챗봇의 사용자 ID
   gemini:
     api-key: ${GEMINI_API_KEY:}       # 환경변수 권장
@@ -121,6 +135,13 @@ llm:
   openai:
 #    api-key: ${OPENAI_API_KEY:}       # 나중에 전환용
 #    model: gpt-4o-mini
+  hermes:
+    base-url: ${HERMES_GATEWAY_BASE_URL:http://host.docker.internal:8788}
+    api-key: ${HERMES_GATEWAY_API_KEY:}
+    model: ${HERMES_GATEWAY_MODEL:gpt-5.4-mini}
+    wait-timeout-seconds: ${HERMES_GATEWAY_WAIT_TIMEOUT_SECONDS:60}
+    connect-timeout-seconds: ${HERMES_GATEWAY_CONNECT_TIMEOUT_SECONDS:5}
+    request-timeout-seconds: ${HERMES_GATEWAY_REQUEST_TIMEOUT_SECONDS:75}
 
 banner:
   lock:
@@ -132,17 +153,23 @@ banner:
 # 로깅 설정
 logging:
   level:
-    com.fairing.fairplay.ai.client.GoogleGeminiClient: DEBUG
-    com.fairing.fairplay.ai.rag.service: DEBUG
-    com.zaxxer.hikari: DEBUG  # HikariCP 상세 로깅
-    com.zaxxer.hikari.pool.HikariPool: DEBUG  # 커넥션 풀 상태 로깅
-    org.hibernate.SQL: DEBUG  # SQL 쿼리 로깅
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE  # SQL 파라미터 로깅
-    org.springframework.transaction: DEBUG  # 트랜잭션 로깅
+    com.fairing.fairplay.ai.client.GoogleGeminiClient: ${LOG_LEVEL_GEMINI_CLIENT:INFO}
+    com.fairing.fairplay.ai.rag.service: ${LOG_LEVEL_RAG_SERVICE:INFO}
+    com.zaxxer.hikari: ${LOG_LEVEL_HIKARI:INFO}
+    com.zaxxer.hikari.pool.HikariPool: ${LOG_LEVEL_HIKARI_POOL:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_HIBERNATE_BIND:OFF}
+    org.springframework.transaction: ${LOG_LEVEL_TRANSACTION:INFO}
 
 # QR 티켓 조회 주소
 qr:
   url: ${QR_TICKET_REACT_URL}
+
+rag:
+  embedding:
+    fallback-enabled: ${RAG_EMBEDDING_FALLBACK_ENABLED:false}
+  pgvector:
+    auto-init: ${RAG_PGVECTOR_AUTO_INIT:true}
 
 
 

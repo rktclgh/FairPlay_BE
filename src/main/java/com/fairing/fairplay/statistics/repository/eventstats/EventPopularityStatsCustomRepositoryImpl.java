@@ -344,7 +344,7 @@ public class EventPopularityStatsCustomRepositoryImpl implements EventPopularity
                                 .join(u).on(r.user.userId.eq(u.userId))
                                 .where(Expressions.numberTemplate(
                                                 Integer.class,
-                                                "TIMESTAMPDIFF(YEAR, {0}, NOW())",
+                                                "CAST(EXTRACT(YEAR FROM age(CURRENT_DATE, {0})) AS integer)",
                                                 u.birthday).between(age, age + 9))
                                 .groupBy(eps.eventId)
                                 .orderBy(r.reservationId.countDistinct().desc())
