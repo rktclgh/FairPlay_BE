@@ -13,6 +13,12 @@ import org.springframework.web.socket.config.annotation.*;
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private static final String[] TRUSTED_SOCKJS_ORIGINS = {
+            "http://localhost:5173",
+            "https://fair-play.ink",
+            "https://fairplay.rktclgh.site"
+    };
+
     private final SessionHandshakeInterceptor sessionHandshakeInterceptor;
     private final SessionStompChannelInterceptor sessionStompChannelInterceptor;
 
@@ -25,7 +31,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
         // SockJS fallback 엔드포인트 (JSONP 비활성화)
         registry.addEndpoint("/ws/chat-sockjs")
-                .setAllowedOriginPatterns("http://localhost:5173", "https://fair-play.ink")
+                .setAllowedOriginPatterns(TRUSTED_SOCKJS_ORIGINS)
                 .addInterceptors(sessionHandshakeInterceptor)
                 .withSockJS()
                 .setSessionCookieNeeded(true)
@@ -39,7 +45,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
         // 알림 전용 SockJS fallback 엔드포인트
         registry.addEndpoint("/ws/notifications-sockjs")
-                .setAllowedOriginPatterns("http://localhost:5173", "https://fair-play.ink")
+                .setAllowedOriginPatterns(TRUSTED_SOCKJS_ORIGINS)
                 .addInterceptors(sessionHandshakeInterceptor)
                 .withSockJS()
                 .setSessionCookieNeeded(true)
