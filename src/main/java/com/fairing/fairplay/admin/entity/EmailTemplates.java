@@ -20,7 +20,7 @@ public class EmailTemplates {
     @Column(name = "template_name")
     private String name;
 
-    @Column(name = "content")
+    @Column(name = "content", columnDefinition = "TEXT")
     private String content;
 
 }
