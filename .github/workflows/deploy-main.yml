@@ -104,34 +104,22 @@ jobs:
 
   deploy-miniserver:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, fairplay, miniserver]
     env:
-      MINI_SERVER_HOST: ${{ secrets.MINI_SERVER_HOST }}
-      MINI_SERVER_USER: ${{ secrets.MINI_SERVER_USER || 'ubuntu' }}
-      MINI_SERVER_DEPLOY_PATH: ${{ secrets.MINI_SERVER_DEPLOY_PATH || 'fairplay-deploy' }}
+      MINI_SERVER_DEPLOY_PATH: ${{ secrets.MINI_SERVER_DEPLOY_PATH || '/home/song/Desktop/fairplay-deploy' }}
     steps:
-      - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.MINI_SERVER_SSH_KEY }}
+      - name: Checkout deploy files
+        uses: actions/checkout@v4
 
-      - name: Add mini server to known_hosts
-        run: ssh-keyscan -H "${MINI_SERVER_HOST}" >> ~/.ssh/known_hosts
-
-      - name: Upload compose and nginx config
+      - name: Stage compose and nginx config
         run: |
-          ssh "${MINI_SERVER_USER}@${MINI_SERVER_HOST}" "mkdir -p ${MINI_SERVER_DEPLOY_PATH}"
-          scp deploy/docker-compose.miniserver.yml deploy/nginx.miniserver.conf \
-            "${MINI_SERVER_USER}@${MINI_SERVER_HOST}:${MINI_SERVER_DEPLOY_PATH}/"
+          mkdir -p "${MINI_SERVER_DEPLOY_PATH}"
+          cp deploy/docker-compose.miniserver.yml deploy/nginx.miniserver.conf "${MINI_SERVER_DEPLOY_PATH}/"
 
       - name: Deploy on mini server
         run: |
-          ssh "${MINI_SERVER_USER}@${MINI_SERVER_HOST}" "MINI_SERVER_DEPLOY_PATH='${MINI_SERVER_DEPLOY_PATH}' bash -se" <<'EOF'
           set -euo pipefail
           DEPLOY_PATH="${MINI_SERVER_DEPLOY_PATH}"
-          case "$DEPLOY_PATH" in
-            "~/"*) DEPLOY_PATH="$HOME/${DEPLOY_PATH#~/}" ;;
-          esac
           cd "${DEPLOY_PATH}"
           
           # .env 정규화 및 자격 추출
@@ -164,4 +152,16 @@ jobs:
 
           # 사용하지 않는 이미지 정리
           docker image prune -f
-          EOF
+
+      - name: Smoke check backend health
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18081/actuator/health >/tmp/fairplay-health.json; then
+              cat /tmp/fairplay-health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail=120 fairplay-backend || true
+          exit 1
