@@ -32,7 +32,37 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(
+                                "/actuator/**",
+                                "/api/admin/**",
+                                "/api/super-admin/**",
+                                "/api/rag/**",
+                                "/api/qr-tickets/admin/**",
+                                "/api/qr-tickets/test/**",
+                                "/api/admin/reservation",
+                                "/api/admin/reservation/**",
+                                "/api/event-comparison",
+                                "/api/event-comparison/**",
+                                "/api/event-compare",
+                                "/api/event-compare/**",
+                                "/api/event-popularity",
+                                "/api/event-popularity/**",
+                                "/api/popular-events",
+                                "/api/popular-events/**",
+                                "/api/reservation-statistics",
+                                "/api/reservation-statistics/**",
+                                "/api/sales-statistics",
+                                "/api/sales-statistics/**")
+                        .hasAuthority("ADMIN")
+                        .requestMatchers(
+                                "/api/host/reservation",
+                                "/api/host/reservation/**",
+                                "/api/stats",
+                                "/api/stats/**",
+                                "/api/qr-tickets/check-in/**",
+                                "/api/qr-tickets/check-out/**")
+                        .hasAnyAuthority("ADMIN", "EVENT_MANAGER", "BOOTH_MANAGER")
                         .requestMatchers(
                                 "/", // 루트 경로 (index.html)
                                 "/index.html", // 메인 정적 페이지
@@ -117,17 +147,6 @@ public class SecurityConfig {
                                 "/creators",
                                 "/creators/**")
                         .permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .requestMatchers(
-                                "/api/super-admin/**",
-                                "/api/rag/**",
-                                "/api/qr-tickets/admin/issue",
-                                "/api/qr-tickets/test/schedule")
-                        .hasAuthority("ADMIN")
-                        .requestMatchers(
-                                "/api/qr-tickets/check-in/*",
-                                "/api/qr-tickets/check-out/*")
-                        .hasAnyAuthority("ADMIN", "EVENT_MANAGER", "BOOTH_MANAGER")
                         // 제작자 API - GET 요청은 공개, 관리 기능은 ADMIN만
                         .requestMatchers(HttpMethod.GET, "/api/creators/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()

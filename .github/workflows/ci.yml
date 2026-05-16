@@ -52,7 +52,9 @@ jobs:
       - name: Validate PostgreSQL RAG migration
         env:
           PGPASSWORD: fairplay
-        run: psql -h 127.0.0.1 -U fairplay -d fairplay -v ON_ERROR_STOP=1 -f src/main/resources/db/postgres/001_pgvector_rag.sql
+        run: |
+          psql -h 127.0.0.1 -U fairplay -d fairplay -v ON_ERROR_STOP=1 -f src/main/resources/db/postgres/001_pgvector_rag.sql
+          psql -h 127.0.0.1 -U fairplay -d fairplay -v ON_ERROR_STOP=1 -f src/main/resources/db/postgres/002_runtime_constraints.sql
 
       - name: Grant execute for gradlew
         run: chmod +x gradlew

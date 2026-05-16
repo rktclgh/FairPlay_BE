@@ -125,7 +125,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, fairplay, miniserver]
     env:
       MINI_SERVER_DEPLOY_PATH: ${{ secrets.MINI_SERVER_DEPLOY_PATH || '/home/song/Desktop/fairplay-deploy' }}
-      FAIRPLAY_BACKEND_IMAGE: ${{ env.IMAGE_NAME }}
+      FAIRPLAY_BACKEND_IMAGE: songchih/fairplay-backend:${{ github.sha }}
     steps:
       - name: Checkout deploy files
         uses: actions/checkout@v4
@@ -175,15 +175,46 @@ jobs:
           # 사용하지 않는 이미지 정리
           docker image prune -f
 
-      - name: Smoke check backend health
+      - name: Smoke check deployed service
         run: |
           set -euo pipefail
+          BASE_URL="http://127.0.0.1:18081"
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:18081/actuator/health >/tmp/fairplay-health.json; then
+            if curl -fsS "${BASE_URL}/actuator/health" >/tmp/fairplay-health.json; then
               cat /tmp/fairplay-health.json
-              exit 0
+              break
+            fi
+            if [ "$i" = "30" ]; then
+              docker logs --tail=120 fairplay-backend || true
+              exit 1
             fi
             sleep 2
           done
-          docker logs --tail=120 fairplay-backend || true
-          exit 1
+
+          curl -fsSI "${BASE_URL}/" | grep -Ei 'HTTP/|content-type'
+          curl -fsS "${BASE_URL}/" | grep -E '<html|<div id="root"' >/dev/null
+          curl -fsS "${BASE_URL}/api/events" >/tmp/fairplay-events.json
+
+          SSE_STATUS="$(curl -sS -o /tmp/fairplay-sse.out -w '%{http_code}' --max-time 5 "${BASE_URL}/api/notifications/stream" || true)"
+          case "${SSE_STATUS}" in
+            200|401|403) ;;
+            *) echo "Unexpected SSE status: ${SSE_STATUS}"; cat /tmp/fairplay-sse.out || true; exit 1 ;;
+          esac
+
+          WS_STATUS="$(curl -sS -o /tmp/fairplay-ws-info.out -w '%{http_code}' --max-time 5 "${BASE_URL}/ws/chat-sockjs/info" || true)"
+          case "${WS_STATUS}" in
+            200|401|403) ;;
+            *) echo "Unexpected SockJS status: ${WS_STATUS}"; cat /tmp/fairplay-ws-info.out || true; exit 1 ;;
+          esac
+
+          UPLOAD_STATUS="$(curl -sS -o /tmp/fairplay-upload.out -w '%{http_code}' --max-time 5 "${BASE_URL}/uploads/__fairplay_smoke__" || true)"
+          case "${UPLOAD_STATUS}" in
+            200|301|302|403|404) ;;
+            *) echo "Unexpected uploads status: ${UPLOAD_STATUS}"; cat /tmp/fairplay-upload.out || true; exit 1 ;;
+          esac
+
+          RUNNING_IMAGE="$(docker inspect -f '{{.Config.Image}}' fairplay-backend)"
+          test "${RUNNING_IMAGE}" = "${FAIRPLAY_BACKEND_IMAGE}" || {
+            echo "Running image mismatch: ${RUNNING_IMAGE} != ${FAIRPLAY_BACKEND_IMAGE}"
+            exit 1
+          }
