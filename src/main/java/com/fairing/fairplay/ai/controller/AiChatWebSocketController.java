@@ -49,16 +49,8 @@ public class AiChatWebSocketController {
             );
             
             // 사용자 메시지 브로드캐스트
-            AiChatMessageDto userResponse = AiChatMessageDto.builder()
-                .type("user_message")
-                .content(message.getContent())
-                .chatRoomId(message.getChatRoomId())
-                .senderId(senderId)
-                .timestamp(LocalDateTime.now().toString())
-                .build();
-            
             String topic = "/topic/ai-chat." + message.getChatRoomId();
-            messagingTemplate.convertAndSend(topic, userResponse);
+            messagingTemplate.convertAndSend(topic, userMessage);
 
             // 2. AI 응답 생성을 위한 메시지 구성
             List<ChatMessageDto> chatMessages = new ArrayList<>();
@@ -92,16 +84,7 @@ public class AiChatWebSocketController {
             );
 
             // 5. AI 응답 브로드캐스트
-            AiChatMessageDto aiResponseDto = AiChatMessageDto.builder()
-                .type("ai_response")
-                .content(aiResponse)
-                .chatRoomId(message.getChatRoomId())
-                .senderId(botUserId)
-                .timestamp(LocalDateTime.now().toString())
-                .provider(message.getProvider() != null ? message.getProvider() : "gemini")
-                .build();
-
-            messagingTemplate.convertAndSend(topic, aiResponseDto);
+            messagingTemplate.convertAndSend(topic, aiMessage);
 
             // 6. 채팅방 목록 업데이트 알림
             messagingTemplate.convertAndSend("/topic/chat-room-list", "UPDATE");
