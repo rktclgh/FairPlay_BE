@@ -1,0 +1,46 @@
+services:
+  fairplay-backend:
+    image: songchih/fairplay-backend:latest
+    container_name: fairplay-backend
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: >-
+        -Xms128m
+        -Xmx384m
+        -XX:MaxMetaspaceSize=128m
+        -XX:+UseG1GC
+        -XX:+UseStringDeduplication
+        -XX:+UseContainerSupport
+        -Djava.awt.headless=true
+        -Duser.timezone=Asia/Seoul
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8080"
+    volumes:
+      - fairplay-static-files:/app/uploads
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  fairplay-nginx:
+    image: nginx:1.27-alpine
+    container_name: fairplay-nginx
+    depends_on:
+      - fairplay-backend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.miniserver.conf:/etc/nginx/conf.d/default.conf:ro
+      - fairplay-static-files:/var/www/uploads:ro
+    restart: unless-stopped
+
+volumes:
+  fairplay-static-files:
+    driver: local

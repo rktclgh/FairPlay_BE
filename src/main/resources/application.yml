@@ -13,10 +13,10 @@ spring:
       max-request-size: 100MB  # 전체 요청 최대 크기 (다중 파일 업로드 고려)
 
   datasource:
-    url: ${DB_URL}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/fairplay}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20          # 최대 커넥션 수 증가 (6 -> 20)
       minimum-idle: 5                # 최소 유휴 커넥션 증가 (2 -> 5)
@@ -31,6 +31,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
     properties:
       hibernate:
@@ -88,6 +89,7 @@ kakao:
 cloud:
   aws:
     s3:
+      enabled: ${AWS_S3_ENABLED:false}
       bucket-name: ${AWS_S3_BUCKET_NAME} # S3 버킷 이름
     region:
       static: ap-northeast-2 # ← 한국(서울) 리전으로 고정
@@ -143,6 +145,10 @@ logging:
 # QR 티켓 조회 주소
 qr:
   url: ${QR_TICKET_REACT_URL}
+
+rag:
+  pgvector:
+    auto-init: ${RAG_PGVECTOR_AUTO_INIT:true}
 
 
 

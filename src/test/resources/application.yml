@@ -1,0 +1,99 @@
+spring:
+  config:
+    import: ""
+  profiles:
+    active: test
+  datasource:
+    url: jdbc:h2:mem:fairplay-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    database-platform: org.hibernate.dialect.H2Dialect
+    properties:
+      hibernate:
+        format_sql: false
+  mail:
+    host: localhost
+    port: 2525
+    username: test
+    password: test
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+hashids:
+  salt: test
+
+jwt:
+  secret: test-secret-that-is-long-enough-for-context-loads
+  access-token-validity-ms: 1800000
+  refresh-token-validity-ms: 7200000
+  refresh-token-prefix: "refresh_token:"
+
+gemini:
+  api-key: test
+
+kakao:
+  client-id: test
+  redirect-uri: http://localhost/oauth/kakao/callback
+  client-secret:
+
+cloud:
+  aws:
+    s3:
+      enabled: false
+      bucket-name:
+    region:
+      static: ap-northeast-2
+      auto: false
+    stack:
+      auto: false
+    credentials:
+      access-key:
+      secret-key:
+    cloudfront:
+      domain:
+
+app:
+  environment: test
+  base-url: http://localhost:8080
+  upload:
+    path: ${java.io.tmpdir}/fairplay-test-uploads
+
+iamport:
+  api-key: test
+  secret-key: test
+  base-url: https://api.iamport.kr
+
+llm:
+  provider: GEMINI
+  bot-user-id: 999
+  gemini:
+    api-key: test
+    model: gemini-2.5-flash
+  openai:
+    api-key:
+    model:
+
+banner:
+  lock:
+    default-minutes: 2880
+    cleanup:
+      delay: 300000
+
+qr:
+  url: http://localhost:5173
+
+rag:
+  pgvector:
+    auto-init: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

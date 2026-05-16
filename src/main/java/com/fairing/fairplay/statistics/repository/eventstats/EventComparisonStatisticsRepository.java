@@ -15,13 +15,13 @@ public interface EventComparisonStatisticsRepository extends JpaRepository<Event
     VALUES (:#{#stats.eventId}, :#{#stats.eventTitle}, :#{#stats.totalUsers}, 
             :#{#stats.totalReservations}, :#{#stats.totalSales}, :#{#stats.avgTicketPrice}, 
             :#{#stats.cancellationRate}, :#{#stats.startDate}, :#{#stats.endDate}, NOW())
-    ON DUPLICATE KEY UPDATE 
-        event_title = VALUES(event_title),
-        total_users = VALUES(total_users),
-        total_reservations = VALUES(total_reservations),
-        total_sales = VALUES(total_sales),
-        avg_ticket_price = VALUES(avg_ticket_price),
-        cancellation_rate = VALUES(cancellation_rate),
+    ON CONFLICT (event_id, start_date, end_date) DO UPDATE SET
+        event_title = EXCLUDED.event_title,
+        total_users = EXCLUDED.total_users,
+        total_reservations = EXCLUDED.total_reservations,
+        total_sales = EXCLUDED.total_sales,
+        avg_ticket_price = EXCLUDED.avg_ticket_price,
+        cancellation_rate = EXCLUDED.cancellation_rate,
         last_updated_at = NOW()
     """, nativeQuery = true)
     void upsertEventComparisonStatistics(@Param("stats") EventComparisonStatistics stats);

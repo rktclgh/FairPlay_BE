@@ -32,7 +32,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import software.amazon.awssdk.services.s3.S3Client;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -62,13 +61,9 @@ public class EventService {
     private final PaymentRepository paymentRepository;
     private final ReservationRepository reservationRepository;
     private final EventScheduleRepository eventScheduleRepository;
-    private final S3Client s3client;
     // private final AwsS3Service awsS3Service;
     private final LocalFileService localFileService;
     private final FileService fileService;
-
-    @Value("${cloud.aws.s3.bucket-name}")
-    private String bucketName;
 
     @PersistenceContext
     private EntityManager entityManager;
