@@ -6,7 +6,11 @@ import java.time.LocalDateTime;
 
 
 @Entity
-@Table(name = "event_popularity_statistics", indexes = @Index(name = "idx_event_pop_stats_event_id", columnList = "event_id"))
+@Table(
+        name = "event_popularity_statistics",
+        indexes = @Index(name = "idx_event_pop_stats_event_id", columnList = "event_id"),
+        uniqueConstraints = @UniqueConstraint(name = "uk_event_pop_stats_event_id", columnNames = "event_id")
+)
 @Getter
 @Setter
 @NoArgsConstructor

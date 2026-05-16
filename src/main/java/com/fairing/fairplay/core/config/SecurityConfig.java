@@ -32,7 +32,37 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(
+                                "/actuator/**",
+                                "/api/admin/**",
+                                "/api/super-admin/**",
+                                "/api/rag/**",
+                                "/api/qr-tickets/admin/**",
+                                "/api/qr-tickets/test/**",
+                                "/api/admin/reservation",
+                                "/api/admin/reservation/**",
+                                "/api/event-comparison",
+                                "/api/event-comparison/**",
+                                "/api/event-compare",
+                                "/api/event-compare/**",
+                                "/api/event-popularity",
+                                "/api/event-popularity/**",
+                                "/api/popular-events",
+                                "/api/popular-events/**",
+                                "/api/reservation-statistics",
+                                "/api/reservation-statistics/**",
+                                "/api/sales-statistics",
+                                "/api/sales-statistics/**")
+                        .hasAuthority("ADMIN")
+                        .requestMatchers(
+                                "/api/host/reservation",
+                                "/api/host/reservation/**",
+                                "/api/stats",
+                                "/api/stats/**",
+                                "/api/qr-tickets/check-in/**",
+                                "/api/qr-tickets/check-out/**")
+                        .hasAnyAuthority("ADMIN", "EVENT_MANAGER", "BOOTH_MANAGER")
                         .requestMatchers(
                                 "/", // 루트 경로 (index.html)
                                 "/index.html", // 메인 정적 페이지
@@ -85,13 +115,7 @@ public class SecurityConfig {
                                 "/api/payments/complete", // PG사에서 호출하는 결제 완료 웹훅
                                 "/api/events/apply", // 행사 등록 신청
                                 "/api/events/apply/check",
-                                "/api/super-admin/**",
                                 "/api/qr-tickets/reissue/guest",
-                                "/api/qr-tickets/admin/issue", // QR 티켓 강제 재발급 (테스트용)
-                                "/api/rag/**", // RAG API (개발/테스트용)
-                                "/api/qr-tickets/check-in/*", // 테스트 후 수정 예정
-                                "/api/qr-tickets/check-out/*", // 테스트 후 수정 예정
-                                "/api/qr-tickets/test/schedule", // 참석자 이메일 전송 개발 테스트용
                                 "/api/events/*/booths/**",
                                 "/api/events/{eventId}/booths/apply",
                                 "/api/booths/cancel/**",

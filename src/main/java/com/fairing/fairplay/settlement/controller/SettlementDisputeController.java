@@ -2,7 +2,7 @@ package com.fairing.fairplay.settlement.controller;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.etc.FunctionAuth;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
 import com.fairing.fairplay.settlement.dto.SettlementDisputeDto;
 import com.fairing.fairplay.settlement.entity.SettlementDisputeFile;
 import com.fairing.fairplay.settlement.repository.SettlementDisputeFileRepository;
@@ -28,7 +28,7 @@ public class SettlementDisputeController {
 
     private final SettlementDisputeService disputeService;
     private final SettlementDisputeFileRepository disputeFileRepository;
-    private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
 
     /**
      * 이의신청용 파일 임시 업로드
@@ -100,7 +100,7 @@ public class SettlementDisputeController {
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
 
         // 파일 다운로드
-        awsS3Service.downloadFile(file.getS3Key(), response);
+        localFileService.downloadFile(file.getS3Key(), response);
 
         log.info("이의신청 파일 다운로드 - FileId: {}, S3Key: {}", fileId, file.getS3Key());
     }

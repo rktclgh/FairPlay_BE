@@ -90,7 +90,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
   @Query(value = """
           SELECT s.event_id,
                  CASE WHEN s.total_stock = 0 THEN 0
-                      ELSE (c.confirmed_qty * 1.0) / s.total_stock
+                      ELSE (COALESCE(c.confirmed_qty, 0) * 1.0) / s.total_stock
                  END AS booking_rate
             FROM (
                   SELECT et.event_id, COALESCE(SUM(t.stock), 0) AS total_stock
@@ -118,7 +118,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
       JOIN reservation_status_code s
            ON s.reservation_status_code_id = r.reservation_status_code_id
       WHERE s.code IN (:statuses)
-        AND r.canceled = 0
+        AND r.canceled = false
       GROUP BY r.event_id
       ORDER BY bookedQty DESC
       """, nativeQuery = true)
@@ -132,11 +132,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
       JOIN reservation_status_code s
            ON s.reservation_status_code_id = r.reservation_status_code_id
       WHERE s.code IN (:statuses)
-        AND r.canceled = 0
-        AND r.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-        AND r.created_at < CURDATE()
+        AND r.canceled = false
+        AND r.created_at >= CURRENT_DATE - INTERVAL '7 days'
+        AND r.created_at < CURRENT_DATE
       GROUP BY r.event_id
-      HAVING bookedQty > 0
+      HAVING COALESCE(SUM(r.quantity), COUNT(*)) > 0
       ORDER BY bookedQty DESC, r.event_id ASC
       LIMIT :limit
       """, nativeQuery = true)

@@ -13,7 +13,7 @@ import java.util.List;
 @AllArgsConstructor
 public class ChatRequestDto {
     private List<ChatMessageDto> messages;
-    private String providerOverride;     // "GEMINI" / "OPENAI" (선택)
+    private String providerOverride;     // "HERMES" / "GEMINI" / "OPENAI" (선택)
     private Double temperature;          // 선택
     private Integer maxOutputTokens;     // 선택
 }

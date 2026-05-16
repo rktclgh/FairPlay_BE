@@ -1,0 +1,68 @@
+name: backend-ci
+
+on:
+  pull_request:
+    branches: [ "develop", "main" ]
+  push:
+    branches: [ "develop" ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: fairplay
+          POSTGRES_PASSWORD: fairplay
+          POSTGRES_DB: fairplay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fairplay -d fairplay"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Verify PostgreSQL extensions
+        env:
+          PGPASSWORD: fairplay
+        run: |
+          psql -h 127.0.0.1 -U fairplay -d fairplay -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE EXTENSION IF NOT EXISTS vector;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm;
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          SELECT extname FROM pg_extension WHERE extname IN ('vector', 'pg_trgm', 'uuid-ossp');
+          SQL
+
+      - name: Validate PostgreSQL RAG migration
+        env:
+          PGPASSWORD: fairplay
+        run: |
+          psql -h 127.0.0.1 -U fairplay -d fairplay -v ON_ERROR_STOP=1 -f src/main/resources/db/postgres/001_pgvector_rag.sql
+          psql -h 127.0.0.1 -U fairplay -d fairplay -v ON_ERROR_STOP=1 -f src/main/resources/db/postgres/002_runtime_constraints.sql
+
+      - name: Grant execute for gradlew
+        run: chmod +x gradlew
+
+      - name: Run backend tests
+        env:
+          FAIRPLAY_SCHEMA_SMOKE_ENABLED: "true"
+          SCHEMA_SMOKE_DB_URL: jdbc:postgresql://127.0.0.1:5432/fairplay
+          SCHEMA_SMOKE_DB_USERNAME: fairplay
+          SCHEMA_SMOKE_DB_PASSWORD: fairplay
+        run: ./gradlew test --no-daemon

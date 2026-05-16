@@ -10,9 +10,11 @@ import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.user.repository.UserRoleCodeRepository;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -26,15 +28,24 @@ public class LevelService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserRoleCodeRepository userRoleCodeRepository;
+    private final boolean bootstrapAdminEnabled;
+    private final String bootstrapAdminEmail;
+    private final String bootstrapAdminPassword;
 
     public LevelService(AccountLevelRepository accountLevelRepository,
                         FunctionLevelRepository functionLevelRepository, UserRepository userRepository,
-                        PasswordEncoder passwordEncoder, UserRoleCodeRepository userRoleCodeRepository) {
+                        PasswordEncoder passwordEncoder, UserRoleCodeRepository userRoleCodeRepository,
+                        @Value("${app.bootstrap.admin.enabled:false}") boolean bootstrapAdminEnabled,
+                        @Value("${app.bootstrap.admin.email:admin@fair-play.ink}") String bootstrapAdminEmail,
+                        @Value("${app.bootstrap.admin.password:}") String bootstrapAdminPassword) {
         this.accountLevelRepository = accountLevelRepository;
         this.functionLevelRepository = functionLevelRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userRoleCodeRepository = userRoleCodeRepository;
+        this.bootstrapAdminEnabled = bootstrapAdminEnabled;
+        this.bootstrapAdminEmail = bootstrapAdminEmail;
+        this.bootstrapAdminPassword = bootstrapAdminPassword;
     }
 
     public BigInteger getAccountLevel(Long userId) {
@@ -56,13 +67,19 @@ public class LevelService {
     @PostConstruct
     @Transactional
     public void createDefaultAdmin() {
+        if (!bootstrapAdminEnabled) {
+            return;
+        }
+        if (!StringUtils.hasText(bootstrapAdminPassword)) {
+            throw new IllegalStateException("APP_BOOTSTRAP_ADMIN_PASSWORD is required when bootstrap admin is enabled.");
+        }
         if (userRepository.findById(1L).isEmpty()) {
             Users admin = new Users();
-            admin.setEmail("admin@fair-play.ink");
+            admin.setEmail(bootstrapAdminEmail);
             admin.setNickname("admin");
             admin.setName("admin");
             admin.setPhone("010-0000-0000");
-            admin.setPassword(passwordEncoder.encode("fairplay"));
+            admin.setPassword(passwordEncoder.encode(bootstrapAdminPassword));
             admin.setRoleCode(userRoleCodeRepository.findByCode("ADMIN")
                     .orElseThrow(() -> new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "기본 역할코드를 찾을 수 없습니다.")));
             Users savedAdmin = userRepository.saveAndFlush(admin);

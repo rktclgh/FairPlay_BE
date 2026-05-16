@@ -3,12 +3,23 @@ name: deploy-on-main
 on:
   push:
     branches: [ "main" ]
-  repository_dispatch:
-    types: [ fe-updated ]  # 프론트 레포에서 알림 오면 트리거
+  workflow_dispatch:
+    inputs:
+      fe_ref:
+        description: Frontend ref to build into the backend image
+        required: false
+        default: main
 
 env:
   BACKEND_DIR: .                           # BE 프로젝트 루트 경로
-  IMAGE_NAME: songchih/fairplay-backend:latest
+  IMAGE_REPOSITORY: songchih/fairplay-backend
+  IMAGE_NAME: songchih/fairplay-backend:${{ github.sha }}
+  IMAGE_LATEST: songchih/fairplay-backend:latest
+  FE_REF: ${{ inputs.fe_ref || 'main' }}
+
+concurrency:
+  group: fairplay-prod-deploy
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -26,7 +37,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: rktclgh/FairPlay_FE
-          ref: main
+          ref: ${{ env.FE_REF }}
           path: fe-src
           token: ${{ secrets.CI_GITHUB_TOKEN }}  # PAT(repo read) 필요
 
@@ -45,18 +56,28 @@ jobs:
       - name: Create FE .env from Secrets
         working-directory: fe-src
         run: |
+          set -euo pipefail
           rm -f .env
           {
             echo "VITE_BACKEND_BASE_URL=${{ secrets.VITE_BACKEND_BASE_URL }}"
             echo "VITE_FRONTEND_BASE_URL=${{ secrets.VITE_FRONTEND_BASE_URL }}"
             echo "VITE_CDN_BASE_URL=${{ secrets.VITE_CDN_BASE_URL }}"
+            echo "VITE_ENABLE_NEW_PICKS=${{ secrets.VITE_ENABLE_NEW_PICKS || 'false' }}"
             echo "VITE_KAKAO_CLIENT_ID=${{ secrets.VITE_KAKAO_CLIENT_ID }}"
             echo "VITE_KAKAO_MAP_ID=${{ secrets.VITE_KAKAO_MAP_ID }}"
             echo "VITE_BUSINESS_SERVICE_KEY=${{ secrets.VITE_BUSINESS_SERVICE_KEY }}"
           } >> .env
+          for key in VITE_BACKEND_BASE_URL VITE_FRONTEND_BASE_URL VITE_CDN_BASE_URL; do
+            value="$(grep -E "^${key}=" .env | cut -d= -f2-)"
+            if [ -z "${value}" ]; then
+              echo "Missing required frontend secret: ${key}"
+              exit 1
+            fi
+          done
 
       - name: Build FE
         working-directory: fe-src
+        timeout-minutes: 10
         run: npm run build
 
       - name: Inject FE dist into BE static
@@ -79,7 +100,7 @@ jobs:
 
       - name: Build Spring Boot jar
         working-directory: ${{ env.BACKEND_DIR }}
-        run: ./gradlew clean bootJar --no-daemon
+        run: ./gradlew clean test bootJar --no-daemon
 
       # ---------- Docker build & push ----------
       - name: Verify DockerHub secrets
@@ -99,33 +120,40 @@ jobs:
         with:
           context: ${{ env.BACKEND_DIR }}
           push: true
-          tags: ${{ env.IMAGE_NAME }}
+          tags: |
+            ${{ env.IMAGE_NAME }}
+            ${{ env.IMAGE_LATEST }}
 
-  deploy-ec2:
+  deploy-miniserver:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, fairplay, miniserver]
+    env:
+      MINI_SERVER_DEPLOY_PATH: ${{ secrets.MINI_SERVER_DEPLOY_PATH || '/home/song/Desktop/fairplay-deploy' }}
+      FAIRPLAY_BACKEND_IMAGE: songchih/fairplay-backend:${{ github.sha }}
     steps:
-      - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+      - name: Checkout deploy files
+        uses: actions/checkout@v4
 
-      - name: Add EC2 host to known_hosts
-        run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Deploy on EC2 (compose pull & up -d)
-        env:
-          EC2_USER: ${{ secrets.EC2_USER }}
+      - name: Stage compose and nginx config
         run: |
-          ssh ${EC2_USER:-ubuntu}@${{ secrets.EC2_HOST }} 'bash -se' <<'EOF'
+          mkdir -p "${MINI_SERVER_DEPLOY_PATH}"
+          cp deploy/docker-compose.miniserver.yml deploy/nginx.miniserver.conf "${MINI_SERVER_DEPLOY_PATH}/"
+
+      - name: Deploy on mini server
+        run: |
           set -euo pipefail
-          cd ~/fairplay-deploy
+          DEPLOY_PATH="${MINI_SERVER_DEPLOY_PATH}"
+          cd "${DEPLOY_PATH}"
           
           # .env 정규화 및 자격 추출
+          test -f .env || { echo "Missing ${DEPLOY_PATH}/.env. Use deploy/.env.miniserver.example as the template."; exit 1; }
           sed -i 's/\r$//' .env
+          grep -Ev '^(DOCKERHUB_USERNAME|DOCKERHUB_TOKEN)=' .env > app.env
           DU=$(grep -E '^DOCKERHUB_USERNAME=' .env | sed -E 's/^DOCKERHUB_USERNAME=//; s/^"//; s/"$//; s/[[:space:]]+$//')
           DT=$(grep -E '^DOCKERHUB_TOKEN=' .env     | sed -E 's/^DOCKERHUB_TOKEN=//;     s/^"//; s/"$//; s/[[:space:]]+$//')
           [ -n "$DU" ] && [ -n "$DT" ] || { echo "DOCKERHUB creds missing in .env"; exit 1; }
+          [ -n "${FAIRPLAY_BACKEND_IMAGE}" ] || { echo "FAIRPLAY_BACKEND_IMAGE missing"; exit 1; }
+          export FAIRPLAY_BACKEND_IMAGE
           
           echo "$DT" | docker login -u "$DU" --password-stdin
           
@@ -141,13 +169,56 @@ jobs:
 
           # 기존 컨테이너 중지 및 삭제
           echo "Stopping and removing existing containers..."
-          $DC down || true
+          $DC -f docker-compose.miniserver.yml down || true
           docker rm -f fairplay-backend fairplay-nginx 2>/dev/null || true
 
           # 최신 이미지 pull 및 컨테이너 시작
-          $DC pull
-          $DC up -d
+          $DC -f docker-compose.miniserver.yml pull
+          $DC -f docker-compose.miniserver.yml up -d
 
           # 사용하지 않는 이미지 정리
           docker image prune -f
-          EOF
+
+      - name: Smoke check deployed service
+        run: |
+          set -euo pipefail
+          BASE_URL="http://127.0.0.1:18081"
+          for i in $(seq 1 30); do
+            if curl -fsS "${BASE_URL}/actuator/health" >/tmp/fairplay-health.json; then
+              cat /tmp/fairplay-health.json
+              break
+            fi
+            if [ "$i" = "30" ]; then
+              docker logs --tail=120 fairplay-backend || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+          curl -fsSI "${BASE_URL}/" | grep -Ei 'HTTP/|content-type'
+          curl -fsS "${BASE_URL}/" | grep -E '<html|<div id="root"' >/dev/null
+          curl -fsS "${BASE_URL}/api/events" >/tmp/fairplay-events.json
+
+          SSE_STATUS="$(curl -sS -o /tmp/fairplay-sse.out -w '%{http_code}' --max-time 5 "${BASE_URL}/api/notifications/stream" || true)"
+          case "${SSE_STATUS}" in
+            200|401|403) ;;
+            *) echo "Unexpected SSE status: ${SSE_STATUS}"; cat /tmp/fairplay-sse.out || true; exit 1 ;;
+          esac
+
+          WS_STATUS="$(curl -sS -o /tmp/fairplay-ws-info.out -w '%{http_code}' --max-time 5 "${BASE_URL}/ws/chat-sockjs/info" || true)"
+          case "${WS_STATUS}" in
+            200|401|403) ;;
+            *) echo "Unexpected SockJS status: ${WS_STATUS}"; cat /tmp/fairplay-ws-info.out || true; exit 1 ;;
+          esac
+
+          UPLOAD_STATUS="$(curl -sS -o /tmp/fairplay-upload.out -w '%{http_code}' --max-time 5 "${BASE_URL}/uploads/__fairplay_smoke__" || true)"
+          case "${UPLOAD_STATUS}" in
+            200|301|302|403|404) ;;
+            *) echo "Unexpected uploads status: ${UPLOAD_STATUS}"; cat /tmp/fairplay-upload.out || true; exit 1 ;;
+          esac
+
+          RUNNING_IMAGE="$(docker inspect -f '{{.Config.Image}}' fairplay-backend)"
+          test "${RUNNING_IMAGE}" = "${FAIRPLAY_BACKEND_IMAGE}" || {
+            echo "Running image mismatch: ${RUNNING_IMAGE} != ${FAIRPLAY_BACKEND_IMAGE}"
+            exit 1
+          }

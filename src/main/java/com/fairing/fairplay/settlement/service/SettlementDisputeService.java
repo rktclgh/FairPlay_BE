@@ -1,7 +1,7 @@
 package com.fairing.fairplay.settlement.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.service.AwsS3Service;
+import com.fairing.fairplay.core.service.LocalFileService;
 import com.fairing.fairplay.settlement.controller.SettlementDisputeController;
 import com.fairing.fairplay.settlement.dto.SettlementDisputeDto;
 import com.fairing.fairplay.settlement.entity.DisputeStatus;
@@ -36,7 +36,7 @@ public class SettlementDisputeService {
     private final SettlementDisputeRepository disputeRepository;
     private final SettlementDisputeFileRepository disputeFileRepository;
     private final SettlementRepository settlementRepository;
-    private final AwsS3Service awsS3Service;
+    private final LocalFileService localFileService;
 
     /**
      * 이의신청용 파일 임시 업로드
@@ -55,7 +55,7 @@ public class SettlementDisputeService {
                     // 파일 타입 검증
                     validateDisputeFile(file);
                     // 임시 업로드
-                    return awsS3Service.uploadTemp(file).getKey();
+                    return localFileService.uploadTemp(file).getKey();
                 })
                 .toList();
 
@@ -90,7 +90,7 @@ public class SettlementDisputeService {
         // 임시 파일들이 실제로 존재하는지 확인
         if (request.getTempFileKeys() != null) {
             for (String key : request.getTempFileKeys()) {
-                if (!key.startsWith(TEMP_PREFIX) || !awsS3Service.fileExists(key)) {
+                if (!key.startsWith(TEMP_PREFIX) || !localFileService.fileExists(key)) {
                     throw new CustomException(HttpStatus.NOT_FOUND, "임시 업로드된 파일을 찾을 수 없습니다: " + key);
                 }
             }
@@ -131,7 +131,7 @@ public class SettlementDisputeService {
             String tempKey = tempKeys.get(i);
             try {
                 // 파일을 영구 경로로 이동
-               String permanentKey = awsS3Service.moveToPermanent(tempKey, destPrefix);
+               String permanentKey = localFileService.moveToPermanent(tempKey, destPrefix);
 
                 // 파일 정보를 DB에 저장
                 String originalFilename = extractOriginalFilename(tempKey);
