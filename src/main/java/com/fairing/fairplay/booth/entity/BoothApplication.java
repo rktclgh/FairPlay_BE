@@ -45,7 +45,7 @@ public class BoothApplication {
     @Column(name = "contact_number", nullable = false, length = 20)
     private String contactNumber;
 
-    @Column(name = "apply_at", columnDefinition = "DATETIME DEFAULT CURRENT_TIMESTAMP")
+    @Column(name = "apply_at")
     private LocalDateTime applyAt;
 
     @Column(name = "admin_comment", columnDefinition = "TEXT")
@@ -81,5 +81,12 @@ public class BoothApplication {
         this.boothApplicationStatusCode = newStatus;
         this.adminComment = adminComment;
         this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (applyAt == null) {
+            applyAt = LocalDateTime.now();
+        }
     }
 }
