@@ -25,7 +25,7 @@ public class Event {
     @Column(name = "event_id")
     private Long eventId;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manager_id")
     private EventAdmin manager;
 

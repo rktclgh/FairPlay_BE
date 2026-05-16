@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
@@ -28,14 +29,18 @@ public class AiChatWebSocketController {
     private final ChatMessageService chatMessageService;
 
     @MessageMapping("/ai-chat.sendMessage")
-    public void sendAiMessage(@Payload AiChatMessageDto message, Principal principal) {
+    public void sendAiMessage(
+            @Payload AiChatMessageDto message,
+            Principal principal,
+            SimpMessageHeaderAccessor accessor
+    ) {
         log.info("=== AI WebSocket 메시지 수신 ===");
         log.info("Principal: {}", principal);
         log.info("Message: {}", message);
         
         try {
             // 사용자 ID 추출
-            Long senderId = authenticatedSenderId(principal);
+            Long senderId = authenticatedSenderId(principal, accessor);
             if (senderId == null) {
                 sendErrorMessage(message.getChatRoomId(), "인증이 필요합니다.");
                 return;
@@ -49,16 +54,8 @@ public class AiChatWebSocketController {
             );
             
             // 사용자 메시지 브로드캐스트
-            AiChatMessageDto userResponse = AiChatMessageDto.builder()
-                .type("user_message")
-                .content(message.getContent())
-                .chatRoomId(message.getChatRoomId())
-                .senderId(senderId)
-                .timestamp(LocalDateTime.now().toString())
-                .build();
-            
             String topic = "/topic/ai-chat." + message.getChatRoomId();
-            messagingTemplate.convertAndSend(topic, userResponse);
+            messagingTemplate.convertAndSend(topic, userMessage);
 
             // 2. AI 응답 생성을 위한 메시지 구성
             List<ChatMessageDto> chatMessages = new ArrayList<>();
@@ -92,16 +89,7 @@ public class AiChatWebSocketController {
             );
 
             // 5. AI 응답 브로드캐스트
-            AiChatMessageDto aiResponseDto = AiChatMessageDto.builder()
-                .type("ai_response")
-                .content(aiResponse)
-                .chatRoomId(message.getChatRoomId())
-                .senderId(botUserId)
-                .timestamp(LocalDateTime.now().toString())
-                .provider(message.getProvider() != null ? message.getProvider() : "gemini")
-                .build();
-
-            messagingTemplate.convertAndSend(topic, aiResponseDto);
+            messagingTemplate.convertAndSend(topic, aiMessage);
 
             // 6. 채팅방 목록 업데이트 알림
             messagingTemplate.convertAndSend("/topic/chat-room-list", "UPDATE");
@@ -126,15 +114,18 @@ public class AiChatWebSocketController {
         messagingTemplate.convertAndSend(topic, errorResponse);
     }
 
-    private Long authenticatedSenderId(Principal principal) {
-        if (principal == null || principal.getName() == null) {
+    private Long authenticatedSenderId(Principal principal, SimpMessageHeaderAccessor accessor) {
+        if (principal != null && principal.getName() != null) {
+            try {
+                return Long.parseLong(principal.getName());
+            } catch (NumberFormatException e) {
+                log.warn("AI WebSocket principal user id parsing failed: {}", principal.getName());
+            }
+        }
+        if (accessor == null || accessor.getSessionAttributes() == null) {
             return null;
         }
-        try {
-            return Long.parseLong(principal.getName());
-        } catch (NumberFormatException e) {
-            log.warn("AI WebSocket principal user id parsing failed: {}", principal.getName());
-            return null;
-        }
+        Object userId = accessor.getSessionAttributes().get("userId");
+        return userId instanceof Long ? (Long) userId : null;
     }
 }

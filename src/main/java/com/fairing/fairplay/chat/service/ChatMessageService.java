@@ -28,6 +28,7 @@ public class ChatMessageService {
     private final ChatRoomRepository chatRoomRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ChatCacheService chatCacheService;
+    private final ChatRoomAccessService chatRoomAccessService;
 
     @Transactional
     public ChatMessageResponseDto sendMessage(Long chatRoomId, Long senderId, String content) {
@@ -71,7 +72,7 @@ public class ChatMessageService {
         if (userId == null) {
             throw new AccessDeniedException("인증된 사용자만 채팅방에 접근할 수 있습니다.");
         }
-        if (userId.equals(chatRoom.getUserId()) || userId.equals(chatRoom.getTargetId())) {
+        if (chatRoomAccessService.canAccess(chatRoom, userId)) {
             return;
         }
         throw new AccessDeniedException(message);

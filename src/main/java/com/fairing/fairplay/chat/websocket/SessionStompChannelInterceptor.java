@@ -2,6 +2,7 @@ package com.fairing.fairplay.chat.websocket;
 
 import com.fairing.fairplay.chat.entity.ChatRoom;
 import com.fairing.fairplay.chat.repository.ChatRoomRepository;
+import com.fairing.fairplay.chat.service.ChatRoomAccessService;
 import com.fairing.fairplay.core.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ public class SessionStompChannelInterceptor implements ChannelInterceptor {
 
     private final SessionService sessionService;
     private final ChatRoomRepository chatRoomRepository;
+    private final ChatRoomAccessService chatRoomAccessService;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -123,7 +125,7 @@ public class SessionStompChannelInterceptor implements ChannelInterceptor {
 
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new AccessDeniedException("Chat room not found."));
-        if (userId.equals(chatRoom.getUserId()) || userId.equals(chatRoom.getTargetId())) {
+        if (chatRoomAccessService.canAccess(chatRoom, userId)) {
             return;
         }
         log.warn("STOMP SUBSCRIBE denied. userId={}, destination={}", userId, destination);
