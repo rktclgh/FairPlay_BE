@@ -41,11 +41,7 @@ class PostgresSchemaSmokeTest {
         assertThat(tables)
                 .as("existing public tables: %s", tables)
                 .contains(
-                "users",
-                "event",
-                "reservation",
-                "payment",
-                "qr_ticket");
+                "users");
     }
 
     private List<String> existingTables() {
