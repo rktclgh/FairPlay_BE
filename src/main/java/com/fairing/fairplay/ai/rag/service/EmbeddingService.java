@@ -46,6 +46,11 @@ public class EmbeddingService {
             throw new IllegalArgumentException("텍스트가 비어있습니다.");
         }
 
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("Gemini API key is empty. Using fallback embedding vector.");
+            return generateFallbackVector(text);
+        }
+
         try {
             String cleanText = preprocessText(text);
             log.debug("Gemini 임베딩 요청: {} 문자", cleanText.length());
@@ -98,6 +103,11 @@ public class EmbeddingService {
     public float[] embedQuery(String query) throws Exception {
         if (query == null || query.trim().isEmpty()) {
             throw new IllegalArgumentException("질의가 비어있습니다.");
+        }
+
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("Gemini API key is empty. Using fallback query embedding vector.");
+            return generateFallbackVector(query);
         }
 
         try {

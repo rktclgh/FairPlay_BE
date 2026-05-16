@@ -79,7 +79,7 @@ jwt:
 
 # Google Gemini API
 gemini:
-  api-key: ${GEMINI_API_KEY}
+  api-key: ${GEMINI_API_KEY:}
 
 kakao:
   client-id: ${KAKAO_CLIENT_ID}
@@ -91,14 +91,16 @@ cloud:
     s3:
       enabled: ${AWS_S3_ENABLED:false}
       bucket-name: ${AWS_S3_BUCKET_NAME} # S3 버킷 이름
+      endpoint: ${AWS_S3_ENDPOINT:}
+      path-style-access: ${AWS_S3_PATH_STYLE_ACCESS:false}
     region:
       static: ap-northeast-2 # ← 한국(서울) 리전으로 고정
       auto: false
     stack:
       auto: false # CloudFormation 스택 자동 생성 비활성화
     credentials:
-      access-key: ${AWS_ACCESS_KEY}
-      secret-key: ${AWS_SECRET_KEY}
+      access-key: ${AWS_ACCESS_KEY:}
+      secret-key: ${AWS_SECRET_KEY:}
     cloudfront:
       domain: ${AWS_CLOUDFRONT_DOMAIN}
 
@@ -115,7 +117,7 @@ iamport:
   secret-key: ${IAMPORT_SECRET_KEY}
   base-url: ${IAMPORT_BASE_URL:https://api.iamport.kr}
 llm:
-  provider: GEMINI # 이후 OPENAI 로 바꾸면 OpenAI로 전환됨
+  provider: ${LLM_PROVIDER:HERMES}
   bot-user-id: 999    # AI 챗봇의 사용자 ID
   gemini:
     api-key: ${GEMINI_API_KEY:}       # 환경변수 권장
@@ -123,6 +125,11 @@ llm:
   openai:
 #    api-key: ${OPENAI_API_KEY:}       # 나중에 전환용
 #    model: gpt-4o-mini
+  hermes:
+    base-url: ${HERMES_GATEWAY_BASE_URL:http://host.docker.internal:8788}
+    api-key: ${HERMES_GATEWAY_API_KEY:}
+    model: ${HERMES_GATEWAY_MODEL:gpt-5.4-mini}
+    wait-timeout-seconds: ${HERMES_GATEWAY_WAIT_TIMEOUT_SECONDS:60}
 
 banner:
   lock:

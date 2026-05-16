@@ -1,6 +1,7 @@
 package com.fairing.fairplay.ai.service;
 
 import com.fairing.fairplay.ai.client.GoogleGeminiClient;
+import com.fairing.fairplay.ai.client.HermesGatewayClient;
 import com.fairing.fairplay.ai.client.LlmClient;
 import com.fairing.fairplay.ai.client.OpenAiClient;
 import com.fairing.fairplay.ai.config.LlmProperties;
@@ -12,6 +13,7 @@ public class LlmRouter {
     private final LlmProperties props;
     private final GoogleGeminiClient gemini;
     private OpenAiClient openai; // 지연 초기화
+    private HermesGatewayClient hermes; // 지연 초기화
 
     public LlmRouter(LlmProperties props) {
         this.props = props;
@@ -26,6 +28,10 @@ public class LlmRouter {
         if ("OPENAI".equalsIgnoreCase(provider)) {
             if (openai == null) openai = new OpenAiClient(props);
             return openai;
+        }
+        if ("HERMES".equalsIgnoreCase(provider) || "HERMES_REDIS_GATEWAY".equalsIgnoreCase(provider)) {
+            if (hermes == null) hermes = new HermesGatewayClient(props);
+            return hermes;
         }
         return gemini;
     }
