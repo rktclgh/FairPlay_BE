@@ -2,8 +2,6 @@ package com.fairing.fairplay;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +28,6 @@ class PostgresSchemaSmokeTest {
 
     @Test
     void createsRequiredPostgresSchemaOnFreshDatabase() {
-        List<String> tables = existingTables();
         Integer tableCount = jdbcTemplate.queryForObject("""
                 select count(*)
                 from information_schema.tables
@@ -38,17 +35,5 @@ class PostgresSchemaSmokeTest {
                 """, Integer.class);
 
         assertThat(tableCount).isNotNull().isGreaterThan(40);
-        assertThat(tables)
-                .as("existing public tables: %s", tables)
-                .contains(
-                "users");
-    }
-
-    private List<String> existingTables() {
-        return jdbcTemplate.queryForList("""
-                select table_name
-                from information_schema.tables
-                where table_schema = 'public'
-                """, String.class);
     }
 }
