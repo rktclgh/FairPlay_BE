@@ -2,11 +2,14 @@ package com.fairing.fairplay.chat.websocket;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fairing.fairplay.chat.entity.ChatRoom;
 import com.fairing.fairplay.chat.repository.ChatRoomRepository;
+import com.fairing.fairplay.chat.service.ChatRoomAccessService;
 import com.fairing.fairplay.core.service.SessionService;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -19,8 +22,9 @@ import org.springframework.security.access.AccessDeniedException;
 class SessionStompChannelInterceptorTest {
 
     private final ChatRoomRepository chatRoomRepository = mock(ChatRoomRepository.class);
+    private final ChatRoomAccessService chatRoomAccessService = mock(ChatRoomAccessService.class);
     private final SessionStompChannelInterceptor interceptor =
-            new SessionStompChannelInterceptor(mock(SessionService.class), chatRoomRepository);
+            new SessionStompChannelInterceptor(mock(SessionService.class), chatRoomRepository, chatRoomAccessService);
 
     @Test
     void rejectsUnauthenticatedAppSend() {
@@ -57,6 +61,7 @@ class SessionStompChannelInterceptorTest {
     @Test
     void rejectsAuthenticatedChatSubscribeForNonParticipant() {
         when(chatRoomRepository.findById(123L)).thenReturn(Optional.of(chatRoom(10L, 20L)));
+        when(chatRoomAccessService.canAccess(any(ChatRoom.class), eq(30L))).thenReturn(false);
         Message<byte[]> message = stompMessage(StompCommand.SUBSCRIBE, "/topic/chat.123", new StompPrincipal("30"));
 
         assertThatThrownBy(() -> interceptor.preSend(message, null))
@@ -66,6 +71,7 @@ class SessionStompChannelInterceptorTest {
     @Test
     void allowsAuthenticatedChatSubscribeForParticipant() {
         when(chatRoomRepository.findById(123L)).thenReturn(Optional.of(chatRoom(10L, 20L)));
+        when(chatRoomAccessService.canAccess(any(ChatRoom.class), eq(10L))).thenReturn(true);
         Message<byte[]> message = stompMessage(StompCommand.SUBSCRIBE, "/topic/chat.123", new StompPrincipal("10"));
 
         assertThatCode(() -> interceptor.preSend(message, null))
