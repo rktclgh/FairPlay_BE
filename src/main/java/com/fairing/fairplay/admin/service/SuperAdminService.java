@@ -21,7 +21,6 @@ import com.fairing.fairplay.history.repository.LoginHistoryRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.domain.Page;
@@ -32,10 +31,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -234,17 +233,20 @@ public class SuperAdminService {
         List<EmailTemplates> defaultTemplates = emailTemplatesRepository.findAll();
         if (!defaultTemplates.isEmpty())
             return;
-        Resource resource = new ClassPathResource("email");
-        if (!resource.exists())
-            return;
         Resource[] templates = new PathMatchingResourcePatternResolver()
                 .getResources("classpath:email/*.html");
         for (Resource r : templates) {
             EmailTemplates template = new EmailTemplates();
             template.setName(r.getFilename());
-            template.setContent(new String(Files.readAllBytes(r.getFile().toPath()), StandardCharsets.UTF_8));
+            template.setContent(readTemplateContent(r));
             defaultTemplates.add(template);
             emailTemplatesRepository.save(template);
+        }
+    }
+
+    static String readTemplateContent(Resource resource) throws IOException {
+        try (var inputStream = resource.getInputStream()) {
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 
