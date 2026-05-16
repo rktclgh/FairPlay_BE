@@ -3,15 +3,19 @@ name: deploy-on-main
 on:
   push:
     branches: [ "main" ]
-  repository_dispatch:
-    types: [ fe-updated ]  # 프론트 레포에서 알림 오면 트리거
+  workflow_dispatch:
+    inputs:
+      fe_ref:
+        description: Frontend ref to build into the backend image
+        required: false
+        default: main
 
 env:
   BACKEND_DIR: .                           # BE 프로젝트 루트 경로
   IMAGE_REPOSITORY: songchih/fairplay-backend
   IMAGE_NAME: songchih/fairplay-backend:${{ github.sha }}
   IMAGE_LATEST: songchih/fairplay-backend:latest
-  FE_REF: ${{ github.event.client_payload.fe_ref || 'main' }}
+  FE_REF: ${{ inputs.fe_ref || 'main' }}
 
 concurrency:
   group: fairplay-prod-deploy
