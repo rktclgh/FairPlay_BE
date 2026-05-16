@@ -16,12 +16,13 @@ import java.util.Map;
 
 public class HermesGatewayClient implements LlmClient {
 
+    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
+
     private final String baseUrl;
     private final String apiKey;
     private final String model;
     private final Integer waitTimeoutSeconds;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final HttpClient http = HttpClient.newHttpClient();
 
     public HermesGatewayClient(LlmProperties props) {
         this.baseUrl = trimTrailingSlash(props.getHermesBaseUrl());
@@ -52,7 +53,7 @@ public class HermesGatewayClient implements LlmClient {
             requestBuilder.header("Authorization", "Bearer " + apiKey);
         }
 
-        HttpResponse<String> response = http.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = HTTP_CLIENT.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() / 100 != 2) {
             throw new RuntimeException("Hermes gateway error: HTTP " + response.statusCode() + " - " + response.body());
         }

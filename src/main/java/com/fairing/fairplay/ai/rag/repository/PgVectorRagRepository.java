@@ -8,8 +8,6 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -20,6 +18,16 @@ import java.util.StringJoiner;
 public class PgVectorRagRepository implements RagChunkRepository {
 
     private static final int KEYWORD_SCAN_LIMIT_MULTIPLIER = 8;
+    private static final RowMapper<Chunk> CHUNK_ROW_MAPPER = (rs, rowNum) -> Chunk.builder()
+        .chunkId(rs.getString("chunk_id"))
+        .docId(rs.getString("doc_id"))
+        .text(rs.getString("text"))
+        .createdAt(rs.getString("created_at"))
+        .build();
+    private static final RowMapper<SearchResult.ScoredChunk> SCORED_CHUNK_ROW_MAPPER = (rs, rowNum) -> SearchResult.ScoredChunk.builder()
+        .chunk(CHUNK_ROW_MAPPER.mapRow(rs, rowNum))
+        .similarity(rs.getDouble("similarity"))
+        .build();
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -252,30 +260,10 @@ public class PgVectorRagRepository implements RagChunkRepository {
     }
 
     private RowMapper<Chunk> chunkRowMapper() {
-        return (rs, rowNum) -> Chunk.builder()
-            .chunkId(rs.getString("chunk_id"))
-            .docId(rs.getString("doc_id"))
-            .text(rs.getString("text"))
-            .createdAt(rs.getString("created_at"))
-            .build();
+        return CHUNK_ROW_MAPPER;
     }
 
     private RowMapper<SearchResult.ScoredChunk> scoredChunkRowMapper() {
-        return new RowMapper<>() {
-            @Override
-            public SearchResult.ScoredChunk mapRow(ResultSet rs, int rowNum) throws SQLException {
-                Chunk chunk = Chunk.builder()
-                    .chunkId(rs.getString("chunk_id"))
-                    .docId(rs.getString("doc_id"))
-                    .text(rs.getString("text"))
-                    .createdAt(rs.getString("created_at"))
-                    .build();
-
-                return SearchResult.ScoredChunk.builder()
-                    .chunk(chunk)
-                    .similarity(rs.getDouble("similarity"))
-                    .build();
-            }
-        };
+        return SCORED_CHUNK_ROW_MAPPER;
     }
 }
