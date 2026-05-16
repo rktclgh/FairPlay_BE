@@ -1,5 +1,6 @@
 package com.fairing.fairplay.core.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -10,30 +11,62 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.stream.Stream;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
+    private static final String[] STATIC_ALLOWED_ORIGINS = {
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://fair-play.ink",
+        "https://fairplay.rktclgh.site",
+        "https://service.iamport.kr",
+        "https://pg.uplus.co.kr",
+        "https://mobile.uplus.co.kr",
+        "https://m.uplus.co.kr",
+        "https://payment.uplus.co.kr",
+        "https://webapp.uplus.co.kr",
+        "https://pg.lguplus.co.kr",
+        "https://mobile-pay.uplus.co.kr"
+    };
+
+    private final String frontendBaseUrl;
+    private final String appBaseUrl;
+    private final String extraAllowedOrigins;
+
+    public WebConfig(
+        @Value("${app.frontend.base-url:http://localhost:5173}") String frontendBaseUrl,
+        @Value("${app.base-url:https://fair-play.ink}") String appBaseUrl,
+        @Value("${app.cors.allowed-origins:}") String extraAllowedOrigins
+    ) {
+        this.frontendBaseUrl = frontendBaseUrl;
+        this.appBaseUrl = appBaseUrl;
+        this.extraAllowedOrigins = extraAllowedOrigins;
+    }
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**") // 모든 API
-            .allowedOrigins(
-                "http://localhost:3000", // 프론트 개발 주소
-                "http://localhost:5173", // Vite(React)
-                "https://fair-play.ink", // 배포용 도메인
-                "https://service.iamport.kr", // 아임포트 서비스
-                "https://pg.uplus.co.kr", // LG U+ PG
-                "https://mobile.uplus.co.kr", // LG U+ 모바일
-                "https://m.uplus.co.kr", // LG U+ 모바일 단축
-                "https://payment.uplus.co.kr", // LG U+ 결제
-                "https://webapp.uplus.co.kr", // LG U+ 웹앱
-                "https://pg.lguplus.co.kr", // LG U+ PG 구버전
-                "https://mobile-pay.uplus.co.kr" // LG U+ 모바일 결제
-            )
+            .allowedOrigins(allowedOrigins())
             .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("*")
             .allowCredentials(true) // 인증(쿠키/헤더) 허용
             .maxAge(3600);
+    }
+
+    String[] allowedOrigins() {
+        return Stream.of(
+                Arrays.stream(STATIC_ALLOWED_ORIGINS),
+                Stream.of(frontendBaseUrl, appBaseUrl),
+                Arrays.stream(extraAllowedOrigins.split(","))
+            )
+            .flatMap(origin -> origin)
+            .map(String::trim)
+            .filter(origin -> !origin.isBlank())
+            .distinct()
+            .toArray(String[]::new);
     }
 
     @Override

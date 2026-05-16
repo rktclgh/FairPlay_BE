@@ -197,7 +197,14 @@ jobs:
           done
 
           curl -fsSI "${BASE_URL}/" | grep -Ei 'HTTP/|content-type'
-          curl -fsS "${BASE_URL}/" | grep -E '<html|<div id="root"' >/dev/null
+          HTML="$(curl -fsS "${BASE_URL}/")"
+          printf '%s' "${HTML}" | grep -E '<html|<div id="root"' >/dev/null
+          ASSET_PATH="$(printf '%s' "${HTML}" | grep -m1 -oE '/assets/[^"]+\.(js|css)')"
+          test -n "${ASSET_PATH}" || { echo "No built frontend asset found in index.html"; exit 1; }
+          curl -fsS \
+            -H "Origin: https://fairplay.rktclgh.site" \
+            -H "Referer: https://fairplay.rktclgh.site/" \
+            "${BASE_URL}${ASSET_PATH}" >/dev/null
           curl -fsS "${BASE_URL}/api/events" >/tmp/fairplay-events.json
 
           SSE_STATUS="$(curl -sS -o /tmp/fairplay-sse.out -w '%{http_code}' --max-time 5 "${BASE_URL}/api/notifications/stream" || true)"
