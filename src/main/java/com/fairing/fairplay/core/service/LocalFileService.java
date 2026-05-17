@@ -2,6 +2,7 @@ package com.fairing.fairplay.core.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.dto.FileUploadResponseDto;
+import com.fairing.fairplay.core.util.TempUploadKeyPolicy;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
@@ -25,7 +26,6 @@ import java.nio.file.SecureDirectoryStream;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributeView;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -49,7 +49,7 @@ public class LocalFileService {
                 .map(f -> f.substring(f.lastIndexOf('.')))
                 .orElse("");
         String uuid = UUID.randomUUID().toString();
-        String key = "uploads/tmp" + LocalDate.now() + "/" + uuid + ext;
+        String key = TempUploadKeyPolicy.newPrivateTempPrefix() + uuid + ext;
         
         try {
             try (InputStream inputStream = file.getInputStream()) {
@@ -80,7 +80,7 @@ public class LocalFileService {
         
         String ext = key.contains(".") ? key.substring(key.lastIndexOf('.')) : "";
         String uuid = UUID.randomUUID().toString();
-        String destKey = "uploads/" + normalizeRelativeKey(destPrefix) + "/" + uuid + ext;
+        String destKey = TempUploadKeyPolicy.PUBLIC_UPLOAD_PREFIX + normalizeRelativeKey(destPrefix) + "/" + uuid + ext;
 
         try {
             moveFile(key, destKey);
@@ -133,7 +133,11 @@ public class LocalFileService {
             return null;
         }
         
-        String cleanKey = key.startsWith("/") ? key.substring(1) : key;
+        String cleanKey = TempUploadKeyPolicy.normalizeKey(key);
+        if (TempUploadKeyPolicy.isBlockedPublicUploadKey(cleanKey)) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "비공개 파일 키는 공개 URL로 변환할 수 없습니다.");
+        }
+
         // baseUrl이 이미 /uploads로 끝나는 경우 중복 방지
         String normalizedBaseUrl = baseUrl.endsWith("/uploads") ? baseUrl : baseUrl + "/uploads";
         return normalizedBaseUrl + "/" + cleanKey;

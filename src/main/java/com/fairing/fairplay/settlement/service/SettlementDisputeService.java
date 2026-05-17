@@ -2,6 +2,7 @@ package com.fairing.fairplay.settlement.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.service.LocalFileService;
+import com.fairing.fairplay.core.util.TempUploadKeyPolicy;
 import com.fairing.fairplay.settlement.controller.SettlementDisputeController;
 import com.fairing.fairplay.settlement.dto.SettlementDisputeDto;
 import com.fairing.fairplay.settlement.entity.DisputeStatus;
@@ -20,8 +21,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -32,7 +31,6 @@ import java.util.stream.IntStream;
 @Slf4j
 public class SettlementDisputeService {
 
-    private static final String TEMP_PREFIX = "uploads/temp/";
     private final SettlementDisputeRepository disputeRepository;
     private final SettlementDisputeFileRepository disputeFileRepository;
     private final SettlementRepository settlementRepository;
@@ -90,7 +88,7 @@ public class SettlementDisputeService {
         // 임시 파일들이 실제로 존재하는지 확인
         if (request.getTempFileKeys() != null) {
             for (String key : request.getTempFileKeys()) {
-                if (!key.startsWith(TEMP_PREFIX) || !localFileService.fileExists(key)) {
+                if (!TempUploadKeyPolicy.isTemporaryUploadKey(key) || !localFileService.fileExists(key)) {
                     throw new CustomException(HttpStatus.NOT_FOUND, "임시 업로드된 파일을 찾을 수 없습니다: " + key);
                 }
             }

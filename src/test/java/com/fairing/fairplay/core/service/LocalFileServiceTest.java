@@ -70,7 +70,8 @@ class LocalFileServiceTest {
 
         var response = localFileService.uploadTemp(file);
 
-        assertThat(response.getKey()).startsWith("uploads/tmp");
+        assertThat(response.getKey()).startsWith("private/tmp/");
+        assertThat(response.getKey()).doesNotStartWith("uploads/");
         assertThat(uploadRoot.resolve(response.getKey())).hasContent("banner");
     }
 
@@ -108,21 +109,50 @@ class LocalFileServiceTest {
 
     @Test
     void moveToPermanentMovesFileWithinUploadRoot() throws Exception {
-        Path sourceFile = uploadRoot.resolve("uploads/tmp2026-05-18/source.txt");
+        Path sourceFile = uploadRoot.resolve("private/tmp/2026-05-18/source.txt");
         Files.createDirectories(sourceFile.getParent());
         Files.writeString(sourceFile, "staged");
 
         if (!secureDirectoryStreamSupported()) {
-            assertFailClosed(() -> localFileService.moveToPermanent("uploads/tmp2026-05-18/source.txt", "events/banners"));
+            assertFailClosed(() -> localFileService.moveToPermanent("private/tmp/2026-05-18/source.txt", "events/banners"));
             assertThat(sourceFile).exists();
             return;
         }
 
-        String destKey = localFileService.moveToPermanent("uploads/tmp2026-05-18/source.txt", "events/banners");
+        String destKey = localFileService.moveToPermanent("private/tmp/2026-05-18/source.txt", "events/banners");
         assertThat(destKey).startsWith("uploads/events/banners/");
         assertThat(destKey).endsWith(".txt");
         assertThat(sourceFile).doesNotExist();
         assertThat(uploadRoot.resolve(destKey)).hasContent("staged");
+    }
+
+    @Test
+    void getCdnUrlRejectsPrivateAndLegacyTempKeys() {
+        assertThatThrownBy(() -> localFileService.getCdnUrl("private/tmp/2026-05-18/source.txt"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(error -> assertThat(((CustomException) error).getStatus()).isEqualTo(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> localFileService.getCdnUrl("uploads/tmp2026-05-18/source.txt"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(error -> assertThat(((CustomException) error).getStatus()).isEqualTo(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> localFileService.getCdnUrl("uploads/temp/2026-05-18/source.txt"))
+                .isInstanceOf(CustomException.class)
+                .satisfies(error -> assertThat(((CustomException) error).getStatus()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    void getCdnUrlAllowsPermanentUploadKey() {
+        assertThat(localFileService.getCdnUrl("uploads/events/banner.txt"))
+                .isEqualTo("https://fair-play.test/uploads/uploads/events/banner.txt");
+    }
+
+    @Test
+    void getCdnUrlAllowsPermanentKeysWhoseNamesOnlyStartWithTempWords() {
+        assertThat(localFileService.getCdnUrl("uploads/tmp-assets/banner.txt"))
+                .isEqualTo("https://fair-play.test/uploads/uploads/tmp-assets/banner.txt");
+        assertThat(localFileService.getCdnUrl("uploads/temporary/banner.txt"))
+                .isEqualTo("https://fair-play.test/uploads/uploads/temporary/banner.txt");
     }
 
     @Test
@@ -136,7 +166,7 @@ class LocalFileServiceTest {
 
     @Test
     void moveToPermanentRejectsDestinationIntermediateSymlinkEscapeOutsideUploadRoot() throws Exception {
-        Path sourceFile = uploadRoot.resolve("uploads/tmp2026-05-18/source.txt");
+        Path sourceFile = uploadRoot.resolve("private/tmp/2026-05-18/source.txt");
         Files.createDirectories(sourceFile.getParent());
         Files.writeString(sourceFile, "staged");
         Path outsideDir = tempDir.resolve("outside-dest");
@@ -145,7 +175,7 @@ class LocalFileServiceTest {
         Files.createDirectories(symlinkDir.getParent());
         createSymlinkOrSkip(symlinkDir, outsideDir);
 
-        assertSecurityRejected(() -> localFileService.moveToPermanent("uploads/tmp2026-05-18/source.txt", "events/banners"));
+        assertSecurityRejected(() -> localFileService.moveToPermanent("private/tmp/2026-05-18/source.txt", "events/banners"));
 
         assertThat(sourceFile).exists();
         try (Stream<Path> outsideFiles = Files.list(outsideDir)) {
