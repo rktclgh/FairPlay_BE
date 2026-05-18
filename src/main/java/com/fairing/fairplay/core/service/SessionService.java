@@ -26,6 +26,7 @@ public class SessionService {
 
     private static final String SESSION_PREFIX = "session:";
     private static final String PAYMENT_LOCK_PREFIX = "payment_lock:";
+    private static final String PAYMENT_LOCK_MERCHANT_PREFIX = "payment_lock_merchant:";
     private static final Duration SESSION_TIMEOUT = Duration.ofDays(7); // 7일 (슬라이딩 세션)
     private static final Duration PAYMENT_LOCK_TIMEOUT = Duration.ofMinutes(15); // 15분
 
@@ -160,6 +161,7 @@ public class SessionService {
             Boolean success = redisTemplate.opsForValue().setIfAbsent(lockKey, lockJson, PAYMENT_LOCK_TIMEOUT);
             
             if (Boolean.TRUE.equals(success)) {
+                redisTemplate.opsForValue().set(paymentLockMerchantKey(merchantUid), userId.toString(), PAYMENT_LOCK_TIMEOUT);
                 log.debug("결제 락 설정 성공 - userId: {}, merchantUid: {}", userId, merchantUid);
                 return true;
             } else {
@@ -220,7 +222,12 @@ public class SessionService {
         }
         
         String lockKey = PAYMENT_LOCK_PREFIX + userId;
+        String lockJson = redisTemplate.opsForValue().get(lockKey);
+        String merchantUid = extractMerchantUid(lockJson);
         Boolean deleted = redisTemplate.delete(lockKey);
+        if (merchantUid != null) {
+            redisTemplate.delete(paymentLockMerchantKey(merchantUid));
+        }
         log.debug("결제 락 해제 - userId: {}, deleted: {}", userId, deleted);
     }
 
@@ -233,28 +240,44 @@ public class SessionService {
         }
         
         try {
-            // 모든 결제 락을 검색해서 해당 merchantUid와 일치하는 것 찾기
-            String pattern = PAYMENT_LOCK_PREFIX + "*";
-            var keys = redisTemplate.keys(pattern);
-            
-            if (keys != null) {
-                for (String key : keys) {
-                    String lockJson = redisTemplate.opsForValue().get(key);
-                    if (lockJson != null) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> lockData = objectMapper.readValue(lockJson, Map.class);
-                        String storedMerchantUid = (String) lockData.get("merchantUid");
-                        
-                        if (merchantUid.equals(storedMerchantUid)) {
-                            redisTemplate.delete(key);
-                            log.debug("merchantUid로 결제 락 해제 - merchantUid: {}", merchantUid);
-                            break;
-                        }
-                    }
-                }
+            String merchantIndexKey = paymentLockMerchantKey(merchantUid);
+            String userId = redisTemplate.opsForValue().get(merchantIndexKey);
+
+            if (userId == null) {
+                return;
             }
+
+            String lockKey = PAYMENT_LOCK_PREFIX + userId;
+            String lockJson = redisTemplate.opsForValue().get(lockKey);
+            String storedMerchantUid = extractMerchantUid(lockJson);
+
+            if (merchantUid.equals(storedMerchantUid)) {
+                redisTemplate.delete(lockKey);
+                log.debug("merchantUid로 결제 락 해제 - merchantUid: {}", merchantUid);
+            }
+            redisTemplate.delete(merchantIndexKey);
         } catch (Exception e) {
             log.error("merchantUid로 결제 락 해제 실패 - merchantUid: {}", merchantUid, e);
+        }
+    }
+
+    private String paymentLockMerchantKey(String merchantUid) {
+        return PAYMENT_LOCK_MERCHANT_PREFIX + merchantUid;
+    }
+
+    private String extractMerchantUid(String lockJson) {
+        if (lockJson == null) {
+            return null;
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> lockData = objectMapper.readValue(lockJson, Map.class);
+            Object merchantUid = lockData.get("merchantUid");
+            return merchantUid instanceof String ? (String) merchantUid : null;
+        } catch (Exception e) {
+            log.warn("결제 락 merchantUid 파싱 실패", e);
+            return null;
         }
     }
 }
