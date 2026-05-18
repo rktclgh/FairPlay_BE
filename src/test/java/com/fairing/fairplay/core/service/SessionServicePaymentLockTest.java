@@ -9,11 +9,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -64,7 +67,7 @@ class SessionServicePaymentLockTest {
         boolean locked = sessionService.setPaymentLock(42L, "merchant-42");
 
         assertThat(locked).isFalse();
-        verify(redisTemplate).delete("payment_lock:42");
+        verify(redisTemplate).execute(any(RedisScript.class), eq(List.of("payment_lock:42")), anyString());
         verify(redisTemplate, never()).keys(anyString());
     }
 
@@ -88,11 +91,30 @@ class SessionServicePaymentLockTest {
                 "userId", 42L
         ));
         when(valueOperations.get("payment_lock:42")).thenReturn(lockJson);
+        when(redisTemplate.execute(any(RedisScript.class), eq(List.of("payment_lock:42")), eq(lockJson)))
+                .thenReturn(1L);
 
         sessionService.clearPaymentLock(42L);
 
-        verify(redisTemplate).delete("payment_lock:42");
+        verify(redisTemplate).execute(any(RedisScript.class), eq(List.of("payment_lock:42")), eq(lockJson));
         verify(redisTemplate).delete("payment_lock_merchant:merchant-42");
+    }
+
+    @Test
+    void clearPaymentLockDoesNotDeleteMerchantIndexWhenUserLockChangedBeforeDelete() throws Exception {
+        String lockJson = new ObjectMapper().writeValueAsString(Map.of(
+                "merchantUid", "merchant-42",
+                "startedAt", System.currentTimeMillis(),
+                "userId", 42L
+        ));
+        when(valueOperations.get("payment_lock:42")).thenReturn(lockJson);
+        when(redisTemplate.execute(any(RedisScript.class), eq(List.of("payment_lock:42")), eq(lockJson)))
+                .thenReturn(0L);
+
+        sessionService.clearPaymentLock(42L);
+
+        verify(redisTemplate).execute(any(RedisScript.class), eq(List.of("payment_lock:42")), eq(lockJson));
+        verify(redisTemplate, never()).delete("payment_lock_merchant:merchant-42");
     }
 
     @Test
@@ -104,10 +126,12 @@ class SessionServicePaymentLockTest {
         ));
         when(valueOperations.get("payment_lock_merchant:merchant-42")).thenReturn("42");
         when(valueOperations.get("payment_lock:42")).thenReturn(lockJson);
+        when(redisTemplate.execute(any(RedisScript.class), eq(List.of("payment_lock:42")), eq(lockJson)))
+                .thenReturn(1L);
 
         sessionService.clearPaymentLockByMerchantUid("merchant-42");
 
-        verify(redisTemplate).delete("payment_lock:42");
+        verify(redisTemplate).execute(any(RedisScript.class), eq(List.of("payment_lock:42")), eq(lockJson));
         verify(redisTemplate).delete("payment_lock_merchant:merchant-42");
         verify(redisTemplate, never()).keys(anyString());
     }

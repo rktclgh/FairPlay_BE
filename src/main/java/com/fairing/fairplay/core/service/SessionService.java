@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -29,6 +31,14 @@ public class SessionService {
     private static final String PAYMENT_LOCK_MERCHANT_PREFIX = "payment_lock_merchant:";
     private static final Duration SESSION_TIMEOUT = Duration.ofDays(7); // 7일 (슬라이딩 세션)
     private static final Duration PAYMENT_LOCK_TIMEOUT = Duration.ofMinutes(15); // 15분
+    private static final DefaultRedisScript<Long> DELETE_LOCK_IF_VALUE_MATCHES_SCRIPT = new DefaultRedisScript<>(
+            """
+                    if redis.call('get', KEYS[1]) == ARGV[1] then
+                        return redis.call('del', KEYS[1])
+                    end
+                    return 0
+                    """,
+            Long.class);
 
     /**
      * 새 세션 생성 및 사용자 정보 저장
@@ -164,7 +174,7 @@ public class SessionService {
                 try {
                     redisTemplate.opsForValue().set(paymentLockMerchantKey(merchantUid), userId.toString(), PAYMENT_LOCK_TIMEOUT);
                 } catch (Exception e) {
-                    redisTemplate.delete(lockKey);
+                    deletePaymentLockIfValueMatches(lockKey, lockJson);
                     log.error("결제 락 merchantUid 인덱스 설정 실패, 사용자 락 롤백 - userId: {}, merchantUid: {}", userId, merchantUid, e);
                     return false;
                 }
@@ -230,8 +240,8 @@ public class SessionService {
         String lockKey = PAYMENT_LOCK_PREFIX + userId;
         String lockJson = redisTemplate.opsForValue().get(lockKey);
         String merchantUid = extractMerchantUid(lockJson);
-        Boolean deleted = redisTemplate.delete(lockKey);
-        if (merchantUid != null) {
+        boolean deleted = deletePaymentLockIfValueMatches(lockKey, lockJson);
+        if (deleted && merchantUid != null) {
             redisTemplate.delete(paymentLockMerchantKey(merchantUid));
         }
         log.debug("결제 락 해제 - userId: {}, deleted: {}", userId, deleted);
@@ -258,8 +268,9 @@ public class SessionService {
             String storedMerchantUid = extractMerchantUid(lockJson);
 
             if (merchantUid.equals(storedMerchantUid)) {
-                redisTemplate.delete(lockKey);
-                log.debug("merchantUid로 결제 락 해제 - merchantUid: {}", merchantUid);
+                if (deletePaymentLockIfValueMatches(lockKey, lockJson)) {
+                    log.debug("merchantUid로 결제 락 해제 - merchantUid: {}", merchantUid);
+                }
             }
             redisTemplate.delete(merchantIndexKey);
         } catch (Exception e) {
@@ -269,6 +280,15 @@ public class SessionService {
 
     private String paymentLockMerchantKey(String merchantUid) {
         return PAYMENT_LOCK_MERCHANT_PREFIX + merchantUid;
+    }
+
+    private boolean deletePaymentLockIfValueMatches(String lockKey, String expectedLockJson) {
+        if (expectedLockJson == null) {
+            return false;
+        }
+
+        Long deleted = redisTemplate.execute(DELETE_LOCK_IF_VALUE_MATCHES_SCRIPT, List.of(lockKey), expectedLockJson);
+        return deleted != null && deleted > 0;
     }
 
     private String extractMerchantUid(String lockJson) {
