@@ -361,6 +361,9 @@ public class PaymentService {
         String targetCode = payment.getPaymentTargetType() != null
                 ? payment.getPaymentTargetType().getPaymentTargetCode()
                 : null;
+        if (targetCode == null) {
+            throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
 
         switch (targetCode) {
             case "RESERVATION" -> validateReservationOwner(requestedTargetId, principalUserId);
@@ -388,6 +391,9 @@ public class PaymentService {
         String targetCode = paymentTargetType != null
                 ? paymentTargetType.getPaymentTargetCode()
                 : null;
+        if (targetCode == null) {
+            throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
         Long principalUserId = user.getUserId();
 
         switch (targetCode) {

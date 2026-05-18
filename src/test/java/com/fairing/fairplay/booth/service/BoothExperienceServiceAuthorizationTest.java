@@ -104,6 +104,20 @@ class BoothExperienceServiceAuthorizationTest {
   }
 
   @Test
+  void createBoothExperienceAllowsAdminWithoutBoothOwnership() {
+    Booth booth = booth(10L, 100L, 200L);
+    when(boothRepository.findById(10L)).thenReturn(Optional.of(booth));
+    when(boothExperienceRepository.save(any(BoothExperience.class))).thenAnswer(invocation -> {
+      BoothExperience experience = invocation.getArgument(0);
+      experience.setExperienceId(1L);
+      return experience;
+    });
+
+    assertThat(service.createBoothExperience(10L, request(), 999L, "ADMIN").getExperienceId())
+        .isEqualTo(1L);
+  }
+
+  @Test
   void updateBoothExperienceRejectsBoothManagerFromDifferentBooth() {
     BoothExperience experience = experience(1L, booth(10L, 100L, 200L));
     when(boothExperienceRepository.findById(1L)).thenReturn(Optional.of(experience));
@@ -158,6 +172,21 @@ class BoothExperienceServiceAuthorizationTest {
     updateDto.setStatusCode("READY");
 
     assertThat(service.updateReservationStatus(5L, updateDto, 100L, "EVENT_MANAGER").getReservationId())
+        .isEqualTo(5L);
+  }
+
+  @Test
+  void updateReservationStatusAllowsAdminWithoutBoothOwnership() {
+    BoothExperienceReservation reservation = reservation(5L, experience(1L, booth(10L, 100L, 200L)), "WAITING");
+    BoothExperienceStatusCode ready = status("READY");
+    when(reservationRepository.findById(5L)).thenReturn(Optional.of(reservation));
+    when(statusCodeRepository.findByCode("READY")).thenReturn(Optional.of(ready));
+    when(reservationRepository.save(reservation)).thenReturn(reservation);
+
+    BoothExperienceStatusUpdateDto updateDto = new BoothExperienceStatusUpdateDto();
+    updateDto.setStatusCode("READY");
+
+    assertThat(service.updateReservationStatus(5L, updateDto, 999L, "ADMIN").getReservationId())
         .isEqualTo(5L);
   }
 

@@ -22,7 +22,7 @@ public class BoothQrController {
   private final BoothQrService boothQrService;
 
   @PostMapping
-  @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
+  @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
   public ResponseEntity<BoothEntryResponseDto> boothEntry(
       @RequestBody BoothEntryRequestDto dto,
       @AuthenticationPrincipal CustomUserDetails userDetails) {

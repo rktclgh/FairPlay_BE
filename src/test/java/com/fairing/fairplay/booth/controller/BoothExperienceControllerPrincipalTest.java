@@ -4,12 +4,14 @@ import com.fairing.fairplay.booth.dto.BoothExperienceReservationRequestDto;
 import com.fairing.fairplay.booth.dto.BoothExperienceReservationResponseDto;
 import com.fairing.fairplay.booth.service.BoothExperienceService;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import java.util.Arrays;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -61,5 +63,16 @@ class BoothExperienceControllerPrincipalTest {
     assertThat(method.getParameters())
         .allSatisfy(parameter -> assertThat(parameter.isAnnotationPresent(RequestParam.class)).isFalse());
     assertThat(method.getParameters()[2].isAnnotationPresent(AuthenticationPrincipal.class)).isTrue();
+  }
+
+  @Test
+  void managementPreAuthorizeExpressionsAllowAdmin() {
+    assertThat(Arrays.stream(BoothExperienceController.class.getDeclaredMethods())
+        .map(method -> method.getAnnotation(PreAuthorize.class))
+        .filter(annotation -> annotation != null
+            && annotation.value().contains("EVENT_MANAGER")
+            && annotation.value().contains("BOOTH_MANAGER"))
+        .map(PreAuthorize::value))
+        .allSatisfy(expression -> assertThat(expression).contains("ADMIN"));
   }
 }

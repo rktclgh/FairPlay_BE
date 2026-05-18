@@ -235,6 +235,20 @@ class PaymentServiceAuthorizationTest {
     }
 
     @Test
+    void commonCannotBindPaymentWithNullTargetCodeButDoesNotThrowNullPointerException() {
+        CustomUserDetails common = user(300L, "COMMON");
+        Payment payment = payment("merchant-1", 300L, null, null, null);
+        when(paymentRepository.findByMerchantUid("merchant-1")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.updatePaymentTargetId("merchant-1", 10L, common))
+                .isInstanceOf(AccessDeniedException.class)
+                .isNotInstanceOf(NullPointerException.class);
+
+        assertThat(payment.getTargetId()).isNull();
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
     void savePaymentRejectsForeignReservationTargetBeforeSave() {
         Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
         when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
@@ -305,6 +319,20 @@ class PaymentServiceAuthorizationTest {
 
         assertThatThrownBy(() -> paymentService.savePayment(paymentRequest("AD", 10L), 300L))
                 .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void savePaymentRejectsResolvedNullTargetCodeButDoesNotThrowNullPointerException() {
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("RESERVATION"))
+                .thenReturn(Optional.of(targetType(null)));
+
+        assertThatThrownBy(() -> paymentService.savePayment(paymentRequest("RESERVATION", 10L), 300L))
+                .isInstanceOf(AccessDeniedException.class)
+                .isNotInstanceOf(NullPointerException.class);
 
         verify(paymentRepository, never()).save(any());
     }

@@ -39,6 +39,7 @@ public class BoothExperienceService {
 
   private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
   private static final String ROLE_BOOTH_MANAGER = "BOOTH_MANAGER";
+  private static final String ROLE_ADMIN = "ADMIN";
 
   private final BoothExperienceRepository boothExperienceRepository;
   private final BoothExperienceReservationRepository reservationRepository;
@@ -811,6 +812,10 @@ public class BoothExperienceService {
   }
 
   private void validateBoothManagementAccess(Booth booth, Long userId, String roleCode) {
+    if (ROLE_ADMIN.equals(roleCode)) {
+      return;
+    }
+
     if (ROLE_EVENT_MANAGER.equals(roleCode)) {
       Long managerId = Optional.ofNullable(booth.getEvent())
           .map(Event::getManager)

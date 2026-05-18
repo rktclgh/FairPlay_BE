@@ -133,6 +133,25 @@ class BoothQrServiceAuthorizationTest {
     assertThat(reservation.getExperienceStatusCode().getCode()).isEqualTo("IN_PROGRESS");
   }
 
+  @Test
+  void checkInAllowsAdminToMoveReservationInProgress() {
+    BoothExperienceReservation reservation = givenReadyReservationForManagedBooth();
+    when(reservationRepository.save(reservation)).thenReturn(reservation);
+    when(qrTicketEntryService.processQrEntry(any(QrTicket.class))).thenReturn(
+        CheckResponseDto.builder()
+            .message("입장 완료")
+            .checkInTime(LocalDateTime.of(2026, 5, 18, 12, 0))
+            .build()
+    );
+
+    assertThat(boothQrService.checkIn(request(), 999L, "ADMIN").getMessage())
+        .isEqualTo("입장 완료");
+
+    verify(reservationRepository).save(reservation);
+    verify(qrTicketEntryService).processQrEntry(any(QrTicket.class));
+    assertThat(reservation.getExperienceStatusCode().getCode()).isEqualTo("IN_PROGRESS");
+  }
+
   private BoothExperienceReservation givenReadyReservationForManagedBooth() {
     BoothExperience experience = experience(1L, booth(10L, 100L, 200L));
     BoothExperienceReservation reservation = reservation(5L, experience, "READY");
