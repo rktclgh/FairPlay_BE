@@ -1,0 +1,246 @@
+package com.fairing.fairplay.payment.service;
+
+import com.fairing.fairplay.attendeeform.service.AttendeeFormAttendeeService;
+import com.fairing.fairplay.banner.repository.BannerApplicationRepository;
+import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
+import com.fairing.fairplay.booth.repository.BoothRepository;
+import com.fairing.fairplay.core.email.service.PaymentCompletionEmailService;
+import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.entity.EventDetail;
+import com.fairing.fairplay.event.repository.EventRepository;
+import com.fairing.fairplay.notification.service.NotificationService;
+import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.payment.entity.PaymentStatusCode;
+import com.fairing.fairplay.payment.entity.PaymentTargetType;
+import com.fairing.fairplay.payment.entity.PaymentTypeCode;
+import com.fairing.fairplay.payment.repository.PaymentRepository;
+import com.fairing.fairplay.payment.repository.PaymentStatusCodeRepository;
+import com.fairing.fairplay.payment.repository.PaymentTargetTypeRepository;
+import com.fairing.fairplay.payment.repository.PaymentTypeCodeRepository;
+import com.fairing.fairplay.payment.repository.RefundRepository;
+import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import com.fairing.fairplay.reservation.repository.ReservationStatusCodeRepository;
+import com.fairing.fairplay.reservation.service.ReservationService;
+import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
+import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
+import com.fairing.fairplay.ticket.repository.TicketRepository;
+import com.fairing.fairplay.user.entity.EventAdmin;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class PaymentServiceAuthorizationTest {
+
+    @Mock
+    private PaymentRepository paymentRepository;
+    @Mock
+    private RefundRepository refundRepository;
+    @Mock
+    private EventRepository eventRepository;
+    @Mock
+    private ReservationRepository reservationRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private PaymentStatusCodeRepository paymentStatusCodeRepository;
+    @Mock
+    private PaymentTypeCodeRepository paymentTypeCodeRepository;
+    @Mock
+    private PaymentTargetTypeRepository paymentTargetTypeRepository;
+    @Mock
+    private ReservationStatusCodeRepository reservationStatusCodeRepository;
+    @Mock
+    private TicketRepository ticketRepository;
+    @Mock
+    private EventScheduleRepository eventScheduleRepository;
+    @Mock
+    private ScheduleTicketRepository scheduleTicketRepository;
+    @Mock
+    private NotificationService notificationService;
+    @Mock
+    private PaymentCompletionEmailService paymentCompletionEmailService;
+    @Mock
+    private ReservationService reservationService;
+    @Mock
+    private BoothApplicationRepository boothApplicationRepository;
+    @Mock
+    private BoothRepository boothRepository;
+    @Mock
+    private BannerApplicationRepository bannerApplicationRepository;
+    @Mock
+    private AttendeeFormAttendeeService attendeeFormAttendeeService;
+
+    private PaymentService paymentService;
+
+    @BeforeEach
+    void setUp() {
+        paymentService = new PaymentService(
+                paymentRepository,
+                refundRepository,
+                eventRepository,
+                reservationRepository,
+                userRepository,
+                paymentStatusCodeRepository,
+                paymentTypeCodeRepository,
+                paymentTargetTypeRepository,
+                reservationStatusCodeRepository,
+                ticketRepository,
+                eventScheduleRepository,
+                scheduleTicketRepository,
+                notificationService,
+                paymentCompletionEmailService,
+                reservationService,
+                boothApplicationRepository,
+                boothRepository,
+                bannerApplicationRepository,
+                attendeeFormAttendeeService
+        );
+    }
+
+    @Test
+    void commonOwnerCanBindNullTargetAndRepeatSameTarget() {
+        CustomUserDetails owner = user(300L, "COMMON");
+        Payment nullTargetPayment = payment("merchant-1", 300L, null, null);
+        when(paymentRepository.findByMerchantUid("merchant-1")).thenReturn(Optional.of(nullTargetPayment));
+
+        paymentService.updatePaymentTargetId("merchant-1", 10L, owner);
+
+        assertThat(nullTargetPayment.getTargetId()).isEqualTo(10L);
+        verify(paymentRepository).save(nullTargetPayment);
+
+        Payment sameTargetPayment = payment("merchant-2", 300L, 10L, null);
+        when(paymentRepository.findByMerchantUid("merchant-2")).thenReturn(Optional.of(sameTargetPayment));
+
+        assertThatCode(() -> paymentService.updatePaymentTargetId("merchant-2", 10L, owner))
+                .doesNotThrowAnyException();
+        assertThat(sameTargetPayment.getTargetId()).isEqualTo(10L);
+    }
+
+    @Test
+    void commonCannotBindOtherUserPayment() {
+        CustomUserDetails common = user(300L, "COMMON");
+        Payment otherPayment = payment("merchant-1", 301L, null, null);
+        when(paymentRepository.findByMerchantUid("merchant-1")).thenReturn(Optional.of(otherPayment));
+
+        assertThatThrownBy(() -> paymentService.updatePaymentTargetId("merchant-1", 10L, common))
+                .isInstanceOf(AccessDeniedException.class);
+
+        assertThat(otherPayment.getTargetId()).isNull();
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void nonNullDifferentTargetIdIsRejectedBeforeSave() {
+        CustomUserDetails admin = user(1L, "ADMIN");
+        Payment payment = payment("merchant-1", 300L, 10L, null);
+        lenient().when(paymentRepository.findByMerchantUid("merchant-1")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.updatePaymentTargetId("merchant-1", 20L, admin))
+                .isInstanceOf(AccessDeniedException.class);
+
+        assertThat(payment.getTargetId()).isEqualTo(10L);
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void eventManagerCannotManageListForOtherEvent() {
+        CustomUserDetails manager = user(100L, "EVENT_MANAGER");
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event(1L, 999L)));
+
+        assertThatThrownBy(() -> paymentService.getAllPayments(1L, manager))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).findByEvent_EventId(any());
+    }
+
+    @Test
+    void eventManagerCanListOwnEvent() {
+        CustomUserDetails manager = user(100L, "EVENT_MANAGER");
+        Event event = event(1L, 100L);
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(paymentRepository.findByEvent_EventId(1L)).thenReturn(List.of(payment("merchant-1", 300L, 10L, event)));
+
+        assertThat(paymentService.getAllPayments(1L, manager)).hasSize(1);
+    }
+
+    @Test
+    void commonCannotCallManagementList() {
+        assertThatThrownBy(() -> paymentService.getAllPayments(null, user(300L, "COMMON")))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).findAll();
+        verify(paymentRepository, never()).findByEvent_EventId(any());
+    }
+
+    private Payment payment(String merchantUid, Long userId, Long targetId, Event event) {
+        return Payment.builder()
+                .paymentId(1L)
+                .event(event)
+                .user(new Users(userId))
+                .paymentTargetType(PaymentTargetType.builder()
+                        .paymentTargetCode("RESERVATION")
+                        .paymentTargetName("예약")
+                        .build())
+                .targetId(targetId)
+                .merchantUid(merchantUid)
+                .quantity(1)
+                .price(BigDecimal.valueOf(100))
+                .amount(BigDecimal.valueOf(100))
+                .paymentTypeCode(PaymentTypeCode.builder()
+                        .paymentTypeCodeId(1)
+                        .code("CARD")
+                        .name("카드")
+                        .build())
+                .paymentStatusCode(PaymentStatusCode.builder()
+                        .paymentStatusCodeId(1)
+                        .code("COMPLETED")
+                        .name("완료")
+                        .build())
+                .build();
+    }
+
+    private Event event(Long eventId, Long managerUserId) {
+        EventAdmin eventAdmin = new EventAdmin();
+        eventAdmin.setUserId(managerUserId);
+        eventAdmin.setUser(new Users(managerUserId));
+
+        Event event = new Event();
+        event.setEventId(eventId);
+        event.setTitleKr("행사");
+        event.setTitleEng("Event");
+        event.setManager(eventAdmin);
+        EventDetail detail = new EventDetail();
+        detail.setStartDate(java.time.LocalDate.now());
+        detail.setEndDate(java.time.LocalDate.now().plusDays(1));
+        event.setEventDetail(detail);
+        return event;
+    }
+
+    private CustomUserDetails user(Long userId, String roleCode) {
+        CustomUserDetails userDetails = mock(CustomUserDetails.class);
+        lenient().when(userDetails.getUserId()).thenReturn(userId);
+        lenient().when(userDetails.getRoleCode()).thenReturn(roleCode);
+        return userDetails;
+    }
+}

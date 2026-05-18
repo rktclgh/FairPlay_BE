@@ -40,6 +40,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +53,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 
 @Service
@@ -279,10 +281,14 @@ public class PaymentService {
             if (eventId == null) {
                 throw new IllegalArgumentException("행사 관리자는 eventId가 필요합니다.");
             }
-            // TODO: 사용자가 관리하는 이벤트인지 검증 필요
+            Event event = eventRepository.findById(eventId)
+                    .orElseThrow(() -> new IllegalArgumentException("이벤트를 찾을 수 없습니다."));
+            if (!isManagedBy(event, userId)) {
+                throw new AccessDeniedException("담당 행사 결제만 조회할 수 있습니다.");
+            }
             payments = paymentRepository.findByEvent_EventId(eventId);
         } else {
-            throw new IllegalArgumentException("결제 전체 조회 권한이 없습니다.");
+            throw new AccessDeniedException("결제 전체 조회 권한이 없습니다.");
         }
 
         return PaymentResponseDto.fromEntityList(payments);
@@ -309,12 +315,46 @@ public class PaymentService {
 
     // 결제의 targetId 업데이트
     @Transactional
-    public void updatePaymentTargetId(String merchantUid, Long targetId) {
+    public void updatePaymentTargetId(String merchantUid, Long targetId, CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new AccessDeniedException("인증되지 않은 사용자입니다.");
+        }
+
         Payment payment = paymentRepository.findByMerchantUid(merchantUid)
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: " + merchantUid));
 
+        validatePaymentTargetUpdatePermission(payment, targetId, userDetails);
+
         payment.setTargetId(targetId);
         paymentRepository.save(payment);
+    }
+
+    private void validatePaymentTargetUpdatePermission(Payment payment, Long requestedTargetId, CustomUserDetails userDetails) {
+        Long currentTargetId = payment.getTargetId();
+        if (currentTargetId != null && !Objects.equals(currentTargetId, requestedTargetId)) {
+            throw new AccessDeniedException("이미 다른 대상에 연결된 결제입니다.");
+        }
+
+        String roleCode = userDetails.getRoleCode();
+        if ("ADMIN".equals(roleCode)) {
+            return;
+        }
+
+        if ("COMMON".equals(roleCode)) {
+            Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
+            if (Objects.equals(paymentUserId, userDetails.getUserId())) {
+                return;
+            }
+            throw new AccessDeniedException("본인 결제만 대상 정보를 수정할 수 있습니다.");
+        }
+
+        throw new AccessDeniedException("결제 대상 정보 수정 권한이 없습니다.");
+    }
+
+    private boolean isManagedBy(Event event, Long managerUserId) {
+        return event != null
+                && event.getManager() != null
+                && Objects.equals(event.getManager().getUserId(), managerUserId);
     }
 
     /**
