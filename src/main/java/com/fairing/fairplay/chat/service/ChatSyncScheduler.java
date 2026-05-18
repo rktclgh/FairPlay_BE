@@ -17,14 +17,6 @@ public class ChatSyncScheduler {
     private final UserPresenceService userPresenceService;
     
     /**
-     * 2분마다 만료된 온라인 상태 정리
-     */
-    @Scheduled(fixedRate = 120000) // 2분
-    public void cleanupExpiredPresence() {
-        userPresenceService.cleanupExpiredPresence();
-    }
-    
-    /**
      * 5분마다 캐시 정리 및 온라인 사용자 통계
      */
     @Scheduled(fixedRate = 300000) // 5분
