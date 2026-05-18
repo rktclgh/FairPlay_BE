@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ChatSyncScheduler {
     
-    private final ChatCacheService chatCacheService;
     private final UserPresenceService userPresenceService;
     
     /**
