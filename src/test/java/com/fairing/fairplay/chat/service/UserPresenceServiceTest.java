@@ -10,6 +10,7 @@ import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.SetOperations;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,9 +43,29 @@ class UserPresenceServiceTest {
 
         userPresenceService.cleanupExpiredPresence();
 
-        verify(setOperations).scan(any(String.class), any(ScanOptions.class));
+        verify(setOperations).scan(eq("users:online"), any(ScanOptions.class));
         verify(setOperations, never()).members("users:online");
         verify(setOperations, never()).remove("users:online", "10");
+        verify(setOperations).remove("users:online", "invalid");
+        verify(setOperations).remove("users:online", "20");
+    }
+
+    @Test
+    void cleanupExpiredPresenceContinuesWhenOneEntryFails() {
+        UserPresenceService userPresenceService = new UserPresenceService(redisTemplate);
+
+        when(redisTemplate.opsForSet()).thenReturn(setOperations);
+        when(setOperations.scan(any(String.class), any(ScanOptions.class))).thenReturn(cursor);
+        when(cursor.hasNext()).thenReturn(true, true, false);
+        when(cursor.next())
+                .thenReturn("invalid")
+                .thenReturn("20");
+        when(setOperations.remove("users:online", "invalid"))
+                .thenThrow(new RuntimeException("redis remove failed"));
+        when(redisTemplate.hasKey("user:online:20")).thenReturn(false);
+
+        userPresenceService.cleanupExpiredPresence();
+
         verify(setOperations).remove("users:online", "invalid");
         verify(setOperations).remove("users:online", "20");
     }

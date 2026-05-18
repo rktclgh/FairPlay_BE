@@ -168,8 +168,13 @@ public class UserPresenceService {
             try (Cursor<String> cursor = redisTemplate.opsForSet().scan(ONLINE_USERS_SET, scanOptions)) {
                 while (cursor.hasNext()) {
                     String userIdStr = cursor.next();
-                    if (removeIfExpiredOrInvalid(userIdStr)) {
-                        cleanedCount++;
+                    try {
+                        if (removeIfExpiredOrInvalid(userIdStr)) {
+                            cleanedCount++;
+                        }
+                    } catch (Exception ex) {
+                        log.warn("온라인 사용자 정리 중 항목 처리 실패: userIdStr={}, error={}",
+                                userIdStr, ex.getMessage());
                     }
                 }
             }
