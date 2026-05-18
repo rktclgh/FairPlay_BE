@@ -104,7 +104,7 @@ public class LocalFileService {
             String fileName = key != null && key.contains("/") ? 
                 key.substring(key.lastIndexOf('/') + 1) : 
                 (key != null ? key : "download");
-            response.setHeader("Content-Disposition", "attachment; filename=\"" + URLEncoder.encode(fileName, "UTF-8") + "\"");
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + URLEncoder.encode(fileName, StandardCharsets.UTF_8) + "\"");
 
             try (InputStream inputStream = openFileForRead(key)) {
                 IOUtils.copy(inputStream, response.getOutputStream());
@@ -306,32 +306,52 @@ public class LocalFileService {
         Path currentPath = uploadRootPath();
         boolean closeCurrent = false;
 
-        for (int i = 0; i < segments.size() - 1; i++) {
-            Path segment = segments.get(i);
-            BasicFileAttributes attrs = readAttributes(current, segment);
-            if (attrs == null) {
-                if (!createDirectories) {
-                    throw new NoSuchFileException(segment.toString());
+        try {
+            for (int i = 0; i < segments.size() - 1; i++) {
+                Path segment = segments.get(i);
+                BasicFileAttributes attrs = readAttributes(current, segment);
+                if (attrs == null) {
+                    if (!createDirectories) {
+                        throw new NoSuchFileException(segment.toString());
+                    }
+                    try {
+                        Files.createDirectory(currentPath.resolve(segment));
+                    } catch (java.nio.file.FileAlreadyExistsException ignored) {
+                        // Created concurrently; validate and open it below through the secure stream.
+                    }
+                    attrs = readAttributes(current, segment);
                 }
-                try {
-                    Files.createDirectory(currentPath.resolve(segment));
-                } catch (java.nio.file.FileAlreadyExistsException ignored) {
-                    // Created concurrently; validate and open it below through the secure stream.
-                }
-                attrs = readAttributes(current, segment);
-            }
-            rejectUnsafeDirectory(attrs);
+                rejectUnsafeDirectory(attrs);
 
-            SecureDirectoryStream<Path> next = current.newDirectoryStream(segment, LinkOption.NOFOLLOW_LINKS);
+                SecureDirectoryStream<Path> next = current.newDirectoryStream(segment, LinkOption.NOFOLLOW_LINKS);
+                if (closeCurrent) {
+                    try {
+                        current.close();
+                    } catch (IOException e) {
+                        try {
+                            next.close();
+                        } catch (IOException suppressed) {
+                            e.addSuppressed(suppressed);
+                        }
+                        throw e;
+                    }
+                }
+                current = next;
+                closeCurrent = true;
+                currentPath = currentPath.resolve(segment);
+            }
+
+            return new SecurePath(current, segments.get(segments.size() - 1), closeCurrent);
+        } catch (IOException | RuntimeException e) {
             if (closeCurrent) {
-                current.close();
+                try {
+                    current.close();
+                } catch (IOException suppressed) {
+                    e.addSuppressed(suppressed);
+                }
             }
-            current = next;
-            closeCurrent = true;
-            currentPath = currentPath.resolve(segment);
+            throw e;
         }
-
-        return new SecurePath(current, segments.get(segments.size() - 1), closeCurrent);
     }
 
     private BasicFileAttributes readAttributes(SecureDirectoryStream<Path> directory, Path name) throws IOException {
