@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,19 +30,24 @@ public class BoothExperienceController {
     // 1. 부스 체험 등록 (부스 담당자)
     @Operation(summary = "부스 체험 등록", description = "부스 담당자가 새로운 체험을 등록합니다.")
     @PostMapping("/booths/{boothId}")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("createBoothExperience")
     public ResponseEntity<BoothExperienceResponseDto> createBoothExperience(
             @Parameter(description = "부스 ID") @PathVariable Long boothId,
-            @RequestBody BoothExperienceRequestDto requestDto) {
+            @RequestBody BoothExperienceRequestDto requestDto,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        log.info("부스 체험 등록 요청 - 부스 ID: {}", boothId);
-        BoothExperienceResponseDto response = boothExperienceService.createBoothExperience(boothId, requestDto);
+        log.info("부스 체험 등록 요청 - 부스 ID: {}, 사용자 ID: {}, 권한: {}",
+                boothId, userDetails.getUserId(), userDetails.getRoleCode());
+        BoothExperienceResponseDto response = boothExperienceService.createBoothExperience(
+                boothId, requestDto, userDetails.getUserId(), userDetails.getRoleCode());
         return ResponseEntity.ok(response);
     }
 
     // 2. 부스 체험 목록 조회 (권한 기반)
     @Operation(summary = "부스 체험 목록 조회", description = "사용자 권한에 따라 관리 가능한 부스 체험 목록을 조회합니다.")
     @GetMapping("/booths/{boothId}")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("getBoothExperiences")
     public ResponseEntity<List<BoothExperienceResponseDto>> getBoothExperiences(
             @Parameter(description = "부스 ID") @PathVariable Long boothId,
@@ -90,25 +96,33 @@ public class BoothExperienceController {
     // 4-1. 부스 체험 수정 (부스 담당자)
     @Operation(summary = "부스 체험 수정", description = "부스 담당자가 기존 체험을 수정합니다.")
     @PutMapping("/{experienceId}")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("updateBoothExperience")
     public ResponseEntity<BoothExperienceResponseDto> updateBoothExperience(
             @Parameter(description = "체험 ID") @PathVariable Long experienceId,
-            @RequestBody BoothExperienceRequestDto requestDto) {
+            @RequestBody BoothExperienceRequestDto requestDto,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        log.info("부스 체험 수정 요청 - 체험 ID: {}", experienceId);
-        BoothExperienceResponseDto response = boothExperienceService.updateBoothExperience(experienceId, requestDto);
+        log.info("부스 체험 수정 요청 - 체험 ID: {}, 사용자 ID: {}, 권한: {}",
+                experienceId, userDetails.getUserId(), userDetails.getRoleCode());
+        BoothExperienceResponseDto response = boothExperienceService.updateBoothExperience(
+                experienceId, requestDto, userDetails.getUserId(), userDetails.getRoleCode());
         return ResponseEntity.ok(response);
     }
 
     // 4-2. 부스 체험 삭제 (부스 담당자)
     @Operation(summary = "부스 체험 삭제", description = "부스 담당자가 체험을 삭제합니다.")
     @DeleteMapping("/{experienceId}")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("deleteBoothExperience")
     public ResponseEntity<Void> deleteBoothExperience(
-            @Parameter(description = "체험 ID") @PathVariable Long experienceId) {
+            @Parameter(description = "체험 ID") @PathVariable Long experienceId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        log.info("부스 체험 삭제 요청 - 체험 ID: {}", experienceId);
-        boothExperienceService.deleteBoothExperience(experienceId);
+        log.info("부스 체험 삭제 요청 - 체험 ID: {}, 사용자 ID: {}, 권한: {}",
+                experienceId, userDetails.getUserId(), userDetails.getRoleCode());
+        boothExperienceService.deleteBoothExperience(
+                experienceId, userDetails.getUserId(), userDetails.getRoleCode());
         return ResponseEntity.ok().build();
     }
 
@@ -129,13 +143,16 @@ public class BoothExperienceController {
     // 6. 부스 체험 예약자 목록 조회 (부스 담당자용)
     @Operation(summary = "예약자 목록 조회", description = "특정 체험의 모든 예약자 목록을 조회합니다.")
     @GetMapping("/{experienceId}/reservations")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("getExperienceReservations")
     public ResponseEntity<List<BoothExperienceReservationResponseDto>> getExperienceReservations(
-            @Parameter(description = "체험 ID") @PathVariable Long experienceId) {
+            @Parameter(description = "체험 ID") @PathVariable Long experienceId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        log.info("예약자 목록 조회 - 체험 ID: {}", experienceId);
+        log.info("예약자 목록 조회 - 체험 ID: {}, 사용자 ID: {}, 권한: {}",
+                experienceId, userDetails.getUserId(), userDetails.getRoleCode());
         List<BoothExperienceReservationResponseDto> reservations = boothExperienceService
-                .getExperienceReservations(experienceId);
+                .getExperienceReservations(experienceId, userDetails.getUserId(), userDetails.getRoleCode());
         return ResponseEntity.ok(reservations);
     }
 
@@ -156,14 +173,17 @@ public class BoothExperienceController {
     // 8. 예약 상태 변경 (부스 담당자)
     @Operation(summary = "예약 상태 변경", description = "부스 담당자가 예약의 상태를 변경합니다.")
     @PutMapping("/reservations/{reservationId}/status")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("updateReservationStatus")
     public ResponseEntity<BoothExperienceReservationResponseDto> updateReservationStatus(
             @Parameter(description = "예약 ID") @PathVariable Long reservationId,
-            @RequestBody BoothExperienceStatusUpdateDto updateDto) {
+            @RequestBody BoothExperienceStatusUpdateDto updateDto,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        log.info("예약 상태 변경 - 예약 ID: {}, 상태: {}", reservationId, updateDto.getStatusCode());
+        log.info("예약 상태 변경 - 예약 ID: {}, 상태: {}, 사용자 ID: {}, 권한: {}",
+                reservationId, updateDto.getStatusCode(), userDetails.getUserId(), userDetails.getRoleCode());
         BoothExperienceReservationResponseDto response = boothExperienceService.updateReservationStatus(
-                reservationId, updateDto);
+                reservationId, updateDto, userDetails.getUserId(), userDetails.getRoleCode());
         return ResponseEntity.ok(response);
     }
 
@@ -205,6 +225,7 @@ public class BoothExperienceController {
     // 11. 디버그용 - 모든 체험 조회 (예약 활성화 여부 포함)
     @Operation(summary = "디버그용 모든 체험 조회", description = "예약 활성화 여부와 관계없이 모든 체험을 조회합니다.")
     @GetMapping("/debug/all")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<List<BoothExperienceResponseDto>> getAllExperiencesForDebug() {
         log.info("디버그용 모든 체험 조회");
         List<BoothExperienceResponseDto> experiences = boothExperienceService.getAvailableExperiences(
@@ -215,6 +236,7 @@ public class BoothExperienceController {
     // 12. 권한별 관리 가능한 부스 목록 조회 (체험 등록용)
     @Operation(summary = "관리 가능한 부스 목록 조회", description = "사용자 권한에 따라 관리 가능한 부스 목록을 조회합니다.")
     @GetMapping("/manageable-booths")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     @FunctionAuth("getManageableBooths")
     public ResponseEntity<List<BoothResponseDto>> getManageableBooths(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -230,6 +252,7 @@ public class BoothExperienceController {
     // 13. 권한별 관리 가능한 체험 목록 조회 (체험 관리용)
     @Operation(summary = "관리 가능한 체험 목록 조회", description = "사용자 권한에 따라 관리 가능한 모든 체험 목록을 조회합니다.")
     @GetMapping("/manageable-experiences")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     public ResponseEntity<List<BoothExperienceResponseDto>> getManageableExperiences(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
@@ -244,6 +267,7 @@ public class BoothExperienceController {
     // 14. 예약자 관리용 목록 조회 (필터링 지원)
     @Operation(summary = "예약자 관리 목록 조회", description = "행사/부스 담당자가 예약자를 관리하기 위한 목록을 조회합니다.")
     @GetMapping("/reservations/management")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     // @FunctionAuth("getReservationsForManagement") // 임시로 권한 체크 제거
     public ResponseEntity<Page<ReservationManagementResponseDto>> getReservationsForManagement(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -281,18 +305,23 @@ public class BoothExperienceController {
     // 15. 부스 체험 현황 요약 조회
     @Operation(summary = "부스 체험 현황 요약", description = "특정 체험의 현재 상황을 요약해서 조회합니다.")
     @GetMapping("/{experienceId}/summary")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     // @FunctionAuth("getExperienceSummary") // 임시로 권한 체크 제거
     public ResponseEntity<BoothExperienceSummaryDto> getExperienceSummary(
-            @Parameter(description = "체험 ID") @PathVariable Long experienceId) {
+            @Parameter(description = "체험 ID") @PathVariable Long experienceId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        log.info("부스 체험 현황 요약 조회 - 체험 ID: {}", experienceId);
-        BoothExperienceSummaryDto summary = boothExperienceService.getExperienceSummary(experienceId);
+        log.info("부스 체험 현황 요약 조회 - 체험 ID: {}, 사용자 ID: {}, 권한: {}",
+                experienceId, userDetails.getUserId(), userDetails.getRoleCode());
+        BoothExperienceSummaryDto summary = boothExperienceService.getExperienceSummary(
+                experienceId, userDetails.getUserId(), userDetails.getRoleCode());
         return ResponseEntity.ok(summary);
     }
 
     // 16. 예약 관리용 부스 목록 조회
     @Operation(summary = "예약 관리용 부스 목록", description = "예약자 관리 화면에서 사용할 부스 목록을 조회합니다.")
     @GetMapping("/manageable-booths-for-reservation")
+    @PreAuthorize("hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
     // @FunctionAuth("getManageableBoothsForReservation") // 임시로 권한 체크 제거
     public ResponseEntity<List<BoothResponseDto>> getManageableBoothsForReservation(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
