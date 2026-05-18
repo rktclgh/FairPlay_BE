@@ -16,6 +16,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,6 +51,21 @@ class SessionServicePaymentLockTest {
         assertThat(locked).isTrue();
         verify(valueOperations).setIfAbsent(eq("payment_lock:42"), anyString(), eq(PAYMENT_LOCK_TIMEOUT));
         verify(valueOperations).set("payment_lock_merchant:merchant-42", "42", PAYMENT_LOCK_TIMEOUT);
+    }
+
+    @Test
+    void setPaymentLockRollsBackUserLockWhenMerchantIndexWriteFailsWithoutScanningKeys() {
+        when(valueOperations.get("payment_lock:42")).thenReturn(null);
+        when(valueOperations.setIfAbsent(eq("payment_lock:42"), anyString(), eq(PAYMENT_LOCK_TIMEOUT)))
+                .thenReturn(true);
+        doThrow(new IllegalStateException("redis write failed"))
+                .when(valueOperations).set("payment_lock_merchant:merchant-42", "42", PAYMENT_LOCK_TIMEOUT);
+
+        boolean locked = sessionService.setPaymentLock(42L, "merchant-42");
+
+        assertThat(locked).isFalse();
+        verify(redisTemplate).delete("payment_lock:42");
+        verify(redisTemplate, never()).keys(anyString());
     }
 
     @Test

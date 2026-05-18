@@ -161,7 +161,13 @@ public class SessionService {
             Boolean success = redisTemplate.opsForValue().setIfAbsent(lockKey, lockJson, PAYMENT_LOCK_TIMEOUT);
             
             if (Boolean.TRUE.equals(success)) {
-                redisTemplate.opsForValue().set(paymentLockMerchantKey(merchantUid), userId.toString(), PAYMENT_LOCK_TIMEOUT);
+                try {
+                    redisTemplate.opsForValue().set(paymentLockMerchantKey(merchantUid), userId.toString(), PAYMENT_LOCK_TIMEOUT);
+                } catch (Exception e) {
+                    redisTemplate.delete(lockKey);
+                    log.error("결제 락 merchantUid 인덱스 설정 실패, 사용자 락 롤백 - userId: {}, merchantUid: {}", userId, merchantUid, e);
+                    return false;
+                }
                 log.debug("결제 락 설정 성공 - userId: {}, merchantUid: {}", userId, merchantUid);
                 return true;
             } else {
