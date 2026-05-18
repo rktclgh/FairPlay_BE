@@ -2,7 +2,9 @@ package com.fairing.fairplay.chat.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -28,6 +30,7 @@ public class UserPresenceService {
     
     // 온라인 상태 유지 시간 (5분)
     private static final Duration ONLINE_DURATION = Duration.ofMinutes(5);
+    private static final int ONLINE_USERS_SCAN_COUNT = 500;
     
     /**
      * 사용자를 온라인 상태로 설정
@@ -156,29 +159,42 @@ public class UserPresenceService {
      */
     public void cleanupExpiredPresence() {
         try {
-            Set<String> onlineUsers = getOnlineUserIds();
             int cleanedCount = 0;
-            
-            for (String userIdStr : onlineUsers) {
-                try {
-                    Long userId = Long.parseLong(userIdStr);
-                    if (!isUserOnline(userId)) {
-                        redisTemplate.opsForSet().remove(ONLINE_USERS_SET, userIdStr);
+
+            ScanOptions scanOptions = ScanOptions.scanOptions()
+                    .count(ONLINE_USERS_SCAN_COUNT)
+                    .build();
+
+            try (Cursor<String> cursor = redisTemplate.opsForSet().scan(ONLINE_USERS_SET, scanOptions)) {
+                while (cursor.hasNext()) {
+                    String userIdStr = cursor.next();
+                    if (removeIfExpiredOrInvalid(userIdStr)) {
                         cleanedCount++;
                     }
-                } catch (NumberFormatException e) {
-                    // 잘못된 형식의 사용자 ID 제거
-                    redisTemplate.opsForSet().remove(ONLINE_USERS_SET, userIdStr);
-                    cleanedCount++;
                 }
             }
-            
+
             if (cleanedCount > 0) {
                 log.info("만료된 온라인 상태 정리 완료: {} 개 사용자", cleanedCount);
             }
         } catch (Exception e) {
             log.error("만료된 온라인 상태 정리 실패: error={}", e.getMessage());
         }
+    }
+
+    private boolean removeIfExpiredOrInvalid(String userIdStr) {
+        try {
+            Long userId = Long.parseLong(userIdStr);
+            if (!isUserOnline(userId)) {
+                redisTemplate.opsForSet().remove(ONLINE_USERS_SET, userIdStr);
+                return true;
+            }
+        } catch (NumberFormatException e) {
+            redisTemplate.opsForSet().remove(ONLINE_USERS_SET, userIdStr);
+            return true;
+        }
+
+        return false;
     }
     
     /**
