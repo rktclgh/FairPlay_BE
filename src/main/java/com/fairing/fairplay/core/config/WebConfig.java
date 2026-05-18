@@ -1,10 +1,16 @@
 package com.fairing.fairplay.core.config;
 
+import com.fairing.fairplay.core.util.TempUploadKeyPolicy;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -76,7 +82,17 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/uploads/**")
             .addResourceLocations("file:" + uploadPath + "/")
             .setCachePeriod(3600) // 1시간 캐시
-            .resourceChain(false); // 캐시 체인 비활성화로 실시간 파일 변경 반영
+            .resourceChain(true)
+            .addResolver(new PathResourceResolver() {
+                @Override
+                protected Resource getResource(String resourcePath, Resource location) throws IOException {
+                    if (isBlockedUploadResourcePath(resourcePath)) {
+                        return null;
+                    }
+
+                    return super.getResource(resourcePath, location);
+                }
+            });
         
         // SPA를 위한 정적 리소스 핸들링
         registry.addResourceHandler("/**")
@@ -104,8 +120,32 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(new HandlerInterceptor() {
+            @Override
+            public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
+                String path = request.getRequestURI();
+                String uploadResourcePath = path.startsWith("/uploads/")
+                        ? path.substring("/uploads/".length())
+                        : path;
+
+                if (isBlockedUploadResourcePath(uploadResourcePath)) {
+                    response.sendError(HttpStatus.NOT_FOUND.value());
+                    return false;
+                }
+
+                return true;
+            }
+        }).addPathPatterns("/uploads/**");
+    }
+
+    @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         // 루트 경로를 index.html로 포워딩
         registry.addViewController("/").setViewName("forward:/index.html");
+    }
+
+    private boolean isBlockedUploadResourcePath(String resourcePath) {
+        return TempUploadKeyPolicy.isBlockedPublicUploadKey(resourcePath);
     }
 }
