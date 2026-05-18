@@ -4,6 +4,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.concurrent.ThreadPoolExecutor;
+
 /**
  * 비동기 처리를 위한 ThreadPool 설정
  * RAG 임베딩 병렬 처리에 사용
@@ -43,6 +45,21 @@ public class AsyncConfig {
         // 초기화
         executor.initialize();
         
+        return executor;
+    }
+
+    @Bean(name = "aiChatTaskExecutor")
+    public ThreadPoolTaskExecutor aiChatTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("ai-chat-response-");
+        executor.setBeanName("aiChatTaskExecutor");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(20);
+        executor.initialize();
         return executor;
     }
 }
