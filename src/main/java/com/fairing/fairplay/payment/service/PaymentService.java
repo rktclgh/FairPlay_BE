@@ -93,6 +93,7 @@ public class PaymentService {
     private final AttendeeFormAttendeeService attendeeFormAttendeeService;
 
     private final IamportPaymentVerifier iamportPaymentVerifier;
+    private final ReservationPaymentIntentStore reservationPaymentIntentStore;
 
     // 결제 요청 정보 저장 (예약/부스/광고 통합)
     @Transactional
@@ -122,15 +123,17 @@ public class PaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 대상 타입입니다: " + paymentRequestDto.getPaymentTargetType()));
         validatePaymentTargetCreationPermission(paymentTargetType, paymentRequestDto.getTargetId(), user);
 
-        // 결제 방법
-        PaymentTypeCode paymentTypeCode = paymentTypeCodeRepository.getReferenceByCode("CARD");
-        // 결제 상태
-        PaymentStatusCode paymentStatusCode = paymentStatusCodeRepository.getReferenceByCode("PENDING");
-
         // merchantUid는 외부에서 제공되거나 자체 생성
         String merchantUid = paymentRequestDto.getMerchantUid() != null
                 ? paymentRequestDto.getMerchantUid()
                 : generateMerchantUid(paymentRequestDto.getPaymentTargetType());
+        ReservationPaymentIntent reservationIntent = validateReservationPaymentIntentRequest(
+                paymentRequestDto, paymentTargetType, event, userId, merchantUid);
+
+        // 결제 방법
+        PaymentTypeCode paymentTypeCode = paymentTypeCodeRepository.getReferenceByCode("CARD");
+        // 결제 상태
+        PaymentStatusCode paymentStatusCode = paymentStatusCodeRepository.getReferenceByCode("PENDING");
 
         // 결제 후 메인 데이터 생성
 
@@ -141,8 +144,12 @@ public class PaymentService {
                 .targetId(paymentRequestDto.getTargetId()) // DTO에서 제공된 경우에만 설정
                 .merchantUid(merchantUid)
                 .quantity(paymentRequestDto.getQuantity())
-                .price(paymentRequestDto.getPrice())
-                .amount(paymentRequestDto.getPrice().multiply(new BigDecimal(paymentRequestDto.getQuantity())))
+                .price(reservationIntent != null
+                        ? unitPriceFrom(reservationIntent)
+                        : paymentRequestDto.getPrice())
+                .amount(reservationIntent != null
+                        ? reservationIntent.amount()
+                        : paymentRequestDto.getPrice().multiply(new BigDecimal(paymentRequestDto.getQuantity())))
                 .pgProvider(paymentRequestDto.getPgProvider())
                 .paymentTypeCode(paymentTypeCode)
                 .paymentStatusCode(paymentStatusCode) // 초기 상태: PENDING
@@ -150,6 +157,9 @@ public class PaymentService {
                 .build();
 
         Payment saved = paymentRepository.save(payment);
+        if (reservationIntent != null) {
+            reservationPaymentIntentStore.save(reservationIntent);
+        }
         return PaymentResponseDto.fromEntity(saved);
     }
 
@@ -247,8 +257,9 @@ public class PaymentService {
             throw new IllegalStateException("이미 사용된 결제 ID입니다: " + paymentRequestDto.getImpUid());
         }
 
+        ReservationPaymentIntent reservationIntent = validateReservationCompletionRequest(
+                payment, paymentRequestDto, userDetails);
         validatePaymentWithIamport(paymentRequestDto.getImpUid(), payment);
-        validateReservationCompletionRequest(payment, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
 
         PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
                 .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
@@ -261,7 +272,13 @@ public class PaymentService {
 
         System.out.println("🔵 [PaymentService] completePayment - 받은 scheduleId: " + paymentRequestDto.getScheduleId() + 
                 ", ticketId: " + paymentRequestDto.getTicketId());
-        processPaymentCompletionActions(savedPayment, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
+        Long completionScheduleId = reservationIntent != null ? reservationIntent.scheduleId() : paymentRequestDto.getScheduleId();
+        Long completionTicketId = reservationIntent != null ? reservationIntent.ticketId() : paymentRequestDto.getTicketId();
+        processPaymentCompletionActions(savedPayment, completionScheduleId, completionTicketId);
+
+        if (reservationIntent != null) {
+            reservationPaymentIntentStore.delete(payment.getMerchantUid(), reservationIntent.userId());
+        }
 
         Payment updatedPayment = paymentRepository.findById(savedPayment.getPaymentId())
                 .orElse(savedPayment);
@@ -785,21 +802,113 @@ public class PaymentService {
         }
     }
 
-    private void validateReservationCompletionRequest(Payment payment, Long scheduleId, Long ticketId) {
+    private ReservationPaymentIntent validateReservationPaymentIntentRequest(
+            PaymentRequestDto paymentRequestDto,
+            PaymentTargetType paymentTargetType,
+            Event event,
+            Long userId,
+            String merchantUid
+    ) {
+        String targetType = paymentTargetType != null
+                ? paymentTargetType.getPaymentTargetCode()
+                : null;
+        if (!"RESERVATION".equals(targetType)) {
+            return null;
+        }
+        if (event == null || event.getEventId() == null) {
+            throw new IllegalArgumentException("예약 결제 요청에는 eventId가 필요합니다.");
+        }
+        if (paymentRequestDto.getScheduleId() == null || paymentRequestDto.getTicketId() == null) {
+            throw new IllegalArgumentException("예약 결제 요청에는 scheduleId와 ticketId가 필요합니다.");
+        }
+
+        ScheduleTicket scheduleTicket = validateReservationScheduleTicket(
+                event,
+                paymentRequestDto.getScheduleId(),
+                paymentRequestDto.getTicketId());
+        Ticket ticket = scheduleTicket.getTicket();
+        validateTicketMaxPurchase(ticket, paymentRequestDto.getQuantity());
+
+        BigDecimal unitPrice = BigDecimal.valueOf(ticket.getPrice());
+        BigDecimal expectedAmount = unitPrice.multiply(BigDecimal.valueOf(paymentRequestDto.getQuantity()));
+        if (paymentRequestDto.getPrice().compareTo(unitPrice) != 0) {
+            throw new IllegalArgumentException("티켓 가격과 결제 요청 가격이 일치하지 않습니다.");
+        }
+        if (paymentRequestDto.getAmount() != null && paymentRequestDto.getAmount().compareTo(expectedAmount) != 0) {
+            throw new IllegalArgumentException("티켓 가격과 결제 요청 총액이 일치하지 않습니다.");
+        }
+
+        return new ReservationPaymentIntent(
+                event.getEventId(),
+                paymentRequestDto.getScheduleId(),
+                paymentRequestDto.getTicketId(),
+                paymentRequestDto.getQuantity(),
+                expectedAmount,
+                targetType,
+                userId,
+                merchantUid);
+    }
+
+    private ReservationPaymentIntent validateReservationCompletionRequest(
+            Payment payment,
+            PaymentRequestDto paymentRequestDto,
+            CustomUserDetails userDetails
+    ) {
         String targetType = payment.getPaymentTargetType() != null
                 ? payment.getPaymentTargetType().getPaymentTargetCode()
                 : null;
         if (!"RESERVATION".equals(targetType)) {
-            return;
+            return null;
         }
-        if (scheduleId == null || ticketId == null) {
+        if (paymentRequestDto.getScheduleId() == null || paymentRequestDto.getTicketId() == null) {
             throw new IllegalArgumentException("예약 결제 완료에는 scheduleId와 ticketId가 필요합니다.");
         }
         Event event = payment.getEvent();
         if (event == null || event.getEventId() == null) {
             throw new IllegalArgumentException("예약 결제에 이벤트 정보가 없습니다.");
         }
+        Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
+        Long principalUserId = userDetails != null ? userDetails.getUserId() : null;
+        ReservationPaymentIntent intent = reservationPaymentIntentStore
+                .find(payment.getMerchantUid(), paymentUserId)
+                .orElseThrow(() -> new IllegalArgumentException("예약 결제 intent가 없습니다."));
+        if (!Objects.equals(intent.userId(), paymentUserId)
+                || !Objects.equals(intent.userId(), principalUserId)
+                || !Objects.equals(intent.merchantUid(), payment.getMerchantUid())
+                || !"RESERVATION".equals(intent.targetType())) {
+            throw new AccessDeniedException("예약 결제 intent가 결제 정보와 일치하지 않습니다.");
+        }
+        if (!Objects.equals(intent.eventId(), event.getEventId())
+                || !Objects.equals(intent.scheduleId(), paymentRequestDto.getScheduleId())
+                || !Objects.equals(intent.ticketId(), paymentRequestDto.getTicketId())) {
+            throw new IllegalArgumentException("예약 결제 intent와 완료 요청이 일치하지 않습니다.");
+        }
+        if (!Objects.equals(intent.quantity(), payment.getQuantity())
+                || intent.amount().compareTo(payment.getAmount()) != 0) {
+            throw new IllegalArgumentException("예약 결제 intent와 결제 금액 또는 수량이 일치하지 않습니다.");
+        }
+        if (paymentRequestDto.getQuantity() != null && !Objects.equals(paymentRequestDto.getQuantity(), intent.quantity())) {
+            throw new IllegalArgumentException("예약 결제 intent와 완료 요청 수량이 일치하지 않습니다.");
+        }
+        if (paymentRequestDto.getAmount() != null && paymentRequestDto.getAmount().compareTo(intent.amount()) != 0) {
+            throw new IllegalArgumentException("예약 결제 intent와 완료 요청 금액이 일치하지 않습니다.");
+        }
+        if (paymentRequestDto.getPrice() != null && paymentRequestDto.getPrice().compareTo(unitPriceFrom(intent)) != 0) {
+            throw new IllegalArgumentException("예약 결제 intent와 완료 요청 가격이 일치하지 않습니다.");
+        }
 
+        ScheduleTicket scheduleTicket = validateReservationScheduleTicket(event, intent.scheduleId(), intent.ticketId());
+        validateTicketMaxPurchase(scheduleTicket.getTicket(), intent.quantity());
+        BigDecimal expectedAmount = BigDecimal.valueOf(scheduleTicket.getTicket().getPrice())
+                .multiply(BigDecimal.valueOf(intent.quantity()));
+        if (expectedAmount.compareTo(intent.amount()) != 0) {
+            throw new IllegalArgumentException("티켓 가격과 결제 금액이 일치하지 않습니다.");
+        }
+
+        return intent;
+    }
+
+    private ScheduleTicket validateReservationScheduleTicket(Event event, Long scheduleId, Long ticketId) {
         EventSchedule schedule = eventScheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 스케줄 ID: " + scheduleId));
         Long scheduleEventId = schedule.getEvent() != null ? schedule.getEvent().getEventId() : null;
@@ -813,12 +922,17 @@ public class PaymentService {
         if (ticket == null || ticket.getPrice() == null) {
             throw new IllegalArgumentException("티켓 가격 정보가 없습니다.");
         }
+        return scheduleTicket;
+    }
 
-        BigDecimal expectedAmount = BigDecimal.valueOf(ticket.getPrice())
-                .multiply(BigDecimal.valueOf(payment.getQuantity()));
-        if (expectedAmount.compareTo(payment.getAmount()) != 0) {
-            throw new IllegalArgumentException("티켓 가격과 결제 금액이 일치하지 않습니다.");
+    private void validateTicketMaxPurchase(Ticket ticket, Integer quantity) {
+        if (ticket.getMaxPurchase() != null && quantity != null && quantity > ticket.getMaxPurchase()) {
+            throw new IllegalArgumentException("티켓 최대 구매 수량을 초과했습니다.");
         }
+    }
+
+    private BigDecimal unitPriceFrom(ReservationPaymentIntent intent) {
+        return intent.amount().divide(BigDecimal.valueOf(intent.quantity()));
     }
 
     /**
