@@ -23,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BoothExperienceService {
 
+  private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
+  private static final String ROLE_BOOTH_MANAGER = "BOOTH_MANAGER";
+  private static final String ROLE_ADMIN = "ADMIN";
+
   private final BoothExperienceRepository boothExperienceRepository;
   private final BoothExperienceReservationRepository reservationRepository;
   private final BoothExperienceStatusCodeRepository statusCodeRepository;
@@ -46,11 +51,12 @@ public class BoothExperienceService {
   // 1. 부스 체험 등록 (부스 담당자)
   @Transactional
   public BoothExperienceResponseDto createBoothExperience(Long boothId,
-      BoothExperienceRequestDto requestDto) {
+      BoothExperienceRequestDto requestDto, Long userId, String roleCode) {
     log.info("부스 체험 등록 시작 - 부스 ID: {}", boothId);
 
     Booth booth = boothRepository.findById(boothId)
         .orElseThrow(() -> new IllegalArgumentException("부스를 찾을 수 없습니다: " + boothId));
+    validateBoothManagementAccess(booth, userId, roleCode);
 
     BoothExperience experience = BoothExperience.builder().booth(booth).title(requestDto.getTitle())
         .description(requestDto.getDescription()).experienceDate(requestDto.getExperienceDate())
@@ -77,14 +83,15 @@ public class BoothExperienceService {
 
     List<BoothExperience> experiences;
 
-    if ("EVENT_MANAGER".equals(roleCode)) {
-      // 행사 담당자: 해당 사용자가 관리하는 행사의 모든 부스 체험 조회
-      experiences = boothExperienceRepository.findByEventManagerId(userId);
-      log.info("EVENT_MANAGER - 관리 행사의 모든 체험 조회: {}개", experiences.size());
-    } else if ("BOOTH_MANAGER".equals(roleCode)) {
-      // 부스 담당자: 해당 사용자가 관리하는 부스의 체험만 조회
-      experiences = boothExperienceRepository.findByBoothAdminId(userId);
-      log.info("BOOTH_MANAGER - 관리 부스의 체험만 조회: {}개", experiences.size());
+    if (ROLE_ADMIN.equals(roleCode)) {
+      experiences = boothExperienceRepository.findByBooth_Id(boothId);
+      log.info("ADMIN - 요청 부스 체험 조회: {}개", experiences.size());
+    } else if (ROLE_EVENT_MANAGER.equals(roleCode) || ROLE_BOOTH_MANAGER.equals(roleCode)) {
+      Booth booth = boothRepository.findById(boothId)
+          .orElseThrow(() -> new IllegalArgumentException("부스를 찾을 수 없습니다: " + boothId));
+      validateBoothManagementAccess(booth, userId, roleCode);
+      experiences = boothExperienceRepository.findByBooth_Id(boothId);
+      log.info("관리 가능한 부스 체험 조회: {}개", experiences.size());
     } else {
       // 기타 권한: 빈 목록 반환
       log.warn("권한 없음 - 빈 목록 반환, 권한: {}", roleCode);
@@ -266,11 +273,12 @@ public class BoothExperienceService {
   // 3-2. 부스 체험 수정 (부스 담당자)
   @Transactional
   public BoothExperienceResponseDto updateBoothExperience(Long experienceId,
-      BoothExperienceRequestDto requestDto) {
+      BoothExperienceRequestDto requestDto, Long userId, String roleCode) {
     log.info("부스 체험 수정 시작 - 체험 ID: {}", experienceId);
 
     BoothExperience experience = boothExperienceRepository.findById(experienceId)
         .orElseThrow(() -> new IllegalArgumentException("체험을 찾을 수 없습니다: " + experienceId));
+    validateExperienceManagementAccess(experience, userId, roleCode);
 
     // 기존 예약이 있는 경우 수정 제한 검증
     validateExperienceModification(experience);
@@ -294,11 +302,12 @@ public class BoothExperienceService {
 
   // 3-3. 부스 체험 삭제 (부스 담당자)
   @Transactional
-  public void deleteBoothExperience(Long experienceId) {
+  public void deleteBoothExperience(Long experienceId, Long userId, String roleCode) {
     log.info("부스 체험 삭제 시작 - 체험 ID: {}", experienceId);
 
     BoothExperience experience = boothExperienceRepository.findById(experienceId)
         .orElseThrow(() -> new IllegalArgumentException("체험을 찾을 수 없습니다: " + experienceId));
+    validateExperienceManagementAccess(experience, userId, roleCode);
 
     // 활성 예약이 있는지 확인
     List<BoothExperienceReservation> activeReservations = reservationRepository.findActiveReservationsByExperience(
@@ -347,8 +356,10 @@ public class BoothExperienceService {
 
   // 4. 부스 체험 예약 신청 (참여자) - 동시성 처리
   @Transactional
-  public BoothExperienceReservationResponseDto createReservation(Long experienceId, Long userId,
+  public BoothExperienceReservationResponseDto createReservation(Long experienceId, CustomUserDetails userDetails,
       BoothExperienceReservationRequestDto requestDto) {
+    requireAuthenticated(userDetails);
+    Long userId = userDetails.getUserId();
     log.info("부스 체험 예약 시작 - 체험 ID: {}, 사용자 ID: {}", experienceId, userId);
 
     // Pessimistic Lock으로 체험 조회 (동시성 제어)
@@ -380,7 +391,27 @@ public class BoothExperienceService {
     return BoothExperienceReservationResponseDto.fromEntity(savedReservation);
   }
 
+  private void requireAuthenticated(CustomUserDetails userDetails) {
+    if (userDetails == null || userDetails.getUserId() == null) {
+      throw new AccessDeniedException("로그인이 필요합니다.");
+    }
+  }
+
   // 5. 부스 체험 예약자 목록 조회 (부스 담당자용)
+  @Transactional(readOnly = true)
+  public List<BoothExperienceReservationResponseDto> getExperienceReservations(Long experienceId,
+      Long userId, String roleCode) {
+    BoothExperience experience = boothExperienceRepository.findById(experienceId)
+        .orElseThrow(() -> new IllegalArgumentException("체험을 찾을 수 없습니다: " + experienceId));
+    validateExperienceManagementAccess(experience, userId, roleCode);
+
+    List<BoothExperienceReservation> reservations = reservationRepository.findByBoothExperienceOrderByReservedAt(
+        experience);
+
+    return reservations.stream().map(BoothExperienceReservationResponseDto::fromEntity)
+        .collect(Collectors.toList());
+  }
+
   @Transactional(readOnly = true)
   public List<BoothExperienceReservationResponseDto> getExperienceReservations(Long experienceId) {
     BoothExperience experience = boothExperienceRepository.findById(experienceId)
@@ -408,11 +439,29 @@ public class BoothExperienceService {
   // 7. 부스 체험 상태 변경 (부스 담당자)
   @Transactional
   public BoothExperienceReservationResponseDto updateReservationStatus(Long reservationId,
+      BoothExperienceStatusUpdateDto updateDto, Long userId, String roleCode) {
+    log.info("예약 상태 변경 권한 확인 - 예약 ID: {}, 사용자 ID: {}, 권한: {}", reservationId, userId, roleCode);
+
+    BoothExperienceReservation reservation = reservationRepository.findById(reservationId)
+        .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
+    validateExperienceManagementAccess(reservation.getBoothExperience(), userId, roleCode);
+
+    return updateReservationStatus(reservation, reservationId, updateDto);
+  }
+
+  @Transactional
+  public BoothExperienceReservationResponseDto updateReservationStatus(Long reservationId,
       BoothExperienceStatusUpdateDto updateDto) {
     log.info("예약 상태 변경 시작 - 예약 ID: {}, 새 상태: {}", reservationId, updateDto.getStatusCode());
 
     BoothExperienceReservation reservation = reservationRepository.findById(reservationId)
         .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
+
+    return updateReservationStatus(reservation, reservationId, updateDto);
+  }
+
+  private BoothExperienceReservationResponseDto updateReservationStatus(
+      BoothExperienceReservation reservation, Long reservationId, BoothExperienceStatusUpdateDto updateDto) {
 
     BoothExperienceStatusCode newStatus = statusCodeRepository.findByCode(updateDto.getStatusCode())
         .orElseThrow(
@@ -666,7 +715,11 @@ public class BoothExperienceService {
 
     List<BoothExperience> experiences;
 
-    if ("EVENT_MANAGER".equals(roleCode)) {
+    if (ROLE_ADMIN.equals(roleCode)) {
+      // 관리자: 모든 부스 체험 조회
+      experiences = boothExperienceRepository.findAll();
+      log.info("ADMIN - 모든 체험 조회: {}개", experiences.size());
+    } else if ("EVENT_MANAGER".equals(roleCode)) {
       // 행사 담당자: 해당 사용자가 관리하는 행사의 모든 부스 체험 조회
       experiences = boothExperienceRepository.findByEventManagerId(userId);
       log.info("EVENT_MANAGER - 관리 행사의 모든 체험 조회: {}개", experiences.size());
@@ -718,11 +771,13 @@ public class BoothExperienceService {
 
   // 부스 체험 현황 요약 조회
   @Transactional(readOnly = true)
-  public BoothExperienceSummaryDto getExperienceSummary(Long experienceId) {
+  public BoothExperienceSummaryDto getExperienceSummary(Long experienceId, Long userId,
+      String roleCode) {
     log.info("부스 체험 현황 요약 조회 - 체험 ID: {}", experienceId);
 
     BoothExperience experience = boothExperienceRepository.findById(experienceId)
         .orElseThrow(() -> new IllegalArgumentException("체험을 찾을 수 없습니다: " + experienceId));
+    validateExperienceManagementAccess(experience, userId, roleCode);
 
     // 현재 체험중인 인원 조회
     List<BoothExperienceReservation> currentParticipants = reservationRepository.findByBoothExperienceAndStatusCode(
@@ -756,6 +811,44 @@ public class BoothExperienceService {
         .waitingCount(waitingParticipants.size()).currentParticipantNames(currentParticipantNames)
         .nextParticipantName(nextParticipantName).congestionRate(experience.getCongestionRate())
         .isReservationAvailable(experience.isReservationAvailable()).build();
+  }
+
+  private void validateExperienceManagementAccess(BoothExperience experience, Long userId,
+      String roleCode) {
+    validateBoothManagementAccess(experience.getBooth(), userId, roleCode);
+  }
+
+  private void validateBoothManagementAccess(Booth booth, Long userId, String roleCode) {
+    if (ROLE_ADMIN.equals(roleCode)) {
+      return;
+    }
+
+    if (ROLE_EVENT_MANAGER.equals(roleCode)) {
+      Long managerId = Optional.ofNullable(booth.getEvent())
+          .map(Event::getManager)
+          .map(manager -> manager.getUserId())
+          .orElse(null);
+      if (userId != null && userId.equals(managerId)) {
+        return;
+      }
+      log.info("담당 행사 관리자가 아님: boothId={}, managerId={}, userId={}", booth.getId(), managerId,
+          userId);
+      throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+    }
+
+    if (ROLE_BOOTH_MANAGER.equals(roleCode)) {
+      Long managerId = Optional.ofNullable(booth.getBoothAdmin())
+          .map(boothAdmin -> boothAdmin.getUserId())
+          .orElse(null);
+      if (userId != null && userId.equals(managerId)) {
+        return;
+      }
+      log.info("담당 부스 관리자가 아님: boothId={}, managerId={}, userId={}", booth.getId(), managerId,
+          userId);
+      throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+    }
+
+    throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
   }
 
   // 예약 관리용 부스 목록 조회 (간소화된 버전)

@@ -71,10 +71,7 @@ public class PaymentAdminRepositoryImpl implements PaymentAdminRepository {
         
         // 권한 체크: EVENT_MANAGER인 경우 managerId 조건 추가
         if (managerId != null) {
-            whereClause.and(
-                payment.event.isNull() // 이벤트와 무관한 결제 (광고 등)
-                .or(payment.event.manager.userId.eq(managerId)) // 또는 본인이 관리하는 이벤트
-            );
+            whereClause.and(payment.event.manager.userId.eq(managerId));
         }
 
         Payment result = queryFactory
@@ -215,10 +212,7 @@ public class PaymentAdminRepositoryImpl implements PaymentAdminRepository {
 
         // 권한 필터링 (EVENT_MANAGER인 경우)
         if (managerId != null) {
-            whereClause.and(
-                payment.event.isNull() // 이벤트와 무관한 결제 (광고 등)
-                .or(payment.event.manager.userId.eq(managerId)) // 또는 본인이 관리하는 이벤트
-            );
+            whereClause.and(payment.event.manager.userId.eq(managerId));
         }
 
         // 결제 타입 필터링

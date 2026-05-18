@@ -21,6 +21,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
   Optional<Reservation> findByReservationIdAndUser_UserId(Long reservationId, Long userId);
 
+  Optional<Reservation> findByReservationIdAndEvent_EventId(Long reservationId, Long eventId);
+
   // 본인 예약 중 관람 일자가 지난 행사 목록 (행사 제목, 건물, 주소, 관람날짜, 요일, 시작시간, 행사시작날짜, 행사종료날짜)
   @Query(value = """
           SELECT new com.fairing.fairplay.review.dto.PossibleReviewResponseDto(

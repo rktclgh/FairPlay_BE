@@ -40,6 +40,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +53,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 
 @Service
@@ -128,6 +130,7 @@ public class PaymentService {
         PaymentTargetType paymentTargetType = paymentTargetTypeRepository
                 .findByPaymentTargetCode(paymentRequestDto.getPaymentTargetType())
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 대상 타입입니다: " + paymentRequestDto.getPaymentTargetType()));
+        validatePaymentTargetCreationPermission(paymentTargetType, paymentRequestDto.getTargetId(), user);
 
         // 결제 방법
         PaymentTypeCode paymentTypeCode = paymentTypeCodeRepository.getReferenceByCode("CARD");
@@ -279,10 +282,14 @@ public class PaymentService {
             if (eventId == null) {
                 throw new IllegalArgumentException("행사 관리자는 eventId가 필요합니다.");
             }
-            // TODO: 사용자가 관리하는 이벤트인지 검증 필요
+            Event event = eventRepository.findById(eventId)
+                    .orElseThrow(() -> new IllegalArgumentException("이벤트를 찾을 수 없습니다."));
+            if (!isManagedBy(event, userId)) {
+                throw new AccessDeniedException("담당 행사 결제만 조회할 수 있습니다.");
+            }
             payments = paymentRepository.findByEvent_EventId(eventId);
         } else {
-            throw new IllegalArgumentException("결제 전체 조회 권한이 없습니다.");
+            throw new AccessDeniedException("결제 전체 조회 권한이 없습니다.");
         }
 
         return PaymentResponseDto.fromEntityList(payments);
@@ -309,12 +316,130 @@ public class PaymentService {
 
     // 결제의 targetId 업데이트
     @Transactional
-    public void updatePaymentTargetId(String merchantUid, Long targetId) {
+    public void updatePaymentTargetId(String merchantUid, Long targetId, CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new AccessDeniedException("인증되지 않은 사용자입니다.");
+        }
+
         Payment payment = paymentRepository.findByMerchantUid(merchantUid)
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: " + merchantUid));
 
+        validatePaymentTargetUpdatePermission(payment, targetId, userDetails);
+
         payment.setTargetId(targetId);
         paymentRepository.save(payment);
+    }
+
+    private void validatePaymentTargetUpdatePermission(Payment payment, Long requestedTargetId, CustomUserDetails userDetails) {
+        Long currentTargetId = payment.getTargetId();
+        if (currentTargetId != null && !Objects.equals(currentTargetId, requestedTargetId)) {
+            throw new AccessDeniedException("이미 다른 대상에 연결된 결제입니다.");
+        }
+
+        String roleCode = userDetails.getRoleCode();
+        if ("ADMIN".equals(roleCode)) {
+            return;
+        }
+
+        if ("COMMON".equals(roleCode)) {
+            Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
+            if (Objects.equals(paymentUserId, userDetails.getUserId())) {
+                validateCommonTargetOwnership(payment, requestedTargetId, userDetails.getUserId());
+                return;
+            }
+            throw new AccessDeniedException("본인 결제만 대상 정보를 수정할 수 있습니다.");
+        }
+
+        throw new AccessDeniedException("결제 대상 정보 수정 권한이 없습니다.");
+    }
+
+    private void validateCommonTargetOwnership(Payment payment, Long requestedTargetId, Long principalUserId) {
+        if (requestedTargetId == null) {
+            throw new AccessDeniedException("결제 대상 정보가 필요합니다.");
+        }
+
+        String targetCode = payment.getPaymentTargetType() != null
+                ? payment.getPaymentTargetType().getPaymentTargetCode()
+                : null;
+        if (targetCode == null) {
+            throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+
+        switch (targetCode) {
+            case "RESERVATION" -> validateReservationOwner(requestedTargetId, principalUserId);
+            case "BANNER_APPLICATION" -> validateBannerApplicationOwner(requestedTargetId, principalUserId);
+            case "BOOTH_APPLICATION" -> validateBoothApplicationOwner(requestedTargetId, principalUserId);
+            case "BOOTH", "AD" -> throw new AccessDeniedException("해당 결제 대상은 외부 대상 정보 수정이 허용되지 않습니다.");
+            default -> throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+    }
+
+    private void validatePaymentTargetCreationPermission(PaymentTargetType paymentTargetType, Long requestedTargetId, Users user) {
+        if (requestedTargetId == null) {
+            return;
+        }
+
+        String roleCode = user.getRoleCode() != null ? user.getRoleCode().getCode() : null;
+        if ("ADMIN".equals(roleCode)) {
+            return;
+        }
+
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            throw new AccessDeniedException("행사 관리자는 결제 대상 정보를 직접 지정할 수 없습니다.");
+        }
+
+        String targetCode = paymentTargetType != null
+                ? paymentTargetType.getPaymentTargetCode()
+                : null;
+        if (targetCode == null) {
+            throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+        Long principalUserId = user.getUserId();
+
+        switch (targetCode) {
+            case "RESERVATION" -> validateReservationOwner(requestedTargetId, principalUserId);
+            case "BANNER_APPLICATION" -> validateBannerApplicationOwner(requestedTargetId, principalUserId);
+            case "BOOTH_APPLICATION" -> validateBoothApplicationOwner(requestedTargetId, principalUserId);
+            // BOOTH/AD 생성 경로에는 사용자 소유권을 증명할 매핑이 없어 외부 지정 targetId를 거부한다.
+            case "BOOTH", "AD" -> throw new AccessDeniedException("해당 결제 대상은 생성 시 외부 대상 지정이 허용되지 않습니다.");
+            default -> throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+    }
+
+    private void validateReservationOwner(Long reservationId, Long principalUserId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new AccessDeniedException("본인 예약만 결제 대상에 연결할 수 있습니다."));
+        Long reservationUserId = reservation.getUser() != null ? reservation.getUser().getUserId() : null;
+        if (!Objects.equals(reservationUserId, principalUserId)) {
+            throw new AccessDeniedException("본인 예약만 결제 대상에 연결할 수 있습니다.");
+        }
+    }
+
+    private void validateBannerApplicationOwner(Long bannerApplicationId, Long principalUserId) {
+        BannerApplication bannerApplication = bannerApplicationRepository.findById(bannerApplicationId)
+                .orElseThrow(() -> new AccessDeniedException("본인 배너 신청만 결제 대상에 연결할 수 있습니다."));
+        Long applicantUserId = bannerApplication.getApplicantId() != null
+                ? bannerApplication.getApplicantId().getUserId()
+                : null;
+        if (!Objects.equals(applicantUserId, principalUserId)) {
+            throw new AccessDeniedException("본인 배너 신청만 결제 대상에 연결할 수 있습니다.");
+        }
+    }
+
+    private void validateBoothApplicationOwner(Long boothApplicationId, Long principalUserId) {
+        BoothApplication boothApplication = boothApplicationRepository.findById(boothApplicationId)
+                .orElseThrow(() -> new AccessDeniedException("본인 부스 신청만 결제 대상에 연결할 수 있습니다."));
+        Users boothUser = userRepository.findByEmail(boothApplication.getBoothEmail())
+                .orElseThrow(() -> new AccessDeniedException("본인 부스 신청만 결제 대상에 연결할 수 있습니다."));
+        if (!Objects.equals(boothUser.getUserId(), principalUserId)) {
+            throw new AccessDeniedException("본인 부스 신청만 결제 대상에 연결할 수 있습니다.");
+        }
+    }
+
+    private boolean isManagedBy(Event event, Long managerUserId) {
+        return event != null
+                && event.getManager() != null
+                && Objects.equals(event.getManager().getUserId(), managerUserId);
     }
 
     /**

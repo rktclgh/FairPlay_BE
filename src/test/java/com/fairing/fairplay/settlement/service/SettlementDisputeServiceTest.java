@@ -1,6 +1,8 @@
 package com.fairing.fairplay.settlement.service;
 
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.core.service.LocalFileService;
+import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.settlement.dto.SettlementDisputeDto;
 import com.fairing.fairplay.settlement.entity.Settlement;
 import com.fairing.fairplay.settlement.entity.SettlementDispute;
@@ -8,6 +10,9 @@ import com.fairing.fairplay.settlement.entity.SettlementDisputeFile;
 import com.fairing.fairplay.settlement.repository.SettlementDisputeFileRepository;
 import com.fairing.fairplay.settlement.repository.SettlementDisputeRepository;
 import com.fairing.fairplay.settlement.repository.SettlementRepository;
+import com.fairing.fairplay.user.entity.EventAdmin;
+import com.fairing.fairplay.user.entity.Users;
+import com.fairing.fairplay.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,6 +47,9 @@ class SettlementDisputeServiceTest {
     @Mock
     private LocalFileService localFileService;
 
+    @Mock
+    private UserRepository userRepository;
+
     private SettlementDisputeService service;
 
     @BeforeEach
@@ -49,7 +58,8 @@ class SettlementDisputeServiceTest {
                 disputeRepository,
                 disputeFileRepository,
                 settlementRepository,
-                localFileService
+                localFileService,
+                userRepository
         );
     }
 
@@ -77,7 +87,7 @@ class SettlementDisputeServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(settlementRepository.save(settlement)).thenReturn(settlement);
 
-        assertThatCode(() -> service.submitDispute(request, 55L))
+        assertThatCode(() -> service.submitDispute(request, user(55L, "EVENT_MANAGER", "행사 관리자")))
                 .doesNotThrowAnyException();
 
         verify(localFileService).moveToPermanent(tempKey, "disputes/900");
@@ -89,12 +99,29 @@ class SettlementDisputeServiceTest {
     }
 
     private Settlement settlement() {
+        EventAdmin eventAdmin = new EventAdmin();
+        eventAdmin.setUserId(55L);
+        eventAdmin.setUser(new Users(55L));
+
+        Event event = new Event();
+        event.setEventId(77L);
+        event.setManager(eventAdmin);
+
         return Settlement.builder()
                 .settlementId(7L)
+                .event(event)
                 .eventTitle("정산 행사")
                 .totalAmount(BigDecimal.valueOf(10000))
                 .feeAmount(BigDecimal.valueOf(1000))
                 .finalAmount(BigDecimal.valueOf(9000))
                 .build();
+    }
+
+    private CustomUserDetails user(Long userId, String roleCode, String name) {
+        CustomUserDetails userDetails = mock(CustomUserDetails.class);
+        lenient().when(userDetails.getUserId()).thenReturn(userId);
+        lenient().when(userDetails.getRoleCode()).thenReturn(roleCode);
+        lenient().when(userDetails.getName()).thenReturn(name);
+        return userDetails;
     }
 }
