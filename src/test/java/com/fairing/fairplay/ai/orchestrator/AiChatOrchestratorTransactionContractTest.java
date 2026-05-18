@@ -104,7 +104,7 @@ class AiChatOrchestratorTransactionContractTest {
                 .sentAt(LocalDateTime.now())
                 .isRead(false)
                 .build();
-        CountDownLatch ragCalled = new CountDownLatch(1);
+        CountDownLatch responseSaved = new CountDownLatch(1);
 
         when(chatRoomRepository.findById(roomId)).thenReturn(Optional.of(aiRoom));
         when(chatMessageRepository.findByChatRoomOrderBySentAtAsc(aiRoom)).thenReturn(new ArrayList<>(List.of(userMessage)));
@@ -114,7 +114,6 @@ class AiChatOrchestratorTransactionContractTest {
                             TransactionSynchronizationManager.isActualTransactionActive(),
                             "RAG/LLM 호출은 사용자 메시지 저장 트랜잭션 커밋 이후, 트랜잭션 밖에서 실행되어야 한다."
                     );
-                    ragCalled.countDown();
                     return RagChatService.RagResponse.builder()
                             .answer("예매는 행사 상세 페이지에서 할 수 있어요.")
                             .hasContext(false)
@@ -123,20 +122,23 @@ class AiChatOrchestratorTransactionContractTest {
                             .build();
                 });
         when(chatMessageService.sendMessage(roomId, 999L, "예매는 행사 상세 페이지에서 할 수 있어요."))
-                .thenReturn(ChatMessageResponseDto.builder()
-                        .chatMessageId(2L)
-                        .chatRoomId(roomId)
-                        .senderId(999L)
-                        .content("예매는 행사 상세 페이지에서 할 수 있어요.")
-                        .sentAt(LocalDateTime.now())
-                        .isRead(false)
-                        .build());
+                .thenAnswer(invocation -> {
+                    responseSaved.countDown();
+                    return ChatMessageResponseDto.builder()
+                            .chatMessageId(2L)
+                            .chatRoomId(roomId)
+                            .senderId(999L)
+                            .content("예매는 행사 상세 페이지에서 할 수 있어요.")
+                            .sentAt(LocalDateTime.now())
+                            .isRead(false)
+                            .build();
+                });
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status ->
                 eventPublisher.publishEvent(new ChatMessageCreatedEvent(roomId, senderId, 1L, "예매 방법 알려줘"))
         );
 
-        assertTrue(ragCalled.await(1, TimeUnit.SECONDS));
+        assertTrue(responseSaved.await(1, TimeUnit.SECONDS));
         verify(ragChatService).chat(eq("예매 방법 알려줘"), any(List.class), eq(senderId));
         verify(chatMessageService).sendMessage(roomId, 999L, "예매는 행사 상세 페이지에서 할 수 있어요.");
     }
