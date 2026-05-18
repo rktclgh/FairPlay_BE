@@ -18,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,9 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class RefundService {
+
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
 
     private final PaymentRepository paymentRepository;
     private final RefundRepository refundRepository;
@@ -86,9 +90,11 @@ public class RefundService {
      * 2단계: 관리자의 환불 승인 - 이때 아임포트에 환불 요청
      */
     @Transactional
-    public PaymentResponseDto approveRefund(Long refundId, RefundApprovalDto approval, Long adminUserId) {
+    public PaymentResponseDto approveRefund(Long refundId, RefundApprovalDto approval, CustomUserDetails userDetails) {
+        validateRefundManagerRole(userDetails);
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
+        validateRefundAccess(refund, userDetails);
 
         // 이미 처리된 요청인지 확인
         if (!"REQUESTED".equals(refund.getRefundStatusCode().getCode())) {
@@ -112,7 +118,7 @@ public class RefundService {
             BigDecimal actualRefundAmount = refund.getAmount().min(availableAmount);
             
             // 아임포트 환불 요청 (금액 지정)
-            refundRequest(accessToken, payment.getMerchantUid(), actualRefundAmount, refund.getReason());
+            processRefundRequest(accessToken, payment.getMerchantUid(), actualRefundAmount, refund.getReason());
             
             // 실제 환불 금액으로 조정
             refund.setAmount(actualRefundAmount);
@@ -141,9 +147,11 @@ public class RefundService {
      * 환불 요청 거절
      */
     @Transactional
-    public PaymentResponseDto rejectRefund(Long refundId, String rejectReason, Long adminUserId) {
+    public PaymentResponseDto rejectRefund(Long refundId, String rejectReason, CustomUserDetails userDetails) {
+        validateRefundManagerRole(userDetails);
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
+        validateRefundAccess(refund, userDetails);
 
         if (!"REQUESTED".equals(refund.getRefundStatusCode().getCode())) {
             throw new IllegalStateException("이미 처리된 환불 요청입니다.");
@@ -240,25 +248,29 @@ public class RefundService {
         conn.disconnect();
     }
 
+    protected void processRefundRequest(String accessToken, String merchantUid, BigDecimal amount, String reason) throws IOException {
+        refundRequest(accessToken, merchantUid, amount, reason);
+    }
+
     /**
      * 모든 환불 요청 조회 (관리자용)
      */
     @Transactional(readOnly = true)
     public List<RefundResponseDto> getAllRefunds(Long eventId, CustomUserDetails userDetails) {
-        // 임시 하드코딩: ADMIN 권한으로 가정
-        String roleCode = "ADMIN";
-        // if(userDetails != null) {
-        //     roleCode = userDetails.getRoleCode();
-        //     if (!"ADMIN".equals(roleCode) && !"EVENT_MANAGER".equals(roleCode)) {
-        //         throw new IllegalArgumentException("권한이 없습니다.");
-        //     }
-        // }
+        validateRefundManagerRole(userDetails);
 
         List<Refund> refunds;
-        if (eventId != null) {
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            if (eventId != null) {
+                refunds = refundRepository.findByEventId(eventId);
+            } else {
+                refunds = refundRepository.findAll();
+            }
+        } else if (eventId != null) {
             refunds = refundRepository.findByEventId(eventId);
+            refunds.forEach(refund -> validateRefundAccess(refund, userDetails));
         } else {
-            refunds = refundRepository.findAll();
+            refunds = refundRepository.findByEventManagerUserId(userDetails.getUserId());
         }
 
         return RefundResponseDto.fromEntityList(refunds);
@@ -323,14 +335,22 @@ public class RefundService {
      */
     @Transactional(readOnly = true)
     public List<RefundResponseDto> getPendingRefunds(Long eventId, CustomUserDetails userDetails) {
+        validateRefundManagerRole(userDetails);
         RefundStatusCode requestedStatus = refundStatusCodeRepository.findByCode("REQUESTED")
                 .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: REQUESTED"));
         
         List<Refund> refunds;
-        if (eventId != null) {
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            if (eventId != null) {
+                refunds = refundRepository.findByEventIdAndRefundStatusCode(eventId, requestedStatus);
+            } else {
+                refunds = refundRepository.findByRefundStatusCode(requestedStatus);
+            }
+        } else if (eventId != null) {
             refunds = refundRepository.findByEventIdAndRefundStatusCode(eventId, requestedStatus);
+            refunds.forEach(refund -> validateRefundAccess(refund, userDetails));
         } else {
-            refunds = refundRepository.findByRefundStatusCode(requestedStatus);
+            refunds = refundRepository.findByEventManagerUserIdAndRefundStatusCode(userDetails.getUserId(), requestedStatus);
         }
 
         return RefundResponseDto.fromEntityList(refunds);
@@ -379,7 +399,8 @@ public class RefundService {
      * 환불 목록 조회 (필터링 및 페이징 지원)
      */
     @Transactional(readOnly = true)
-    public Page<RefundListResponseDto> getRefundList(RefundListRequestDto request) {
+    public Page<RefundListResponseDto> getRefundList(RefundListRequestDto request, CustomUserDetails userDetails) {
+        validateRefundManagerRole(userDetails);
         try {
             // 날짜 문자열을 LocalDateTime으로 변환
             LocalDateTime paymentDateFrom = null;
@@ -406,17 +427,51 @@ public class RefundService {
             Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), sort);
 
             // Repository 메서드 호출
+            Long managerUserId = ROLE_EVENT_MANAGER.equals(userDetails.getRoleCode()) ? userDetails.getUserId() : null;
             return refundRepository.findRefundsWithFilters(
                 request.getEventName(),
                 paymentDateFrom,
                 paymentDateTo,
                 request.getRefundStatus(),
                 request.getPaymentTargetType(),
+                managerUserId,
                 pageable
             );
             
         } catch (Exception e) {
             throw new RuntimeException("환불 목록 조회 중 오류가 발생했습니다: " + e.getMessage(), e);
+        }
+    }
+
+    private void validateRefundManagerRole(CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new AccessDeniedException("로그인이 필요합니다.");
+        }
+
+        String roleCode = userDetails.getRoleCode();
+        if (!ROLE_ADMIN.equals(roleCode) && !ROLE_EVENT_MANAGER.equals(roleCode)) {
+            throw new AccessDeniedException("환불 관리 권한이 없습니다.");
+        }
+    }
+
+    private void validateRefundAccess(Refund refund, CustomUserDetails userDetails) {
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            return;
+        }
+
+        if (!ROLE_EVENT_MANAGER.equals(userDetails.getRoleCode())) {
+            throw new AccessDeniedException("환불 관리 권한이 없습니다.");
+        }
+
+        if (refund.getPayment() == null || refund.getPayment().getEvent() == null) {
+            throw new AccessDeniedException("행사에 연결되지 않은 환불은 전체 관리자만 처리할 수 있습니다.");
+        }
+
+        Long managerUserId = refund.getPayment().getEvent().getManager() != null
+                ? refund.getPayment().getEvent().getManager().getUserId()
+                : null;
+        if (!userDetails.getUserId().equals(managerUserId)) {
+            throw new AccessDeniedException("담당 행사의 환불만 처리할 수 있습니다.");
         }
     }
 

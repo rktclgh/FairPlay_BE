@@ -30,12 +30,21 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
     @Query("SELECT r FROM Refund r WHERE r.payment.event.eventId = :eventId")
     List<Refund> findByEventId(@Param("eventId") Long eventId);
 
+    @Query("SELECT r FROM Refund r WHERE r.payment.event.manager.user.userId = :managerUserId")
+    List<Refund> findByEventManagerUserId(@Param("managerUserId") Long managerUserId);
+
     // 특정 상태의 환불 목록 조회 (FK 기반)
     List<Refund> findByRefundStatusCode(RefundStatusCode refundStatusCode);
 
     // 특정 이벤트의 특정 상태 환불 목록 조회 (FK 기반)
     @Query("SELECT r FROM Refund r WHERE r.payment.event.eventId = :eventId AND r.refundStatusCode = :refundStatusCode")
     List<Refund> findByEventIdAndRefundStatusCode(@Param("eventId") Long eventId, @Param("refundStatusCode") RefundStatusCode refundStatusCode);
+
+    @Query("SELECT r FROM Refund r WHERE r.payment.event.manager.user.userId = :managerUserId AND r.refundStatusCode = :refundStatusCode")
+    List<Refund> findByEventManagerUserIdAndRefundStatusCode(
+        @Param("managerUserId") Long managerUserId,
+        @Param("refundStatusCode") RefundStatusCode refundStatusCode
+    );
 
     // 환불 목록 조회 (필터링 및 페이징 지원)
     @Query("""
@@ -74,6 +83,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         AND (:paymentDateTo IS NULL OR p.paidAt <= :paymentDateTo)
         AND (:refundStatus IS NULL OR rsc.code = :refundStatus)
         AND (:paymentTargetType IS NULL OR ptt.paymentTargetCode = :paymentTargetType)
+        AND (:managerUserId IS NULL OR e.manager.user.userId = :managerUserId)
     """)
     Page<RefundListResponseDto> findRefundsWithFilters(
         @Param("eventName") String eventName,
@@ -81,6 +91,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         @Param("paymentDateTo") LocalDateTime paymentDateTo,
         @Param("refundStatus") String refundStatus,
         @Param("paymentTargetType") String paymentTargetType,
+        @Param("managerUserId") Long managerUserId,
         Pageable pageable
     );
 
