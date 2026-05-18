@@ -56,9 +56,10 @@ public class ReservationController {
     // 박람회(행사) 예약 상세 조회
     @GetMapping("/{reservationId}")
     public ResponseEntity<ReservationResponseDto> getReservationById(@PathVariable Long eventId,
-            @PathVariable Long reservationId) {
+            @PathVariable Long reservationId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        Reservation reservation = reservationService.getReservationById(reservationId);
+        Reservation reservation = reservationService.getReservationById(eventId, reservationId, userDetails);
 
         if (reservation == null) {
             throw new IllegalStateException("예약 조회에 실패했습니다.");
@@ -74,7 +75,7 @@ public class ReservationController {
     @FunctionAuth("getReservations")
     public ResponseEntity<List<ReservationResponseDto>> getReservations(@PathVariable Long eventId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        List<Reservation> reservations = reservationService.getReservationsByEvent(eventId);
+        List<Reservation> reservations = reservationService.getReservationsByEvent(eventId, userDetails);
 
         if (reservations == null) {
             throw new IllegalStateException("예약 조회에 실패했습니다.");
@@ -116,7 +117,7 @@ public class ReservationController {
             @PageableDefault(size = 15, sort = "createdAt") Pageable pageable,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Page<ReservationAttendeeDto> attendees = reservationService.getReservationAttendees(
-                eventId, status, name, phone, reservationId, pageable);
+                eventId, status, name, phone, reservationId, pageable, userDetails);
         return ResponseEntity.ok(attendees);
     }
 
@@ -126,7 +127,7 @@ public class ReservationController {
     public ResponseEntity<byte[]> downloadAttendeesExcel(@PathVariable Long eventId,
             @RequestParam(required = false) String status,
             @AuthenticationPrincipal CustomUserDetails userDetails) throws IOException {
-        byte[] excelData = reservationService.generateAttendeesExcel(eventId, status);
+        byte[] excelData = reservationService.generateAttendeesExcel(eventId, status, userDetails);
 
         String filename = "event_" + eventId + "_attendees.xlsx";
 
