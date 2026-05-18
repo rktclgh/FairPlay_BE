@@ -44,6 +44,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -288,7 +289,7 @@ public class PaymentService {
             ReservationPaymentIntent reservationIntentSnapshot,
             IamportPaymentInfo paymentInfo
     ) {
-        return writeTransactionTemplate().execute(status -> {
+        PaymentCompletionResult result = writeTransactionTemplate().execute(status -> {
             Payment payment = paymentRepository.findByMerchantUidForUpdate(paymentRequestDto.getMerchantUid())
                     .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
             validateCompletionEligibility(payment, paymentRequestDto, userDetails, expectedPublicTargetType);
@@ -312,28 +313,41 @@ public class PaymentService {
             Long completionTicketId = reservationIntent != null ? reservationIntent.ticketId() : paymentRequestDto.getTicketId();
             processPaymentCompletionActions(savedPayment, completionScheduleId, completionTicketId);
 
-            if (reservationIntent != null) {
-                reservationPaymentIntentStore.delete(payment.getMerchantUid(), reservationIntent.userId());
-            }
-
             Payment updatedPayment = paymentRepository.findById(savedPayment.getPaymentId())
                     .orElse(savedPayment);
 
             System.out.println("🟢 [PaymentService] completePayment 반환 - paymentId: " + updatedPayment.getPaymentId() +
                     ", targetId: " + updatedPayment.getTargetId());
 
-            return PaymentResponseDto.fromEntity(updatedPayment);
+            return new PaymentCompletionResult(
+                    PaymentResponseDto.fromEntity(updatedPayment),
+                    payment.getMerchantUid(),
+                    reservationIntent);
         });
+        if (result.reservationIntent() != null) {
+            reservationPaymentIntentStore.delete(result.merchantUid(), result.reservationIntent().userId());
+        }
+        return result.response();
     }
 
     private TransactionTemplate readOnlyTransactionTemplate() {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         template.setReadOnly(true);
         return template;
     }
 
     private TransactionTemplate writeTransactionTemplate() {
-        return new TransactionTemplate(transactionManager);
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
+    }
+
+    private record PaymentCompletionResult(
+            PaymentResponseDto response,
+            String merchantUid,
+            ReservationPaymentIntent reservationIntent
+    ) {
     }
 
     private void validateCompletionEligibility(
