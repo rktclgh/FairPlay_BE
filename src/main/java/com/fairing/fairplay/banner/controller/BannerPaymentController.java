@@ -55,7 +55,8 @@ public class BannerPaymentController {
     public ResponseEntity<PaymentResponseDto> completeBannerPayment(
             @RequestBody PaymentRequestDto paymentRequestDto) {
         
-        PaymentResponseDto completedPayment = paymentService.completePayment(paymentRequestDto);
+        PaymentResponseDto completedPayment = paymentService.completePublicPayment(
+                paymentRequestDto, "BANNER_APPLICATION");
         PaymentStatusCode paymentStatusCode = paymentStatusCodeRepository.findById(completedPayment.getPaymentStatusCodeId())
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 결제 상태 코드를 찾을 수 없습니다."));
 

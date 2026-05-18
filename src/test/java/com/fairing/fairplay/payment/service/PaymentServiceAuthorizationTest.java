@@ -423,13 +423,13 @@ class PaymentServiceAuthorizationTest {
         assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), null))
                 .isInstanceOf(AccessDeniedException.class);
 
-        verify(paymentRepository, never()).findByMerchantUid(any());
+        verify(paymentRepository, never()).findByMerchantUidForUpdate(any());
     }
 
     @Test
     void completePaymentRejectsOtherUsersPayment() {
         Payment payment = pendingPayment("merchant-complete", 301L, 10L, event(1L, 100L));
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
                 .isInstanceOf(AccessDeniedException.class);
@@ -442,7 +442,7 @@ class PaymentServiceAuthorizationTest {
     void completePaymentRejectsNonPendingPayment() {
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
         payment.setPaymentStatusCode(paymentStatusCode("CANCELED"));
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
 
         assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
                 .isInstanceOf(IllegalStateException.class)
@@ -461,13 +461,13 @@ class PaymentServiceAuthorizationTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("impUid");
 
-        verify(paymentRepository, never()).findByMerchantUid(any());
+        verify(paymentRepository, never()).findByMerchantUidForUpdate(any());
     }
 
     @Test
     void completePaymentRejectsDuplicateCompletedImpUidForAnotherPayment() {
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         when(paymentRepository.existsByImpUidAndPaymentStatusCode_CodeAndMerchantUidNot(
                 "imp-valid", "COMPLETED", "merchant-complete")).thenReturn(true);
 
@@ -482,7 +482,7 @@ class PaymentServiceAuthorizationTest {
     @Test
     void completePaymentRejectsPgMerchantMismatch() {
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         when(iamportPaymentVerifier.findPayment("imp-valid"))
                 .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-other", "paid", BigDecimal.valueOf(100)));
 
@@ -496,7 +496,7 @@ class PaymentServiceAuthorizationTest {
     @Test
     void completePaymentRejectsPgAmountMismatch() {
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         when(iamportPaymentVerifier.findPayment("imp-valid"))
                 .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-complete", "paid", BigDecimal.valueOf(101)));
 
@@ -510,7 +510,7 @@ class PaymentServiceAuthorizationTest {
     @Test
     void completePaymentRejectsPgStatusNotPaid() {
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         when(iamportPaymentVerifier.findPayment("imp-valid"))
                 .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-complete", "ready", BigDecimal.valueOf(100)));
 
@@ -525,7 +525,7 @@ class PaymentServiceAuthorizationTest {
     void completePaymentRejectsTicketPricePaymentAmountMismatch() {
         Event event = event(1L, 100L);
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         stubValidIamport();
         stubReservationRelation(event, 1L, 10L, 50);
 
@@ -541,7 +541,7 @@ class PaymentServiceAuthorizationTest {
         Event paymentEvent = event(1L, 100L);
         Event otherEvent = event(2L, 100L);
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, paymentEvent);
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         stubValidIamport();
         when(eventScheduleRepository.findById(1L)).thenReturn(Optional.of(schedule(1L, otherEvent)));
 
@@ -556,7 +556,7 @@ class PaymentServiceAuthorizationTest {
     @Test
     void completePaymentRejectsMissingScheduleOrTicketForReservation() {
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         stubValidIamport();
         PaymentRequestDto request = completeRequest();
         request.setScheduleId(null);
@@ -573,7 +573,7 @@ class PaymentServiceAuthorizationTest {
     void completePaymentRejectsMissingScheduleTicketRelation() {
         Event event = event(1L, 100L);
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         stubValidIamport();
         when(eventScheduleRepository.findById(1L)).thenReturn(Optional.of(schedule(1L, event)));
         when(scheduleTicketRepository.findById(new ScheduleTicketId(10L, 1L))).thenReturn(Optional.empty());
@@ -589,7 +589,7 @@ class PaymentServiceAuthorizationTest {
     void completePaymentPropagatesReservationCompletionException() {
         Event event = event(1L, 100L);
         Payment payment = pendingPayment("merchant-complete", 300L, null, event);
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         stubValidIamport();
@@ -606,7 +606,7 @@ class PaymentServiceAuthorizationTest {
     void completePaymentAllowsValidReservationCompletion() {
         Event event = event(1L, 100L);
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
-        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
         when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -617,6 +617,62 @@ class PaymentServiceAuthorizationTest {
 
         assertThat(payment.getPaymentStatusCode().getCode()).isEqualTo("COMPLETED");
         assertThat(payment.getImpUid()).isEqualTo("imp-valid");
+    }
+
+    @Test
+    void completePublicPaymentAllowsBoothApplicationWithoutPrincipal() {
+        Payment payment = pendingPayment("merchant-public", 300L, 10L, "BOOTH_APPLICATION", null);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-public")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(iamportPaymentVerifier.findPayment("imp-public"))
+                .thenReturn(new IamportPaymentInfo("imp-public", "merchant-public", "paid", BigDecimal.valueOf(100)));
+
+        paymentService.completePublicPayment(publicCompleteRequest(), "BOOTH_APPLICATION");
+
+        assertThat(payment.getPaymentStatusCode().getCode()).isEqualTo("COMPLETED");
+        assertThat(payment.getImpUid()).isEqualTo("imp-public");
+    }
+
+    @Test
+    void completePublicPaymentRejectsWrongTargetType() {
+        Payment payment = pendingPayment("merchant-public", 300L, 10L, "RESERVATION", event(1L, 100L));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-public")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.completePublicPayment(publicCompleteRequest(), "BOOTH_APPLICATION"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("공개 결제 완료 대상");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentUsesLockedLookupSoSecondConfirmDoesNotRunCompletionAgain() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete"))
+                .thenReturn(Optional.of(payment))
+                .thenAnswer(invocation -> {
+                    payment.setPaymentStatusCode(paymentStatusCode("COMPLETED"));
+                    return Optional.of(payment);
+                });
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubValidIamport();
+        stubReservationRelation(event, 1L, 10L, 100);
+
+        paymentService.completePayment(completeRequest(), user(300L, "COMMON"));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("대기 상태");
+
+        verify(paymentRepository, org.mockito.Mockito.times(2)).findByMerchantUidForUpdate("merchant-complete");
+        verify(paymentRepository, org.mockito.Mockito.times(1)).save(any(Payment.class));
+        verify(iamportPaymentVerifier, org.mockito.Mockito.times(1)).findPayment("imp-valid");
     }
 
     private Payment payment(String merchantUid, Long userId, Long targetId, Event event) {
@@ -656,12 +712,25 @@ class PaymentServiceAuthorizationTest {
         return payment;
     }
 
+    private Payment pendingPayment(String merchantUid, Long userId, Long targetId, String targetCode, Event event) {
+        Payment payment = payment(merchantUid, userId, targetId, targetCode, event);
+        payment.setPaymentStatusCode(paymentStatusCode("PENDING"));
+        return payment;
+    }
+
     private PaymentRequestDto completeRequest() {
         return PaymentRequestDto.builder()
                 .merchantUid("merchant-complete")
                 .impUid("imp-valid")
                 .scheduleId(1L)
                 .ticketId(10L)
+                .build();
+    }
+
+    private PaymentRequestDto publicCompleteRequest() {
+        return PaymentRequestDto.builder()
+                .merchantUid("merchant-public")
+                .impUid("imp-public")
                 .build();
     }
 

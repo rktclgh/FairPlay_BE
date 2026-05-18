@@ -192,28 +192,48 @@ public class PaymentService {
     // 티켓 결제 완료 처리 (PG사 결제 후 호출)
     @Transactional
     public PaymentResponseDto completePayment(PaymentRequestDto paymentRequestDto) {
-        return completePayment(paymentRequestDto, null);
+        return completePaymentInternal(paymentRequestDto, null, null);
     }
 
     // 티켓 결제 완료 처리 (PG사 결제 후 호출)
     @Transactional
     public PaymentResponseDto completePayment(PaymentRequestDto paymentRequestDto, CustomUserDetails userDetails) {
+        return completePaymentInternal(paymentRequestDto, userDetails, null);
+    }
+
+    @Transactional
+    public PaymentResponseDto completePublicPayment(PaymentRequestDto paymentRequestDto, String expectedTargetType) {
+        if (!"BOOTH_APPLICATION".equals(expectedTargetType) && !"BANNER_APPLICATION".equals(expectedTargetType)) {
+            throw new IllegalArgumentException("공개 결제 완료는 부스 또는 배너 신청에만 사용 가능합니다.");
+        }
+        return completePaymentInternal(paymentRequestDto, null, expectedTargetType);
+    }
+
+    private PaymentResponseDto completePaymentInternal(
+            PaymentRequestDto paymentRequestDto,
+            CustomUserDetails userDetails,
+            String expectedPublicTargetType
+    ) {
         if (paymentRequestDto == null) {
             throw new IllegalArgumentException("결제 요청 데이터가 없습니다.");
         }
-        if (userDetails == null) {
+        if (userDetails == null && expectedPublicTargetType == null) {
             throw new AccessDeniedException("인증되지 않은 사용자입니다.");
         }
         if (paymentRequestDto.getImpUid() == null || paymentRequestDto.getImpUid().isBlank()) {
             throw new IllegalArgumentException("impUid는 필수입니다.");
         }
 
-        Payment payment = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
+        Payment payment = paymentRepository.findByMerchantUidForUpdate(paymentRequestDto.getMerchantUid())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
 
-        Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
-        if (!Objects.equals(paymentUserId, userDetails.getUserId())) {
-            throw new AccessDeniedException("본인 결제만 완료할 수 있습니다.");
+        if (expectedPublicTargetType == null) {
+            Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
+            if (!Objects.equals(paymentUserId, userDetails.getUserId())) {
+                throw new AccessDeniedException("본인 결제만 완료할 수 있습니다.");
+            }
+        } else {
+            validatePublicCompletionTargetType(payment, expectedPublicTargetType);
         }
 
         String currentStatus = payment.getPaymentStatusCode() != null ? payment.getPaymentStatusCode().getCode() : null;
@@ -250,6 +270,15 @@ public class PaymentService {
                 ", targetId: " + updatedPayment.getTargetId());
         
         return PaymentResponseDto.fromEntity(updatedPayment);
+    }
+
+    private void validatePublicCompletionTargetType(Payment payment, String expectedTargetType) {
+        String actualTargetType = payment.getPaymentTargetType() != null
+                ? payment.getPaymentTargetType().getPaymentTargetCode()
+                : null;
+        if (!Objects.equals(actualTargetType, expectedTargetType)) {
+            throw new AccessDeniedException("허용되지 않은 공개 결제 완료 대상입니다.");
+        }
     }
 
     // 티켓 결제 전체 조회 (전체 관리자, 행사 관리자)
