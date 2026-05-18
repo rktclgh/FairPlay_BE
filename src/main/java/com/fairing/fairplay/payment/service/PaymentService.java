@@ -43,7 +43,9 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -62,7 +64,7 @@ import java.util.UUID;
 public class PaymentService {
 
     private static final String IMP_UID_LOCK_PREFIX = "payment:impUid:lock:";
-    private static final Duration IMP_UID_LOCK_TTL = Duration.ofSeconds(30);
+    private static final Duration IMP_UID_LOCK_TTL = Duration.ofSeconds(90);
     private static final DefaultRedisScript<Long> RELEASE_IMP_UID_LOCK_SCRIPT = new DefaultRedisScript<>(
             """
                     if redis.call('get', KEYS[1]) == ARGV[1] then
@@ -112,6 +114,7 @@ public class PaymentService {
     private final IamportPaymentVerifier iamportPaymentVerifier;
     private final ReservationPaymentIntentStore reservationPaymentIntentStore;
     private final StringRedisTemplate redisTemplate;
+    private final PlatformTransactionManager transactionManager;
 
     // 결제 요청 정보 저장 (예약/부스/광고 통합)
     @Transactional
@@ -221,18 +224,15 @@ public class PaymentService {
     }
 
     // 티켓 결제 완료 처리 (PG사 결제 후 호출)
-    @Transactional
     public PaymentResponseDto completePayment(PaymentRequestDto paymentRequestDto) {
         return completePaymentInternal(paymentRequestDto, null, null);
     }
 
     // 티켓 결제 완료 처리 (PG사 결제 후 호출)
-    @Transactional
     public PaymentResponseDto completePayment(PaymentRequestDto paymentRequestDto, CustomUserDetails userDetails) {
         return completePaymentInternal(paymentRequestDto, userDetails, null);
     }
 
-    @Transactional
     public PaymentResponseDto completePublicPayment(PaymentRequestDto paymentRequestDto, String expectedTargetType) {
         if (!"BOOTH_APPLICATION".equals(expectedTargetType) && !"BANNER_APPLICATION".equals(expectedTargetType)) {
             throw new IllegalArgumentException("공개 결제 완료는 부스 또는 배너 신청에만 사용 가능합니다.");
@@ -257,13 +257,38 @@ public class PaymentService {
 
         String lockToken = acquireImpUidLock(paymentRequestDto.getImpUid());
         try {
+            PaymentCompletionSnapshot snapshot = loadCompletionSnapshot(paymentRequestDto, userDetails, expectedPublicTargetType);
+            IamportPaymentInfo paymentInfo = validatePaymentWithIamportSnapshot(paymentRequestDto.getImpUid(), snapshot);
+            return completePaymentAfterPgVerification(
+                    paymentRequestDto, userDetails, expectedPublicTargetType, snapshot.reservationIntent(), paymentInfo);
+        } finally {
+            releaseImpUidLock(paymentRequestDto.getImpUid(), lockToken);
+        }
+    }
+
+    private PaymentCompletionSnapshot loadCompletionSnapshot(
+            PaymentRequestDto paymentRequestDto,
+            CustomUserDetails userDetails,
+            String expectedPublicTargetType
+    ) {
+        return readOnlyTransactionTemplate().execute(status -> {
             Payment paymentSnapshot = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
                     .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
             validateCompletionEligibility(paymentSnapshot, paymentRequestDto, userDetails, expectedPublicTargetType);
             ReservationPaymentIntent reservationIntentSnapshot = validateReservationCompletionRequest(
                     paymentSnapshot, paymentRequestDto, userDetails);
-            IamportPaymentInfo paymentInfo = validatePaymentWithIamport(paymentRequestDto.getImpUid(), paymentSnapshot);
+            return PaymentCompletionSnapshot.from(paymentSnapshot, reservationIntentSnapshot);
+        });
+    }
 
+    private PaymentResponseDto completePaymentAfterPgVerification(
+            PaymentRequestDto paymentRequestDto,
+            CustomUserDetails userDetails,
+            String expectedPublicTargetType,
+            ReservationPaymentIntent reservationIntentSnapshot,
+            IamportPaymentInfo paymentInfo
+    ) {
+        return writeTransactionTemplate().execute(status -> {
             Payment payment = paymentRepository.findByMerchantUidForUpdate(paymentRequestDto.getMerchantUid())
                     .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
             validateCompletionEligibility(payment, paymentRequestDto, userDetails, expectedPublicTargetType);
@@ -298,9 +323,17 @@ public class PaymentService {
                     ", targetId: " + updatedPayment.getTargetId());
 
             return PaymentResponseDto.fromEntity(updatedPayment);
-        } finally {
-            releaseImpUidLock(paymentRequestDto.getImpUid(), lockToken);
-        }
+        });
+    }
+
+    private TransactionTemplate readOnlyTransactionTemplate() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setReadOnly(true);
+        return template;
+    }
+
+    private TransactionTemplate writeTransactionTemplate() {
+        return new TransactionTemplate(transactionManager);
     }
 
     private void validateCompletionEligibility(
@@ -861,6 +894,18 @@ public class PaymentService {
         }
     }
 
+    private IamportPaymentInfo validatePaymentWithIamportSnapshot(String impUid, PaymentCompletionSnapshot payment) {
+        try {
+            System.out.println("아임포트 결제 검증 시작 - impUid: " + impUid + ", 예상금액: " + payment.amount());
+
+            IamportPaymentInfo paymentInfo = iamportPaymentVerifier.findPayment(impUid);
+            validatePaymentWithIamportSnapshotInfo(impUid, payment, paymentInfo);
+            return paymentInfo;
+        } catch (Exception e) {
+            throw new IllegalStateException("아임포트 결제 검증 실패: " + e.getMessage(), e);
+        }
+    }
+
     private void validatePaymentWithIamportInfo(String impUid, Payment payment, IamportPaymentInfo paymentInfo) {
         if (!Objects.equals(impUid, paymentInfo.impUid())) {
             throw new IllegalStateException("아임포트 결제 ID가 일치하지 않습니다.");
@@ -872,6 +917,25 @@ public class PaymentService {
             throw new IllegalStateException("아임포트에서 결제가 완료되지 않았습니다. 상태: " + paymentInfo.status());
         }
         if (paymentInfo.amount() == null || paymentInfo.amount().compareTo(payment.getAmount()) != 0) {
+            throw new IllegalStateException("아임포트 결제 금액이 일치하지 않습니다.");
+        }
+    }
+
+    private void validatePaymentWithIamportSnapshotInfo(
+            String impUid,
+            PaymentCompletionSnapshot payment,
+            IamportPaymentInfo paymentInfo
+    ) {
+        if (!Objects.equals(impUid, paymentInfo.impUid())) {
+            throw new IllegalStateException("아임포트 결제 ID가 일치하지 않습니다.");
+        }
+        if (!Objects.equals(payment.merchantUid(), paymentInfo.merchantUid())) {
+            throw new IllegalStateException("아임포트 주문번호가 일치하지 않습니다.");
+        }
+        if (!"paid".equals(paymentInfo.status())) {
+            throw new IllegalStateException("아임포트에서 결제가 완료되지 않았습니다. 상태: " + paymentInfo.status());
+        }
+        if (paymentInfo.amount() == null || paymentInfo.amount().compareTo(payment.amount()) != 0) {
             throw new IllegalStateException("아임포트 결제 금액이 일치하지 않습니다.");
         }
     }
@@ -1138,6 +1202,16 @@ public class PaymentService {
                 reservationId != null ? reservationId.toString() : "처리중",
                 payment.getMerchantUid()
         );
+    }
+
+    private record PaymentCompletionSnapshot(
+            String merchantUid,
+            BigDecimal amount,
+            ReservationPaymentIntent reservationIntent
+    ) {
+        private static PaymentCompletionSnapshot from(Payment payment, ReservationPaymentIntent reservationIntent) {
+            return new PaymentCompletionSnapshot(payment.getMerchantUid(), payment.getAmount(), reservationIntent);
+        }
     }
 
     // 이메일에서 부스 결제 요청 처리 (인증 없이)

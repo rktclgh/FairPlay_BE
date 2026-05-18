@@ -47,6 +47,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -59,12 +61,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceAuthorizationTest {
@@ -115,6 +119,8 @@ class PaymentServiceAuthorizationTest {
     private StringRedisTemplate redisTemplate;
     @Mock
     private ValueOperations<String, String> valueOperations;
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     private PaymentService paymentService;
 
@@ -123,6 +129,7 @@ class PaymentServiceAuthorizationTest {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         lenient().when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
         lenient().when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString())).thenReturn(1L);
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         lenient().when(paymentRepository.findByMerchantUid(anyString()))
                 .thenAnswer(invocation -> paymentRepository.findByMerchantUidForUpdate(invocation.getArgument(0)));
         paymentService = new PaymentService(
@@ -147,7 +154,8 @@ class PaymentServiceAuthorizationTest {
                 attendeeFormAttendeeService,
                 iamportPaymentVerifier,
                 reservationPaymentIntentStore,
-                redisTemplate
+                redisTemplate,
+                transactionManager
         );
     }
 
@@ -661,6 +669,33 @@ class PaymentServiceAuthorizationTest {
 
         verify(iamportPaymentVerifier).findPayment("imp-valid");
         verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentLoadsSnapshotAndLockedPaymentInSeparateTransactionBoundaries() {
+        Event event = event(1L, 100L);
+        Payment snapshot = pendingPayment("merchant-complete", 300L, 10L, event);
+        Payment locked = pendingPayment("merchant-complete", 300L, 10L, event);
+        doReturn(Optional.of(snapshot)).when(paymentRepository).findByMerchantUid("merchant-complete");
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(locked));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(locked));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubValidReservationIntent(event, 1L, 10L);
+        stubValidIamport();
+        stubReservationRelation(event, 1L, 10L, 100);
+
+        paymentService.completePayment(completeRequest(), user(300L, "COMMON"));
+
+        var ordered = inOrder(transactionManager, paymentRepository, iamportPaymentVerifier, redisTemplate);
+        ordered.verify(transactionManager).getTransaction(argThat(definition -> definition.isReadOnly()));
+        ordered.verify(paymentRepository).findByMerchantUid("merchant-complete");
+        ordered.verify(transactionManager).commit(any());
+        ordered.verify(iamportPaymentVerifier).findPayment("imp-valid");
+        ordered.verify(transactionManager).getTransaction(argThat(definition -> !definition.isReadOnly()));
+        ordered.verify(paymentRepository).findByMerchantUidForUpdate("merchant-complete");
+        ordered.verify(transactionManager).commit(any());
+        ordered.verify(redisTemplate).execute(any(RedisScript.class), anyList(), anyString());
     }
 
     @Test
