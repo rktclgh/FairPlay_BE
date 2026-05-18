@@ -62,4 +62,30 @@ class DefaultIamportPaymentVerifierTest {
         assertThat(paymentInfo.amount()).isEqualByComparingTo(BigDecimal.valueOf(12000));
         server.verify();
     }
+
+    @Test
+    void findPaymentParsesLargeJsonNumberWithoutDoubleConversion() {
+        RestTemplate restTemplate = DefaultIamportPaymentVerifier.createIamportRestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        DefaultIamportPaymentVerifier verifier = new DefaultIamportPaymentVerifier(restTemplate, new ObjectMapper());
+        ReflectionTestUtils.setField(verifier, "iamportApiKey", "api-key");
+        ReflectionTestUtils.setField(verifier, "iamportSecretKey", "secret-key");
+        ReflectionTestUtils.setField(verifier, "iamportBaseUrl", "https://api.iamport.kr");
+
+        server.expect(requestTo("https://api.iamport.kr/users/getToken"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"code":0,"response":{"access_token":"access-token"}}
+                        """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://api.iamport.kr/payments/imp-valid"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {"code":0,"response":{"imp_uid":"imp-valid","merchant_uid":"merchant-1","status":"paid","amount":9007199254740993}}
+                        """, MediaType.APPLICATION_JSON));
+
+        IamportPaymentInfo paymentInfo = verifier.findPayment("imp-valid");
+
+        assertThat(paymentInfo.amount()).isEqualByComparingTo(new BigDecimal("9007199254740993"));
+        server.verify();
+    }
 }

@@ -43,9 +43,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -53,11 +57,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doReturn;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceAuthorizationTest {
@@ -104,11 +111,20 @@ class PaymentServiceAuthorizationTest {
     private IamportPaymentVerifier iamportPaymentVerifier;
     @Mock
     private ReservationPaymentIntentStore reservationPaymentIntentStore;
+    @Mock
+    private StringRedisTemplate redisTemplate;
+    @Mock
+    private ValueOperations<String, String> valueOperations;
 
     private PaymentService paymentService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
+        lenient().when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString())).thenReturn(1L);
+        lenient().when(paymentRepository.findByMerchantUid(anyString()))
+                .thenAnswer(invocation -> paymentRepository.findByMerchantUidForUpdate(invocation.getArgument(0)));
         paymentService = new PaymentService(
                 paymentRepository,
                 refundRepository,
@@ -130,7 +146,8 @@ class PaymentServiceAuthorizationTest {
                 bannerApplicationRepository,
                 attendeeFormAttendeeService,
                 iamportPaymentVerifier,
-                reservationPaymentIntentStore
+                reservationPaymentIntentStore,
+                redisTemplate
         );
     }
 
@@ -614,6 +631,39 @@ class PaymentServiceAuthorizationTest {
     }
 
     @Test
+    void completePaymentRejectsConcurrentSameImpUidBeforePgLookup() {
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(false);
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("처리 중");
+
+        verify(paymentRepository, never()).findByMerchantUid(any());
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRevalidatesLockedStatusAfterPgLookup() {
+        Event event = event(1L, 100L);
+        Payment snapshot = pendingPayment("merchant-complete", 300L, 10L, event);
+        Payment locked = pendingPayment("merchant-complete", 300L, 10L, event);
+        locked.setPaymentStatusCode(paymentStatusCode("COMPLETED"));
+        doReturn(Optional.of(snapshot)).when(paymentRepository).findByMerchantUid("merchant-complete");
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(locked));
+        stubValidReservationIntent(event, 1L, 10L);
+        stubReservationRelation(event, 1L, 10L, 100);
+        stubValidIamport();
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("대기 상태");
+
+        verify(iamportPaymentVerifier).findPayment("imp-valid");
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
     void completePaymentRejectsPgMerchantMismatch() {
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
         when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
@@ -864,6 +914,37 @@ class PaymentServiceAuthorizationTest {
     }
 
     @Test
+    void completePaymentRejectsNonExactReservationUnitPrice() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        payment.setQuantity(3);
+        payment.setAmount(BigDecimal.valueOf(100));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        when(reservationPaymentIntentStore.find("merchant-complete", 300L))
+                .thenReturn(Optional.of(new ReservationPaymentIntent(
+                        event.getEventId(),
+                        1L,
+                        10L,
+                        3,
+                        BigDecimal.valueOf(100),
+                        "RESERVATION",
+                        300L,
+                        "merchant-complete")));
+
+        PaymentRequestDto request = completeRequest();
+        request.setQuantity(3);
+        request.setAmount(BigDecimal.valueOf(100));
+        request.setPrice(new BigDecimal("33.33"));
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("정확히 나누어");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
     void completePaymentPropagatesReservationCompletionException() {
         Event event = event(1L, 100L);
         Payment payment = pendingPayment("merchant-complete", 300L, null, event);
@@ -949,12 +1030,8 @@ class PaymentServiceAuthorizationTest {
     void completePaymentUsesLockedLookupSoSecondConfirmDoesNotRunCompletionAgain() {
         Event event = event(1L, 100L);
         Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
-        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete"))
-                .thenReturn(Optional.of(payment))
-                .thenAnswer(invocation -> {
-                    payment.setPaymentStatusCode(paymentStatusCode("COMPLETED"));
-                    return Optional.of(payment);
-                });
+        doReturn(Optional.of(payment)).when(paymentRepository).findByMerchantUid("merchant-complete");
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
         when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
         when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -968,7 +1045,7 @@ class PaymentServiceAuthorizationTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("대기 상태");
 
-        verify(paymentRepository, org.mockito.Mockito.times(2)).findByMerchantUidForUpdate("merchant-complete");
+        verify(paymentRepository, org.mockito.Mockito.atLeastOnce()).findByMerchantUidForUpdate("merchant-complete");
         verify(paymentRepository, org.mockito.Mockito.times(1)).save(any(Payment.class));
         verify(iamportPaymentVerifier, org.mockito.Mockito.times(1)).findPayment("imp-valid");
     }

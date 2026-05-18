@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -135,8 +136,11 @@ public class DefaultIamportPaymentVerifier implements IamportPaymentVerifier {
         if (value instanceof BigDecimal bigDecimal) {
             return bigDecimal;
         }
+        if (value instanceof BigInteger bigInteger) {
+            return new BigDecimal(bigInteger);
+        }
         if (value instanceof Number number) {
-            return BigDecimal.valueOf(number.doubleValue());
+            return new BigDecimal(number.toString());
         }
         return new BigDecimal(value.toString());
     }
