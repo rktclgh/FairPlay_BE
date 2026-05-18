@@ -74,6 +74,15 @@ class SecurityConfigPublicSurfaceTest {
     }
 
     @Test
+    void bannerPaymentCompleteRemainsPublicWithoutSession() throws Exception {
+        mockMvc.perform(post("/api/banners/payment/complete")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus())
+                        .isNotIn(401, 403));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void sessionFilterDoesNotClassifyUploadApiAsPublicPath() {
         List<String> publicPaths = (List<String>) ReflectionTestUtils.getField(

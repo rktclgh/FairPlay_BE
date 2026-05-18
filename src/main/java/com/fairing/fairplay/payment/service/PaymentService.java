@@ -195,6 +195,9 @@ public class PaymentService {
 
         // 6. 결제 완료 후 후속 처리 (예약 생성 등) - PaymentRequestDto의 scheduleId, ticketId 전달
         processPaymentCompletionActions(savedPaymentEntity, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
+        if (isReservationPayment(savedPaymentEntity)) {
+            reservationPaymentIntentStore.delete(payment.getMerchantUid(), userId);
+        }
 
         return PaymentResponseDto.fromEntity(savedPaymentEntity);
     }
@@ -296,6 +299,13 @@ public class PaymentService {
         if (!Objects.equals(actualTargetType, expectedTargetType)) {
             throw new AccessDeniedException("허용되지 않은 공개 결제 완료 대상입니다.");
         }
+    }
+
+    private boolean isReservationPayment(Payment payment) {
+        String targetType = payment.getPaymentTargetType() != null
+                ? payment.getPaymentTargetType().getPaymentTargetCode()
+                : null;
+        return "RESERVATION".equals(targetType);
     }
 
     // 티켓 결제 전체 조회 (전체 관리자, 행사 관리자)
