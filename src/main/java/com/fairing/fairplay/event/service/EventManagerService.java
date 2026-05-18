@@ -2,6 +2,8 @@ package com.fairing.fairplay.event.service;
 
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventManagerRepository;
+import com.fairing.fairplay.payment.entity.Refund;
+import com.fairing.fairplay.payment.repository.RefundRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ public class EventManagerService {
 
     private final EventManagerRepository eventManagerRepository;
     private final UserRepository userRepository;
+    private final RefundRepository refundRepository;
 
     /**
      * 사용자가 관리하는 이벤트 ID 목록 조회
@@ -61,11 +64,16 @@ public class EventManagerService {
      */
     @Transactional(readOnly = true)
     public boolean isRefundInManagedEvent(Long refundId, Long managerId) {
-        List<Long> managedEventIds = getManagedEventIds(managerId);
-        
-        // 환불의 이벤트 ID를 조회하는 쿼리 필요
-        // 현재는 간단한 구현으로 대체
-        return true; // TODO: 실제 검증 로직 구현
+        Refund refund = refundRepository.findById(refundId)
+                .orElseThrow(() -> new IllegalArgumentException("환불 요청을 찾을 수 없습니다: " + refundId));
+
+        if (refund.getPayment() == null || refund.getPayment().getEvent() == null) {
+            return false;
+        }
+
+        Event event = refund.getPayment().getEvent();
+        Long eventManagerUserId = event.getManager() != null ? event.getManager().getUserId() : null;
+        return managerId != null && managerId.equals(eventManagerUserId);
     }
 
     /**

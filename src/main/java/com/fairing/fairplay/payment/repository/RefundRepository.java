@@ -140,6 +140,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         AND (:refundStatus IS NULL OR rsc.code = :refundStatus)
         AND (:paymentTargetType IS NULL OR ptt.paymentTargetCode = :paymentTargetType)
         AND (:eventId IS NULL OR e.eventId = :eventId)
+        AND (:managerUserId IS NULL OR e.manager.user.userId = :managerUserId)
     """)
     Page<AdminRefundListResponseDto> findAdminRefundsWithFilters(
         @Param("eventName") String eventName,
@@ -149,6 +150,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         @Param("refundStatus") String refundStatus,
         @Param("paymentTargetType") String paymentTargetType,
         @Param("eventId") Long eventId,
+        @Param("managerUserId") Long managerUserId,
         Pageable pageable
     );
 
