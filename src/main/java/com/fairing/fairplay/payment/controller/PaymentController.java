@@ -97,8 +97,12 @@ public class PaymentController {
     @FunctionAuth("completePayment")
     public ResponseEntity<PaymentResponseDto> completePayment(@RequestBody PaymentRequestDto paymentRequestDto,
                                                               @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new AccessDeniedException("인증되지 않은 사용자입니다.");
+        }
+
         try {
-            PaymentResponseDto completedPayment = paymentService.completePayment(paymentRequestDto);
+            PaymentResponseDto completedPayment = paymentService.completePayment(paymentRequestDto, userDetails);
             
             // 결제 완료 시 락 해제 (사용자별 + merchantUid별 모두)
             if (userDetails != null) {

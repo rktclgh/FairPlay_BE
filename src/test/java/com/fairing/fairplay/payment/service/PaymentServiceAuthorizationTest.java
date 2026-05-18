@@ -1,5 +1,6 @@
 package com.fairing.fairplay.payment.service;
 
+import com.fairing.fairplay.attendeeform.dto.AttendeeFormSaveResponseDto;
 import com.fairing.fairplay.attendeeform.service.AttendeeFormAttendeeService;
 import com.fairing.fairplay.banner.entity.BannerApplication;
 import com.fairing.fairplay.banner.repository.BannerApplicationRepository;
@@ -26,6 +27,10 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.reservation.repository.ReservationStatusCodeRepository;
 import com.fairing.fairplay.reservation.service.ReservationService;
+import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.entity.ScheduleTicket;
+import com.fairing.fairplay.ticket.entity.ScheduleTicketId;
+import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
@@ -38,9 +43,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,11 +59,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceAuthorizationTest {
@@ -95,11 +111,27 @@ class PaymentServiceAuthorizationTest {
     private BannerApplicationRepository bannerApplicationRepository;
     @Mock
     private AttendeeFormAttendeeService attendeeFormAttendeeService;
+    @Mock
+    private IamportPaymentVerifier iamportPaymentVerifier;
+    @Mock
+    private ReservationPaymentIntentStore reservationPaymentIntentStore;
+    @Mock
+    private StringRedisTemplate redisTemplate;
+    @Mock
+    private ValueOperations<String, String> valueOperations;
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     private PaymentService paymentService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
+        lenient().when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString())).thenReturn(1L);
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        lenient().when(paymentRepository.findByMerchantUid(anyString()))
+                .thenAnswer(invocation -> paymentRepository.findByMerchantUidForUpdate(invocation.getArgument(0)));
         paymentService = new PaymentService(
                 paymentRepository,
                 refundRepository,
@@ -119,7 +151,11 @@ class PaymentServiceAuthorizationTest {
                 boothApplicationRepository,
                 boothRepository,
                 bannerApplicationRepository,
-                attendeeFormAttendeeService
+                attendeeFormAttendeeService,
+                iamportPaymentVerifier,
+                reservationPaymentIntentStore,
+                redisTemplate,
+                transactionManager
         );
     }
 
@@ -311,6 +347,136 @@ class PaymentServiceAuthorizationTest {
     }
 
     @Test
+    void savePaymentStoresReservationIntentAfterServerSideValidation() {
+        Event event = event(1L, 100L);
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("RESERVATION"))
+                .thenReturn(Optional.of(targetType("RESERVATION")));
+        when(paymentTypeCodeRepository.getReferenceByCode("CARD")).thenReturn(paymentTypeCode());
+        when(paymentStatusCodeRepository.getReferenceByCode("PENDING")).thenReturn(paymentStatusCode("PENDING"));
+        stubReservationRelation(event, 1L, 10L, 100);
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            payment.setPaymentId(1L);
+            return payment;
+        });
+
+        PaymentRequestDto request = reservationCreateRequest();
+
+        paymentService.savePayment(request, 300L);
+
+        verify(reservationPaymentIntentStore).save(new ReservationPaymentIntent(
+                1L, 1L, 10L, 1, BigDecimal.valueOf(100), "RESERVATION", 300L, "merchant-create"));
+    }
+
+    @Test
+    void savePaymentRejectsReservationClientPriceMismatch() {
+        Event event = event(1L, 100L);
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("RESERVATION"))
+                .thenReturn(Optional.of(targetType("RESERVATION")));
+        stubReservationRelation(event, 1L, 10L, 100);
+
+        PaymentRequestDto request = reservationCreateRequest();
+        request.setPrice(BigDecimal.valueOf(99));
+
+        assertThatThrownBy(() -> paymentService.savePayment(request, 300L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("가격");
+
+        verify(paymentRepository, never()).save(any());
+        verify(reservationPaymentIntentStore, never()).save(any());
+    }
+
+    @Test
+    void savePaymentRejectsReservationClientAmountMismatch() {
+        Event event = event(1L, 100L);
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("RESERVATION"))
+                .thenReturn(Optional.of(targetType("RESERVATION")));
+        stubReservationRelation(event, 1L, 10L, 100);
+
+        PaymentRequestDto request = reservationCreateRequest();
+        request.setAmount(BigDecimal.valueOf(101));
+
+        assertThatThrownBy(() -> paymentService.savePayment(request, 300L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("총액");
+
+        verify(paymentRepository, never()).save(any());
+        verify(reservationPaymentIntentStore, never()).save(any());
+    }
+
+    @Test
+    void savePaymentRejectsReservationQuantityAboveMaxPurchase() {
+        Event event = event(1L, 100L);
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("RESERVATION"))
+                .thenReturn(Optional.of(targetType("RESERVATION")));
+        stubReservationRelation(event, 1L, 10L, 100, 1);
+
+        PaymentRequestDto request = reservationCreateRequest();
+        request.setQuantity(2);
+        request.setAmount(BigDecimal.valueOf(200));
+
+        assertThatThrownBy(() -> paymentService.savePayment(request, 300L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("최대 구매 수량");
+
+        verify(paymentRepository, never()).save(any());
+        verify(reservationPaymentIntentStore, never()).save(any());
+    }
+
+    @Test
+    void processFreeTicketDeletesReservationIntentAfterSuccessfulCompletion() {
+        Event event = event(1L, 100L);
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("RESERVATION"))
+                .thenReturn(Optional.of(targetType("RESERVATION")));
+        when(paymentTypeCodeRepository.getReferenceByCode("CARD")).thenReturn(paymentTypeCode());
+        when(paymentStatusCodeRepository.getReferenceByCode("PENDING")).thenReturn(paymentStatusCode("PENDING"));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        stubReservationRelation(event, 1L, 10L, 0);
+        Payment[] savedPayment = new Payment[1];
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            payment.setPaymentId(1L);
+            savedPayment[0] = payment;
+            return payment;
+        });
+        when(paymentRepository.findByMerchantUid("merchant-free"))
+                .thenAnswer(invocation -> Optional.ofNullable(savedPayment[0]));
+        when(reservationService.createReservation(any(), any(), any()))
+                .thenReturn(reservation(77L, 300L));
+        when(attendeeFormAttendeeService.saveAttendeeFormAndAttendee(any(), any()))
+                .thenReturn(AttendeeFormSaveResponseDto.builder()
+                        .reservationId(77L)
+                        .token("token")
+                        .build());
+
+        PaymentRequestDto request = reservationCreateRequest();
+        request.setMerchantUid("merchant-free");
+        request.setPrice(BigDecimal.ZERO);
+        request.setAmount(BigDecimal.ZERO);
+
+        paymentService.processFreeTicket(request, 300L);
+
+        verify(reservationPaymentIntentStore).save(new ReservationPaymentIntent(
+                1L, 1L, 10L, 1, BigDecimal.ZERO, "RESERVATION", 300L, "merchant-free"));
+        verify(reservationPaymentIntentStore).delete("merchant-free", 300L);
+    }
+
+    @Test
     void savePaymentRejectsUnsupportedTargetCodeWithTargetIdBeforeSave() {
         Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
         when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
@@ -411,6 +577,514 @@ class PaymentServiceAuthorizationTest {
         verify(paymentRepository, never()).findByEvent_EventId(any());
     }
 
+    @Test
+    void completePaymentRejectsNullPrincipal() {
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), null))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).findByMerchantUidForUpdate(any());
+    }
+
+    @Test
+    void completePaymentRejectsOtherUsersPayment() {
+        Payment payment = pendingPayment("merchant-complete", 301L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsNonPendingPayment() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        payment.setPaymentStatusCode(paymentStatusCode("CANCELED"));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("대기 상태");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsMissingImpUid() {
+        PaymentRequestDto request = completeRequest();
+        request.setImpUid(" ");
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("impUid");
+
+        verify(paymentRepository, never()).findByMerchantUidForUpdate(any());
+    }
+
+    @Test
+    void completePaymentRejectsDuplicateCompletedImpUidForAnotherPayment() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.existsByImpUidAndPaymentStatusCode_CodeAndMerchantUidNot(
+                "imp-valid", "COMPLETED", "merchant-complete")).thenReturn(true);
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("이미 사용");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsConcurrentSameImpUidBeforePgLookup() {
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(false);
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("처리 중");
+
+        verify(paymentRepository, never()).findByMerchantUid(any());
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRevalidatesLockedStatusAfterPgLookup() {
+        Event event = event(1L, 100L);
+        Payment snapshot = pendingPayment("merchant-complete", 300L, 10L, event);
+        Payment locked = pendingPayment("merchant-complete", 300L, 10L, event);
+        locked.setPaymentStatusCode(paymentStatusCode("COMPLETED"));
+        doReturn(Optional.of(snapshot)).when(paymentRepository).findByMerchantUid("merchant-complete");
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(locked));
+        stubValidReservationIntent(event, 1L, 10L);
+        stubReservationRelation(event, 1L, 10L, 100);
+        stubValidIamport();
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("대기 상태");
+
+        verify(iamportPaymentVerifier).findPayment("imp-valid");
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentLoadsSnapshotAndLockedPaymentInSeparateTransactionBoundaries() {
+        Event event = event(1L, 100L);
+        Payment snapshot = pendingPayment("merchant-complete", 300L, 10L, event);
+        Payment locked = pendingPayment("merchant-complete", 300L, 10L, event);
+        doReturn(Optional.of(snapshot)).when(paymentRepository).findByMerchantUid("merchant-complete");
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(locked));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(locked));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubValidReservationIntent(event, 1L, 10L);
+        stubValidIamport();
+        stubReservationRelation(event, 1L, 10L, 100);
+
+        paymentService.completePayment(completeRequest(), user(300L, "COMMON"));
+
+        var ordered = inOrder(transactionManager, paymentRepository, iamportPaymentVerifier, redisTemplate);
+        ordered.verify(transactionManager).getTransaction(argThat(definition -> definition.isReadOnly()));
+        ordered.verify(paymentRepository).findByMerchantUid("merchant-complete");
+        ordered.verify(transactionManager).commit(any());
+        ordered.verify(iamportPaymentVerifier).findPayment("imp-valid");
+        ordered.verify(transactionManager).getTransaction(argThat(definition -> !definition.isReadOnly()));
+        ordered.verify(paymentRepository).findByMerchantUidForUpdate("merchant-complete");
+        ordered.verify(transactionManager).commit(any());
+        ordered.verify(redisTemplate).execute(any(RedisScript.class), anyList(), anyString());
+    }
+
+    @Test
+    void completePaymentRejectsPgMerchantMismatch() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(payment.getEvent(), 1L, 10L);
+        stubReservationRelation(payment.getEvent(), 1L, 10L, 100);
+        when(iamportPaymentVerifier.findPayment("imp-valid"))
+                .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-other", "paid", BigDecimal.valueOf(100)));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("아임포트");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsPgAmountMismatch() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(payment.getEvent(), 1L, 10L);
+        stubReservationRelation(payment.getEvent(), 1L, 10L, 100);
+        when(iamportPaymentVerifier.findPayment("imp-valid"))
+                .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-complete", "paid", BigDecimal.valueOf(101)));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("아임포트");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsPgStatusNotPaid() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(payment.getEvent(), 1L, 10L);
+        stubReservationRelation(payment.getEvent(), 1L, 10L, 100);
+        when(iamportPaymentVerifier.findPayment("imp-valid"))
+                .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-complete", "ready", BigDecimal.valueOf(100)));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("아임포트");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsTicketPricePaymentAmountMismatch() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(event, 1L, 10L);
+        stubReservationRelation(event, 1L, 10L, 50);
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("금액");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsScheduleOutsidePaymentEvent() {
+        Event paymentEvent = event(1L, 100L);
+        Event otherEvent = event(2L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, paymentEvent);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(paymentEvent, 1L, 10L);
+        when(eventScheduleRepository.findById(1L)).thenReturn(Optional.of(schedule(1L, otherEvent)));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("스케줄");
+
+        verify(scheduleTicketRepository, never()).findById(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsMissingScheduleOrTicketForReservation() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        PaymentRequestDto request = completeRequest();
+        request.setScheduleId(null);
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("scheduleId");
+
+        verify(eventScheduleRepository, never()).findById(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsMissingScheduleTicketRelation() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(event, 1L, 10L);
+        when(eventScheduleRepository.findById(1L)).thenReturn(Optional.of(schedule(1L, event)));
+        when(scheduleTicketRepository.findById(new ScheduleTicketId(10L, 1L))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("스케줄");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsDifferentTicketFromStoredIntentEvenWithSameEventAndPrice() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(event, 1L, 10L);
+
+        PaymentRequestDto request = completeRequest();
+        request.setTicketId(11L);
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("intent");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsDifferentScheduleFromStoredIntentEvenWithSameEventAndPrice() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(event, 1L, 10L);
+
+        PaymentRequestDto request = completeRequest();
+        request.setScheduleId(2L);
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("intent");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsMissingReservationIntent() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        when(reservationPaymentIntentStore.find("merchant-complete", 300L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("intent");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsReservationIntentWithDifferentMerchantUid() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        when(reservationPaymentIntentStore.find("merchant-complete", 300L))
+                .thenReturn(Optional.of(new ReservationPaymentIntent(
+                        1L, 1L, 10L, 1, BigDecimal.valueOf(100), "RESERVATION", 300L, "merchant-other")));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("intent");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsReservationAmountOrQuantityMismatch() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        payment.setQuantity(2);
+        payment.setAmount(BigDecimal.valueOf(200));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(event, 1L, 10L);
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("금액 또는 수량");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsRequestQuantityMismatchWithStoredIntent() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(event, 1L, 10L);
+
+        PaymentRequestDto request = completeRequest();
+        request.setQuantity(2);
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("수량");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsRequestAmountMismatchWithStoredIntent() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(event, 1L, 10L);
+
+        PaymentRequestDto request = completeRequest();
+        request.setAmount(BigDecimal.valueOf(101));
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("금액");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsRequestPriceMismatchWithStoredIntent() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidReservationIntent(event, 1L, 10L);
+
+        PaymentRequestDto request = completeRequest();
+        request.setPrice(BigDecimal.valueOf(101));
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("가격");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsNonExactReservationUnitPrice() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        payment.setQuantity(3);
+        payment.setAmount(BigDecimal.valueOf(100));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        when(reservationPaymentIntentStore.find("merchant-complete", 300L))
+                .thenReturn(Optional.of(new ReservationPaymentIntent(
+                        event.getEventId(),
+                        1L,
+                        10L,
+                        3,
+                        BigDecimal.valueOf(100),
+                        "RESERVATION",
+                        300L,
+                        "merchant-complete")));
+
+        PaymentRequestDto request = completeRequest();
+        request.setQuantity(3);
+        request.setAmount(BigDecimal.valueOf(100));
+        request.setPrice(new BigDecimal("33.33"));
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("정확히 나누어");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentPropagatesReservationCompletionException() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, null, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubValidReservationIntent(event, 1L, 10L);
+        stubValidIamport();
+        stubReservationRelation(event, 1L, 10L, 100);
+        when(reservationService.createReservation(any(), any(), any()))
+                .thenThrow(new IllegalStateException("stock failed"));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("예매 생성에 실패");
+    }
+
+    @Test
+    void completePaymentAllowsValidReservationCompletion() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubValidReservationIntent(event, 1L, 10L);
+        stubValidIamport();
+        stubReservationRelation(event, 1L, 10L, 100);
+
+        paymentService.completePayment(completeRequest(), user(300L, "COMMON"));
+
+        assertThat(payment.getPaymentStatusCode().getCode()).isEqualTo("COMPLETED");
+        assertThat(payment.getImpUid()).isEqualTo("imp-valid");
+        verify(reservationPaymentIntentStore).delete("merchant-complete", 300L);
+    }
+
+    @Test
+    void completePublicPaymentAllowsBoothApplicationWithoutPrincipal() {
+        Payment payment = pendingPayment("merchant-public", 300L, 10L, "BOOTH_APPLICATION", null);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-public")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(iamportPaymentVerifier.findPayment("imp-public"))
+                .thenReturn(new IamportPaymentInfo("imp-public", "merchant-public", "paid", BigDecimal.valueOf(100)));
+
+        paymentService.completePublicPayment(publicCompleteRequest(), "BOOTH_APPLICATION");
+
+        assertThat(payment.getPaymentStatusCode().getCode()).isEqualTo("COMPLETED");
+        assertThat(payment.getImpUid()).isEqualTo("imp-public");
+    }
+
+    @Test
+    void completePublicPaymentAllowsBannerApplicationWithoutPrincipal() {
+        Payment payment = pendingPayment("merchant-public", 300L, 10L, "BANNER_APPLICATION", null);
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-public")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(iamportPaymentVerifier.findPayment("imp-public"))
+                .thenReturn(new IamportPaymentInfo("imp-public", "merchant-public", "paid", BigDecimal.valueOf(100)));
+
+        paymentService.completePublicPayment(publicCompleteRequest(), "BANNER_APPLICATION");
+
+        assertThat(payment.getPaymentStatusCode().getCode()).isEqualTo("COMPLETED");
+        assertThat(payment.getImpUid()).isEqualTo("imp-public");
+    }
+
+    @Test
+    void completePublicPaymentRejectsWrongTargetType() {
+        Payment payment = pendingPayment("merchant-public", 300L, 10L, "RESERVATION", event(1L, 100L));
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-public")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.completePublicPayment(publicCompleteRequest(), "BOOTH_APPLICATION"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("공개 결제 완료 대상");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentUsesLockedLookupSoSecondConfirmDoesNotRunCompletionAgain() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        doReturn(Optional.of(payment)).when(paymentRepository).findByMerchantUid("merchant-complete");
+        when(paymentRepository.findByMerchantUidForUpdate("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubValidReservationIntent(event, 1L, 10L);
+        stubValidIamport();
+        stubReservationRelation(event, 1L, 10L, 100);
+
+        paymentService.completePayment(completeRequest(), user(300L, "COMMON"));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("대기 상태");
+
+        verify(paymentRepository, org.mockito.Mockito.atLeastOnce()).findByMerchantUidForUpdate("merchant-complete");
+        verify(paymentRepository, org.mockito.Mockito.times(1)).save(any(Payment.class));
+        verify(iamportPaymentVerifier, org.mockito.Mockito.times(1)).findPayment("imp-valid");
+    }
+
     private Payment payment(String merchantUid, Long userId, Long targetId, Event event) {
         return payment(merchantUid, userId, targetId, "RESERVATION", event);
     }
@@ -442,12 +1116,103 @@ class PaymentServiceAuthorizationTest {
                 .build();
     }
 
+    private Payment pendingPayment(String merchantUid, Long userId, Long targetId, Event event) {
+        Payment payment = payment(merchantUid, userId, targetId, "RESERVATION", event);
+        payment.setPaymentStatusCode(paymentStatusCode("PENDING"));
+        return payment;
+    }
+
+    private Payment pendingPayment(String merchantUid, Long userId, Long targetId, String targetCode, Event event) {
+        Payment payment = payment(merchantUid, userId, targetId, targetCode, event);
+        payment.setPaymentStatusCode(paymentStatusCode("PENDING"));
+        return payment;
+    }
+
+    private PaymentRequestDto completeRequest() {
+        return PaymentRequestDto.builder()
+                .merchantUid("merchant-complete")
+                .impUid("imp-valid")
+                .scheduleId(1L)
+                .ticketId(10L)
+                .build();
+    }
+
+    private PaymentRequestDto publicCompleteRequest() {
+        return PaymentRequestDto.builder()
+                .merchantUid("merchant-public")
+                .impUid("imp-public")
+                .build();
+    }
+
+    private void stubValidIamport() {
+        when(iamportPaymentVerifier.findPayment("imp-valid"))
+                .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-complete", "paid", BigDecimal.valueOf(100)));
+    }
+
+    private void stubValidReservationIntent(Event event, Long scheduleId, Long ticketId) {
+        when(reservationPaymentIntentStore.find("merchant-complete", 300L))
+                .thenReturn(Optional.of(new ReservationPaymentIntent(
+                        event.getEventId(),
+                        scheduleId,
+                        ticketId,
+                        1,
+                        BigDecimal.valueOf(100),
+                        "RESERVATION",
+                        300L,
+                        "merchant-complete")));
+    }
+
+    private void stubReservationRelation(Event event, Long scheduleId, Long ticketId, Integer ticketPrice) {
+        stubReservationRelation(event, scheduleId, ticketId, ticketPrice, null);
+    }
+
+    private void stubReservationRelation(Event event, Long scheduleId, Long ticketId, Integer ticketPrice, Integer maxPurchase) {
+        EventSchedule schedule = schedule(scheduleId, event);
+        Ticket ticket = Ticket.builder()
+                .ticketId(ticketId)
+                .name("ticket")
+                .price(ticketPrice)
+                .maxPurchase(maxPurchase)
+                .build();
+        ScheduleTicket scheduleTicket = ScheduleTicket.builder()
+                .id(new ScheduleTicketId(ticketId, scheduleId))
+                .eventSchedule(schedule)
+                .ticket(ticket)
+                .build();
+
+        when(eventScheduleRepository.findById(scheduleId)).thenReturn(Optional.of(schedule));
+        when(scheduleTicketRepository.findById(new ScheduleTicketId(ticketId, scheduleId)))
+                .thenReturn(Optional.of(scheduleTicket));
+        lenient().when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+    }
+
+    private EventSchedule schedule(Long scheduleId, Event event) {
+        return EventSchedule.builder()
+                .scheduleId(scheduleId)
+                .event(event)
+                .build();
+    }
+
     private PaymentRequestDto paymentRequest(String targetCode, Long targetId) {
         return PaymentRequestDto.builder()
                 .paymentTargetType(targetCode)
                 .targetId(targetId)
                 .quantity(1)
                 .price(BigDecimal.valueOf(100))
+                .pgProvider("html5_inicis")
+                .merchantUid("merchant-create")
+                .build();
+    }
+
+    private PaymentRequestDto reservationCreateRequest() {
+        return PaymentRequestDto.builder()
+                .paymentTargetType("RESERVATION")
+                .eventId(1L)
+                .scheduleId(1L)
+                .ticketId(10L)
+                .quantity(1)
+                .price(BigDecimal.valueOf(100))
+                .amount(BigDecimal.valueOf(100))
                 .pgProvider("html5_inicis")
                 .merchantUid("merchant-create")
                 .build();

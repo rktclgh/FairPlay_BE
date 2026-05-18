@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = FileUploadController.class)
@@ -62,6 +63,23 @@ class SecurityConfigPublicSurfaceTest {
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(localFileService);
+    }
+
+    @Test
+    void paymentCompleteRequiresAuthenticationWithoutSession() throws Exception {
+        mockMvc.perform(post("/api/payments/complete")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void bannerPaymentCompleteRemainsPublicWithoutSession() throws Exception {
+        mockMvc.perform(post("/api/banners/payment/complete")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus())
+                        .isNotIn(401, 403));
     }
 
     @Test
