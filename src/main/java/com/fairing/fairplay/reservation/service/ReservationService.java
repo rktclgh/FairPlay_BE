@@ -533,12 +533,11 @@ public class ReservationService {
         }
 
         String roleCode = userDetails.getRoleCode();
-        if (ROLE_ADMIN.equals(roleCode)) {
+        if (reservation.getUser() != null
+                && userDetails.getUserId().equals(reservation.getUser().getUserId())) {
             return;
         }
-        if (ROLE_COMMON.equals(roleCode)
-                && reservation.getUser() != null
-                && userDetails.getUserId().equals(reservation.getUser().getUserId())) {
+        if (ROLE_ADMIN.equals(roleCode)) {
             return;
         }
         if (ROLE_EVENT_MANAGER.equals(roleCode) && isManagedBy(reservation.getEvent(), userDetails.getUserId())) {

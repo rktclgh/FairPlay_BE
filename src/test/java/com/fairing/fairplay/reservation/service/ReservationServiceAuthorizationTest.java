@@ -110,6 +110,46 @@ class ReservationServiceAuthorizationTest {
     }
 
     @Test
+    void eventManagerCanReadOwnReservationDetailForUnmanagedEvent() {
+        Reservation reservation = reservation(10L, 1L, 100L, 999L);
+        when(reservationRepository.findByReservationIdAndEvent_EventId(10L, 1L))
+                .thenReturn(Optional.of(reservation));
+
+        assertThat(reservationService.getReservationById(1L, 10L, user(100L, "EVENT_MANAGER")))
+                .isSameAs(reservation);
+    }
+
+    @Test
+    void boothManagerCanReadOwnReservationDetailForUnmanagedEvent() {
+        Reservation reservation = reservation(10L, 1L, 200L, 999L);
+        when(reservationRepository.findByReservationIdAndEvent_EventId(10L, 1L))
+                .thenReturn(Optional.of(reservation));
+
+        assertThat(reservationService.getReservationById(1L, 10L, user(200L, "BOOTH_MANAGER")))
+                .isSameAs(reservation);
+    }
+
+    @Test
+    void eventManagerCannotReadOthersReservationDetailForUnmanagedEvent() {
+        Reservation reservation = reservation(10L, 1L, 301L, 999L);
+        when(reservationRepository.findByReservationIdAndEvent_EventId(10L, 1L))
+                .thenReturn(Optional.of(reservation));
+
+        assertThatThrownBy(() -> reservationService.getReservationById(1L, 10L, user(100L, "EVENT_MANAGER")))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void boothManagerCannotReadOthersReservationDetail() {
+        Reservation reservation = reservation(10L, 1L, 301L, 999L);
+        when(reservationRepository.findByReservationIdAndEvent_EventId(10L, 1L))
+                .thenReturn(Optional.of(reservation));
+
+        assertThatThrownBy(() -> reservationService.getReservationById(1L, 10L, user(200L, "BOOTH_MANAGER")))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
     void commonUserCannotReadEventReservationCollections() {
         assertThatThrownBy(() -> reservationService.getReservationsByEvent(1L, user(300L, "COMMON")))
                 .isInstanceOf(AccessDeniedException.class);

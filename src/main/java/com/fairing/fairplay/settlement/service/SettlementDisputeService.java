@@ -238,9 +238,9 @@ public class SettlementDisputeService {
     @Transactional
     public SettlementDisputeDto.Response reviewDispute(SettlementDisputeDto.AdminReviewRequest request,
                                                        CustomUserDetails userDetails) {
+        requireAdmin(userDetails);
         SettlementDispute dispute = disputeRepository.findById(request.getDisputeId())
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "이의신청을 찾을 수 없습니다."));
-        requireAdmin(userDetails);
 
         // 상태 업데이트
         dispute.setStatus(request.getStatus());

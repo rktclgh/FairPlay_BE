@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpStatus;
 
 import java.io.IOException;
@@ -20,7 +22,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class SettlementDisputeControllerPrincipalTest {
 
     @Mock
@@ -85,5 +87,17 @@ class SettlementDisputeControllerPrincipalTest {
 
         verify(disputeService).getAuthorizedFileKey(10L, principal);
         verify(localFileService).downloadFile("uploads/disputes/1/evidence.pdf", response);
+    }
+
+    @Test
+    void downloadDisputeFileDoesNotLogStorageKeyAtInfo(CapturedOutput output) throws IOException {
+        CustomUserDetails principal = mock(CustomUserDetails.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        when(disputeService.getAuthorizedFileKey(10L, principal)).thenReturn("uploads/disputes/1/evidence.pdf");
+
+        controller.downloadDisputeFile(10L, principal, response);
+
+        assertThat(output.getOut()).doesNotContain("uploads/disputes/1/evidence.pdf");
+        assertThat(output.getErr()).doesNotContain("uploads/disputes/1/evidence.pdf");
     }
 }

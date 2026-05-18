@@ -231,6 +231,21 @@ class BoothExperienceServiceAuthorizationTest {
   }
 
   @Test
+  void getBoothExperiencesReturnsRequestedBoothForAdmin() {
+    Booth booth = booth(10L, 100L, 200L);
+    BoothExperience experience = experience(1L, booth);
+    when(boothExperienceRepository.findByBooth_Id(10L)).thenReturn(List.of(experience));
+
+    assertThat(service.getBoothExperiences(10L, 999L, "ADMIN"))
+        .extracting("experienceId")
+        .containsExactly(1L);
+
+    verify(boothRepository, never()).findById(any());
+    verify(boothExperienceRepository, never()).findByEventManagerId(any());
+    verify(boothExperienceRepository, never()).findByBoothAdminId(any());
+  }
+
+  @Test
   void createReservationUsesAuthenticatedPrincipalUserId() {
     CustomUserDetails principal = mock(CustomUserDetails.class);
     BoothExperience experience = experience(1L, booth(10L, 100L, 200L));
@@ -277,6 +292,19 @@ class BoothExperienceServiceAuthorizationTest {
   @Test
   void getManageableExperiencesReturnsEmptyForCommonUser() {
     assertThat(service.getManageableExperiences(300L, "COMMON")).isEmpty();
+
+    verify(boothExperienceRepository, never()).findByEventManagerId(any());
+    verify(boothExperienceRepository, never()).findByBoothAdminId(any());
+  }
+
+  @Test
+  void getManageableExperiencesReturnsAllExperiencesForAdmin() {
+    BoothExperience experience = experience(1L, booth(10L, 100L, 200L));
+    when(boothExperienceRepository.findAll()).thenReturn(List.of(experience));
+
+    assertThat(service.getManageableExperiences(999L, "ADMIN"))
+        .extracting("experienceId")
+        .containsExactly(1L);
 
     verify(boothExperienceRepository, never()).findByEventManagerId(any());
     verify(boothExperienceRepository, never()).findByBoothAdminId(any());

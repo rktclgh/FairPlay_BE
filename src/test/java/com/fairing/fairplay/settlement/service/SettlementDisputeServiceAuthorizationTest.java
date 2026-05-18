@@ -231,16 +231,15 @@ class SettlementDisputeServiceAuthorizationTest {
 
     @Test
     void reviewIsAdminOnly() {
-        SettlementDispute dispute = dispute(1L, settlement(7L, 100L));
         SettlementDisputeDto.AdminReviewRequest request = SettlementDisputeDto.AdminReviewRequest.builder()
                 .disputeId(1L)
                 .status(SettlementDispute.DisputeProcessStatus.RESOLVED)
                 .build();
-        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
 
         assertThatThrownBy(() -> service.reviewDispute(request, user(100L, "EVENT_MANAGER", "owner")))
                 .isInstanceOf(AccessDeniedException.class);
 
+        verify(disputeRepository, never()).findById(any());
         verify(disputeRepository, never()).save(any());
     }
 

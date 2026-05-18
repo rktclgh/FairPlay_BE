@@ -83,7 +83,10 @@ public class BoothExperienceService {
 
     List<BoothExperience> experiences;
 
-    if (ROLE_EVENT_MANAGER.equals(roleCode) || ROLE_BOOTH_MANAGER.equals(roleCode)) {
+    if (ROLE_ADMIN.equals(roleCode)) {
+      experiences = boothExperienceRepository.findByBooth_Id(boothId);
+      log.info("ADMIN - 요청 부스 체험 조회: {}개", experiences.size());
+    } else if (ROLE_EVENT_MANAGER.equals(roleCode) || ROLE_BOOTH_MANAGER.equals(roleCode)) {
       Booth booth = boothRepository.findById(boothId)
           .orElseThrow(() -> new IllegalArgumentException("부스를 찾을 수 없습니다: " + boothId));
       validateBoothManagementAccess(booth, userId, roleCode);
@@ -712,7 +715,11 @@ public class BoothExperienceService {
 
     List<BoothExperience> experiences;
 
-    if ("EVENT_MANAGER".equals(roleCode)) {
+    if (ROLE_ADMIN.equals(roleCode)) {
+      // 관리자: 모든 부스 체험 조회
+      experiences = boothExperienceRepository.findAll();
+      log.info("ADMIN - 모든 체험 조회: {}개", experiences.size());
+    } else if ("EVENT_MANAGER".equals(roleCode)) {
       // 행사 담당자: 해당 사용자가 관리하는 행사의 모든 부스 체험 조회
       experiences = boothExperienceRepository.findByEventManagerId(userId);
       log.info("EVENT_MANAGER - 관리 행사의 모든 체험 조회: {}개", experiences.size());

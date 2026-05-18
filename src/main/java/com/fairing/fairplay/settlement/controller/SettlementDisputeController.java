@@ -103,7 +103,7 @@ public class SettlementDisputeController {
         // 파일 다운로드
         localFileService.downloadFile(fileKey, response);
 
-        log.info("이의신청 파일 다운로드 - FileId: {}, S3Key: {}", fileId, fileKey);
+        log.info("이의신청 파일 다운로드 - FileId: {}", fileId);
     }
 
     /**
