@@ -131,12 +131,13 @@ public class BoothExperienceController {
     @PostMapping("/{experienceId}/reservations")
     public ResponseEntity<BoothExperienceReservationResponseDto> createReservation(
             @Parameter(description = "체험 ID") @PathVariable Long experienceId,
-            @Parameter(description = "사용자 ID") @RequestParam Long userId,
-            @RequestBody BoothExperienceReservationRequestDto requestDto) {
+            @RequestBody BoothExperienceReservationRequestDto requestDto,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        log.info("부스 체험 예약 요청 - 체험 ID: {}, 사용자 ID: {}", experienceId, userId);
+        log.info("부스 체험 예약 요청 - 체험 ID: {}, 사용자 ID: {}", experienceId,
+                userDetails != null ? userDetails.getUserId() : null);
         BoothExperienceReservationResponseDto response = boothExperienceService.createReservation(
-                experienceId, userId, requestDto);
+                experienceId, userDetails, requestDto);
         return ResponseEntity.ok(response);
     }
 

@@ -1,6 +1,7 @@
 package com.fairing.fairplay.booth.service;
 
 import com.fairing.fairplay.booth.dto.BoothExperienceRequestDto;
+import com.fairing.fairplay.booth.dto.BoothExperienceReservationRequestDto;
 import com.fairing.fairplay.booth.dto.BoothExperienceStatusUpdateDto;
 import com.fairing.fairplay.booth.entity.Booth;
 import com.fairing.fairplay.booth.entity.BoothExperience;
@@ -11,12 +12,14 @@ import com.fairing.fairplay.booth.repository.BoothExperienceReservationRepositor
 import com.fairing.fairplay.booth.repository.BoothExperienceStatusCodeRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.user.entity.BoothAdmin;
 import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -27,10 +30,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.AccessDeniedException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -196,6 +202,50 @@ class BoothExperienceServiceAuthorizationTest {
   }
 
   @Test
+  void createReservationUsesAuthenticatedPrincipalUserId() {
+    CustomUserDetails principal = mock(CustomUserDetails.class);
+    BoothExperience experience = experience(1L, booth(10L, 100L, 200L));
+    Users principalUser = user(300L);
+    BoothExperienceStatusCode waiting = status("WAITING");
+    BoothExperienceReservationRequestDto requestDto = BoothExperienceReservationRequestDto.builder()
+        .notes("principal only")
+        .build();
+
+    when(principal.getUserId()).thenReturn(300L);
+    when(boothExperienceRepository.findByIdWithPessimisticLock(1L)).thenReturn(Optional.of(experience));
+    when(userRepository.findById(300L)).thenReturn(Optional.of(principalUser));
+    when(reservationRepository.findByBoothExperienceAndUser(experience, principalUser)).thenReturn(Optional.empty());
+    when(statusCodeRepository.findByCode("WAITING")).thenReturn(Optional.of(waiting));
+    when(reservationRepository.findNextQueuePosition(1L)).thenReturn(1);
+    when(reservationRepository.save(any(BoothExperienceReservation.class))).thenAnswer(invocation -> {
+      BoothExperienceReservation saved = invocation.getArgument(0);
+      saved.setReservationId(77L);
+      saved.setReservedAt(LocalDateTime.now());
+      return saved;
+    });
+
+    assertThat(service.createReservation(1L, principal, requestDto).getUserId()).isEqualTo(300L);
+
+    verify(userRepository).findById(300L);
+    verify(userRepository, never()).findById(eq(999L));
+  }
+
+  @Test
+  void createReservationRejectsNullPrincipalBeforeRepositoryAccess() {
+    BoothExperienceReservationRequestDto requestDto = BoothExperienceReservationRequestDto.builder()
+        .notes("blocked")
+        .build();
+
+    assertThatThrownBy(() -> service.createReservation(1L, null, requestDto))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessage("로그인이 필요합니다.");
+
+    verify(boothExperienceRepository, never()).findByIdWithPessimisticLock(any());
+    verify(userRepository, never()).findById(any());
+    verify(reservationRepository, never()).save(any());
+  }
+
+  @Test
   void getManageableExperiencesReturnsEmptyForCommonUser() {
     assertThat(service.getManageableExperiences(300L, "COMMON")).isEmpty();
 
@@ -263,6 +313,17 @@ class BoothExperienceServiceAuthorizationTest {
     booth.setStartDate(LocalDate.now());
     booth.setEndDate(LocalDate.now().plusDays(1));
     return booth;
+  }
+
+  private Users user(Long userId) {
+    return Users.builder()
+        .userId(userId)
+        .email("user" + userId + "@example.com")
+        .name("참가자")
+        .nickname("참가자")
+        .phone("010-0000-0000")
+        .password("pw")
+        .build();
   }
 
   private BoothExperienceReservation reservation(Long reservationId, BoothExperience experience, String statusCode) {

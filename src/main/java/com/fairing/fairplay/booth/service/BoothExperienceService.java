@@ -23,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -351,8 +352,10 @@ public class BoothExperienceService {
 
   // 4. 부스 체험 예약 신청 (참여자) - 동시성 처리
   @Transactional
-  public BoothExperienceReservationResponseDto createReservation(Long experienceId, Long userId,
+  public BoothExperienceReservationResponseDto createReservation(Long experienceId, CustomUserDetails userDetails,
       BoothExperienceReservationRequestDto requestDto) {
+    requireAuthenticated(userDetails);
+    Long userId = userDetails.getUserId();
     log.info("부스 체험 예약 시작 - 체험 ID: {}, 사용자 ID: {}", experienceId, userId);
 
     // Pessimistic Lock으로 체험 조회 (동시성 제어)
@@ -382,6 +385,12 @@ public class BoothExperienceService {
     // 현재 내 예약의 순번 실시간 알림
     waitingNotification(userId, savedReservation.getQueuePosition(), "");
     return BoothExperienceReservationResponseDto.fromEntity(savedReservation);
+  }
+
+  private void requireAuthenticated(CustomUserDetails userDetails) {
+    if (userDetails == null || userDetails.getUserId() == null) {
+      throw new AccessDeniedException("로그인이 필요합니다.");
+    }
   }
 
   // 5. 부스 체험 예약자 목록 조회 (부스 담당자용)
