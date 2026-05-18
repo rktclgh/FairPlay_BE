@@ -94,7 +94,6 @@ class SettlementDisputeServiceAuthorizationTest {
         ArgumentCaptor<SettlementDispute> disputeCaptor = ArgumentCaptor.forClass(SettlementDispute.class);
         verify(disputeRepository).save(disputeCaptor.capture());
         assertThat(disputeCaptor.getValue().getRequesterId()).isEqualTo(100L);
-        assertThat(disputeCaptor.getValue().getRequesterName()).isEqualTo("owner");
     }
 
     @Test
@@ -145,6 +144,31 @@ class SettlementDisputeServiceAuthorizationTest {
     }
 
     @Test
+    void responseNamesAreResolvedFromStoredPrincipalIds() {
+        SettlementDispute dispute = SettlementDispute.builder()
+                .disputeId(1L)
+                .settlement(settlement(7L, 100L))
+                .requesterId(100L)
+                .adminId(1L)
+                .disputeReason("정산 금액 확인이 필요합니다.")
+                .status(SettlementDispute.DisputeProcessStatus.RESOLVED)
+                .build();
+        Users requester = new Users(100L);
+        requester.setName("lookup owner");
+        Users admin = new Users(1L);
+        admin.setName("lookup admin");
+
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(userRepository.findById(100L)).thenReturn(Optional.of(requester));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+
+        SettlementDisputeDto.Response response = service.getDispute(1L, user(1L, "ADMIN", "admin"));
+
+        assertThat(response.getRequesterName()).isEqualTo("lookup owner");
+        assertThat(response.getAdminName()).isEqualTo("lookup admin");
+    }
+
+    @Test
     void bySettlementChecksOwnershipEvenWhenNoDisputeExists() {
         Settlement settlement = settlement(7L, 100L);
         when(settlementRepository.findById(7L)).thenReturn(Optional.of(settlement));
@@ -154,7 +178,7 @@ class SettlementDisputeServiceAuthorizationTest {
     }
 
     @Test
-    void adminCanListReviewDetailAndDownloadAndReviewAdminComesFromPrincipal() {
+    void adminCanListReviewDetailAndDownloadAndReviewAdminComesFromPrincipalId() {
         SettlementDispute dispute = dispute(1L, settlement(7L, 100L));
         SettlementDisputeFile file = disputeFile(10L, dispute);
         dispute.getDisputeFiles().add(file);
@@ -178,13 +202,14 @@ class SettlementDisputeServiceAuthorizationTest {
         service.reviewDispute(request, admin);
 
         assertThat(dispute.getAdminId()).isEqualTo(1L);
-        assertThat(dispute.getAdminName()).isEqualTo("admin");
     }
 
     @Test
-    void reviewUsesUserLookupWhenPrincipalNameIsMissing() {
+    void reviewResponseUsesUserLookupWhenAdminNameIsNeeded() {
         SettlementDispute dispute = dispute(1L, settlement(7L, 100L));
         CustomUserDetails admin = user(1L, "ADMIN", null);
+        Users requester = new Users(100L);
+        requester.setName("lookup owner");
         Users adminUser = new Users(1L);
         adminUser.setName("lookup admin");
         SettlementDisputeDto.AdminReviewRequest request = SettlementDisputeDto.AdminReviewRequest.builder()
@@ -193,14 +218,15 @@ class SettlementDisputeServiceAuthorizationTest {
                 .build();
 
         when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(userRepository.findById(100L)).thenReturn(Optional.of(requester));
         when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
         when(disputeRepository.save(dispute)).thenReturn(dispute);
         when(settlementRepository.save(dispute.getSettlement())).thenReturn(dispute.getSettlement());
 
-        service.reviewDispute(request, admin);
+        SettlementDisputeDto.Response response = service.reviewDispute(request, admin);
 
         assertThat(dispute.getAdminId()).isEqualTo(1L);
-        assertThat(dispute.getAdminName()).isEqualTo("lookup admin");
+        assertThat(response.getAdminName()).isEqualTo("lookup admin");
     }
 
     @Test
@@ -230,7 +256,6 @@ class SettlementDisputeServiceAuthorizationTest {
                 .disputeId(disputeId)
                 .settlement(settlement)
                 .requesterId(100L)
-                .requesterName("owner")
                 .disputeReason("정산 금액 확인이 필요합니다.")
                 .status(SettlementDispute.DisputeProcessStatus.RAISED)
                 .build();

@@ -110,7 +110,6 @@ public class SettlementDisputeService {
         SettlementDispute dispute = SettlementDispute.builder()
                 .settlement(settlement)
                 .requesterId(userDetails.getUserId())
-                .requesterName(resolvePrincipalName(userDetails))
                 .disputeReason(request.getDisputeReason())
                 .status(SettlementDispute.DisputeProcessStatus.RAISED)
                 .build();
@@ -248,7 +247,6 @@ public class SettlementDisputeService {
         dispute.setAdminResponse(request.getAdminResponse());
         dispute.setReviewedAt(LocalDateTime.now());
         dispute.setAdminId(userDetails.getUserId());
-        dispute.setAdminName(resolvePrincipalName(userDetails));
 
         // Settlement의 dispute 상태도 업데이트
         Settlement settlement = dispute.getSettlement();
@@ -307,12 +305,12 @@ public class SettlementDisputeService {
                 .disputeId(dispute.getDisputeId())
                 .settlementId(dispute.getSettlement().getSettlementId())
                 .eventTitle(dispute.getSettlement().getEventTitle())
-                .requesterName(dispute.getRequesterName())
+                .requesterName(resolveUserName(dispute.getRequesterId()))
                 .disputeReason(dispute.getDisputeReason())
                 .files(fileInfos)
                 .status(dispute.getStatus())
                 .adminResponse(dispute.getAdminResponse())
-                .adminName(dispute.getAdminName())
+                .adminName(resolveUserName(dispute.getAdminId()))
                 .submittedAt(dispute.getSubmittedAt())
                 .reviewedAt(dispute.getReviewedAt())
                 .build();
@@ -355,7 +353,7 @@ public class SettlementDisputeService {
                 .disputeId(dispute.getDisputeId())
                 .settlementId(dispute.getSettlement().getSettlementId())
                 .eventTitle(dispute.getSettlement().getEventTitle())
-                .requesterName(dispute.getRequesterName())
+                .requesterName(resolveUserName(dispute.getRequesterId()))
                 .status(dispute.getStatus())
                 .fileCount(dispute.getDisputeFiles().size())
                 .submittedAt(dispute.getSubmittedAt())
@@ -420,12 +418,11 @@ public class SettlementDisputeService {
                 && event.getManager().getUserId().equals(userId);
     }
 
-    private String resolvePrincipalName(CustomUserDetails userDetails) {
-        String principalName = userDetails.getName();
-        if (principalName != null && !principalName.isBlank()) {
-            return principalName;
+    private String resolveUserName(Long userId) {
+        if (userId == null) {
+            return null;
         }
-        return userRepository.findById(userDetails.getUserId())
+        return userRepository.findById(userId)
                 .map(user -> user.getName())
                 .filter(name -> name != null && !name.isBlank())
                 .orElse(null);

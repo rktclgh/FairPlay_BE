@@ -26,9 +26,6 @@ public class SettlementDispute {
     @Column(name = "requester_id", nullable = false)
     private Long requesterId; // 이의신청자 ID (행사 관리자)
 
-    @Column(name = "requester_name", length = 100)
-    private String requesterName;
-
     @Column(name = "dispute_reason", length = 1000)
     private String disputeReason; // 이의신청 사유 (간단한 텍스트)
 
@@ -43,9 +40,6 @@ public class SettlementDispute {
 
     @Column(name = "admin_id")
     private Long adminId; // 처리한 관리자 ID
-
-    @Column(name = "admin_name", length = 100)
-    private String adminName;
 
     @Column(name = "admin_response", length = 2000)
     private String adminResponse; // 관리자 응답
