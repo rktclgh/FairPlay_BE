@@ -20,20 +20,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 @Component
 @Slf4j
@@ -47,7 +40,7 @@ public class AiChatOrchestrator {
     private final SimpMessagingTemplate messagingTemplate;
     private final Executor aiResponseExecutor;
 
-    // ✅ 봇 계정은 “로그인” 필요 없음. 서버가 DB에 저장할 때 senderId=botUserId로 넣어줌
+    // 봇 계정은 로그인 없이 서버가 DB에 저장할 때 senderId=botUserId로 사용한다.
     @Value("${llm.bot-user-id}")
     private Long botUserId;
 
@@ -68,49 +61,6 @@ public class AiChatOrchestrator {
         this.ragChatService = ragChatService;
         this.messagingTemplate = messagingTemplate;
         this.aiResponseExecutor = aiResponseExecutor;
-    }
-
-    public AiChatOrchestrator(
-            ChatRoomRepository chatRoomRepository,
-            ChatMessageRepository chatMessageRepository,
-            ChatMessageService chatMessageService,
-            LlmRouter llmRouter,
-            RagChatService ragChatService,
-            SimpMessagingTemplate messagingTemplate
-    ) {
-        this(
-                chatRoomRepository,
-                chatMessageRepository,
-                chatMessageService,
-                llmRouter,
-                ragChatService,
-                messagingTemplate,
-                createFallbackExecutor()
-        );
-    }
-
-    private static Executor createFallbackExecutor() {
-        ThreadFactory threadFactory = new ThreadFactory() {
-            private int threadNumber = 1;
-
-            @Override
-            public synchronized Thread newThread(Runnable runnable) {
-                Thread thread = new Thread(runnable, "ai-chat-response-test-" + threadNumber++);
-                thread.setDaemon(true);
-                return thread;
-            }
-        };
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                2,
-                2,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<>(100),
-                threadFactory,
-                new ThreadPoolExecutor.AbortPolicy()
-        );
-        executor.prestartAllCoreThreads();
-        return executor;
     }
 
     // 간단 루프 방지(봇이 쓴 메시지에 또 반응하지 않기)
@@ -141,15 +91,6 @@ public class AiChatOrchestrator {
 
     private void runAfterTransaction(ChatMessageCreatedEvent event) {
         try {
-            if (aiResponseExecutor instanceof ThreadPoolExecutor fallbackExecutor) {
-                Future<?> future = fallbackExecutor.submit(() -> handleUserMessageSafely(event));
-                try {
-                    future.get(20, TimeUnit.MILLISECONDS);
-                } catch (TimeoutException ignored) {
-                    // 테스트 호환용 fallback 경로에서는 긴 AI 작업을 기다리지 않는다.
-                }
-                return;
-            }
             aiResponseExecutor.execute(() -> handleUserMessageSafely(event));
         } catch (RuntimeException e) {
             log.error("AI 응답 작업 제출 실패. roomId={}", event.getChatRoomId(), e);
@@ -254,7 +195,7 @@ public class AiChatOrchestrator {
             }
         }
 
-        // ✅ 트랜잭션 분리해서 저장 및 방송
+        // chatMessageService.sendMessage가 자체 트랜잭션에서 저장과 이벤트 발행을 담당한다.
         saveAndBroadcast(roomId, reply);
     }
 
@@ -277,7 +218,6 @@ public class AiChatOrchestrator {
         return history;
     }
 
-    @Transactional
     protected void saveAndBroadcast(Long roomId, String reply) {
         log.info("AI 메시지 저장 및 브로드캐스트. roomId={}, botUserId={}", roomId, botUserId);
         ChatMessageResponseDto saved = chatMessageService.sendMessage(roomId, botUserId, reply);

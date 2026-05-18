@@ -14,6 +14,7 @@ import com.fairing.fairplay.chat.service.ChatMessageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,6 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -84,7 +86,7 @@ class AiChatOrchestratorTransactionContractTest {
     }
 
     @Test
-    void invokesRagChatAfterCommitWithoutAnActiveTransaction() {
+    void invokesRagChatAfterCommitWithoutAnActiveTransaction() throws Exception {
         Long roomId = 101L;
         Long senderId = 42L;
         ChatRoom aiRoom = ChatRoom.builder()
@@ -102,6 +104,7 @@ class AiChatOrchestratorTransactionContractTest {
                 .sentAt(LocalDateTime.now())
                 .isRead(false)
                 .build();
+        CountDownLatch ragCalled = new CountDownLatch(1);
 
         when(chatRoomRepository.findById(roomId)).thenReturn(Optional.of(aiRoom));
         when(chatMessageRepository.findByChatRoomOrderBySentAtAsc(aiRoom)).thenReturn(new ArrayList<>(List.of(userMessage)));
@@ -111,6 +114,7 @@ class AiChatOrchestratorTransactionContractTest {
                             TransactionSynchronizationManager.isActualTransactionActive(),
                             "RAG/LLM 호출은 사용자 메시지 저장 트랜잭션 커밋 이후, 트랜잭션 밖에서 실행되어야 한다."
                     );
+                    ragCalled.countDown();
                     return RagChatService.RagResponse.builder()
                             .answer("예매는 행사 상세 페이지에서 할 수 있어요.")
                             .hasContext(false)
@@ -132,6 +136,7 @@ class AiChatOrchestratorTransactionContractTest {
                 eventPublisher.publishEvent(new ChatMessageCreatedEvent(roomId, senderId, 1L, "예매 방법 알려줘"))
         );
 
+        assertTrue(ragCalled.await(1, TimeUnit.SECONDS));
         verify(ragChatService).chat(eq("예매 방법 알려줘"), any(List.class), eq(senderId));
         verify(chatMessageService).sendMessage(roomId, 999L, "예매는 행사 상세 페이지에서 할 수 있어요.");
     }
@@ -315,7 +320,8 @@ class AiChatOrchestratorTransactionContractTest {
                 ChatMessageService chatMessageService,
                 LlmRouter llmRouter,
                 RagChatService ragChatService,
-                SimpMessagingTemplate messagingTemplate
+                SimpMessagingTemplate messagingTemplate,
+                @Qualifier("aiChatTaskExecutor") Executor aiResponseExecutor
         ) {
             return new AiChatOrchestrator(
                     chatRoomRepository,
@@ -323,8 +329,14 @@ class AiChatOrchestratorTransactionContractTest {
                     chatMessageService,
                     llmRouter,
                     ragChatService,
-                    messagingTemplate
+                    messagingTemplate,
+                    aiResponseExecutor
             );
+        }
+
+        @Bean(destroyMethod = "shutdownNow")
+        ExecutorService aiChatTaskExecutor() {
+            return Executors.newCachedThreadPool();
         }
 
         @Bean
