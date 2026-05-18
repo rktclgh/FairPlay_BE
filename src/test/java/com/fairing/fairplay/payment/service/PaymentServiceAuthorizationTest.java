@@ -1,7 +1,9 @@
 package com.fairing.fairplay.payment.service;
 
 import com.fairing.fairplay.attendeeform.service.AttendeeFormAttendeeService;
+import com.fairing.fairplay.banner.entity.BannerApplication;
 import com.fairing.fairplay.banner.repository.BannerApplicationRepository;
+import com.fairing.fairplay.booth.entity.BoothApplication;
 import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.core.email.service.PaymentCompletionEmailService;
@@ -19,6 +21,7 @@ import com.fairing.fairplay.payment.repository.PaymentStatusCodeRepository;
 import com.fairing.fairplay.payment.repository.PaymentTargetTypeRepository;
 import com.fairing.fairplay.payment.repository.PaymentTypeCodeRepository;
 import com.fairing.fairplay.payment.repository.RefundRepository;
+import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.reservation.repository.ReservationStatusCodeRepository;
 import com.fairing.fairplay.reservation.service.ReservationService;
@@ -123,6 +126,7 @@ class PaymentServiceAuthorizationTest {
         CustomUserDetails owner = user(300L, "COMMON");
         Payment nullTargetPayment = payment("merchant-1", 300L, null, null);
         when(paymentRepository.findByMerchantUid("merchant-1")).thenReturn(Optional.of(nullTargetPayment));
+        when(reservationRepository.findById(10L)).thenReturn(Optional.of(reservation(10L, 300L)));
 
         paymentService.updatePaymentTargetId("merchant-1", 10L, owner);
 
@@ -131,6 +135,7 @@ class PaymentServiceAuthorizationTest {
 
         Payment sameTargetPayment = payment("merchant-2", 300L, 10L, null);
         when(paymentRepository.findByMerchantUid("merchant-2")).thenReturn(Optional.of(sameTargetPayment));
+        when(reservationRepository.findById(10L)).thenReturn(Optional.of(reservation(10L, 300L)));
 
         assertThatCode(() -> paymentService.updatePaymentTargetId("merchant-2", 10L, owner))
                 .doesNotThrowAnyException();
@@ -148,6 +153,83 @@ class PaymentServiceAuthorizationTest {
 
         assertThat(otherPayment.getTargetId()).isNull();
         verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void commonCannotBindOwnPaymentToOtherUserReservation() {
+        CustomUserDetails common = user(300L, "COMMON");
+        Payment payment = payment("merchant-1", 300L, null, null);
+        when(paymentRepository.findByMerchantUid("merchant-1")).thenReturn(Optional.of(payment));
+        when(reservationRepository.findById(10L)).thenReturn(Optional.of(reservation(10L, 301L)));
+
+        assertThatThrownBy(() -> paymentService.updatePaymentTargetId("merchant-1", 10L, common))
+                .isInstanceOf(AccessDeniedException.class);
+
+        assertThat(payment.getTargetId()).isNull();
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void commonCanBindOwnBannerApplicationButCannotBindOtherUserBannerApplication() {
+        CustomUserDetails common = user(300L, "COMMON");
+        Payment ownPayment = payment("merchant-1", 300L, null, "BANNER_APPLICATION", null);
+        when(paymentRepository.findByMerchantUid("merchant-1")).thenReturn(Optional.of(ownPayment));
+        when(bannerApplicationRepository.findById(10L)).thenReturn(Optional.of(bannerApplication(10L, 300L)));
+
+        paymentService.updatePaymentTargetId("merchant-1", 10L, common);
+
+        assertThat(ownPayment.getTargetId()).isEqualTo(10L);
+
+        Payment otherTargetPayment = payment("merchant-2", 300L, null, "BANNER_APPLICATION", null);
+        when(paymentRepository.findByMerchantUid("merchant-2")).thenReturn(Optional.of(otherTargetPayment));
+        when(bannerApplicationRepository.findById(11L)).thenReturn(Optional.of(bannerApplication(11L, 301L)));
+
+        assertThatThrownBy(() -> paymentService.updatePaymentTargetId("merchant-2", 11L, common))
+                .isInstanceOf(AccessDeniedException.class);
+
+        assertThat(otherTargetPayment.getTargetId()).isNull();
+    }
+
+    @Test
+    void commonCanBindOwnBoothApplicationButCannotBindOtherUserBoothApplication() {
+        CustomUserDetails common = user(300L, "COMMON");
+        Payment ownPayment = payment("merchant-1", 300L, null, "BOOTH_APPLICATION", null);
+        when(paymentRepository.findByMerchantUid("merchant-1")).thenReturn(Optional.of(ownPayment));
+        when(boothApplicationRepository.findById(10L)).thenReturn(Optional.of(boothApplication(10L, "owner@example.com")));
+        when(userRepository.findByEmail("owner@example.com")).thenReturn(Optional.of(userEntity(300L, "owner@example.com")));
+
+        paymentService.updatePaymentTargetId("merchant-1", 10L, common);
+
+        assertThat(ownPayment.getTargetId()).isEqualTo(10L);
+
+        Payment otherTargetPayment = payment("merchant-2", 300L, null, "BOOTH_APPLICATION", null);
+        when(paymentRepository.findByMerchantUid("merchant-2")).thenReturn(Optional.of(otherTargetPayment));
+        when(boothApplicationRepository.findById(11L)).thenReturn(Optional.of(boothApplication(11L, "other@example.com")));
+        when(userRepository.findByEmail("other@example.com")).thenReturn(Optional.of(userEntity(301L, "other@example.com")));
+
+        assertThatThrownBy(() -> paymentService.updatePaymentTargetId("merchant-2", 11L, common))
+                .isInstanceOf(AccessDeniedException.class);
+
+        assertThat(otherTargetPayment.getTargetId()).isNull();
+    }
+
+    @Test
+    void commonCannotBindUnsupportedTargetCodes() {
+        CustomUserDetails common = user(300L, "COMMON");
+        Payment boothPayment = payment("merchant-1", 300L, null, "BOOTH", null);
+        when(paymentRepository.findByMerchantUid("merchant-1")).thenReturn(Optional.of(boothPayment));
+
+        assertThatThrownBy(() -> paymentService.updatePaymentTargetId("merchant-1", 10L, common))
+                .isInstanceOf(AccessDeniedException.class);
+
+        Payment adPayment = payment("merchant-2", 300L, null, "AD", null);
+        when(paymentRepository.findByMerchantUid("merchant-2")).thenReturn(Optional.of(adPayment));
+
+        assertThatThrownBy(() -> paymentService.updatePaymentTargetId("merchant-2", 20L, common))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).save(boothPayment);
+        verify(paymentRepository, never()).save(adPayment);
     }
 
     @Test
@@ -194,13 +276,17 @@ class PaymentServiceAuthorizationTest {
     }
 
     private Payment payment(String merchantUid, Long userId, Long targetId, Event event) {
+        return payment(merchantUid, userId, targetId, "RESERVATION", event);
+    }
+
+    private Payment payment(String merchantUid, Long userId, Long targetId, String targetCode, Event event) {
         return Payment.builder()
                 .paymentId(1L)
                 .event(event)
                 .user(new Users(userId))
                 .paymentTargetType(PaymentTargetType.builder()
-                        .paymentTargetCode("RESERVATION")
-                        .paymentTargetName("예약")
+                        .paymentTargetCode(targetCode)
+                        .paymentTargetName(targetCode)
                         .build())
                 .targetId(targetId)
                 .merchantUid(merchantUid)
@@ -218,6 +304,32 @@ class PaymentServiceAuthorizationTest {
                         .name("완료")
                         .build())
                 .build();
+    }
+
+    private Reservation reservation(Long reservationId, Long userId) {
+        Reservation reservation = new Reservation(null, null, null, new Users(userId), 1, 100);
+        reservation.setReservationId(reservationId);
+        return reservation;
+    }
+
+    private BannerApplication bannerApplication(Long applicationId, Long applicantUserId) {
+        return BannerApplication.builder()
+                .id(applicationId)
+                .applicantId(new Users(applicantUserId))
+                .build();
+    }
+
+    private BoothApplication boothApplication(Long applicationId, String boothEmail) {
+        BoothApplication boothApplication = new BoothApplication();
+        boothApplication.setId(applicationId);
+        boothApplication.setBoothEmail(boothEmail);
+        return boothApplication;
+    }
+
+    private Users userEntity(Long userId, String email) {
+        Users user = new Users(userId);
+        user.setEmail(email);
+        return user;
     }
 
     private Event event(Long eventId, Long managerUserId) {

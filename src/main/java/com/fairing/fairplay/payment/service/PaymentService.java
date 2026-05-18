@@ -343,12 +343,61 @@ public class PaymentService {
         if ("COMMON".equals(roleCode)) {
             Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
             if (Objects.equals(paymentUserId, userDetails.getUserId())) {
+                validateCommonTargetOwnership(payment, requestedTargetId, userDetails.getUserId());
                 return;
             }
             throw new AccessDeniedException("본인 결제만 대상 정보를 수정할 수 있습니다.");
         }
 
         throw new AccessDeniedException("결제 대상 정보 수정 권한이 없습니다.");
+    }
+
+    private void validateCommonTargetOwnership(Payment payment, Long requestedTargetId, Long principalUserId) {
+        if (requestedTargetId == null) {
+            throw new AccessDeniedException("결제 대상 정보가 필요합니다.");
+        }
+
+        String targetCode = payment.getPaymentTargetType() != null
+                ? payment.getPaymentTargetType().getPaymentTargetCode()
+                : null;
+
+        switch (targetCode) {
+            case "RESERVATION" -> validateReservationOwner(requestedTargetId, principalUserId);
+            case "BANNER_APPLICATION" -> validateBannerApplicationOwner(requestedTargetId, principalUserId);
+            case "BOOTH_APPLICATION" -> validateBoothApplicationOwner(requestedTargetId, principalUserId);
+            case "BOOTH", "AD" -> throw new AccessDeniedException("해당 결제 대상은 외부 대상 정보 수정이 허용되지 않습니다.");
+            default -> throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+    }
+
+    private void validateReservationOwner(Long reservationId, Long principalUserId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new AccessDeniedException("본인 예약만 결제 대상에 연결할 수 있습니다."));
+        Long reservationUserId = reservation.getUser() != null ? reservation.getUser().getUserId() : null;
+        if (!Objects.equals(reservationUserId, principalUserId)) {
+            throw new AccessDeniedException("본인 예약만 결제 대상에 연결할 수 있습니다.");
+        }
+    }
+
+    private void validateBannerApplicationOwner(Long bannerApplicationId, Long principalUserId) {
+        BannerApplication bannerApplication = bannerApplicationRepository.findById(bannerApplicationId)
+                .orElseThrow(() -> new AccessDeniedException("본인 배너 신청만 결제 대상에 연결할 수 있습니다."));
+        Long applicantUserId = bannerApplication.getApplicantId() != null
+                ? bannerApplication.getApplicantId().getUserId()
+                : null;
+        if (!Objects.equals(applicantUserId, principalUserId)) {
+            throw new AccessDeniedException("본인 배너 신청만 결제 대상에 연결할 수 있습니다.");
+        }
+    }
+
+    private void validateBoothApplicationOwner(Long boothApplicationId, Long principalUserId) {
+        BoothApplication boothApplication = boothApplicationRepository.findById(boothApplicationId)
+                .orElseThrow(() -> new AccessDeniedException("본인 부스 신청만 결제 대상에 연결할 수 있습니다."));
+        Users boothUser = userRepository.findByEmail(boothApplication.getBoothEmail())
+                .orElseThrow(() -> new AccessDeniedException("본인 부스 신청만 결제 대상에 연결할 수 있습니다."));
+        if (!Objects.equals(boothUser.getUserId(), principalUserId)) {
+            throw new AccessDeniedException("본인 부스 신청만 결제 대상에 연결할 수 있습니다.");
+        }
     }
 
     private boolean isManagedBy(Event event, Long managerUserId) {
