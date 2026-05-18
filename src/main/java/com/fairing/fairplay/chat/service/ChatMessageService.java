@@ -62,7 +62,12 @@ public class ChatMessageService {
         invalidateUnreadCaches(chatRoomId);
 
         // 이벤트 발행
-        eventPublisher.publishEvent(new ChatMessageCreatedEvent(chatRoomId, senderId));
+        eventPublisher.publishEvent(new ChatMessageCreatedEvent(
+                chatRoomId,
+                senderId,
+                saved.getChatMessageId(),
+                saved.getContent()
+        ));
 
         return responseDto;
     }
