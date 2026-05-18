@@ -187,7 +187,7 @@ class LocalFileServiceTest {
     void uploadTempRejectsIntermediateSymlinkEscapeOutsideUploadRoot() throws Exception {
         Path outsideDir = tempDir.resolve("outside-upload");
         Files.createDirectories(outsideDir);
-        Path symlinkDir = uploadRoot.resolve("uploads");
+        Path symlinkDir = uploadRoot.resolve("private");
         createSymlinkOrSkip(symlinkDir, outsideDir);
         MockMultipartFile file = new MockMultipartFile("file", "banner.txt", "text/plain", "banner".getBytes());
 
