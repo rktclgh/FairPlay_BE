@@ -1,8 +1,10 @@
 package com.fairing.fairplay.settlement.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.core.service.LocalFileService;
 import com.fairing.fairplay.core.util.TempUploadKeyPolicy;
+import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.settlement.controller.SettlementDisputeController;
 import com.fairing.fairplay.settlement.dto.SettlementDisputeDto;
 import com.fairing.fairplay.settlement.entity.DisputeStatus;
@@ -12,11 +14,13 @@ import com.fairing.fairplay.settlement.entity.SettlementDisputeFile;
 import com.fairing.fairplay.settlement.repository.SettlementDisputeFileRepository;
 import com.fairing.fairplay.settlement.repository.SettlementDisputeRepository;
 import com.fairing.fairplay.settlement.repository.SettlementRepository;
+import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,15 +35,22 @@ import java.util.stream.IntStream;
 @Slf4j
 public class SettlementDisputeService {
 
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
+
     private final SettlementDisputeRepository disputeRepository;
     private final SettlementDisputeFileRepository disputeFileRepository;
     private final SettlementRepository settlementRepository;
     private final LocalFileService localFileService;
+    private final UserRepository userRepository;
 
     /**
      * 이의신청용 파일 임시 업로드
      */
-    public SettlementDisputeDto.TempUploadResponse uploadDisputeFiles(List<MultipartFile> files) {
+    public SettlementDisputeDto.TempUploadResponse uploadDisputeFiles(List<MultipartFile> files,
+                                                                      CustomUserDetails userDetails) {
+        requireEventManager(userDetails);
+
         if (files == null || files.isEmpty()) {
             throw new CustomException(HttpStatus.BAD_REQUEST, "업로드할 파일이 없습니다.");
         }
@@ -75,10 +86,11 @@ public class SettlementDisputeService {
      */
     @Transactional
     public SettlementDisputeDto.Response submitDispute(SettlementDisputeDto.CreateRequest request,
-                                                       Long requesterId) {
+                                                       CustomUserDetails userDetails) {
         // 정산 정보 조회
         Settlement settlement = settlementRepository.findById(request.getSettlementId())
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "정산 정보를 찾을 수 없습니다."));
+        requireManagedSettlementAccess(settlement, userDetails);
 
         // 이미 이의신청이 있는지 확인
         if (disputeRepository.existsBySettlement_SettlementId(request.getSettlementId())) {
@@ -97,7 +109,8 @@ public class SettlementDisputeService {
         // 이의신청 생성
         SettlementDispute dispute = SettlementDispute.builder()
                 .settlement(settlement)
-                .requesterId(requesterId)
+                .requesterId(userDetails.getUserId())
+                .requesterName(resolvePrincipalName(userDetails))
                 .disputeReason(request.getDisputeReason())
                 .status(SettlementDispute.DisputeProcessStatus.RAISED)
                 .build();
@@ -114,7 +127,7 @@ public class SettlementDisputeService {
         settlementRepository.save(settlement);
 
         log.info("정산 이의신청 접수 완료 - DisputeId: {}, SettlementId: {}, RequesterId: {}",
-                dispute.getDisputeId(), settlement.getSettlementId(), requesterId);
+                dispute.getDisputeId(), settlement.getSettlementId(), userDetails.getUserId());
 
         return convertToResponse(dispute);
     }
@@ -201,9 +214,11 @@ public class SettlementDisputeService {
     /**
      * 이의신청 상세 조회
      */
-    public SettlementDisputeDto.Response getDispute(Long disputeId) {
+    @Transactional(readOnly = true)
+    public SettlementDisputeDto.Response getDispute(Long disputeId, CustomUserDetails userDetails) {
         SettlementDispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "이의신청을 찾을 수 없습니다."));
+        requireDisputeReadAccess(dispute, userDetails);
 
         return convertToResponse(dispute);
     }
@@ -211,7 +226,9 @@ public class SettlementDisputeService {
     /**
      * 이의신청 목록 조회 (관리자용)
      */
-    public Page<SettlementDisputeDto.ListResponse> getDisputeList(Pageable pageable) {
+    @Transactional(readOnly = true)
+    public Page<SettlementDisputeDto.ListResponse> getDisputeList(Pageable pageable, CustomUserDetails userDetails) {
+        requireAdmin(userDetails);
         return disputeRepository.findAllWithSettlement(pageable)
                 .map(this::convertToListResponse);
     }
@@ -221,15 +238,17 @@ public class SettlementDisputeService {
      */
     @Transactional
     public SettlementDisputeDto.Response reviewDispute(SettlementDisputeDto.AdminReviewRequest request,
-                                                       Long adminId) {
+                                                       CustomUserDetails userDetails) {
         SettlementDispute dispute = disputeRepository.findById(request.getDisputeId())
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "이의신청을 찾을 수 없습니다."));
+        requireAdmin(userDetails);
 
         // 상태 업데이트
         dispute.setStatus(request.getStatus());
         dispute.setAdminResponse(request.getAdminResponse());
         dispute.setReviewedAt(LocalDateTime.now());
-        dispute.setAdminId(adminId);
+        dispute.setAdminId(userDetails.getUserId());
+        dispute.setAdminName(resolvePrincipalName(userDetails));
 
         // Settlement의 dispute 상태도 업데이트
         Settlement settlement = dispute.getSettlement();
@@ -244,7 +263,7 @@ public class SettlementDisputeService {
         settlementRepository.save(settlement);
 
         log.info("이의신청 검토 완료 - DisputeId: {}, Status: {}, AdminId: {}",
-                dispute.getDisputeId(), request.getStatus(), adminId);
+                dispute.getDisputeId(), request.getStatus(), userDetails.getUserId());
 
         return convertToResponse(dispute);
     }
@@ -252,11 +271,20 @@ public class SettlementDisputeService {
     /**
      * 이의신청 파일 다운로드 URL 생성
      */
+    @Transactional(readOnly = true)
     public String getFileDownloadUrl(Long fileId) {
         SettlementDisputeFile file = disputeFileRepository.findById(fileId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
 
         return "/api/settlements/disputes/files/download?fileId=" + fileId;
+    }
+
+    @Transactional(readOnly = true)
+    public String getAuthorizedFileKey(Long fileId, CustomUserDetails userDetails) {
+        SettlementDisputeFile file = disputeFileRepository.findById(fileId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
+        requireDisputeReadAccess(file.getDispute(), userDetails);
+        return file.getS3Key();
     }
 
     /**
@@ -279,10 +307,12 @@ public class SettlementDisputeService {
                 .disputeId(dispute.getDisputeId())
                 .settlementId(dispute.getSettlement().getSettlementId())
                 .eventTitle(dispute.getSettlement().getEventTitle())
+                .requesterName(dispute.getRequesterName())
                 .disputeReason(dispute.getDisputeReason())
                 .files(fileInfos)
                 .status(dispute.getStatus())
                 .adminResponse(dispute.getAdminResponse())
+                .adminName(dispute.getAdminName())
                 .submittedAt(dispute.getSubmittedAt())
                 .reviewedAt(dispute.getReviewedAt())
                 .build();
@@ -291,9 +321,18 @@ public class SettlementDisputeService {
     /**
      * 특정 정산의 이의신청 조회
      */
-    public Optional<SettlementDisputeDto.Response> getDisputeBySettlementId(Long settlementId) {
+    @Transactional(readOnly = true)
+    public Optional<SettlementDisputeDto.Response> getDisputeBySettlementId(Long settlementId,
+                                                                            CustomUserDetails userDetails) {
+        Settlement settlement = settlementRepository.findById(settlementId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "정산 정보를 찾을 수 없습니다."));
+        requireSettlementReadAccess(settlement, userDetails);
+
         return disputeRepository.findBySettlement_SettlementId(settlementId)
-                .map(this::convertToResponse);
+                .map(dispute -> {
+                    requireDisputeReadAccess(dispute, userDetails);
+                    return convertToResponse(dispute);
+                });
     }
 
     /**
@@ -316,9 +355,79 @@ public class SettlementDisputeService {
                 .disputeId(dispute.getDisputeId())
                 .settlementId(dispute.getSettlement().getSettlementId())
                 .eventTitle(dispute.getSettlement().getEventTitle())
+                .requesterName(dispute.getRequesterName())
                 .status(dispute.getStatus())
                 .fileCount(dispute.getDisputeFiles().size())
                 .submittedAt(dispute.getSubmittedAt())
                 .build();
+    }
+
+    private void requireAuthenticated(CustomUserDetails userDetails) {
+        if (userDetails == null || userDetails.getUserId() == null) {
+            throw new AccessDeniedException("로그인이 필요합니다.");
+        }
+    }
+
+    private void requireAdmin(CustomUserDetails userDetails) {
+        requireAuthenticated(userDetails);
+        if (!ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            throw new AccessDeniedException("정산 이의신청 관리자 권한이 없습니다.");
+        }
+    }
+
+    private void requireEventManager(CustomUserDetails userDetails) {
+        requireAuthenticated(userDetails);
+        if (!ROLE_EVENT_MANAGER.equals(userDetails.getRoleCode())) {
+            throw new AccessDeniedException("정산 이의신청 권한이 없습니다.");
+        }
+    }
+
+    private void requireManagedSettlementAccess(Settlement settlement, CustomUserDetails userDetails) {
+        requireEventManager(userDetails);
+        if (!isManagedBy(settlement.getEvent(), userDetails.getUserId())) {
+            throw new AccessDeniedException("관리 중인 정산 이의신청만 처리할 수 있습니다.");
+        }
+    }
+
+    private void requireSettlementReadAccess(Settlement settlement, CustomUserDetails userDetails) {
+        requireAuthenticated(userDetails);
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            return;
+        }
+        if (ROLE_EVENT_MANAGER.equals(userDetails.getRoleCode())
+                && isManagedBy(settlement.getEvent(), userDetails.getUserId())) {
+            return;
+        }
+        throw new AccessDeniedException("정산 이의신청을 조회할 권한이 없습니다.");
+    }
+
+    private void requireDisputeReadAccess(SettlementDispute dispute, CustomUserDetails userDetails) {
+        requireAuthenticated(userDetails);
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            return;
+        }
+        if (ROLE_EVENT_MANAGER.equals(userDetails.getRoleCode())
+                && isManagedBy(dispute.getSettlement().getEvent(), userDetails.getUserId())) {
+            return;
+        }
+        throw new AccessDeniedException("정산 이의신청을 조회할 권한이 없습니다.");
+    }
+
+    private boolean isManagedBy(Event event, Long userId) {
+        return event != null
+                && event.getManager() != null
+                && event.getManager().getUserId() != null
+                && event.getManager().getUserId().equals(userId);
+    }
+
+    private String resolvePrincipalName(CustomUserDetails userDetails) {
+        String principalName = userDetails.getName();
+        if (principalName != null && !principalName.isBlank()) {
+            return principalName;
+        }
+        return userRepository.findById(userDetails.getUserId())
+                .map(user -> user.getName())
+                .filter(name -> name != null && !name.isBlank())
+                .orElse(null);
     }
 }
