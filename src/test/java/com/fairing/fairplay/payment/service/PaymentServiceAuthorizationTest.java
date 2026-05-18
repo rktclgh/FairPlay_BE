@@ -12,6 +12,7 @@ import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.entity.EventDetail;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.notification.service.NotificationService;
+import com.fairing.fairplay.payment.dto.PaymentRequestDto;
 import com.fairing.fairplay.payment.entity.Payment;
 import com.fairing.fairplay.payment.entity.PaymentStatusCode;
 import com.fairing.fairplay.payment.entity.PaymentTargetType;
@@ -29,6 +30,7 @@ import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
 import com.fairing.fairplay.user.entity.EventAdmin;
+import com.fairing.fairplay.user.entity.UserRoleCode;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -233,6 +235,112 @@ class PaymentServiceAuthorizationTest {
     }
 
     @Test
+    void savePaymentRejectsForeignReservationTargetBeforeSave() {
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("RESERVATION"))
+                .thenReturn(Optional.of(targetType("RESERVATION")));
+        when(reservationRepository.findById(10L)).thenReturn(Optional.of(reservation(10L, 301L)));
+
+        assertThatThrownBy(() -> paymentService.savePayment(paymentRequest("RESERVATION", 10L), 300L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void savePaymentRejectsForeignBannerApplicationTargetBeforeSave() {
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("BANNER_APPLICATION"))
+                .thenReturn(Optional.of(targetType("BANNER_APPLICATION")));
+        when(bannerApplicationRepository.findById(10L)).thenReturn(Optional.of(bannerApplication(10L, 301L)));
+
+        assertThatThrownBy(() -> paymentService.savePayment(paymentRequest("BANNER_APPLICATION", 10L), 300L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void savePaymentRejectsForeignBoothApplicationTargetBeforeSave() {
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("BOOTH_APPLICATION"))
+                .thenReturn(Optional.of(targetType("BOOTH_APPLICATION")));
+        when(boothApplicationRepository.findById(10L)).thenReturn(Optional.of(boothApplication(10L, "other@example.com")));
+        when(userRepository.findByEmail("other@example.com")).thenReturn(Optional.of(userEntity(301L, "other@example.com")));
+
+        assertThatThrownBy(() -> paymentService.savePayment(paymentRequest("BOOTH_APPLICATION", 10L), 300L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void savePaymentAllowsOwnedTargets() {
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("BANNER_APPLICATION"))
+                .thenReturn(Optional.of(targetType("BANNER_APPLICATION")));
+        when(paymentTypeCodeRepository.getReferenceByCode("CARD")).thenReturn(paymentTypeCode());
+        when(paymentStatusCodeRepository.getReferenceByCode("PENDING")).thenReturn(paymentStatusCode("PENDING"));
+        when(bannerApplicationRepository.findById(10L)).thenReturn(Optional.of(bannerApplication(10L, 300L)));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            payment.setPaymentId(1L);
+            return payment;
+        });
+
+        assertThat(paymentService.savePayment(paymentRequest("BANNER_APPLICATION", 10L), 300L).getTargetId())
+                .isEqualTo(10L);
+    }
+
+    @Test
+    void savePaymentRejectsUnsupportedTargetCodeWithTargetIdBeforeSave() {
+        Users currentUser = userEntity(300L, "owner@example.com", "COMMON");
+        when(userRepository.findById(300L)).thenReturn(Optional.of(currentUser));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("AD"))
+                .thenReturn(Optional.of(targetType("AD")));
+
+        assertThatThrownBy(() -> paymentService.savePayment(paymentRequest("AD", 10L), 300L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void savePaymentRejectsEventManagerTargetIdBeforeSave() {
+        Users eventManager = userEntity(100L, "manager@example.com", "EVENT_MANAGER");
+        when(userRepository.findById(100L)).thenReturn(Optional.of(eventManager));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("RESERVATION"))
+                .thenReturn(Optional.of(targetType("RESERVATION")));
+
+        assertThatThrownBy(() -> paymentService.savePayment(paymentRequest("RESERVATION", 10L), 100L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void savePaymentAllowsAdminTargetId() {
+        Users admin = userEntity(1L, "admin@example.com", "ADMIN");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+        when(paymentTargetTypeRepository.findByPaymentTargetCode("AD"))
+                .thenReturn(Optional.of(targetType("AD")));
+        when(paymentTypeCodeRepository.getReferenceByCode("CARD")).thenReturn(paymentTypeCode());
+        when(paymentStatusCodeRepository.getReferenceByCode("PENDING")).thenReturn(paymentStatusCode("PENDING"));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            payment.setPaymentId(1L);
+            return payment;
+        });
+
+        assertThat(paymentService.savePayment(paymentRequest("AD", 10L), 1L).getTargetId())
+                .isEqualTo(10L);
+    }
+
+    @Test
     void nonNullDifferentTargetIdIsRejectedBeforeSave() {
         CustomUserDetails admin = user(1L, "ADMIN");
         Payment payment = payment("merchant-1", 300L, 10L, null);
@@ -306,6 +414,17 @@ class PaymentServiceAuthorizationTest {
                 .build();
     }
 
+    private PaymentRequestDto paymentRequest(String targetCode, Long targetId) {
+        return PaymentRequestDto.builder()
+                .paymentTargetType(targetCode)
+                .targetId(targetId)
+                .quantity(1)
+                .price(BigDecimal.valueOf(100))
+                .pgProvider("html5_inicis")
+                .merchantUid("merchant-create")
+                .build();
+    }
+
     private Reservation reservation(Long reservationId, Long userId) {
         Reservation reservation = new Reservation(null, null, null, new Users(userId), 1, 100);
         reservation.setReservationId(reservationId);
@@ -330,6 +449,37 @@ class PaymentServiceAuthorizationTest {
         Users user = new Users(userId);
         user.setEmail(email);
         return user;
+    }
+
+    private Users userEntity(Long userId, String email, String roleCode) {
+        Users user = userEntity(userId, email);
+        UserRoleCode role = mock(UserRoleCode.class);
+        lenient().when(role.getCode()).thenReturn(roleCode);
+        user.setRoleCode(role);
+        return user;
+    }
+
+    private PaymentTargetType targetType(String targetCode) {
+        return PaymentTargetType.builder()
+                .paymentTargetCode(targetCode)
+                .paymentTargetName(targetCode)
+                .build();
+    }
+
+    private PaymentTypeCode paymentTypeCode() {
+        return PaymentTypeCode.builder()
+                .paymentTypeCodeId(1)
+                .code("CARD")
+                .name("카드")
+                .build();
+    }
+
+    private PaymentStatusCode paymentStatusCode(String code) {
+        return PaymentStatusCode.builder()
+                .paymentStatusCodeId(1)
+                .code(code)
+                .name(code)
+                .build();
     }
 
     private Event event(Long eventId, Long managerUserId) {

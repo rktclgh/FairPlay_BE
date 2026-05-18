@@ -130,6 +130,7 @@ public class PaymentService {
         PaymentTargetType paymentTargetType = paymentTargetTypeRepository
                 .findByPaymentTargetCode(paymentRequestDto.getPaymentTargetType())
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 대상 타입입니다: " + paymentRequestDto.getPaymentTargetType()));
+        validatePaymentTargetCreationPermission(paymentTargetType, paymentRequestDto.getTargetId(), user);
 
         // 결제 방법
         PaymentTypeCode paymentTypeCode = paymentTypeCodeRepository.getReferenceByCode("CARD");
@@ -366,6 +367,35 @@ public class PaymentService {
             case "BANNER_APPLICATION" -> validateBannerApplicationOwner(requestedTargetId, principalUserId);
             case "BOOTH_APPLICATION" -> validateBoothApplicationOwner(requestedTargetId, principalUserId);
             case "BOOTH", "AD" -> throw new AccessDeniedException("해당 결제 대상은 외부 대상 정보 수정이 허용되지 않습니다.");
+            default -> throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+    }
+
+    private void validatePaymentTargetCreationPermission(PaymentTargetType paymentTargetType, Long requestedTargetId, Users user) {
+        if (requestedTargetId == null) {
+            return;
+        }
+
+        String roleCode = user.getRoleCode() != null ? user.getRoleCode().getCode() : null;
+        if ("ADMIN".equals(roleCode)) {
+            return;
+        }
+
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            throw new AccessDeniedException("행사 관리자는 결제 대상 정보를 직접 지정할 수 없습니다.");
+        }
+
+        String targetCode = paymentTargetType != null
+                ? paymentTargetType.getPaymentTargetCode()
+                : null;
+        Long principalUserId = user.getUserId();
+
+        switch (targetCode) {
+            case "RESERVATION" -> validateReservationOwner(requestedTargetId, principalUserId);
+            case "BANNER_APPLICATION" -> validateBannerApplicationOwner(requestedTargetId, principalUserId);
+            case "BOOTH_APPLICATION" -> validateBoothApplicationOwner(requestedTargetId, principalUserId);
+            // BOOTH/AD 생성 경로에는 사용자 소유권을 증명할 매핑이 없어 외부 지정 targetId를 거부한다.
+            case "BOOTH", "AD" -> throw new AccessDeniedException("해당 결제 대상은 생성 시 외부 대상 지정이 허용되지 않습니다.");
             default -> throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
         }
     }
