@@ -29,30 +29,25 @@ import com.fairing.fairplay.reservation.repository.ReservationStatusCodeReposito
 import com.fairing.fairplay.reservation.service.ReservationService;
 import com.fairing.fairplay.attendeeform.service.AttendeeFormAttendeeService;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.entity.ScheduleTicket;
+import com.fairing.fairplay.ticket.entity.ScheduleTicketId;
 import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.net.ssl.HttpsURLConnection;
-import java.io.*;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 
@@ -97,12 +92,7 @@ public class PaymentService {
     // 참석자 생성 및 폼 링크 생성
     private final AttendeeFormAttendeeService attendeeFormAttendeeService;
 
-    // 아임포트 API 설정
-    @Value("${iamport.api-key}")
-    private String iamportApiKey;
-
-    @Value("${iamport.secret-key}")
-    private String iamportSecretKey;
+    private final IamportPaymentVerifier iamportPaymentVerifier;
 
     // 결제 요청 정보 저장 (예약/부스/광고 통합)
     @Transactional
@@ -202,38 +192,44 @@ public class PaymentService {
     // 티켓 결제 완료 처리 (PG사 결제 후 호출)
     @Transactional
     public PaymentResponseDto completePayment(PaymentRequestDto paymentRequestDto) {
+        return completePayment(paymentRequestDto, null);
+    }
+
+    // 티켓 결제 완료 처리 (PG사 결제 후 호출)
+    @Transactional
+    public PaymentResponseDto completePayment(PaymentRequestDto paymentRequestDto, CustomUserDetails userDetails) {
+        if (paymentRequestDto == null) {
+            throw new IllegalArgumentException("결제 요청 데이터가 없습니다.");
+        }
+        if (userDetails == null) {
+            throw new AccessDeniedException("인증되지 않은 사용자입니다.");
+        }
+        if (paymentRequestDto.getImpUid() == null || paymentRequestDto.getImpUid().isBlank()) {
+            throw new IllegalArgumentException("impUid는 필수입니다.");
+        }
 
         Payment payment = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
 
-        // 1. 결제 상태 검증 - 이미 완료된 결제인지 확인
-        if ("COMPLETED".equals(payment.getPaymentStatusCode().getCode())) {
-            throw new IllegalStateException("이미 완료된 결제입니다: " + paymentRequestDto.getMerchantUid());
+        Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
+        if (!Objects.equals(paymentUserId, userDetails.getUserId())) {
+            throw new AccessDeniedException("본인 결제만 완료할 수 있습니다.");
         }
 
-//        // 2. 결제 금액 검증 - 요청 금액과 실제 결제 금액 비교
-//        if (paymentRequestDto.getAmount() != null &&
-//            !payment.getAmount().equals(paymentRequestDto.getAmount())) {
-//            throw new IllegalArgumentException(
-//                String.format("결제 금액이 일치하지 않습니다. 요청: %s, 실제: %s",
-//                    paymentRequestDto.getAmount(), payment.getAmount()));
-//        }
-
-        // 3. imp_uid 중복 검증 (이미 사용된 PG 결제 ID인지 확인)
-        if (paymentRequestDto.getImpUid() != null) {
-            boolean duplicateImpUid = paymentRepository.existsByImpUidAndPaymentStatusCode_Code(
-                    paymentRequestDto.getImpUid(), "COMPLETED");
-            if (duplicateImpUid) {
-                throw new IllegalStateException("이미 사용된 결제 ID입니다: " + paymentRequestDto.getImpUid());
-            }
+        String currentStatus = payment.getPaymentStatusCode() != null ? payment.getPaymentStatusCode().getCode() : null;
+        if (!"PENDING".equals(currentStatus)) {
+            throw new IllegalStateException("대기 상태 결제만 완료할 수 있습니다: " + currentStatus);
         }
 
-        // 4. PG사 결제 검증 (실제 결제가 완료되었는지 아임포트 API로 확인)
-        if (paymentRequestDto.getImpUid() != null) {
-            validatePaymentWithIamport(paymentRequestDto.getImpUid(), payment.getAmount());
+        boolean duplicateImpUid = paymentRepository.existsByImpUidAndPaymentStatusCode_CodeAndMerchantUidNot(
+                paymentRequestDto.getImpUid(), "COMPLETED", payment.getMerchantUid());
+        if (duplicateImpUid) {
+            throw new IllegalStateException("이미 사용된 결제 ID입니다: " + paymentRequestDto.getImpUid());
         }
 
-        // 5. 결제 완료 처리
+        validatePaymentWithIamport(paymentRequestDto.getImpUid(), payment);
+        validateReservationCompletionRequest(payment, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
+
         PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
                 .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
 
@@ -243,12 +239,10 @@ public class PaymentService {
 
         Payment savedPayment = paymentRepository.save(payment);
 
-        // 6. 결제 완료 후 후속 처리 (PaymentRequestDto의 scheduleId, ticketId 사용)
         System.out.println("🔵 [PaymentService] completePayment - 받은 scheduleId: " + paymentRequestDto.getScheduleId() + 
                 ", ticketId: " + paymentRequestDto.getTicketId());
         processPaymentCompletionActions(savedPayment, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
 
-        // 7. 후속 처리로 업데이트된 payment 정보를 다시 조회하여 반환
         Payment updatedPayment = paymentRepository.findById(savedPayment.getPaymentId())
                 .orElse(savedPayment);
         
@@ -516,9 +510,11 @@ public class PaymentService {
                     System.out.println("알 수 없는 결제 타입: " + targetType);
             }
         } catch (Exception e) {
-            // 후속 처리 실패 시 로그 남기고 계속 진행 (결제는 이미 완료됨)
             System.err.println("결제 완료 후속 처리 실패 - paymentId: " + payment.getPaymentId() +
                     ", targetType: " + targetType + ", error: " + e.getMessage());
+            if ("RESERVATION".equals(targetType)) {
+                throw e;
+            }
         }
     }
 
@@ -545,38 +541,10 @@ public class PaymentService {
             }
             
 
-            EventSchedule schedule = null;
-            Ticket ticket = null;
-            
-            // scheduleId가 직접 전달된 경우 해당 스케줄 사용
-            if (scheduleId != null) {
-                schedule = eventScheduleRepository.findById(scheduleId)
-                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 스케줄 ID: " + scheduleId));
-                System.out.println("🟢 [PaymentService] 전달받은 scheduleId 사용: " + scheduleId);
-            } else {
-                // 기존 로직: 첫 번째 스케줄 사용
-                List<EventSchedule> schedules = eventScheduleRepository.findByEvent_EventId(event.getEventId());
-                if (schedules.isEmpty()) {
-                    throw new IllegalStateException("이벤트에 스케줄이 없습니다.");
-                }
-                schedule = schedules.get(0);
-                System.out.println("🟡 [PaymentService] 기본 스케줄 사용: " + schedule.getScheduleId());
-            }
-            
-            // ticketId가 직접 전달된 경우 해당 티켓 사용
-            if (ticketId != null) {
-                ticket = ticketRepository.findById(ticketId)
-                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + ticketId));
-                System.out.println("🟢 [PaymentService] 전달받은 ticketId 사용: " + ticketId);
-            } else {
-                // 기존 로직: 첫 번째 티켓 사용
-                List<Ticket> tickets = ticketRepository.findTicketsByEventId(event.getEventId());
-                if (tickets.isEmpty()) {
-                    throw new IllegalStateException("이벤트에 티켓이 없습니다.");
-                }
-                ticket = tickets.get(0);
-                System.out.println("🟡 [PaymentService] 기본 티켓 사용: " + ticket.getTicketId());
-            }
+            EventSchedule schedule = eventScheduleRepository.findById(scheduleId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 스케줄 ID: " + scheduleId));
+            Ticket ticket = ticketRepository.findById(ticketId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + ticketId));
             
             // ReservationRequestDto 생성
             ReservationRequestDto reservationRequest = new ReservationRequestDto();
@@ -765,20 +733,22 @@ public class PaymentService {
      * 아임포트 API를 통한 결제 검증
      * PG사에서 실제로 결제가 완료되었는지 확인
      */
-    private void validatePaymentWithIamport(String impUid, BigDecimal expectedAmount) {
+    private void validatePaymentWithIamport(String impUid, Payment payment) {
         try {
-            System.out.println("아임포트 결제 검증 시작 - impUid: " + impUid + ", 예상금액: " + expectedAmount);
+            System.out.println("아임포트 결제 검증 시작 - impUid: " + impUid + ", 예상금액: " + payment.getAmount());
 
-            // 1. 아임포트 액세스 토큰 획득
-            String accessToken = getIamportAccessToken();
-
-            // 2. imp_uid로 결제 정보 조회
-            Map<String, Object> paymentInfo = getPaymentInfoFromIamport(impUid, accessToken);
-
-            // 3. 결제 상태 검증
-            String status = (String) paymentInfo.get("status");
-            if (!"paid".equals(status)) {
-                throw new IllegalStateException("아임포트에서 결제가 완료되지 않았습니다. 상태: " + status);
+            IamportPaymentInfo paymentInfo = iamportPaymentVerifier.findPayment(impUid);
+            if (!Objects.equals(impUid, paymentInfo.impUid())) {
+                throw new IllegalStateException("아임포트 결제 ID가 일치하지 않습니다.");
+            }
+            if (!Objects.equals(payment.getMerchantUid(), paymentInfo.merchantUid())) {
+                throw new IllegalStateException("아임포트 주문번호가 일치하지 않습니다.");
+            }
+            if (!"paid".equals(paymentInfo.status())) {
+                throw new IllegalStateException("아임포트에서 결제가 완료되지 않았습니다. 상태: " + paymentInfo.status());
+            }
+            if (paymentInfo.amount() == null || paymentInfo.amount().compareTo(payment.getAmount()) != 0) {
+                throw new IllegalStateException("아임포트 결제 금액이 일치하지 않습니다.");
             }
 
         } catch (Exception e) {
@@ -786,73 +756,40 @@ public class PaymentService {
         }
     }
 
-    /**
-     * 아임포트 액세스 토큰 획득
-     */
-    private String getIamportAccessToken() throws IOException {
-        URL url = new URL("https://api.iamport.kr/users/getToken");
-        HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
-
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Accept", "application/json");
-        conn.setDoOutput(true);
-
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectNode objectNode = mapper.createObjectNode();
-        objectNode.put("imp_key", iamportApiKey);
-        objectNode.put("imp_secret", iamportSecretKey);
-
-        String json = mapper.writeValueAsString(objectNode);
-
-        try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(conn.getOutputStream()))) {
-            bw.write(json);
-            bw.flush();
+    private void validateReservationCompletionRequest(Payment payment, Long scheduleId, Long ticketId) {
+        String targetType = payment.getPaymentTargetType() != null
+                ? payment.getPaymentTargetType().getPaymentTargetCode()
+                : null;
+        if (!"RESERVATION".equals(targetType)) {
+            return;
+        }
+        if (scheduleId == null || ticketId == null) {
+            throw new IllegalArgumentException("예약 결제 완료에는 scheduleId와 ticketId가 필요합니다.");
+        }
+        Event event = payment.getEvent();
+        if (event == null || event.getEventId() == null) {
+            throw new IllegalArgumentException("예약 결제에 이벤트 정보가 없습니다.");
         }
 
-        String accessToken;
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-            String jsonLine = br.readLine();
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            Map<String, Object> topLevelMap = objectMapper.readValue(jsonLine, Map.class);
-            Map<String, Object> responseMap = (Map<String, Object>) topLevelMap.get("response");
-            accessToken = responseMap.get("access_token").toString();
+        EventSchedule schedule = eventScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 스케줄 ID: " + scheduleId));
+        Long scheduleEventId = schedule.getEvent() != null ? schedule.getEvent().getEventId() : null;
+        if (!Objects.equals(scheduleEventId, event.getEventId())) {
+            throw new IllegalArgumentException("스케줄이 결제 이벤트에 속하지 않습니다.");
         }
 
-        conn.disconnect();
-        return accessToken;
-    }
-
-    /**
-     * 아임포트에서 결제 정보 조회
-     */
-    private Map<String, Object> getPaymentInfoFromIamport(String impUid, String accessToken) throws IOException {
-        URL url = new URL("https://api.iamport.kr/payments/" + impUid);
-        HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
-
-        conn.setRequestMethod("GET");
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("Authorization", "Bearer " + accessToken);
-
-        Map<String, Object> paymentInfo;
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-            String jsonLine = br.readLine();
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            Map<String, Object> topLevelMap = objectMapper.readValue(jsonLine, Map.class);
-
-            Integer code = (Integer) topLevelMap.get("code");
-            if (code == null || code != 0) {
-                throw new IllegalStateException("아임포트 API 응답 오류: " + topLevelMap.get("message"));
-            }
-
-            paymentInfo = (Map<String, Object>) topLevelMap.get("response");
+        ScheduleTicket scheduleTicket = scheduleTicketRepository.findById(new ScheduleTicketId(ticketId, scheduleId))
+                .orElseThrow(() -> new IllegalArgumentException("스케줄에 등록된 티켓이 아닙니다."));
+        Ticket ticket = scheduleTicket.getTicket();
+        if (ticket == null || ticket.getPrice() == null) {
+            throw new IllegalArgumentException("티켓 가격 정보가 없습니다.");
         }
 
-        conn.disconnect();
-        return paymentInfo;
+        BigDecimal expectedAmount = BigDecimal.valueOf(ticket.getPrice())
+                .multiply(BigDecimal.valueOf(payment.getQuantity()));
+        if (expectedAmount.compareTo(payment.getAmount()) != 0) {
+            throw new IllegalArgumentException("티켓 가격과 결제 금액이 일치하지 않습니다.");
+        }
     }
 
     /**

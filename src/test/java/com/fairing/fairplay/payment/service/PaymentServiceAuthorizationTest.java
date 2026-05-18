@@ -26,6 +26,10 @@ import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.reservation.repository.ReservationStatusCodeRepository;
 import com.fairing.fairplay.reservation.service.ReservationService;
+import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.entity.ScheduleTicket;
+import com.fairing.fairplay.ticket.entity.ScheduleTicketId;
+import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
@@ -95,6 +99,8 @@ class PaymentServiceAuthorizationTest {
     private BannerApplicationRepository bannerApplicationRepository;
     @Mock
     private AttendeeFormAttendeeService attendeeFormAttendeeService;
+    @Mock
+    private IamportPaymentVerifier iamportPaymentVerifier;
 
     private PaymentService paymentService;
 
@@ -119,7 +125,8 @@ class PaymentServiceAuthorizationTest {
                 boothApplicationRepository,
                 boothRepository,
                 bannerApplicationRepository,
-                attendeeFormAttendeeService
+                attendeeFormAttendeeService,
+                iamportPaymentVerifier
         );
     }
 
@@ -411,6 +418,207 @@ class PaymentServiceAuthorizationTest {
         verify(paymentRepository, never()).findByEvent_EventId(any());
     }
 
+    @Test
+    void completePaymentRejectsNullPrincipal() {
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), null))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(paymentRepository, never()).findByMerchantUid(any());
+    }
+
+    @Test
+    void completePaymentRejectsOtherUsersPayment() {
+        Payment payment = pendingPayment("merchant-complete", 301L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsNonPendingPayment() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        payment.setPaymentStatusCode(paymentStatusCode("CANCELED"));
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("대기 상태");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsMissingImpUid() {
+        PaymentRequestDto request = completeRequest();
+        request.setImpUid(" ");
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("impUid");
+
+        verify(paymentRepository, never()).findByMerchantUid(any());
+    }
+
+    @Test
+    void completePaymentRejectsDuplicateCompletedImpUidForAnotherPayment() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.existsByImpUidAndPaymentStatusCode_CodeAndMerchantUidNot(
+                "imp-valid", "COMPLETED", "merchant-complete")).thenReturn(true);
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("이미 사용");
+
+        verify(iamportPaymentVerifier, never()).findPayment(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsPgMerchantMismatch() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(iamportPaymentVerifier.findPayment("imp-valid"))
+                .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-other", "paid", BigDecimal.valueOf(100)));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("아임포트");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsPgAmountMismatch() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(iamportPaymentVerifier.findPayment("imp-valid"))
+                .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-complete", "paid", BigDecimal.valueOf(101)));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("아임포트");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsPgStatusNotPaid() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(iamportPaymentVerifier.findPayment("imp-valid"))
+                .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-complete", "ready", BigDecimal.valueOf(100)));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("아임포트");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsTicketPricePaymentAmountMismatch() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidIamport();
+        stubReservationRelation(event, 1L, 10L, 50);
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("금액");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsScheduleOutsidePaymentEvent() {
+        Event paymentEvent = event(1L, 100L);
+        Event otherEvent = event(2L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, paymentEvent);
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidIamport();
+        when(eventScheduleRepository.findById(1L)).thenReturn(Optional.of(schedule(1L, otherEvent)));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("스케줄");
+
+        verify(scheduleTicketRepository, never()).findById(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsMissingScheduleOrTicketForReservation() {
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event(1L, 100L));
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidIamport();
+        PaymentRequestDto request = completeRequest();
+        request.setScheduleId(null);
+
+        assertThatThrownBy(() -> paymentService.completePayment(request, user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("scheduleId");
+
+        verify(eventScheduleRepository, never()).findById(any());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentRejectsMissingScheduleTicketRelation() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        stubValidIamport();
+        when(eventScheduleRepository.findById(1L)).thenReturn(Optional.of(schedule(1L, event)));
+        when(scheduleTicketRepository.findById(new ScheduleTicketId(10L, 1L))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("스케줄");
+
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void completePaymentPropagatesReservationCompletionException() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, null, event);
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubValidIamport();
+        stubReservationRelation(event, 1L, 10L, 100);
+        when(reservationService.createReservation(any(), any(), any()))
+                .thenThrow(new IllegalStateException("stock failed"));
+
+        assertThatThrownBy(() -> paymentService.completePayment(completeRequest(), user(300L, "COMMON")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("예매 생성에 실패");
+    }
+
+    @Test
+    void completePaymentAllowsValidReservationCompletion() {
+        Event event = event(1L, 100L);
+        Payment payment = pendingPayment("merchant-complete", 300L, 10L, event);
+        when(paymentRepository.findByMerchantUid("merchant-complete")).thenReturn(Optional.of(payment));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(payment));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED")).thenReturn(Optional.of(paymentStatusCode("COMPLETED")));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubValidIamport();
+        stubReservationRelation(event, 1L, 10L, 100);
+
+        paymentService.completePayment(completeRequest(), user(300L, "COMMON"));
+
+        assertThat(payment.getPaymentStatusCode().getCode()).isEqualTo("COMPLETED");
+        assertThat(payment.getImpUid()).isEqualTo("imp-valid");
+    }
+
     private Payment payment(String merchantUid, Long userId, Long targetId, Event event) {
         return payment(merchantUid, userId, targetId, "RESERVATION", event);
     }
@@ -439,6 +647,52 @@ class PaymentServiceAuthorizationTest {
                         .code("COMPLETED")
                         .name("완료")
                         .build())
+                .build();
+    }
+
+    private Payment pendingPayment(String merchantUid, Long userId, Long targetId, Event event) {
+        Payment payment = payment(merchantUid, userId, targetId, "RESERVATION", event);
+        payment.setPaymentStatusCode(paymentStatusCode("PENDING"));
+        return payment;
+    }
+
+    private PaymentRequestDto completeRequest() {
+        return PaymentRequestDto.builder()
+                .merchantUid("merchant-complete")
+                .impUid("imp-valid")
+                .scheduleId(1L)
+                .ticketId(10L)
+                .build();
+    }
+
+    private void stubValidIamport() {
+        when(iamportPaymentVerifier.findPayment("imp-valid"))
+                .thenReturn(new IamportPaymentInfo("imp-valid", "merchant-complete", "paid", BigDecimal.valueOf(100)));
+    }
+
+    private void stubReservationRelation(Event event, Long scheduleId, Long ticketId, Integer ticketPrice) {
+        EventSchedule schedule = schedule(scheduleId, event);
+        Ticket ticket = Ticket.builder()
+                .ticketId(ticketId)
+                .name("ticket")
+                .price(ticketPrice)
+                .build();
+        ScheduleTicket scheduleTicket = ScheduleTicket.builder()
+                .id(new ScheduleTicketId(ticketId, scheduleId))
+                .eventSchedule(schedule)
+                .ticket(ticket)
+                .build();
+
+        when(eventScheduleRepository.findById(scheduleId)).thenReturn(Optional.of(schedule));
+        when(scheduleTicketRepository.findById(new ScheduleTicketId(ticketId, scheduleId)))
+                .thenReturn(Optional.of(scheduleTicket));
+        lenient().when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+    }
+
+    private EventSchedule schedule(Long scheduleId, Event event) {
+        return EventSchedule.builder()
+                .scheduleId(scheduleId)
+                .event(event)
                 .build();
     }
 
