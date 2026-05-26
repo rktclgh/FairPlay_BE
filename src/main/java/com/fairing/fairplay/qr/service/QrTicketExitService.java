@@ -13,12 +13,12 @@ import com.fairing.fairplay.qr.entity.QrCheckStatusCode;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.CodeValidator;
+import com.fairing.fairplay.realtime.service.RealtimeSseService;
 import com.fairing.fairplay.user.entity.Users;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -32,7 +32,7 @@ public class QrTicketExitService {
   private final QrTicketAttendeeService qrTicketAttendeeService;
   private final QrEntryValidateService qrEntryValidateService;
   private final CodeValidator codeValidator;
-  private final SimpMessagingTemplate messagingTemplate;
+  private final RealtimeSseService realtimeSseService;
 
   private static final String QR = "QR";
   private static final String MANUAL = "MANUAL";
@@ -162,6 +162,6 @@ public class QrTicketExitService {
     return qrLogService.exitQrLog(qrTicket, qrCheckStatusCode);
   }
   public void checkOutQrTicket(QrTicket qrTicket){
-    messagingTemplate.convertAndSend("/topic/check-out/"+qrTicket.getId(),"체크아웃 처리가 완료되었습니다.");
+    realtimeSseService.sendQrTicketEvent(qrTicket.getId(), "체크아웃 처리가 완료되었습니다.");
   }
 }

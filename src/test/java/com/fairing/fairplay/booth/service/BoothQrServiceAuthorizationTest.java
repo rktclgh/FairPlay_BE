@@ -15,6 +15,7 @@ import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.service.QrTicketEntryService;
+import com.fairing.fairplay.realtime.service.RealtimeSseService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.user.entity.BoothAdmin;
 import com.fairing.fairplay.user.entity.EventAdmin;
@@ -31,7 +32,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -63,7 +63,7 @@ class BoothQrServiceAuthorizationTest {
   private QrTicketEntryService qrTicketEntryService;
 
   @Mock
-  private SimpMessagingTemplate messagingTemplate;
+  private RealtimeSseService realtimeSseService;
 
   private BoothQrService boothQrService;
 
@@ -75,14 +75,14 @@ class BoothQrServiceAuthorizationTest {
         statusCodeRepository,
         boothRepository,
         userRepository,
-        messagingTemplate
+        realtimeSseService
     );
     boothQrService = new BoothQrService(
         userRepository,
         statusCodeRepository,
         boothExperienceService,
         qrTicketEntryService,
-        messagingTemplate
+        realtimeSseService
     );
   }
 

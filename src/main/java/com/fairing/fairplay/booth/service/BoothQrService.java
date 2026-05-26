@@ -11,12 +11,12 @@ import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.service.QrTicketEntryService;
+import com.fairing.fairplay.realtime.service.RealtimeSseService;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +29,7 @@ public class BoothQrService {
   private final BoothExperienceStatusCodeRepository boothExperienceStatusCodeRepository;
   private final BoothExperienceService boothExperienceService;
   private final QrTicketEntryService qrTicketEntryService;
-  private final SimpMessagingTemplate messagingTemplate;
+  private final RealtimeSseService realtimeSseService;
 
   // QR 티켓을 통한 부스 입장 처리
   @Transactional
@@ -79,6 +79,6 @@ public class BoothQrService {
   }
 
   private void checkInBooth(Long qrTicketId) {
-    messagingTemplate.convertAndSend("/topic/booth/qr/"+qrTicketId, "부스 입장 완료");
+    realtimeSseService.sendQrTicketEvent(qrTicketId, "부스 입장 완료");
   }
 }

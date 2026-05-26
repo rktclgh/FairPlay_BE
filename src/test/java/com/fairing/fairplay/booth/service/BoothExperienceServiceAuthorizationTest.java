@@ -14,6 +14,7 @@ import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.realtime.service.RealtimeSseService;
 import com.fairing.fairplay.user.entity.BoothAdmin;
 import com.fairing.fairplay.user.entity.EventAdmin;
 import com.fairing.fairplay.user.entity.Users;
@@ -29,7 +30,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,7 +60,7 @@ class BoothExperienceServiceAuthorizationTest {
   private UserRepository userRepository;
 
   @Mock
-  private SimpMessagingTemplate messagingTemplate;
+  private RealtimeSseService realtimeSseService;
 
   private BoothExperienceService service;
 
@@ -72,7 +72,7 @@ class BoothExperienceServiceAuthorizationTest {
         statusCodeRepository,
         boothRepository,
         userRepository,
-        messagingTemplate
+        realtimeSseService
     );
   }
 

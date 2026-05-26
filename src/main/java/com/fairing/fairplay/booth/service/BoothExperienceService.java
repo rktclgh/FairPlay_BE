@@ -12,6 +12,7 @@ import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.realtime.service.RealtimeSseService;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import java.util.Optional;
@@ -22,7 +23,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +46,7 @@ public class BoothExperienceService {
   private final BoothExperienceStatusCodeRepository statusCodeRepository;
   private final BoothRepository boothRepository;
   private final UserRepository userRepository;
-  private final SimpMessagingTemplate messagingTemplate;
+  private final RealtimeSseService realtimeSseService;
 
   // 1. 부스 체험 등록 (부스 담당자)
   @Transactional
@@ -949,6 +949,6 @@ public class BoothExperienceService {
 
   public void waitingNotification(Long userId, Integer waitingCount, String statusMessage) {
     WaitingMessage msg = new WaitingMessage(waitingCount, statusMessage);
-    messagingTemplate.convertAndSend("/topic/waiting/" + userId, msg);
+    realtimeSseService.sendWaitingEvent(userId, msg);
   }
 }
