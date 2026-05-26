@@ -15,18 +15,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
-import java.util.Set;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SessionStompChannelInterceptor implements ChannelInterceptor {
-
-    private static final Set<String> PUBLIC_SUBSCRIBE_PREFIXES = Set.of(
-            "/topic/check-in/",
-            "/topic/check-out/",
-            "/topic/booth/qr/",
-            "/topic/waiting/");
 
     private final SessionService sessionService;
     private final ChatRoomRepository chatRoomRepository;
@@ -79,14 +72,10 @@ public class SessionStompChannelInterceptor implements ChannelInterceptor {
             return;
         }
 
-        if (StompCommand.SUBSCRIBE.equals(command) && destination != null && !isPublicSubscribeDestination(destination)) {
+        if (StompCommand.SUBSCRIBE.equals(command) && destination != null) {
             Long userId = requireAuthenticated(accessor, command, destination);
             requirePrivateSubscribeAccess(userId, destination);
         }
-    }
-
-    private boolean isPublicSubscribeDestination(String destination) {
-        return PUBLIC_SUBSCRIBE_PREFIXES.stream().anyMatch(destination::startsWith);
     }
 
     private Long requireAuthenticated(StompHeaderAccessor accessor, StompCommand command, String destination) {

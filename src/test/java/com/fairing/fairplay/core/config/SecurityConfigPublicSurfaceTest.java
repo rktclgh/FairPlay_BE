@@ -74,6 +74,27 @@ class SecurityConfigPublicSurfaceTest {
     }
 
     @Test
+    void realtimeQrAndWaitingStreamsRequireAuthenticationWithoutSession() throws Exception {
+        mockMvc.perform(get("/api/qr-tickets/1/stream"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/booth-experiences/waiting/stream"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void legacyPublicSockJsSurfacesRequireAuthenticationWithoutSession() throws Exception {
+        mockMvc.perform(get("/ws/qr-sockjs/info"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/ws/waiting-sockjs/info"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/ws/booth-sockjs/info"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void bannerPaymentCompleteRemainsPublicWithoutSession() throws Exception {
         mockMvc.perform(post("/api/banners/payment/complete")
                         .contentType("application/json")
@@ -90,5 +111,6 @@ class SecurityConfigPublicSurfaceTest {
                 "PUBLIC_PATHS");
 
         assertThat(publicPaths).doesNotContain("/api/uploads/");
+        assertThat(publicPaths).doesNotContain("/ws/");
     }
 }

@@ -49,7 +49,6 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
         "/api/users/signup",
         "/api/users/check-",
         "/api/email/",
-        "/ws/",
         "/api/qr-tickets/",
         "/uploads/"
     );

@@ -17,6 +17,7 @@ import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.repository.QrActionCodeRepository;
 import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import com.fairing.fairplay.qr.util.CodeValidator;
+import com.fairing.fairplay.realtime.service.RealtimeSseService;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.user.entity.Users;
 import java.time.LocalDateTime;
@@ -24,7 +25,6 @@ import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -37,7 +37,7 @@ public class QrTicketEntryService {
   private final QrLogService qrLogService;
   private final QrTicketAttendeeService qrTicketAttendeeService;
   private final QrEntryValidateService qrEntryValidateService;
-  private final SimpMessagingTemplate messagingTemplate;
+  private final RealtimeSseService realtimeSseService;
 
   private static final String QR = "QR";
   private static final String MANUAL = "MANUAL";
@@ -247,11 +247,11 @@ public class QrTicketEntryService {
   }
 
   public void checkInQrTicket(QrTicket qrTicket) {
-    messagingTemplate.convertAndSend("/topic/check-in/" + qrTicket.getId(), "체크인 처리가 완료되었습니다.");
+    realtimeSseService.sendQrTicketEvent(qrTicket.getId(), "체크인 처리가 완료되었습니다.");
   }
 
   public void boothCheckIn(QrTicket qrTicket) {
-    messagingTemplate.convertAndSend("/topic/booth/qr/" + qrTicket.getId(), "체크인 처리가 완료되었습니다.");
+    realtimeSseService.sendQrTicketEvent(qrTicket.getId(), "체크인 처리가 완료되었습니다.");
   }
 
   private CheckResponseDto processBoothCheck(QrTicket qrTicket) {
