@@ -6,6 +6,7 @@ import com.fairing.fairplay.qr.repository.QrTicketRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -19,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RealtimeSseService {
 
     private static final long TIMEOUT = 60L * 60L * 1000L;
+    private static final long HEARTBEAT_DELAY = 25_000L;
 
     private final QrTicketRepository qrTicketRepository;
     private final ConcurrentHashMap<Long, Set<SseEmitter>> qrTicketEmitters = new ConcurrentHashMap<>();
@@ -39,18 +41,36 @@ public class RealtimeSseService {
     }
 
     public void sendQrTicketEvent(Long qrTicketId, String message) {
+        if (qrTicketId == null) {
+            return;
+        }
         send(qrTicketEmitters, qrTicketId, "qr-ticket-status", message);
     }
 
     public void sendWaitingEvent(Long userId, WaitingMessage message) {
+        if (userId == null) {
+            return;
+        }
         send(waitingEmitters, userId, "waiting-status", message);
+    }
+
+    @Scheduled(fixedDelay = HEARTBEAT_DELAY)
+    public void sendHeartbeat() {
+        sendHeartbeat(qrTicketEmitters);
+        sendHeartbeat(waitingEmitters);
     }
 
     private SseEmitter register(ConcurrentHashMap<Long, Set<SseEmitter>> registry, Long key,
                                 String eventName, String message) {
         SseEmitter emitter = new SseEmitter(TIMEOUT);
-        Set<SseEmitter> emitters = registry.computeIfAbsent(key, ignored -> ConcurrentHashMap.newKeySet());
-        emitters.add(emitter);
+        registry.compute(key, (ignored, emitters) -> {
+            Set<SseEmitter> activeEmitters = emitters;
+            if (activeEmitters == null) {
+                activeEmitters = ConcurrentHashMap.newKeySet();
+            }
+            activeEmitters.add(emitter);
+            return activeEmitters;
+        });
 
         Runnable cleanup = () -> remove(registry, key, emitter);
         emitter.onCompletion(cleanup);
@@ -64,7 +84,7 @@ public class RealtimeSseService {
         });
 
         try {
-            emitter.send(SseEmitter.event().name(eventName).data(message));
+            sendEmitter(emitter, SseEmitter.event().name(eventName).data(message));
         } catch (IOException e) {
             cleanup.run();
             emitter.completeWithError(e);
@@ -81,7 +101,7 @@ public class RealtimeSseService {
 
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event().name(eventName).data(payload));
+                sendEmitter(emitter, SseEmitter.event().name(eventName).data(payload));
             } catch (IOException | IllegalStateException e) {
                 remove(registry, key, emitter);
                 emitter.completeWithError(e);
@@ -89,14 +109,30 @@ public class RealtimeSseService {
         }
     }
 
+    private void sendHeartbeat(ConcurrentHashMap<Long, Set<SseEmitter>> registry) {
+        registry.forEach((key, emitters) -> {
+            for (SseEmitter emitter : emitters) {
+                try {
+                    sendEmitter(emitter, SseEmitter.event().comment("heartbeat"));
+                } catch (IOException | IllegalStateException e) {
+                    remove(registry, key, emitter);
+                    emitter.completeWithError(e);
+                }
+            }
+        });
+    }
+
+    private void sendEmitter(SseEmitter emitter, SseEmitter.SseEventBuilder event)
+            throws IOException {
+        synchronized (emitter) {
+            emitter.send(event);
+        }
+    }
+
     private void remove(ConcurrentHashMap<Long, Set<SseEmitter>> registry, Long key, SseEmitter emitter) {
-        Set<SseEmitter> emitters = registry.get(key);
-        if (emitters == null) {
-            return;
-        }
-        emitters.remove(emitter);
-        if (emitters.isEmpty()) {
-            registry.remove(key, emitters);
-        }
+        registry.computeIfPresent(key, (ignored, emitters) -> {
+            emitters.remove(emitter);
+            return emitters.isEmpty() ? null : emitters;
+        });
     }
 }

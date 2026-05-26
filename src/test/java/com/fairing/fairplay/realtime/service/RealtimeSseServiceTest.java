@@ -53,4 +53,12 @@ class RealtimeSseServiceTest {
         assertThatCode(() -> service.sendQrTicketEvent(1L, "체크인 완료"))
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void sendingWithNullKeysIsNoop() {
+        assertThatCode(() -> {
+            service.sendQrTicketEvent(null, "체크인 완료");
+            service.sendWaitingEvent(null, null);
+        }).doesNotThrowAnyException();
+    }
 }
