@@ -56,6 +56,12 @@ jobs:
           psql -h 127.0.0.1 -U fairplay -d fairplay -v ON_ERROR_STOP=1 -f src/main/resources/db/postgres/001_pgvector_rag.sql
           psql -h 127.0.0.1 -U fairplay -d fairplay -v ON_ERROR_STOP=1 -f src/main/resources/db/postgres/002_runtime_constraints.sql
 
+      - name: Validate mini-server nginx config
+        run: |
+          docker run --rm \
+            -v "${PWD}/deploy/nginx.miniserver.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:1.27-alpine nginx -t
+
       - name: Grant execute for gradlew
         run: chmod +x gradlew
 
