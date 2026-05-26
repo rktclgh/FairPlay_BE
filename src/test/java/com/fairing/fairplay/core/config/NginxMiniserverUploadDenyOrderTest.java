@@ -40,17 +40,17 @@ class NginxMiniserverUploadDenyOrderTest {
                 "location ^~ /uploads/temp/",
                 "location = /uploads/tmp",
                 "location ^~ /uploads/tmp/",
-                "location ~ ^/uploads/tmp[0-9]{4}-[0-9]{2}-[0-9]{2}(/|$)",
+                "location ~ \"^/uploads/tmp[0-9]{4}-[0-9]{2}-[0-9]{2}(/|$)\"",
                 "location = /uploads/uploads/temp",
                 "location ^~ /uploads/uploads/temp/",
                 "location = /uploads/uploads/tmp",
                 "location ^~ /uploads/uploads/tmp/",
-                "location ~ ^/uploads/uploads/tmp[0-9]{4}-[0-9]{2}-[0-9]{2}(/|$)"
+                "location ~ \"^/uploads/uploads/tmp[0-9]{4}-[0-9]{2}-[0-9]{2}(/|$)\""
         );
 
         assertThat(config).containsPattern("(?s)location = /uploads/private \\{\\s*return 404;\\s*}");
         assertThat(config).containsPattern("(?s)location \\^~ /uploads/uploads/temp/ \\{\\s*return 404;\\s*}");
-        assertThat(config).containsPattern("(?s)location ~ \\^/uploads/uploads/tmp\\[0-9\\]\\{4}-\\[0-9\\]\\{2}-\\[0-9\\]\\{2}\\(/\\|\\$\\) \\{\\s*return 404;\\s*}");
+        assertThat(config).containsPattern("(?s)location ~ \"\\^/uploads/uploads/tmp\\[0-9\\]\\{4}-\\[0-9\\]\\{2}-\\[0-9\\]\\{2}\\(/\\|\\$\\)\" \\{\\s*return 404;\\s*}");
     }
 
     @Test
