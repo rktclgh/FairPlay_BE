@@ -40,6 +40,31 @@ class SpaForwardControllerTest {
     }
 
     @Test
+    void supportFrontendRoutesForwardToSpaWithoutSession() throws Exception {
+        mockMvc.perform(get("/support/notices").accept(MediaType.TEXT_HTML))
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/support/faq").accept(MediaType.TEXT_HTML))
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("/index.html"));
+    }
+
+    @Test
+    void legalFrontendRoutesForwardToSpaWithoutSession() throws Exception {
+        mockMvc.perform(get("/legal/privacy").accept(MediaType.TEXT_HTML))
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("/index.html"));
+    }
+
+    @Test
+    void boothPaymentFrontendRouteForwardsToSpaWithoutSession() throws Exception {
+        mockMvc.perform(get("/booth/payment").accept(MediaType.TEXT_HTML))
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("/index.html"));
+    }
+
+    @Test
     void ticketReservationApiLikeRequestStillRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/reservations/mypage").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isUnauthorized());

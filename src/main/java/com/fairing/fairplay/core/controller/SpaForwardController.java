@@ -17,7 +17,9 @@ public class SpaForwardController {
         "/register",
         "/eventoverview",
         "/event-registration-intro",
-        "/ticket-reservation/**"
+        "/ticket-reservation/**",
+        "/support/**",
+        "/legal/**"
     }, produces = "text/html")
     public String forward() {
         return "forward:/index.html";
