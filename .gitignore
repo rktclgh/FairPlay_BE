@@ -54,6 +54,7 @@ logs/
 test-output/
 hs_err_pid*
 *.pid
+.worktrees/
 
 # === Java class, 기타 임시파일 ===
 *.class
