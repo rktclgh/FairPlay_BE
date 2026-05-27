@@ -32,7 +32,6 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
 
     private static final List<String> PUBLIC_PATHS = Arrays.asList(
         "/api/creators",
-        "/api/events",
         "/api/banners",
         "/api/reviews",
         "/api/calendar",
@@ -127,7 +126,22 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
      */
     private boolean shouldSkipAuthentication(String method, String requestURI) {
         return "GET".equalsIgnoreCase(method)
-                && PUBLIC_PATHS.stream().anyMatch(requestURI::startsWith);
+                && (PUBLIC_PATHS.stream().anyMatch(requestURI::startsWith)
+                || isPublicEventGetPath(requestURI));
+    }
+
+    private boolean isPublicEventGetPath(String requestURI) {
+        if ("/api/events".equals(requestURI)
+                || "/api/events/hot-picks".equals(requestURI)
+                || "/api/events/apply/check".equals(requestURI)) {
+            return true;
+        }
+
+        return requestURI.matches("^/api/events/[^/]+/details$")
+                || requestURI.matches("^/api/events/[^/]+/booths(?:/.*)?$")
+                || requestURI.matches("^/api/events/[^/]+/schedule$")
+                || requestURI.matches("^/api/events/[^/]+/tickets$")
+                || requestURI.matches("^/api/events/schedule/[^/]+/tickets$");
     }
 
     private String stringValue(Object value) {
