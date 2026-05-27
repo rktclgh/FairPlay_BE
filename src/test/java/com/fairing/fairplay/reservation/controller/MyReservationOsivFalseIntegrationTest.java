@@ -3,6 +3,10 @@ package com.fairing.fairplay.reservation.controller;
 import com.fairing.fairplay.core.service.SessionService;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.entity.EventStatusCode;
+import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.payment.entity.PaymentStatusCode;
+import com.fairing.fairplay.payment.entity.PaymentTargetType;
+import com.fairing.fairplay.payment.entity.PaymentTypeCode;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.entity.ReservationStatusCode;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
@@ -20,7 +24,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Map;
 
@@ -66,10 +72,21 @@ class MyReservationOsivFalseIntegrationTest {
                         .cookie(new Cookie("FAIRPLAY_SESSION", "session-user"))
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].eventName").value("OSIV 회귀 행사"))
-                .andExpect(jsonPath("$[0].ticketName").value("일반권"))
-                .andExpect(jsonPath("$[0].userEmail").value("user@example.com"))
-                .andExpect(jsonPath("$[0].reservationStatus").value("예약 완료"));
+                .andExpect(jsonPath("$.content[0].eventName").value("OSIV 회귀 행사"))
+                .andExpect(jsonPath("$.content[0].ticketName").value("일반권"))
+                .andExpect(jsonPath("$.content[0].userEmail").value("user@example.com"))
+                .andExpect(jsonPath("$.content[0].reservationStatus").value("예약 완료"))
+                .andExpect(jsonPath("$.number").value(0))
+                .andExpect(jsonPath("$.size").value(5))
+                .andExpect(jsonPath("$.totalElements").value(3));
+
+        mockMvc.perform(get("/api/me/reservations")
+                        .param("activeOnly", "true")
+                        .cookie(new Cookie("FAIRPLAY_SESSION", "session-user"))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].reservationStatus").value("예약 완료"))
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     private Long persistReservationFixture() {
@@ -82,6 +99,29 @@ class MyReservationOsivFalseIntegrationTest {
         reservationStatusCode.setCode("CONFIRMED");
         reservationStatusCode.setName("예약 완료");
         entityManager.persist(reservationStatusCode);
+
+        ReservationStatusCode cancelledStatusCode = new ReservationStatusCode(2);
+        cancelledStatusCode.setCode("CANCELLED");
+        cancelledStatusCode.setName("예약 취소");
+        entityManager.persist(cancelledStatusCode);
+
+        PaymentStatusCode refundedPaymentStatusCode = PaymentStatusCode.builder()
+                .code("REFUNDED")
+                .name("환불 완료")
+                .build();
+        entityManager.persist(refundedPaymentStatusCode);
+
+        PaymentTargetType reservationPaymentTargetType = PaymentTargetType.builder()
+                .paymentTargetCode("RESERVATION")
+                .paymentTargetName("예약")
+                .build();
+        entityManager.persist(reservationPaymentTargetType);
+
+        PaymentTypeCode cardPaymentTypeCode = PaymentTypeCode.builder()
+                .code("CARD")
+                .name("카드")
+                .build();
+        entityManager.persist(cardPaymentTypeCode);
 
         Users user = Users.builder()
                 .email("user@example.com")
@@ -122,7 +162,40 @@ class MyReservationOsivFalseIntegrationTest {
 
         Reservation reservation = new Reservation(event, schedule, ticket, user, 1, 10000);
         reservation.setReservationStatusCode(reservationStatusCode);
+        reservation.setCreatedAt(LocalDateTime.of(2026, 5, 2, 12, 0));
         entityManager.persist(reservation);
+
+        Reservation refundedReservation = new Reservation(event, schedule, ticket, user, 1, 10000);
+        refundedReservation.setReservationStatusCode(reservationStatusCode);
+        refundedReservation.setCreatedAt(LocalDateTime.of(2026, 5, 1, 13, 0));
+        entityManager.persist(refundedReservation);
+        entityManager.flush();
+
+        Payment refundedPayment = Payment.builder()
+                .event(event)
+                .user(user)
+                .paymentTargetType(reservationPaymentTargetType)
+                .targetId(refundedReservation.getReservationId())
+                .merchantUid("merchant-refunded")
+                .impUid("imp-refunded")
+                .quantity(1)
+                .price(BigDecimal.valueOf(10000))
+                .refundedAmount(BigDecimal.valueOf(10000))
+                .amount(BigDecimal.valueOf(10000))
+                .pgProvider("test")
+                .paymentTypeCode(cardPaymentTypeCode)
+                .paymentStatusCode(refundedPaymentStatusCode)
+                .requestedAt(LocalDateTime.of(2026, 5, 1, 13, 0))
+                .paidAt(LocalDateTime.of(2026, 5, 1, 13, 1))
+                .refundedAt(LocalDateTime.of(2026, 5, 1, 13, 2))
+                .build();
+        entityManager.persist(refundedPayment);
+
+        Reservation cancelledReservation = new Reservation(event, schedule, ticket, user, 1, 10000);
+        cancelledReservation.setReservationStatusCode(cancelledStatusCode);
+        cancelledReservation.setCanceled(true);
+        cancelledReservation.setCreatedAt(LocalDateTime.of(2026, 5, 1, 12, 0));
+        entityManager.persist(cancelledReservation);
         entityManager.flush();
         entityManager.clear();
 

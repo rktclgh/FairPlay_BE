@@ -34,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -69,6 +70,7 @@ public class ReservationService {
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
     private static final String ROLE_COMMON = "COMMON";
+    private static final int MAX_MY_RESERVATION_PAGE_SIZE = 50;
 
     // 예약 신청 (결제 데이터 생성 이후 마지막에 결제 완료 상태로 저장)
     @Transactional
@@ -460,10 +462,23 @@ public class ReservationService {
 
     @Transactional(readOnly = true)
     public List<ReservationResponseDto> getMyReservationResponses(Long userId) {
-        List<ReservationResponseDto> responses = reservationRepository.findByUserIdForResponse(userId).stream()
-                .map(this::toResponseDto)
-                .toList();
-        populateReservationPayments(responses);
+        return getMyReservationResponses(userId, 0, MAX_MY_RESERVATION_PAGE_SIZE, false).getContent();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ReservationResponseDto> getMyReservationResponses(Long userId, int page, int size) {
+        return getMyReservationResponses(userId, page, size, false);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ReservationResponseDto> getMyReservationResponses(Long userId, int page, int size,
+            boolean activeOnly) {
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), MAX_MY_RESERVATION_PAGE_SIZE));
+        Page<ReservationResponseDto> responses = reservationRepository.findMyReservationResponses(
+                userId, activeOnly, pageable);
+        populateReservationPayments(responses.getContent());
         return responses;
     }
 
