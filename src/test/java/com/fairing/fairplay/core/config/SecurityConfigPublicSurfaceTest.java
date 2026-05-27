@@ -104,6 +104,13 @@ class SecurityConfigPublicSurfaceTest {
     }
 
     @Test
+    void availableBoothExperienceListRemainsPublicWithoutSession() throws Exception {
+        mockMvc.perform(get("/api/booth-experiences/available"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus())
+                        .isNotIn(401, 403));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void sessionFilterDoesNotClassifyUploadApiAsPublicPath() {
         List<String> publicPaths = (List<String>) ReflectionTestUtils.getField(
