@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,10 +27,13 @@ import java.time.format.DateTimeFormatter;
 @RequiredArgsConstructor
 public class AdminRefundService {
 
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
+
     private final RefundRepository refundRepository;
     private final RefundStatusCodeRepository refundStatusCodeRepository;
     private final UserRepository userRepository;
-    private final PaymentService paymentService; // PG사 환불 처리를 위해
+    private final RefundService refundService;
 
     /**
      * 관리자용 환불 목록 조회 (필터링 및 페이징 지원)
@@ -43,7 +47,8 @@ public class AdminRefundService {
         validateAdminAccess(userDetails);
         
         // 이벤트 관리자의 경우 자신이 관리하는 이벤트만 조회할 수 있도록 제한
-        Long eventId = getEventIdForUser(request.getEventId(), userDetails);
+        Long eventId = request.getEventId();
+        Long managerUserId = getManagerUserIdForFiltering(userDetails);
         
         // 날짜 파싱
         LocalDateTime paymentDateFrom = parseDateTime(request.getPaymentDateFrom());
@@ -68,6 +73,7 @@ public class AdminRefundService {
             request.getRefundStatus(),
             request.getPaymentTargetType(),
             eventId,
+            managerUserId,
             pageable
         );
     }
@@ -75,53 +81,12 @@ public class AdminRefundService {
     /**
      * 환불 승인 처리
      */
-    @Transactional
     public RefundResponseDto approveRefund(Long refundId, RefundApprovalDto approval, CustomUserDetails userDetails) {
-        
-        validateAdminAccess(userDetails);
-        
-        // 환불 정보 조회
+        refundService.approveRefund(refundId, approval, userDetails);
+        refundService.recordRefundApprovalMetadata(refundId, approval, userDetails);
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청을 찾을 수 없습니다: " + refundId));
-        
-        // 현재 상태 검증
-        if (!"REQUESTED".equals(refund.getRefundStatusCode().getCode())) {
-            throw new IllegalStateException("승인 가능한 상태가 아닙니다. 현재 상태: " + refund.getRefundStatusCode().getName());
-        }
-        
-        // 승인자 정보
-        Users approver = userRepository.findById(userDetails.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("승인자 정보를 찾을 수 없습니다."));
-        
-        // 환불 상태를 APPROVED로 변경
-        RefundStatusCode approvedStatus = refundStatusCodeRepository.findByCode("APPROVED")
-                .orElseThrow(() -> new IllegalStateException("APPROVED 상태 코드를 찾을 수 없습니다."));
-        
-        refund.setRefundStatusCode(approvedStatus);
-        refund.setApprovedAt(LocalDateTime.now());
-        refund.setApprovedBy(approver);
-        refund.setAdminComment(approval.getAdminComment());
-        
-        // 환불 금액 수정이 있는 경우
-        if (approval.getRefundAmount() != null && 
-            approval.getRefundAmount().compareTo(refund.getAmount()) != 0) {
-            refund.setAmount(approval.getRefundAmount());
-        }
-        
-        Refund savedRefund = refundRepository.save(refund);
-        
-        // 즉시 PG사 환불 처리 요청인 경우
-        if (Boolean.TRUE.equals(approval.getProcessImmediately())) {
-            try {
-                processIamportRefund(savedRefund);
-            } catch (Exception e) {
-                // PG사 환불 실패 시 상태를 FAILED로 변경하고 에러 로그
-                handleRefundFailure(savedRefund, "PG사 환불 처리 실패: " + e.getMessage());
-                throw new RuntimeException("환불 승인은 완료되었으나 PG사 환불 처리에 실패했습니다: " + e.getMessage());
-            }
-        }
-        
-        return RefundResponseDto.fromEntity(savedRefund);
+        return RefundResponseDto.fromEntity(refund);
     }
 
     /**
@@ -135,6 +100,7 @@ public class AdminRefundService {
         // 환불 정보 조회
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청을 찾을 수 없습니다: " + refundId));
+        validateRefundAccess(refund, userDetails);
         
         // 현재 상태 검증
         if (!"REQUESTED".equals(refund.getRefundStatusCode().getCode())) {
@@ -160,41 +126,6 @@ public class AdminRefundService {
     }
 
     /**
-     * PG사 환불 처리 (아임포트)
-     */
-    private void processIamportRefund(Refund refund) {
-        // 환불 상태를 PROCESSING으로 변경
-        RefundStatusCode processingStatus = refundStatusCodeRepository.findByCode("PROCESSING")
-                .orElseThrow(() -> new IllegalStateException("PROCESSING 상태 코드를 찾을 수 없습니다."));
-        
-        refund.setRefundStatusCode(processingStatus);
-        refundRepository.save(refund);
-        
-        // TODO: PaymentService의 PG사 환불 메서드 호출
-        // paymentService.processIamportRefund(refund.getPayment().getImpUid(), refund.getAmount(), refund.getReason());
-        
-        // 환불 성공 시 상태를 COMPLETED로 변경
-        RefundStatusCode completedStatus = refundStatusCodeRepository.findByCode("COMPLETED")
-                .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
-        
-        refund.setRefundStatusCode(completedStatus);
-        refund.setProcessedAt(LocalDateTime.now());
-        refundRepository.save(refund);
-    }
-
-    /**
-     * 환불 실패 처리
-     */
-    private void handleRefundFailure(Refund refund, String failureReason) {
-        RefundStatusCode failedStatus = refundStatusCodeRepository.findByCode("FAILED")
-                .orElseThrow(() -> new IllegalStateException("FAILED 상태 코드를 찾을 수 없습니다."));
-        
-        refund.setRefundStatusCode(failedStatus);
-        refund.setFailureReason(failureReason);
-        refundRepository.save(refund);
-    }
-
-    /**
      * 관리자 권한 검증
      */
     private void validateAdminAccess(CustomUserDetails userDetails) {
@@ -203,24 +134,42 @@ public class AdminRefundService {
         }
         
         String roleCode = userDetails.getRoleCode();
-        if (!"ADMIN".equals(roleCode) && !"EVENT_MANAGER".equals(roleCode)) {
-            throw new IllegalArgumentException("환불 관리 권한이 없습니다.");
+        if (!ROLE_ADMIN.equals(roleCode) && !ROLE_EVENT_MANAGER.equals(roleCode)) {
+            throw new AccessDeniedException("환불 관리 권한이 없습니다.");
         }
     }
 
     /**
-     * 사용자 권한에 따른 이벤트 ID 제한
+     * 사용자 권한에 따른 관리자 필터링 값 결정
      */
-    private Long getEventIdForUser(Long requestedEventId, CustomUserDetails userDetails) {
-        if ("ADMIN".equals(userDetails.getRoleCode())) {
-            // 전체 관리자는 모든 이벤트 조회 가능
-            return requestedEventId;
-        } else if ("EVENT_MANAGER".equals(userDetails.getRoleCode())) {
-            // 이벤트 관리자는 특정 이벤트만 조회 가능
-            // TODO: 사용자가 관리하는 이벤트 ID 목록을 가져와서 검증
-            return requestedEventId;
+    private Long getManagerUserIdForFiltering(CustomUserDetails userDetails) {
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            return null;
+        } else if (ROLE_EVENT_MANAGER.equals(userDetails.getRoleCode())) {
+            return userDetails.getUserId();
         }
-        return requestedEventId;
+        throw new AccessDeniedException("환불 관리 권한이 없습니다.");
+    }
+
+    private void validateRefundAccess(Refund refund, CustomUserDetails userDetails) {
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            return;
+        }
+
+        if (!ROLE_EVENT_MANAGER.equals(userDetails.getRoleCode())) {
+            throw new AccessDeniedException("환불 관리 권한이 없습니다.");
+        }
+
+        if (refund.getPayment() == null || refund.getPayment().getEvent() == null) {
+            throw new AccessDeniedException("행사에 연결되지 않은 환불은 전체 관리자만 처리할 수 있습니다.");
+        }
+
+        Long managerUserId = refund.getPayment().getEvent().getManager() != null
+                ? refund.getPayment().getEvent().getManager().getUserId()
+                : null;
+        if (!userDetails.getUserId().equals(managerUserId)) {
+            throw new AccessDeniedException("담당 행사의 환불만 처리할 수 있습니다.");
+        }
     }
 
     /**

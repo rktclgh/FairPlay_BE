@@ -42,12 +42,7 @@ public class AuthController {
         LoginResponse response = authService.login(request);
 
         // Redis 세션 생성
-        String sessionId = sessionService.createSession(
-            response.getUserId(),
-            response.getEmail(),
-            response.getRole(),
-            response.getRoleId()
-        );
+        String sessionId = createSessionOrDeleteRefreshToken(response);
 
         // HTTP-only 쿠키 설정 (ResponseCookie 사용)
         ResponseCookie sessionCookie = ResponseCookie.from(SESSION_COOKIE_NAME, sessionId)
@@ -69,6 +64,22 @@ public class AuthController {
 
         return ResponseEntity.ok(response);
     }
+
+    private String createSessionOrDeleteRefreshToken(LoginResponse response) {
+        try {
+            return sessionService.createSession(
+                response.getUserId(),
+                response.getEmail(),
+                response.getRole(),
+                response.getRoleId(),
+                response.getAuthenticatedAt()
+            );
+        } catch (RuntimeException e) {
+            refreshTokenService.deleteRefreshToken(response.getUserId());
+            throw e;
+        }
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response,
                                        @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -108,12 +119,7 @@ public class AuthController {
         LoginResponse response = authService.kakaoLogin(request.getCode());
 
         // Redis 세션 생성
-        String sessionId = sessionService.createSession(
-            response.getUserId(),
-            response.getEmail(),
-            response.getRole(),
-            response.getRoleId()
-        );
+        String sessionId = createSessionOrDeleteRefreshToken(response);
 
         // HTTP-only 쿠키 설정 (ResponseCookie 사용)
         ResponseCookie sessionCookie = ResponseCookie.from(SESSION_COOKIE_NAME, sessionId)

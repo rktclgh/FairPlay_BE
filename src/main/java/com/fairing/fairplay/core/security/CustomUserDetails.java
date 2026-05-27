@@ -32,6 +32,26 @@ public class CustomUserDetails implements UserDetails {
         this.deletedAt = user.getDeletedAt();
     }
 
+    public CustomUserDetails(Long userId, String email, String roleCode, Integer roleId) {
+        this.userId = userId;
+        this.email = email;
+        this.name = email;
+        this.phone = null;
+        this.roleId = roleId;
+        this.roleCode = roleCode;
+        this.roleName = roleCode;
+        this.deletedAt = null;
+    }
+
+    public static CustomUserDetails fromSession(Long userId, String email, String roleCode, Number roleId) {
+        return new CustomUserDetails(
+                userId,
+                email,
+                roleCode,
+                roleId != null ? roleId.intValue() : null
+        );
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         // 권한 없으면 빈 Set 반환 (실제론 roleCode가 null이 나오면 DB/로직 점검 필요)

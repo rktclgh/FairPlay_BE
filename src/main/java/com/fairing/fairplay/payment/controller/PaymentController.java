@@ -3,6 +3,7 @@ package com.fairing.fairplay.payment.controller;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -96,8 +97,12 @@ public class PaymentController {
     @FunctionAuth("completePayment")
     public ResponseEntity<PaymentResponseDto> completePayment(@RequestBody PaymentRequestDto paymentRequestDto,
                                                               @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new AccessDeniedException("인증되지 않은 사용자입니다.");
+        }
+
         try {
-            PaymentResponseDto completedPayment = paymentService.completePayment(paymentRequestDto);
+            PaymentResponseDto completedPayment = paymentService.completePayment(paymentRequestDto, userDetails);
             
             // 결제 완료 시 락 해제 (사용자별 + merchantUid별 모두)
             if (userDetails != null) {
@@ -181,8 +186,13 @@ public class PaymentController {
     @FunctionAuth("updatePaymentTargetId")
     public ResponseEntity<Void> updatePaymentTargetId(
             @PathVariable String merchantUid,
-            @RequestBody TargetIdUpdateRequest request) {
-        paymentService.updatePaymentTargetId(merchantUid, request.getTargetId());
+            @RequestBody TargetIdUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new AccessDeniedException("인증되지 않은 사용자입니다.");
+        }
+
+        paymentService.updatePaymentTargetId(merchantUid, request.getTargetId(), userDetails);
         return ResponseEntity.ok().build();
     }
 

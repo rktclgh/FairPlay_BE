@@ -6,8 +6,6 @@ import com.fairing.fairplay.event.dto.EventDetailModificationResponseDto;
 import com.fairing.fairplay.event.dto.EventDetailResponseDto;
 import com.fairing.fairplay.event.dto.EventVersionComparisonDto;
 import com.fairing.fairplay.event.dto.EventVersionResponseDto;
-import com.fairing.fairplay.event.entity.EventDetailModificationRequest;
-import com.fairing.fairplay.event.entity.EventVersion;
 import com.fairing.fairplay.event.service.EventDetailModificationRequestService;
 import com.fairing.fairplay.event.service.EventVersionService;
 import lombok.RequiredArgsConstructor;
@@ -36,9 +34,8 @@ public class EventVersionController {
             Pageable pageable) {
 
         log.info("행사 버전 목록 조회 시도: eventId={}", eventId);
-        Page<EventVersion> versionPage = eventVersionService.getEventVersions(eventId, pageable);
+        Page<EventVersionResponseDto> responseDto = eventVersionService.getEventVersionResponses(eventId, pageable);
         log.info("조회 성공");
-        Page<EventVersionResponseDto> responseDto = versionPage.map(EventVersionResponseDto::from);
 
         return ResponseEntity.ok(responseDto);
     }
@@ -63,10 +60,8 @@ public class EventVersionController {
             @PathVariable Integer versionNumber,
             @AuthenticationPrincipal CustomUserDetails auth) {
 
-        EventDetailModificationRequest request = modificationRequestService.createVersionRestoreRequest(
+        EventDetailModificationResponseDto responseDto = modificationRequestService.createVersionRestoreRequestResponse(
                 eventId, versionNumber, auth.getUserId());
-
-        EventDetailModificationResponseDto responseDto = EventDetailModificationResponseDto.from(request);
 
         return ResponseEntity.ok(responseDto);
     }

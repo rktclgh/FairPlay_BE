@@ -12,6 +12,8 @@ import com.fairing.fairplay.attendee.repository.AttendeeTypeCodeRepository;
 import com.fairing.fairplay.attendeeform.entity.AttendeeForm;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.qr.dto.QrTicketEmailTodayRequestDto;
 import com.fairing.fairplay.qr.service.QrTicketService;
 import com.fairing.fairplay.reservation.entity.Reservation;
@@ -23,6 +25,7 @@ import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +41,10 @@ public class AttendeeService {
   private final AttendeeFormService attendeeFormService;
   private final ReservationRepository reservationRepository;
   private final QrTicketService qrTicketService;
+  private final EventRepository eventRepository;
+
+  private static final String ROLE_ADMIN = "ADMIN";
+  private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
 
   // 대표자 정보 저장
   @Transactional
@@ -151,14 +158,11 @@ public class AttendeeService {
   // 행사별 예약자 명단 조회 (행사 관리자)
   public List<AttendeeInfoResponseDto> getAttendeesByEvent(Long eventId,
       CustomUserDetails userDetails) {
-    // 행사 관리자 권한 검증
-    if ("COMMON".equals(userDetails.getRoleCode())) {
-      throw new CustomException(HttpStatus.FORBIDDEN, "행사별 예약자 명단을 조회할 권한이 없습니다.");
-    }
     // eventId 유효성 검사
     if (eventId == null || eventId <= 0) {
       throw new CustomException(HttpStatus.BAD_REQUEST, "유효하지 않은 행사 ID입니다.");
     }
+    requireEventAttendeeReadAccess(eventId, userDetails);
 
     List<Attendee> attendees = attendeeRepository.findByEventId(eventId);
     return attendees.stream()
@@ -238,5 +242,27 @@ public class AttendeeService {
   private Reservation findReservation(Long reservationId) {
     return reservationRepository.findById(reservationId).orElseThrow(
         () -> new CustomException(HttpStatus.NOT_FOUND, "예약 정보를 조회할 수 없습니다."));
+  }
+
+  private void requireEventAttendeeReadAccess(Long eventId, CustomUserDetails userDetails) {
+    if (userDetails == null || userDetails.getUserId() == null) {
+      throw new AccessDeniedException("로그인이 필요합니다.");
+    }
+
+    String roleCode = userDetails.getRoleCode();
+    if (ROLE_ADMIN.equals(roleCode)) {
+      return;
+    }
+    if (!ROLE_EVENT_MANAGER.equals(roleCode)) {
+      throw new AccessDeniedException("행사별 예약자 명단을 조회할 권한이 없습니다.");
+    }
+
+    Event event = eventRepository.findById(eventId)
+        .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "행사를 조회할 수 없습니다."));
+    if (event.getManager() == null
+        || event.getManager().getUserId() == null
+        || !event.getManager().getUserId().equals(userDetails.getUserId())) {
+      throw new AccessDeniedException("행사별 예약자 명단을 조회할 권한이 없습니다.");
+    }
   }
 }

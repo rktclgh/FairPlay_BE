@@ -183,7 +183,7 @@ jobs:
       - name: Smoke check deployed service
         run: |
           set -euo pipefail
-          BASE_URL="http://127.0.0.1:18083"
+          BASE_URL="${FAIRPLAY_SMOKE_BASE_URL:-http://127.0.0.1:18083}"
           for i in $(seq 1 30); do
             if curl -fsS "${BASE_URL}/actuator/health" >/tmp/fairplay-health.json; then
               cat /tmp/fairplay-health.json

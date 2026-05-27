@@ -112,7 +112,9 @@ INSERT INTO payment_status_code (code, name) VALUES
                                                  ('PENDING', '결제 대기'),
                                                  ('COMPLETED', '결제 완료'),
                                                  ('FAILED', '결제 실패'),
-                                                 ('CANCELLED', '결제 취소');
+                                                 ('CANCELLED', '결제 취소'),
+                                                 ('REFUNDED', '환불 완료'),
+                                                 ('PARTIAL_REFUNDED', '부분 환불');
 
 
 CREATE TABLE refund_status_code (
@@ -125,6 +127,9 @@ INSERT INTO refund_status_code (code, name) VALUES
                                                 ('REQUESTED', '요청됨'),
                                                 ('APPROVED', '승인됨'),
                                                 ('COMPLETED', '환불완료'),
+                                                ('PROCESSING', '처리중'),
+                                                ('FAILED', '환불실패'),
+                                                ('RECONCILIATION_REQUIRED', '대사필요'),
                                                 ('REJECTED', '반려됨');
 
 CREATE TABLE qr_action_code (

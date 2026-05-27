@@ -1,16 +1,21 @@
 package com.fairing.fairplay.core.service;
 
+import com.fairing.fairplay.common.exception.CustomException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Redis 기반 세션 관리 서비스
@@ -25,16 +30,35 @@ public class SessionService {
     private final ObjectMapper objectMapper;
 
     private static final String SESSION_PREFIX = "session:";
+    private static final String USER_SESSIONS_PREFIX = "user_sessions:";
+    private static final String USER_SESSIONS_REVOKED_AT_PREFIX = "user_sessions_revoked_at:";
+    private static final String USER_SESSIONS_BLOCKED_PREFIX = "user_sessions_blocked:";
     private static final String PAYMENT_LOCK_PREFIX = "payment_lock:";
+    private static final int CURRENT_SESSION_VERSION = 2;
+    private static final String PAYMENT_LOCK_MERCHANT_PREFIX = "payment_lock_merchant:";
     private static final Duration SESSION_TIMEOUT = Duration.ofDays(7); // 7일 (슬라이딩 세션)
     private static final Duration PAYMENT_LOCK_TIMEOUT = Duration.ofMinutes(15); // 15분
+    private static final DefaultRedisScript<Long> DELETE_LOCK_IF_VALUE_MATCHES_SCRIPT = new DefaultRedisScript<>(
+            """
+                    if redis.call('get', KEYS[1]) == ARGV[1] then
+                        return redis.call('del', KEYS[1])
+                    end
+                    return 0
+                    """,
+            Long.class);
 
     /**
      * 새 세션 생성 및 사용자 정보 저장
      */
     public String createSession(Long userId, String email, String role, Long roleId) {
+        return createSession(userId, email, role, roleId, System.currentTimeMillis());
+    }
+
+    public String createSession(Long userId, String email, String role, Long roleId, Long authenticatedAt) {
         String sessionId = UUID.randomUUID().toString();
         String sessionKey = SESSION_PREFIX + sessionId;
+        long createdAt = authenticatedAt != null ? authenticatedAt : System.currentTimeMillis();
+        assertSessionCanBeIssued(userId, createdAt);
 
         try {
             Map<String, Object> sessionData = Map.of(
@@ -42,11 +66,13 @@ public class SessionService {
                 "email", email,
                 "role", role,
                 "roleId", roleId,
-                "createdAt", System.currentTimeMillis()
+                "createdAt", createdAt,
+                "sessionVersion", CURRENT_SESSION_VERSION
             );
 
             String sessionJson = objectMapper.writeValueAsString(sessionData);
             redisTemplate.opsForValue().set(sessionKey, sessionJson, SESSION_TIMEOUT);
+            addUserSession(userId, sessionId);
 
             log.debug("세션 생성 - sessionKey: {}", sessionKey);
 
@@ -77,9 +103,30 @@ public class SessionService {
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> sessionData = objectMapper.readValue(sessionJson, Map.class);
+
+            if (!isCurrentSessionVersion(sessionData)) {
+                deleteSession(sessionId);
+                log.debug("구버전 세션 차단 - sessionId: {}", sessionId);
+                return null;
+            }
+
+            Long userId = getLongValue(sessionData.get("userId"));
+            Long createdAt = getLongValue(sessionData.get("createdAt"));
+            if (isUserSessionsBlocked(userId)) {
+                log.debug("사용자 세션 차단 중 - sessionId: {}, userId: {}", sessionId, userId);
+                return null;
+            }
+            if (isRevokedUserSession(userId, createdAt)) {
+                deleteSession(sessionId);
+                log.debug("폐기된 사용자 세션 차단 - sessionId: {}, userId: {}", sessionId, userId);
+                return null;
+            }
             
             // 세션 TTL 연장 (슬라이딩 세션)
             redisTemplate.expire(sessionKey, SESSION_TIMEOUT);
+            if (userId != null) {
+                addUserSession(userId, sessionId);
+            }
             
             return sessionData;
         } catch (JsonProcessingException e) {
@@ -94,6 +141,7 @@ public class SessionService {
     public void deleteSession(String sessionId) {
         if (sessionId != null && !sessionId.isEmpty()) {
             String sessionKey = SESSION_PREFIX + sessionId;
+            removeSessionFromUserIndex(sessionId, redisTemplate.opsForValue().get(sessionKey));
             redisTemplate.delete(sessionKey);
             log.debug("세션 삭제 완료 - sessionId: {}", sessionId);
         }
@@ -117,19 +165,167 @@ public class SessionService {
      * 세션 유효성 검증
      */
     public boolean isValidSession(String sessionId) {
-        if (sessionId == null || sessionId.isEmpty()) {
-            return false;
-        }
-
-        String sessionKey = SESSION_PREFIX + sessionId;
-        return Boolean.TRUE.equals(redisTemplate.hasKey(sessionKey));
+        return getSessionData(sessionId) != null;
     }
 
     /**
      * 사용자의 모든 세션 삭제 (보안용)
      */
     public void deleteAllUserSessions(Long userId) {
-        // TODO: 구현 필요 시 사용자별 세션 추적 방식 추가
+        if (userId == null) {
+            return;
+        }
+
+        String userSessionsKey = userSessionsKey(userId);
+        String revokedAtKey = USER_SESSIONS_REVOKED_AT_PREFIX + userId;
+        redisTemplate.opsForValue().set(
+                revokedAtKey,
+                String.valueOf(System.currentTimeMillis()),
+                SESSION_TIMEOUT
+        );
+
+        Set<String> sessionIds = redisTemplate.opsForSet().members(userSessionsKey);
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            redisTemplate.delete(userSessionsKey);
+            log.debug("사용자 세션 폐기 마커 설정 - userId: {}, indexedSessions: 0", userId);
+            return;
+        }
+
+        List<String> sessionKeys = new ArrayList<>();
+        for (String sessionId : sessionIds) {
+            sessionKeys.add(SESSION_PREFIX + sessionId);
+        }
+
+        redisTemplate.delete(sessionKeys);
+        redisTemplate.delete(userSessionsKey);
+        log.debug("사용자 전체 세션 삭제 완료 - userId: {}, deletedSessions: {}", userId, sessionIds.size());
+    }
+
+    public void assertSessionCanBeIssued(Long userId, Long authenticatedAt) {
+        long issuedAt = authenticatedAt != null ? authenticatedAt : System.currentTimeMillis();
+        if (isUserSessionsBlocked(userId)) {
+            throw new CustomException(HttpStatus.CONFLICT, "계정 상태 변경이 진행 중입니다. 잠시 후 다시 로그인해주세요.");
+        }
+        if (isRevokedUserSession(userId, issuedAt)) {
+            throw new CustomException(HttpStatus.CONFLICT, "계정 상태가 변경되었습니다. 다시 로그인해주세요.");
+        }
+    }
+
+    public void blockUserSessions(Long userId) {
+        if (userId == null) {
+            return;
+        }
+
+        redisTemplate.opsForValue().set(
+                userSessionsBlockedKey(userId),
+                String.valueOf(System.currentTimeMillis()),
+                SESSION_TIMEOUT
+        );
+        log.debug("사용자 세션 임시 차단 설정 - userId: {}", userId);
+    }
+
+    public void unblockUserSessions(Long userId) {
+        if (userId == null) {
+            return;
+        }
+
+        redisTemplate.delete(userSessionsBlockedKey(userId));
+        log.debug("사용자 세션 임시 차단 해제 - userId: {}", userId);
+    }
+
+    private void addUserSession(Long userId, String sessionId) {
+        if (userId == null || sessionId == null || sessionId.isBlank()) {
+            return;
+        }
+
+        String userSessionsKey = userSessionsKey(userId);
+        redisTemplate.opsForSet().add(userSessionsKey, sessionId);
+        redisTemplate.expire(userSessionsKey, SESSION_TIMEOUT);
+    }
+
+    private void removeSessionFromUserIndex(String sessionId, String sessionJson) {
+        Long userId = extractUserId(sessionJson);
+        if (userId == null) {
+            return;
+        }
+
+        String userSessionsKey = userSessionsKey(userId);
+        redisTemplate.opsForSet().remove(userSessionsKey, sessionId);
+        Long remaining = redisTemplate.opsForSet().size(userSessionsKey);
+        if (remaining != null && remaining == 0) {
+            redisTemplate.delete(userSessionsKey);
+        }
+    }
+
+    private Long extractUserId(String sessionJson) {
+        if (sessionJson == null) {
+            return null;
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> sessionData = objectMapper.readValue(sessionJson, Map.class);
+            return getLongValue(sessionData.get("userId"));
+        } catch (JsonProcessingException e) {
+            log.warn("세션 사용자 인덱스 정리 중 데이터 파싱 실패", e);
+            return null;
+        }
+    }
+
+    private boolean isRevokedUserSession(Long userId, Long createdAt) {
+        if (userId == null) {
+            return false;
+        }
+
+        String revokedAt = redisTemplate.opsForValue().get(USER_SESSIONS_REVOKED_AT_PREFIX + userId);
+        if (revokedAt == null) {
+            return false;
+        }
+        if (createdAt == null) {
+            return true;
+        }
+
+        try {
+            return createdAt <= Long.parseLong(revokedAt);
+        } catch (NumberFormatException e) {
+            log.warn("사용자 세션 폐기 마커 파싱 실패 - userId: {}, revokedAt: {}", userId, revokedAt);
+            return true;
+        }
+    }
+
+    private Long getLongValue(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String string && !string.isBlank()) {
+            try {
+                return Long.parseLong(string);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String userSessionsKey(Long userId) {
+        return USER_SESSIONS_PREFIX + userId;
+    }
+
+    String userSessionsRevokedAtKey(Long userId) {
+        return USER_SESSIONS_REVOKED_AT_PREFIX + userId;
+    }
+
+    private boolean isCurrentSessionVersion(Map<String, Object> sessionData) {
+        Long sessionVersion = getLongValue(sessionData.get("sessionVersion"));
+        return sessionVersion != null && sessionVersion == CURRENT_SESSION_VERSION;
+    }
+
+    private boolean isUserSessionsBlocked(Long userId) {
+        return userId != null && Boolean.TRUE.equals(redisTemplate.hasKey(userSessionsBlockedKey(userId)));
+    }
+
+    String userSessionsBlockedKey(Long userId) {
+        return USER_SESSIONS_BLOCKED_PREFIX + userId;
     }
 
     /**
@@ -160,6 +356,13 @@ public class SessionService {
             Boolean success = redisTemplate.opsForValue().setIfAbsent(lockKey, lockJson, PAYMENT_LOCK_TIMEOUT);
             
             if (Boolean.TRUE.equals(success)) {
+                try {
+                    redisTemplate.opsForValue().set(paymentLockMerchantKey(merchantUid), userId.toString(), PAYMENT_LOCK_TIMEOUT);
+                } catch (Exception e) {
+                    deletePaymentLockIfValueMatches(lockKey, lockJson);
+                    log.error("결제 락 merchantUid 인덱스 설정 실패, 사용자 락 롤백 - userId: {}, merchantUid: {}", userId, merchantUid, e);
+                    return false;
+                }
                 log.debug("결제 락 설정 성공 - userId: {}, merchantUid: {}", userId, merchantUid);
                 return true;
             } else {
@@ -220,7 +423,12 @@ public class SessionService {
         }
         
         String lockKey = PAYMENT_LOCK_PREFIX + userId;
-        Boolean deleted = redisTemplate.delete(lockKey);
+        String lockJson = redisTemplate.opsForValue().get(lockKey);
+        String merchantUid = extractMerchantUid(lockJson);
+        boolean deleted = deletePaymentLockIfValueMatches(lockKey, lockJson);
+        if (deleted && merchantUid != null) {
+            redisTemplate.delete(paymentLockMerchantKey(merchantUid));
+        }
         log.debug("결제 락 해제 - userId: {}, deleted: {}", userId, deleted);
     }
 
@@ -233,28 +441,54 @@ public class SessionService {
         }
         
         try {
-            // 모든 결제 락을 검색해서 해당 merchantUid와 일치하는 것 찾기
-            String pattern = PAYMENT_LOCK_PREFIX + "*";
-            var keys = redisTemplate.keys(pattern);
-            
-            if (keys != null) {
-                for (String key : keys) {
-                    String lockJson = redisTemplate.opsForValue().get(key);
-                    if (lockJson != null) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> lockData = objectMapper.readValue(lockJson, Map.class);
-                        String storedMerchantUid = (String) lockData.get("merchantUid");
-                        
-                        if (merchantUid.equals(storedMerchantUid)) {
-                            redisTemplate.delete(key);
-                            log.debug("merchantUid로 결제 락 해제 - merchantUid: {}", merchantUid);
-                            break;
-                        }
-                    }
+            String merchantIndexKey = paymentLockMerchantKey(merchantUid);
+            String userId = redisTemplate.opsForValue().get(merchantIndexKey);
+
+            if (userId == null) {
+                return;
+            }
+
+            String lockKey = PAYMENT_LOCK_PREFIX + userId;
+            String lockJson = redisTemplate.opsForValue().get(lockKey);
+            String storedMerchantUid = extractMerchantUid(lockJson);
+
+            if (merchantUid.equals(storedMerchantUid)) {
+                if (deletePaymentLockIfValueMatches(lockKey, lockJson)) {
+                    log.debug("merchantUid로 결제 락 해제 - merchantUid: {}", merchantUid);
                 }
             }
+            redisTemplate.delete(merchantIndexKey);
         } catch (Exception e) {
             log.error("merchantUid로 결제 락 해제 실패 - merchantUid: {}", merchantUid, e);
+        }
+    }
+
+    private String paymentLockMerchantKey(String merchantUid) {
+        return PAYMENT_LOCK_MERCHANT_PREFIX + merchantUid;
+    }
+
+    private boolean deletePaymentLockIfValueMatches(String lockKey, String expectedLockJson) {
+        if (expectedLockJson == null) {
+            return false;
+        }
+
+        Long deleted = redisTemplate.execute(DELETE_LOCK_IF_VALUE_MATCHES_SCRIPT, List.of(lockKey), expectedLockJson);
+        return deleted != null && deleted > 0;
+    }
+
+    private String extractMerchantUid(String lockJson) {
+        if (lockJson == null) {
+            return null;
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> lockData = objectMapper.readValue(lockJson, Map.class);
+            Object merchantUid = lockData.get("merchantUid");
+            return merchantUid instanceof String ? (String) merchantUid : null;
+        } catch (Exception e) {
+            log.warn("결제 락 merchantUid 파싱 실패", e);
+            return null;
         }
     }
 }

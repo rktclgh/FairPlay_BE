@@ -24,6 +24,8 @@ public class ReservationResponseDto {
     private String eventName;
     private String eventDescription;
     private String eventThumbnailUrl;
+    private String mainCategory;
+    private String subCategory;
     
     // 회차 정보 (일정)
     private Long scheduleId;
@@ -60,6 +62,60 @@ public class ReservationResponseDto {
     private String paymentMethod;
     private LocalDateTime paidAt;
 
+    public ReservationResponseDto(
+            Long reservationId,
+            Long eventId,
+            String eventName,
+            String eventDescription,
+            String eventThumbnailUrl,
+            String mainCategory,
+            String subCategory,
+            Long scheduleId,
+            LocalDate scheduleDate,
+            LocalTime startTime,
+            LocalTime endTime,
+            Long ticketId,
+            String ticketName,
+            String ticketDescription,
+            Integer ticketPrice,
+            Long userId,
+            String userName,
+            String userEmail,
+            int quantity,
+            int price,
+            String reservationStatus,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt,
+            boolean canceled,
+            LocalDateTime canceledAt
+    ) {
+        this.reservationId = reservationId;
+        this.eventId = eventId;
+        this.eventName = eventName;
+        this.eventDescription = eventDescription;
+        this.eventThumbnailUrl = eventThumbnailUrl;
+        this.mainCategory = mainCategory;
+        this.subCategory = subCategory;
+        this.scheduleId = scheduleId;
+        this.scheduleDate = scheduleDate;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.ticketId = ticketId;
+        this.ticketName = ticketName;
+        this.ticketDescription = ticketDescription;
+        this.ticketPrice = ticketPrice;
+        this.userId = userId;
+        this.userName = userName;
+        this.userEmail = userEmail;
+        this.quantity = quantity;
+        this.price = price;
+        this.reservationStatus = reservationStatus;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+        this.canceled = canceled;
+        this.canceledAt = canceledAt;
+    }
+
     public static ReservationResponseDto from(Reservation reservation) {
         ReservationResponseDto dto = new ReservationResponseDto();
         
@@ -73,6 +129,12 @@ public class ReservationResponseDto {
         // 이벤트 썸네일 URL (EventDetail에서 가져오기)
         if (reservation.getEvent().getEventDetail() != null) {
             dto.eventThumbnailUrl = reservation.getEvent().getEventDetail().getThumbnailUrl();
+            if (reservation.getEvent().getEventDetail().getMainCategory() != null) {
+                dto.mainCategory = reservation.getEvent().getEventDetail().getMainCategory().getGroupName();
+            }
+            if (reservation.getEvent().getEventDetail().getSubCategory() != null) {
+                dto.subCategory = reservation.getEvent().getEventDetail().getSubCategory().getCategoryName();
+            }
         }
         
         // 일정 정보

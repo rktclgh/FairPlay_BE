@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -18,7 +19,6 @@ import com.fairing.fairplay.temp.dto.sales.AllSalesDto;
 import com.fairing.fairplay.temp.dto.sales.DailySalesDto;
 import com.fairing.fairplay.temp.dto.sales.TotalSalesStatisticsDto;
 import com.querydsl.core.Tuple;
-import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
@@ -61,12 +61,20 @@ public class SalesStatisticsRepository {
     }
 
     public List<DailySalesDto> getDailySales(LocalDate startDate, LocalDate endDate) {
+        NumberExpression<Integer> paidYear = p.paidAt.year();
+        NumberExpression<Integer> paidMonth = p.paidAt.month();
+        NumberExpression<Integer> paidDay = p.paidAt.dayOfMonth();
+        NumberExpression<BigDecimal> amount = p.amount.sum();
+        NumberExpression<Long> paymentCount = p.paymentId.count();
+
         List<Tuple> results = queryFactory
                 .select(
-                        Expressions.stringTemplate("DATE({0})", p.paidAt),
+                        paidYear,
+                        paidMonth,
+                        paidDay,
                         ptt.paymentTargetName,
-                        p.amount.sum(),
-                        p.paymentId.count())
+                        amount,
+                        paymentCount)
                 .from(p)
                 .join(p.paymentTargetType, ptt)
                 .where(
@@ -78,27 +86,50 @@ public class SalesStatisticsRepository {
                                 : startDate != null ? p.paidAt.goe(startDate.atStartOfDay())
                                         : endDate != null ? p.paidAt.lt(endDate.plusDays(1).atStartOfDay()) : null)
                 .groupBy(
-                        Expressions.stringTemplate("DATE({0})", p.paidAt),
+                        paidYear,
+                        paidMonth,
+                        paidDay,
                         ptt.paymentTargetName)
-                .orderBy(Expressions.stringTemplate("DATE({0})", p.paidAt).asc())
+                .orderBy(paidYear.asc(), paidMonth.asc(), paidDay.asc())
                 .fetch();
 
+        List<DailySalesRow> rows = results.stream()
+                .map(tuple -> new DailySalesRow(
+                        toLocalDate(tuple.get(paidYear), tuple.get(paidMonth), tuple.get(paidDay)),
+                        tuple.get(ptt.paymentTargetName),
+                        tuple.get(amount),
+                        tuple.get(paymentCount)))
+                .toList();
+
+        return toDailySalesDtos(rows);
+    }
+
+    private static LocalDate toLocalDate(Integer year, Integer month, Integer day) {
+        if (year == null || month == null || day == null) {
+            return null;
+        }
+        return LocalDate.of(year, month, day);
+    }
+
+    static List<DailySalesDto> toDailySalesDtos(List<DailySalesRow> rows) {
         // 날짜별로 결제 유형별 금액을 그룹화
-        Map<LocalDate, Map<String, BigDecimal>> groupedByDate = results.stream()
-                .filter(tuple -> tuple.get(0, java.sql.Date.class) != null) // null 값 필터링
+        Map<LocalDate, Map<String, BigDecimal>> groupedByDate = rows.stream()
+                .filter(row -> row.date() != null) // null 값 필터링
                 .collect(Collectors.groupingBy(
-                        tuple -> tuple.get(0, java.sql.Date.class).toLocalDate(),
+                        DailySalesRow::date,
+                        TreeMap::new,
                         Collectors.toMap(
-                                tuple -> tuple.get(1, String.class),
-                                tuple -> tuple.get(2, BigDecimal.class),
-                                (existing, replacement) -> existing)));
+                                DailySalesRow::paymentTargetName,
+                                row -> row.amount() != null ? row.amount() : BigDecimal.ZERO,
+                                BigDecimal::add)));
 
         // 날짜별로 총 결제 건수를 그룹화
-        Map<LocalDate, Long> groupedCountByDate = results.stream()
-                .filter(tuple -> tuple.get(0, java.sql.Date.class) != null) // null 값 필터링
+        Map<LocalDate, Long> groupedCountByDate = rows.stream()
+                .filter(row -> row.date() != null) // null 값 필터링
                 .collect(Collectors.groupingBy(
-                        tuple -> tuple.get(0, java.sql.Date.class).toLocalDate(),
-                        Collectors.summingLong(tuple -> tuple.get(3, Long.class))));
+                        DailySalesRow::date,
+                        TreeMap::new,
+                        Collectors.summingLong(row -> row.paymentCount() != null ? row.paymentCount() : 0L)));
 
         // 최종 결과 생성
         return groupedByDate.entrySet().stream()
@@ -128,6 +159,9 @@ public class SalesStatisticsRepository {
                 })
                 .sorted((a, b) -> a.getDate().compareTo(b.getDate()))
                 .toList();
+    }
+
+    record DailySalesRow(LocalDate date, String paymentTargetName, BigDecimal amount, Long paymentCount) {
     }
 
     public DailySalesDto getCompare() {

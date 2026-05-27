@@ -2,15 +2,15 @@ package com.fairing.fairplay.chat.websocket;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fairing.fairplay.chat.entity.ChatRoom;
+import com.fairing.fairplay.chat.entity.TargetType;
 import com.fairing.fairplay.chat.repository.ChatRoomRepository;
 import com.fairing.fairplay.chat.service.ChatRoomAccessService;
 import com.fairing.fairplay.core.service.SessionService;
+import com.fairing.fairplay.user.repository.UserRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.Message;
@@ -22,7 +22,8 @@ import org.springframework.security.access.AccessDeniedException;
 class SessionStompChannelInterceptorTest {
 
     private final ChatRoomRepository chatRoomRepository = mock(ChatRoomRepository.class);
-    private final ChatRoomAccessService chatRoomAccessService = mock(ChatRoomAccessService.class);
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final ChatRoomAccessService chatRoomAccessService = new ChatRoomAccessService(userRepository);
     private final SessionStompChannelInterceptor interceptor =
             new SessionStompChannelInterceptor(mock(SessionService.class), chatRoomRepository, chatRoomAccessService);
 
@@ -43,11 +44,11 @@ class SessionStompChannelInterceptorTest {
     }
 
     @Test
-    void allowsPublicQrSubscribeWithoutAuthentication() {
+    void rejectsUnauthenticatedQrSubscribe() {
         Message<byte[]> message = stompMessage(StompCommand.SUBSCRIBE, "/topic/check-in/123", null);
 
-        assertThatCode(() -> interceptor.preSend(message, null))
-                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> interceptor.preSend(message, null))
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
@@ -61,7 +62,6 @@ class SessionStompChannelInterceptorTest {
     @Test
     void rejectsAuthenticatedChatSubscribeForNonParticipant() {
         when(chatRoomRepository.findById(123L)).thenReturn(Optional.of(chatRoom(10L, 20L)));
-        when(chatRoomAccessService.canAccess(any(ChatRoom.class), eq(30L))).thenReturn(false);
         Message<byte[]> message = stompMessage(StompCommand.SUBSCRIBE, "/topic/chat.123", new StompPrincipal("30"));
 
         assertThatThrownBy(() -> interceptor.preSend(message, null))
@@ -71,7 +71,17 @@ class SessionStompChannelInterceptorTest {
     @Test
     void allowsAuthenticatedChatSubscribeForParticipant() {
         when(chatRoomRepository.findById(123L)).thenReturn(Optional.of(chatRoom(10L, 20L)));
-        when(chatRoomAccessService.canAccess(any(ChatRoom.class), eq(10L))).thenReturn(true);
+        Message<byte[]> message = stompMessage(StompCommand.SUBSCRIBE, "/topic/chat.123", new StompPrincipal("10"));
+
+        assertThatCode(() -> interceptor.preSend(message, null))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void allowsAdminSubscribeToAdminInquiryWhenNotStoredTarget() {
+        when(chatRoomRepository.findById(123L)).thenReturn(Optional.of(adminInquiryRoom(1092L, 1L)));
+        when(userRepository.findByUserIdInAndRoleCode_Code(java.util.Set.of(10L), "ADMIN"))
+                .thenReturn(java.util.List.of(mock(com.fairing.fairplay.user.entity.Users.class)));
         Message<byte[]> message = stompMessage(StompCommand.SUBSCRIBE, "/topic/chat.123", new StompPrincipal("10"));
 
         assertThatCode(() -> interceptor.preSend(message, null))
@@ -89,6 +99,15 @@ class SessionStompChannelInterceptorTest {
         return ChatRoom.builder()
                 .chatRoomId(123L)
                 .userId(userId)
+                .targetId(targetId)
+                .build();
+    }
+
+    private ChatRoom adminInquiryRoom(Long userId, Long targetId) {
+        return ChatRoom.builder()
+                .chatRoomId(123L)
+                .userId(userId)
+                .targetType(TargetType.ADMIN)
                 .targetId(targetId)
                 .build();
     }

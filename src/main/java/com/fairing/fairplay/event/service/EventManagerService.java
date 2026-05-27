@@ -2,6 +2,9 @@ package com.fairing.fairplay.event.service;
 
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventManagerRepository;
+import com.fairing.fairplay.payment.dto.ManagedEventDto;
+import com.fairing.fairplay.payment.entity.Refund;
+import com.fairing.fairplay.payment.repository.RefundRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +20,7 @@ public class EventManagerService {
 
     private final EventManagerRepository eventManagerRepository;
     private final UserRepository userRepository;
+    private final RefundRepository refundRepository;
 
     /**
      * 사용자가 관리하는 이벤트 ID 목록 조회
@@ -56,16 +60,42 @@ public class EventManagerService {
         return eventManagerRepository.findByManager_UserId(userId);
     }
 
+    @Transactional(readOnly = true)
+    public List<ManagedEventDto> getManagedEventDtos(Long userId) {
+        Users user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+
+        if (!"EVENT_MANAGER".equals(user.getRoleCode().getCode())) {
+            throw new IllegalArgumentException("EVENT_MANAGER 권한이 없습니다.");
+        }
+
+        return eventManagerRepository.findByManagerUserIdWithStatusAndDetail(userId)
+                .stream()
+                .map(event -> ManagedEventDto.builder()
+                        .eventId(event.getEventId())
+                        .eventName(event.getTitleKr())
+                        .eventStatus(event.getStatusCode() != null ? event.getStatusCode().getCode() : null)
+                        .startDate(event.getEventDetail() != null ? event.getEventDetail().getStartDate() : null)
+                        .endDate(event.getEventDetail() != null ? event.getEventDetail().getEndDate() : null)
+                        .build())
+                .toList();
+    }
+
     /**
      * 특정 환불이 해당 관리자의 이벤트 소속인지 검증
      */
     @Transactional(readOnly = true)
     public boolean isRefundInManagedEvent(Long refundId, Long managerId) {
-        List<Long> managedEventIds = getManagedEventIds(managerId);
-        
-        // 환불의 이벤트 ID를 조회하는 쿼리 필요
-        // 현재는 간단한 구현으로 대체
-        return true; // TODO: 실제 검증 로직 구현
+        Refund refund = refundRepository.findById(refundId)
+                .orElseThrow(() -> new IllegalArgumentException("환불 요청을 찾을 수 없습니다: " + refundId));
+
+        if (refund.getPayment() == null || refund.getPayment().getEvent() == null) {
+            return false;
+        }
+
+        Event event = refund.getPayment().getEvent();
+        Long eventManagerUserId = event.getManager() != null ? event.getManager().getUserId() : null;
+        return managerId != null && managerId.equals(eventManagerUserId);
     }
 
     /**

@@ -1,12 +1,12 @@
 package com.fairing.fairplay.payment.controller;
 
-import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.payment.dto.*;
 import com.fairing.fairplay.payment.service.RefundService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,7 +35,7 @@ public class RefundController {
 
     // 2단계: 티켓 환불 승인 (관리자가 환불 승인)
     @PostMapping("/{refundId}/approve")
-    @FunctionAuth("approveRefund")
+    @PreAuthorize("hasAnyAuthority('ADMIN','EVENT_MANAGER')")
     public ResponseEntity<PaymentResponseDto> approveRefund(
             @PathVariable Long refundId,
             @RequestBody RefundApprovalDto approval,
@@ -44,13 +44,13 @@ public class RefundController {
             throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
         }
 
-        PaymentResponseDto approvedRefund = refundService.approveRefund(refundId, approval, userDetails.getUserId());
+        PaymentResponseDto approvedRefund = refundService.approveRefund(refundId, approval, userDetails);
         return ResponseEntity.ok(approvedRefund);
     }
 
     // 티켓 환불 거절 (관리자가 환불 거절)
     @PostMapping("/{refundId}/reject")
-    @FunctionAuth("rejectRefund")
+    @PreAuthorize("hasAnyAuthority('ADMIN','EVENT_MANAGER')")
     public ResponseEntity<PaymentResponseDto> rejectRefund(
             @PathVariable Long refundId,
             @RequestBody(required = false) String rejectReason,
@@ -59,13 +59,13 @@ public class RefundController {
             throw new IllegalArgumentException("인증되지 않은 사용자입니다.");
         }
 
-        PaymentResponseDto rejectedRefund = refundService.rejectRefund(refundId, rejectReason, userDetails.getUserId());
+        PaymentResponseDto rejectedRefund = refundService.rejectRefund(refundId, rejectReason, userDetails);
         return ResponseEntity.ok(rejectedRefund);
     }
 
     // 환불 요청 목록 조회 (관리자용)
     @GetMapping
-    @FunctionAuth("getAllRefunds")
+    @PreAuthorize("hasAnyAuthority('ADMIN','EVENT_MANAGER')")
     public ResponseEntity<List<RefundResponseDto>> getAllRefunds(
             @RequestParam(required = false) Long eventId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -88,7 +88,7 @@ public class RefundController {
 
     // 대기 중인 환불 요청 조회 (관리자용)
     @GetMapping("/pending")
-    @FunctionAuth("getPendingRefunds")
+    @PreAuthorize("hasAnyAuthority('ADMIN','EVENT_MANAGER')")
     public ResponseEntity<List<RefundResponseDto>> getPendingRefunds(
             @RequestParam(required = false) Long eventId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -102,12 +102,12 @@ public class RefundController {
 
     // 환불 목록 조회 (필터링 및 페이징 지원)
     @PostMapping("/list")
-    // @FunctionAuth("getRefundList") // 임시로 주석 처리
+    @PreAuthorize("hasAnyAuthority('ADMIN','EVENT_MANAGER')")
     public ResponseEntity<Page<RefundListResponseDto>> getRefundList(
             @RequestBody RefundListRequestDto request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         
-        Page<RefundListResponseDto> refundList = refundService.getRefundList(request);
+        Page<RefundListResponseDto> refundList = refundService.getRefundList(request, userDetails);
         return ResponseEntity.ok(refundList);
     }
 

@@ -145,6 +145,12 @@ public class EventApplyService {
         return savedEventApply;
     }
 
+    @Transactional
+    public EventApplyResponseDto submitEventApplicationResponse(EventApplyRequestDto requestDto) {
+        EventApply eventApply = submitEventApplication(requestDto);
+        return EventApplyResponseDto.from(eventApply);
+    }
+
     private void processAndLinkFiles(EventApply eventApply, List<TempFileUploadDto> tempFiles) {
         for (TempFileUploadDto fileDto : tempFiles) {
             try {
@@ -319,8 +325,27 @@ public class EventApplyService {
     }
 
     @Transactional(readOnly = true)
+    public Page<EventApplyResponseDto> getApplicationResponses(String status, Pageable pageable) {
+        Page<EventApply> eventApplies;
+
+        if (status == null || status.isEmpty()) {
+            eventApplies = eventApplyRepository.findAllForResponse(pageable);
+        } else {
+            eventApplies = eventApplyRepository.findByStatusCodeForResponse(status, pageable);
+        }
+
+        return eventApplies.map(EventApplyResponseDto::from);
+    }
+
+    @Transactional(readOnly = true)
     public Optional<EventApply> findByEventEmail(String eventEmail) {
         return eventApplyRepository.findByEventEmail(eventEmail);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<EventApplyResponseDto> findResponseByEventEmail(String eventEmail) {
+        return eventApplyRepository.findByEventEmailForResponse(eventEmail)
+                .map(EventApplyResponseDto::from);
     }
 
     private EventAdmin createEventAdminAccount(EventApply eventApply, String tempPassword) {

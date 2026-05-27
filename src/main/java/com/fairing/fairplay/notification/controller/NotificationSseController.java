@@ -50,9 +50,6 @@ public class NotificationSseController {
         // SSE Emitter 생성 및 등록
         SseEmitter emitter = sseService.createEmitter(userId);
 
-        // 연결 즉시 기존 알림 목록 전송
-        sseService.sendInitialNotifications(userId, emitter);
-
         return emitter;
     }
 

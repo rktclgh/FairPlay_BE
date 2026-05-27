@@ -2,9 +2,11 @@ package com.fairing.fairplay.event.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.service.LocalFileService;
+import com.fairing.fairplay.core.util.TempUploadKeyPolicy;
 // import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.core.util.JsonUtil;
 import com.fairing.fairplay.event.dto.EventDetailModificationDto;
+import com.fairing.fairplay.event.dto.EventDetailModificationResponseDto;
 import com.fairing.fairplay.event.dto.EventDetailRequestDto;
 import com.fairing.fairplay.event.dto.EventSnapshotDto;
 import com.fairing.fairplay.event.dto.ExternalLinkRequestDto;
@@ -23,6 +25,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -76,9 +80,7 @@ public class EventDetailModificationRequestService {
                     String cdnUrl = localFileService.getCdnUrl(newKey);
                     newFileKeys.add(newKey);
 
-                    // 임시 URL과 영구 URL 매핑 저장
-                    String tempCdnUrl = localFileService.getCdnUrl(fileDto.getS3Key());
-                    urlMappings.put(tempCdnUrl, cdnUrl);
+                    addTempDownloadUrlMappings(urlMappings, fileDto.getS3Key(), cdnUrl);
                     
                     /* S3 버전 (롤백용 주석처리)
                     String newKey = awsS3Service.moveToPermanent(fileDto.getS3Key(), directory);
@@ -159,6 +161,25 @@ public class EventDetailModificationRequestService {
         }
 
         return modificationRequestRepository.save(request);
+    }
+
+    private void addTempDownloadUrlMappings(Map<String, String> urlMappings, String tempKey, String permanentUrl) {
+        String normalizedKey = TempUploadKeyPolicy.normalizeKey(tempKey);
+        if (normalizedKey.isBlank()) {
+            return;
+        }
+
+        urlMappings.put("/api/uploads/download?key=" + normalizedKey, permanentUrl);
+        urlMappings.put("/api/uploads/download?key=" + URLEncoder.encode(normalizedKey, StandardCharsets.UTF_8), permanentUrl);
+    }
+
+    @Transactional
+    public EventDetailModificationResponseDto createModificationRequestResponse(
+            Long eventId, EventDetailModificationDto modificationDto, Long requestedBy) {
+        EventDetailModificationRequest request = createModificationRequest(eventId, modificationDto, requestedBy);
+        EventDetailModificationRequest responseRequest = modificationRequestRepository.findByIdForResponse(request.getRequestId())
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 수정 요청을 찾을 수 없습니다."));
+        return EventDetailModificationResponseDto.from(responseRequest);
     }
 
     @Transactional
@@ -313,14 +334,44 @@ public class EventDetailModificationRequestService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<EventDetailModificationResponseDto> getPendingRequestResponseByEventId(Long eventId) {
+        return modificationRequestRepository.findPendingRequestByEventIdForResponse(eventId)
+                .map(EventDetailModificationResponseDto::from);
+    }
+
+    @Transactional(readOnly = true)
     public Page<EventDetailModificationRequest> getModificationRequests(String status, Long eventId, Long requestedBy, Pageable pageable) {
         return modificationRequestRepository.findWithFilters(status, eventId, requestedBy, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EventDetailModificationResponseDto> getModificationRequestResponses(
+            String status, Long eventId, Long requestedBy, Pageable pageable) {
+        return modificationRequestRepository.findWithFiltersForResponse(status, eventId, requestedBy, pageable)
+                .map(EventDetailModificationResponseDto::from);
     }
 
     @Transactional(readOnly = true)
     public EventDetailModificationRequest getModificationRequestById(Long requestId) {
         return modificationRequestRepository.findById(requestId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 수정 요청을 찾을 수 없습니다."));
+    }
+
+    @Transactional(readOnly = true)
+    public EventDetailModificationResponseDto getModificationRequestResponseById(Long requestId, Long userId, String roleCode) {
+        EventDetailModificationRequest request = modificationRequestRepository.findByIdForResponse(requestId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 수정 요청을 찾을 수 없습니다."));
+
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            Long managerId = request.getEvent().getManager().getUserId();
+            if (!managerId.equals(userId)) {
+                log.info("담당 행사 관리자가 아님: requestId={}, managerId={}, userId={}",
+                        requestId, managerId, userId);
+                throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+            }
+        }
+
+        return EventDetailModificationResponseDto.from(request);
     }
 
     private void applyModificationToEventDetail(EventDetailModificationRequest request) {
@@ -629,6 +680,15 @@ public class EventDetailModificationRequestService {
         request.setAdminComment("버전 " + targetVersionNumber + "로 복구 요청");
 
         return modificationRequestRepository.save(request);
+    }
+
+    @Transactional
+    public EventDetailModificationResponseDto createVersionRestoreRequestResponse(
+            Long eventId, Integer targetVersionNumber, Long requestedBy) {
+        EventDetailModificationRequest request = createVersionRestoreRequest(eventId, targetVersionNumber, requestedBy);
+        EventDetailModificationRequest responseRequest = modificationRequestRepository.findByIdForResponse(request.getRequestId())
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 수정 요청을 찾을 수 없습니다."));
+        return EventDetailModificationResponseDto.from(responseRequest);
     }
 
     private EventDetailModificationDto convertSnapshotToModificationDto(EventSnapshotDto snapshot) {

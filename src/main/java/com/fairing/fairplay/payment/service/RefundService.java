@@ -10,6 +10,7 @@ import com.fairing.fairplay.payment.repository.PaymentRepository;
 import com.fairing.fairplay.payment.repository.PaymentStatusCodeRepository;
 import com.fairing.fairplay.payment.repository.RefundRepository;
 import com.fairing.fairplay.payment.repository.RefundStatusCodeRepository;
+import com.fairing.fairplay.user.entity.Users;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
@@ -18,8 +19,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
@@ -32,15 +37,22 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class RefundService {
 
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
+    private static final int IAMPORT_CONNECT_TIMEOUT_MILLIS = 5_000;
+    private static final int IAMPORT_READ_TIMEOUT_MILLIS = 10_000;
+
     private final PaymentRepository paymentRepository;
     private final RefundRepository refundRepository;
     private final PaymentStatusCodeRepository paymentStatusCodeRepository;
     private final RefundStatusCodeRepository refundStatusCodeRepository;
+    private final PlatformTransactionManager transactionManager;
     
     @Value("${iamport.api-key}")
     private String iamportApiKey;
@@ -85,65 +97,227 @@ public class RefundService {
     /**
      * 2단계: 관리자의 환불 승인 - 이때 아임포트에 환불 요청
      */
-    @Transactional
-    public PaymentResponseDto approveRefund(Long refundId, RefundApprovalDto approval, Long adminUserId) {
-        Refund refund = refundRepository.findById(refundId)
-                .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
-
-        // 이미 처리된 요청인지 확인
-        if (!"REQUESTED".equals(refund.getRefundStatusCode().getCode())) {
-            throw new IllegalStateException("이미 처리된 환불 요청입니다.");
-        }
-
-        Payment payment = refund.getPayment();
+    public PaymentResponseDto approveRefund(Long refundId, RefundApprovalDto approval, CustomUserDetails userDetails) {
+        RefundApprovalSnapshot snapshot = reserveRefundApproval(refundId, approval, userDetails);
 
         try {
             // 아임포트에 토큰 요청
             String accessToken = getToken();
+            try {
+                // 아임포트 환불 요청 (금액 지정)
+                processRefundRequest(
+                        accessToken,
+                        snapshot.merchantUid(),
+                        snapshot.actualRefundAmount(),
+                        snapshot.expectedCancelledAmount(),
+                        snapshot.reason());
+            } catch (IamportRefundRejectedException e) {
+                markRefundProcessingFailed(snapshot.refundId(), e.getMessage());
+                throw new RuntimeException("환불 처리 중 오류가 발생했습니다: " + e.getMessage(), e);
+            } catch (IOException e) {
+                markRefundReconciliationRequired(snapshot.refundId(), e.getMessage());
+                throw new RuntimeException("환불 처리 결과 확인이 필요합니다: " + e.getMessage(), e);
+            }
+        } catch (IOException e) {
+            markRefundProcessingFailed(snapshot.refundId(), e.getMessage());
+            throw new RuntimeException("환불 처리 중 오류가 발생했습니다: " + e.getMessage(), e);
+        }
+
+        try {
+            return completeReservedRefundApproval(snapshot.refundId(), snapshot.actualRefundAmount(), userDetails);
+        } catch (RuntimeException e) {
+            markRefundReconciliationRequired(snapshot.refundId(), e.getMessage());
+            throw e;
+        }
+    }
+
+    public void recordRefundApprovalMetadata(Long refundId, RefundApprovalDto approval, CustomUserDetails userDetails) {
+        writeTransactionTemplate().executeWithoutResult(status -> {
+            Refund refund = refundRepository.findByIdForUpdate(refundId)
+                    .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
+            validateRefundAccess(refund, userDetails);
+            Users approver = null;
+            if (userDetails != null && userDetails.getUserId() != null) {
+                approver = new Users(userDetails.getUserId());
+            }
+            refund.setApprovedBy(approver);
+            if (approval != null) {
+                refund.setAdminComment(approval.getAdminComment());
+            }
+        });
+    }
+
+    private static class IamportRefundRejectedException extends IOException {
+        private IamportRefundRejectedException(String message) {
+            super(message);
+        }
+    }
+
+    private RefundApprovalSnapshot reserveRefundApproval(Long refundId, RefundApprovalDto approval, CustomUserDetails userDetails) {
+        return writeTransactionTemplate().execute(status -> {
+            validateRefundManagerRole(userDetails);
+            Refund refund = refundRepository.findByIdForUpdate(refundId)
+                    .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
+            validateRefundAccess(refund, userDetails);
+            validateRequestedRefund(refund);
+
+            Payment payment = lockPaymentOrUseExisting(refund.getPayment());
+            BigDecimal availableAmount = payment.getAmount()
+                    .subtract(payment.getRefundedAmount())
+                    .subtract(reservedAmountFor(payment.getPaymentId()));
+            BigDecimal actualRefundAmount = requestedApprovalAmount(refund, approval);
+            if (availableAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalStateException("환불 가능한 금액이 없습니다.");
+            }
+            if (actualRefundAmount.compareTo(availableAmount) > 0) {
+                throw new IllegalStateException("승인 환불 금액이 환불 가능 금액을 초과합니다.");
+            }
+            BigDecimal expectedCancelledAmount = payment.getRefundedAmount().add(actualRefundAmount);
+
+            RefundStatusCode processingStatus = refundStatusCodeRepository.findByCode("PROCESSING")
+                    .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: PROCESSING"));
+            refund.setAmount(actualRefundAmount);
+            refund.setRefundStatusCode(processingStatus);
+            refund.setFailureReason(null);
+
+            return new RefundApprovalSnapshot(
+                    refund.getRefundId(),
+                    payment.getMerchantUid(),
+                    actualRefundAmount,
+                    expectedCancelledAmount,
+                    refund.getReason());
+        });
+    }
+
+    private PaymentResponseDto completeReservedRefundApproval(Long refundId, BigDecimal actualRefundAmount, CustomUserDetails userDetails) {
+        return writeTransactionTemplate().execute(status -> {
+            validateRefundManagerRole(userDetails);
+            Refund refund = refundRepository.findByIdForUpdate(refundId)
+                    .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
+            validateRefundAccess(refund, userDetails);
+            validateProcessingRefund(refund);
 
             RefundStatusCode approvedStatus = refundStatusCodeRepository.findByCode("APPROVED")
                     .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: APPROVED"));
 
-            // 환불 가능한 최대 금액 계산
-            BigDecimal totalRefundedAmount = payment.getRefundedAmount();
-            BigDecimal availableAmount = payment.getAmount().subtract(totalRefundedAmount);
-            
-            // 요청 금액이 남은 금액보다 크면 남은 금액으로 조정
-            BigDecimal actualRefundAmount = refund.getAmount().min(availableAmount);
-            
-            // 아임포트 환불 요청 (금액 지정)
-            refundRequest(accessToken, payment.getMerchantUid(), actualRefundAmount, refund.getReason());
-            
-            // 실제 환불 금액으로 조정
-            refund.setAmount(actualRefundAmount);
+            Payment payment = lockPaymentOrUseExisting(refund.getPayment());
+            BigDecimal availableAmount = payment.getAmount().subtract(payment.getRefundedAmount());
+            if (actualRefundAmount.compareTo(availableAmount) > 0) {
+                throw new IllegalStateException("환불 가능 금액이 승인 중 변경되었습니다.");
+            }
 
-            // 환불 승인 처리
+            refund.setAmount(actualRefundAmount);
             refund.setRefundStatusCode(approvedStatus);
             refund.setApprovedAt(LocalDateTime.now());
+            updatePaymentAfterRefund(payment, actualRefundAmount);
+            return PaymentResponseDto.fromEntity(payment);
+        });
+    }
 
-            // 결제 정보 업데이트
-            updatePaymentAfterRefund(payment, refund.getAmount());
+    private void markRefundProcessingFailed(Long refundId, String failureReason) {
+        writeTransactionTemplate().executeWithoutResult(status -> {
+            Refund refund = refundRepository.findByIdForUpdate(refundId)
+                    .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
+            if (!"PROCESSING".equals(refund.getRefundStatusCode().getCode())) {
+                return;
+            }
+            RefundStatusCode failedStatus = refundStatusCodeRepository.findByCode("FAILED")
+                    .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: FAILED"));
+            refund.setRefundStatusCode(failedStatus);
+            refund.setFailureReason(truncateFailureReason(failureReason));
+            refund.setProcessedAt(LocalDateTime.now());
+        });
+    }
 
-        } catch (IOException e) {
-            // 환불 거부 상태 코드 조회 (REJECTED)
-            RefundStatusCode rejectedStatus = refundStatusCodeRepository.findByCode("REJECTED")
-                    .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: REJECTED"));
-            
-            // 아임포트 환불 실패 시 상태를 REJECTED로 변경
-            refund.setRefundStatusCode(rejectedStatus);
-            throw new RuntimeException("환불 처리 중 오류가 발생했습니다: " + e.getMessage());
+    private void markRefundReconciliationRequired(Long refundId, String failureReason) {
+        writeTransactionTemplate().executeWithoutResult(status -> {
+            Refund refund = refundRepository.findByIdForUpdate(refundId)
+                    .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
+            if ("APPROVED".equals(refund.getRefundStatusCode().getCode())) {
+                return;
+            }
+            RefundStatusCode reconciliationStatus = refundStatusCodeRepository.findByCode("RECONCILIATION_REQUIRED")
+                    .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: RECONCILIATION_REQUIRED"));
+            refund.setRefundStatusCode(reconciliationStatus);
+            refund.setFailureReason(truncateFailureReason(failureReason));
+            refund.setProcessedAt(LocalDateTime.now());
+        });
+    }
+
+    private void validateRequestedRefund(Refund refund) {
+        if (!"REQUESTED".equals(refund.getRefundStatusCode().getCode())) {
+            throw new IllegalStateException("이미 처리된 환불 요청입니다.");
         }
+    }
 
-        return PaymentResponseDto.fromEntity(payment);
+    private void validateProcessingRefund(Refund refund) {
+        if (!"PROCESSING".equals(refund.getRefundStatusCode().getCode())) {
+            throw new IllegalStateException("환불 처리 선점 상태가 아닙니다.");
+        }
+    }
+
+    private Payment lockPaymentOrUseExisting(Payment payment) {
+        if (payment == null || payment.getPaymentId() == null) {
+            throw new IllegalArgumentException("환불 결제 정보가 없습니다.");
+        }
+        Optional<Payment> lockedPayment = paymentRepository.findByIdForUpdate(payment.getPaymentId());
+        return lockedPayment.orElse(payment);
+    }
+
+    private BigDecimal requestedApprovalAmount(Refund refund, RefundApprovalDto approval) {
+        BigDecimal requestedAmount = approval != null && approval.getRefundAmount() != null
+                ? approval.getRefundAmount()
+                : refund.getAmount();
+        if (requestedAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("승인 환불 금액은 0보다 커야 합니다.");
+        }
+        if (requestedAmount.compareTo(refund.getAmount()) > 0) {
+            throw new IllegalArgumentException("승인 환불 금액은 요청 금액을 초과할 수 없습니다.");
+        }
+        return requestedAmount;
+    }
+
+    private BigDecimal reservedAmountFor(Long paymentId) {
+        BigDecimal reservedAmount = refundRepository.sumReservedAmountByPaymentId(paymentId);
+        return reservedAmount != null ? reservedAmount : BigDecimal.ZERO;
+    }
+
+    private String truncateFailureReason(String failureReason) {
+        String message = failureReason != null ? failureReason : "알 수 없는 환불 처리 오류";
+        return message.length() > 500 ? message.substring(0, 500) : message;
+    }
+
+    private TransactionTemplate readOnlyTransactionTemplate() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        template.setReadOnly(true);
+        return template;
+    }
+
+    private TransactionTemplate writeTransactionTemplate() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
+    }
+
+    private record RefundApprovalSnapshot(
+            Long refundId,
+            String merchantUid,
+            BigDecimal actualRefundAmount,
+            BigDecimal expectedCancelledAmount,
+            String reason
+    ) {
     }
 
     /**
      * 환불 요청 거절
      */
     @Transactional
-    public PaymentResponseDto rejectRefund(Long refundId, String rejectReason, Long adminUserId) {
+    public PaymentResponseDto rejectRefund(Long refundId, String rejectReason, CustomUserDetails userDetails) {
+        validateRefundManagerRole(userDetails);
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청이 없습니다."));
+        validateRefundAccess(refund, userDetails);
 
         if (!"REQUESTED".equals(refund.getRefundStatusCode().getCode())) {
             throw new IllegalStateException("이미 처리된 환불 요청입니다.");
@@ -196,11 +370,13 @@ public class RefundService {
         // 결제 상태 업데이트 (금액 기준으로 판단)
         if (payment.getRefundedAmount().compareTo(payment.getAmount()) >= 0) {
             // 전체 환불
-            PaymentStatusCode refundedStatus = paymentStatusCodeRepository.getReferenceById(4); // REFUNDED
+            PaymentStatusCode refundedStatus = paymentStatusCodeRepository.findByCode("REFUNDED")
+                    .orElseThrow(() -> new IllegalStateException("결제 상태 코드를 찾을 수 없습니다: REFUNDED"));
             payment.setPaymentStatusCode(refundedStatus);
         } else {
             // 부분 환불
-            PaymentStatusCode partialRefundStatusCode = paymentStatusCodeRepository.getReferenceById(5); // PARTIAL_REFUNDED
+            PaymentStatusCode partialRefundStatusCode = paymentStatusCodeRepository.findByCode("PARTIAL_REFUNDED")
+                    .orElseThrow(() -> new IllegalStateException("결제 상태 코드를 찾을 수 없습니다: PARTIAL_REFUNDED"));
             payment.setPaymentStatusCode(partialRefundStatusCode);
         }
     }
@@ -209,8 +385,20 @@ public class RefundService {
      * 환불 요청 (부분/전체 통합)
      */
     public static void refundRequest(String accessToken, String merchantUid, BigDecimal amount, String reason) throws IOException {
+        refundRequest(accessToken, merchantUid, amount, amount, reason);
+    }
+
+    public static void refundRequest(
+            String accessToken,
+            String merchantUid,
+            BigDecimal amount,
+            BigDecimal expectedCancelledAmount,
+            String reason
+    ) throws IOException {
         URL url = new URL("https://api.iamport.kr/payments/cancel");
         HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+        conn.setConnectTimeout(IAMPORT_CONNECT_TIMEOUT_MILLIS);
+        conn.setReadTimeout(IAMPORT_READ_TIMEOUT_MILLIS);
 
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-type", "application/json");
@@ -231,13 +419,31 @@ public class RefundService {
             bw.flush();
         }
 
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-            String response = br.readLine();
+        try {
+            int httpStatus = conn.getResponseCode();
+            String response = readIamportResponse(conn, httpStatus);
             System.out.println("Refund response: " + response);
-            // 필요시 응답 파싱하여 결과 확인
+            if (httpStatus >= 400) {
+                throw new IamportRefundRejectedException("아임포트 환불 HTTP 오류: " + httpStatus + ", body: " + response);
+            }
+            validateIamportCancelSuccess(response, merchantUid, amount, expectedCancelledAmount);
+        } finally {
+            conn.disconnect();
         }
+    }
 
-        conn.disconnect();
+    protected void processRefundRequest(String accessToken, String merchantUid, BigDecimal amount, String reason) throws IOException {
+        processRefundRequest(accessToken, merchantUid, amount, amount, reason);
+    }
+
+    protected void processRefundRequest(
+            String accessToken,
+            String merchantUid,
+            BigDecimal amount,
+            BigDecimal expectedCancelledAmount,
+            String reason
+    ) throws IOException {
+        refundRequest(accessToken, merchantUid, amount, expectedCancelledAmount, reason);
     }
 
     /**
@@ -245,20 +451,20 @@ public class RefundService {
      */
     @Transactional(readOnly = true)
     public List<RefundResponseDto> getAllRefunds(Long eventId, CustomUserDetails userDetails) {
-        // 임시 하드코딩: ADMIN 권한으로 가정
-        String roleCode = "ADMIN";
-        // if(userDetails != null) {
-        //     roleCode = userDetails.getRoleCode();
-        //     if (!"ADMIN".equals(roleCode) && !"EVENT_MANAGER".equals(roleCode)) {
-        //         throw new IllegalArgumentException("권한이 없습니다.");
-        //     }
-        // }
+        validateRefundManagerRole(userDetails);
 
         List<Refund> refunds;
-        if (eventId != null) {
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            if (eventId != null) {
+                refunds = refundRepository.findByEventId(eventId);
+            } else {
+                refunds = refundRepository.findAll();
+            }
+        } else if (eventId != null) {
             refunds = refundRepository.findByEventId(eventId);
+            refunds.forEach(refund -> validateRefundAccess(refund, userDetails));
         } else {
-            refunds = refundRepository.findAll();
+            refunds = refundRepository.findByEventManagerUserId(userDetails.getUserId());
         }
 
         return RefundResponseDto.fromEntityList(refunds);
@@ -323,14 +529,22 @@ public class RefundService {
      */
     @Transactional(readOnly = true)
     public List<RefundResponseDto> getPendingRefunds(Long eventId, CustomUserDetails userDetails) {
+        validateRefundManagerRole(userDetails);
         RefundStatusCode requestedStatus = refundStatusCodeRepository.findByCode("REQUESTED")
                 .orElseThrow(() -> new IllegalStateException("환불 상태 코드를 찾을 수 없습니다: REQUESTED"));
         
         List<Refund> refunds;
-        if (eventId != null) {
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            if (eventId != null) {
+                refunds = refundRepository.findByEventIdAndRefundStatusCode(eventId, requestedStatus);
+            } else {
+                refunds = refundRepository.findByRefundStatusCode(requestedStatus);
+            }
+        } else if (eventId != null) {
             refunds = refundRepository.findByEventIdAndRefundStatusCode(eventId, requestedStatus);
+            refunds.forEach(refund -> validateRefundAccess(refund, userDetails));
         } else {
-            refunds = refundRepository.findByRefundStatusCode(requestedStatus);
+            refunds = refundRepository.findByEventManagerUserIdAndRefundStatusCode(userDetails.getUserId(), requestedStatus);
         }
 
         return RefundResponseDto.fromEntityList(refunds);
@@ -343,6 +557,8 @@ public class RefundService {
 
         URL url = new URL("https://api.iamport.kr/users/getToken");
         HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+        conn.setConnectTimeout(IAMPORT_CONNECT_TIMEOUT_MILLIS);
+        conn.setReadTimeout(IAMPORT_READ_TIMEOUT_MILLIS);
 
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json");
@@ -367,7 +583,11 @@ public class RefundService {
 
             ObjectMapper objectMapper = new ObjectMapper();
             Map<String, Object> topLevelMap = objectMapper.readValue(jsonLine, Map.class);
+            validateIamportSuccess(topLevelMap, "아임포트 토큰");
             Map<String, Object> responseMap = (Map<String, Object>) topLevelMap.get("response");
+            if (responseMap == null || responseMap.get("access_token") == null) {
+                throw new IOException("아임포트 토큰 응답에 access_token이 없습니다.");
+            }
             accessToken = responseMap.get("access_token").toString();
         }
 
@@ -375,11 +595,93 @@ public class RefundService {
         return accessToken;
     }
 
+    private static String readIamportResponse(HttpsURLConnection conn, int httpStatus) throws IOException {
+        InputStream stream = httpStatus >= 400 ? conn.getErrorStream() : conn.getInputStream();
+        if (stream == null) {
+            return "";
+        }
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(stream))) {
+            return br.readLine();
+        }
+    }
+
+    private static void validateIamportSuccess(String jsonLine, String operation) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        Map<String, Object> topLevelMap = objectMapper.readValue(jsonLine, Map.class);
+        validateIamportSuccess(topLevelMap, operation);
+    }
+
+    static void validateIamportCancelSuccess(
+            String jsonLine,
+            String merchantUid,
+            BigDecimal amount,
+            BigDecimal expectedCancelledAmount
+    ) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        Map<String, Object> topLevelMap = objectMapper.readValue(jsonLine, Map.class);
+        validateIamportSuccess(topLevelMap, "아임포트 환불");
+
+        Object response = topLevelMap.get("response");
+        if (!(response instanceof Map<?, ?> responseMap)) {
+            throw new IamportRefundRejectedException("아임포트 환불 응답에 response가 없습니다.");
+        }
+        Object responseMerchantUid = responseMap.get("merchant_uid");
+        if (!merchantUid.equals(String.valueOf(responseMerchantUid))) {
+            throw new IamportRefundRejectedException("아임포트 환불 주문번호가 일치하지 않습니다.");
+        }
+        BigDecimal totalCancelledAmount = amountFrom(responseMap.get("cancel_amount"));
+        BigDecimal currentCancelledAmount = latestCancelHistoryAmount(responseMap);
+        boolean totalMatches = totalCancelledAmount != null
+                && totalCancelledAmount.compareTo(expectedCancelledAmount) == 0;
+        boolean currentMatches = currentCancelledAmount != null
+                && currentCancelledAmount.compareTo(amount) == 0;
+        if (!totalMatches && !currentMatches) {
+            throw new IamportRefundRejectedException("아임포트 환불 금액이 일치하지 않습니다.");
+        }
+    }
+
+    private static BigDecimal latestCancelHistoryAmount(Map<?, ?> responseMap) throws IamportRefundRejectedException {
+        Object cancelHistory = responseMap.get("cancel_history");
+        if (!(cancelHistory instanceof List<?> history) || history.isEmpty()) {
+            return null;
+        }
+        Object latestCancel = history.get(history.size() - 1);
+        if (!(latestCancel instanceof Map<?, ?> latestCancelMap)) {
+            return null;
+        }
+        return amountFrom(latestCancelMap.get("amount"));
+    }
+
+    private static BigDecimal amountFrom(Object amount) throws IamportRefundRejectedException {
+        try {
+            if (amount instanceof Number number) {
+                return new BigDecimal(number.toString());
+            }
+            if (amount != null) {
+                return new BigDecimal(String.valueOf(amount));
+            }
+            return null;
+        } catch (NumberFormatException e) {
+            throw new IamportRefundRejectedException("아임포트 환불 금액 형식이 올바르지 않습니다.");
+        }
+    }
+
+    private static void validateIamportSuccess(Map<String, Object> topLevelMap, String operation) throws IOException {
+        Object code = topLevelMap.get("code");
+        boolean success = code instanceof Number number
+                ? number.intValue() == 0
+                : "0".equals(String.valueOf(code));
+        if (!success) {
+            throw new IamportRefundRejectedException(operation + " 실패: " + topLevelMap.get("message"));
+        }
+    }
+
     /**
      * 환불 목록 조회 (필터링 및 페이징 지원)
      */
     @Transactional(readOnly = true)
-    public Page<RefundListResponseDto> getRefundList(RefundListRequestDto request) {
+    public Page<RefundListResponseDto> getRefundList(RefundListRequestDto request, CustomUserDetails userDetails) {
+        validateRefundManagerRole(userDetails);
         try {
             // 날짜 문자열을 LocalDateTime으로 변환
             LocalDateTime paymentDateFrom = null;
@@ -406,17 +708,51 @@ public class RefundService {
             Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), sort);
 
             // Repository 메서드 호출
+            Long managerUserId = ROLE_EVENT_MANAGER.equals(userDetails.getRoleCode()) ? userDetails.getUserId() : null;
             return refundRepository.findRefundsWithFilters(
                 request.getEventName(),
                 paymentDateFrom,
                 paymentDateTo,
                 request.getRefundStatus(),
                 request.getPaymentTargetType(),
+                managerUserId,
                 pageable
             );
             
         } catch (Exception e) {
             throw new RuntimeException("환불 목록 조회 중 오류가 발생했습니다: " + e.getMessage(), e);
+        }
+    }
+
+    private void validateRefundManagerRole(CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new AccessDeniedException("로그인이 필요합니다.");
+        }
+
+        String roleCode = userDetails.getRoleCode();
+        if (!ROLE_ADMIN.equals(roleCode) && !ROLE_EVENT_MANAGER.equals(roleCode)) {
+            throw new AccessDeniedException("환불 관리 권한이 없습니다.");
+        }
+    }
+
+    private void validateRefundAccess(Refund refund, CustomUserDetails userDetails) {
+        if (ROLE_ADMIN.equals(userDetails.getRoleCode())) {
+            return;
+        }
+
+        if (!ROLE_EVENT_MANAGER.equals(userDetails.getRoleCode())) {
+            throw new AccessDeniedException("환불 관리 권한이 없습니다.");
+        }
+
+        if (refund.getPayment() == null || refund.getPayment().getEvent() == null) {
+            throw new AccessDeniedException("행사에 연결되지 않은 환불은 전체 관리자만 처리할 수 있습니다.");
+        }
+
+        Long managerUserId = refund.getPayment().getEvent().getManager() != null
+                ? refund.getPayment().getEvent().getManager().getUserId()
+                : null;
+        if (!userDetails.getUserId().equals(managerUserId)) {
+            throw new AccessDeniedException("담당 행사의 환불만 처리할 수 있습니다.");
         }
     }
 

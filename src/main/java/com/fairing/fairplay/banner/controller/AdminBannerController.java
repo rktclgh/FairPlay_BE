@@ -6,6 +6,7 @@ import com.fairing.fairplay.banner.service.BannerService;
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.history.etc.ChangeBanner;
+import com.fairing.fairplay.history.etc.ChangeTargetId;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -58,7 +59,7 @@ public class AdminBannerController {
     @ChangeBanner("배너 수정")
     public ResponseEntity<BannerResponseDto> updateBanner(
             @AuthenticationPrincipal CustomUserDetails user,
-            @PathVariable Long id,
+            @PathVariable @ChangeTargetId Long id,
             @RequestBody @Valid BannerRequestDto dto) {
 
         requireAdmin(user);
@@ -72,7 +73,7 @@ public class AdminBannerController {
     @ChangeBanner("배너 상태 변경")
     public ResponseEntity<Void> updateStatus(
             @AuthenticationPrincipal CustomUserDetails user,
-            @PathVariable Long id,
+            @PathVariable @ChangeTargetId Long id,
             @RequestBody @Valid BannerStatusUpdateDto dto) {
 
         requireAdmin(user);
@@ -86,7 +87,7 @@ public class AdminBannerController {
     @ChangeBanner("배너 우선순위 변경")
     public ResponseEntity<Void> updatePriority(
             @AuthenticationPrincipal CustomUserDetails user,
-            @PathVariable Long id,
+            @PathVariable @ChangeTargetId Long id,
             @RequestBody @Valid BannerPriorityUpdateDto dto) {
 
         requireAdmin(user);
@@ -173,7 +174,7 @@ public class AdminBannerController {
     @ChangeBanner("배너 삭제")
     public ResponseEntity<Map<String, String>> deleteBanner(
             @AuthenticationPrincipal CustomUserDetails user,
-            @PathVariable Long id) {
+            @PathVariable @ChangeTargetId Long id) {
         requireAdmin(user);
         String result = bannerService.hardDeleteBanner(id, user.getUserId());
         Map<String, String> response = new HashMap<>();

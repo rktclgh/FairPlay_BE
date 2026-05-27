@@ -90,6 +90,7 @@ public class ReviewService {
   }
 
   // 행사 상세 페이지 - 특정 행사 리뷰 조회.
+  @Transactional(readOnly = true)
   public ReviewForEventResponseDto getReviewForEvent(CustomUserDetails userDetails, Long eventId,
       Pageable pageable) {
     log.info("getReviewForEvent:{}", eventId);

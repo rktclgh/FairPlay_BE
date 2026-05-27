@@ -1,6 +1,7 @@
 package com.fairing.fairplay.reservation.repository;
 
 import com.fairing.fairplay.reservation.entity.Reservation;
+import com.fairing.fairplay.reservation.dto.ReservationResponseDto;
 import com.fairing.fairplay.review.dto.PossibleReviewResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,9 +18,140 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
   List<Reservation> findByUser_userId(Long userUserId);
 
+  @Query("""
+      SELECT r FROM Reservation r
+      JOIN FETCH r.event e
+      LEFT JOIN FETCH e.eventDetail ed
+      LEFT JOIN FETCH r.schedule s
+      JOIN FETCH r.ticket t
+      JOIN FETCH r.user u
+      JOIN FETCH r.reservationStatusCode rsc
+      WHERE r.reservationId = :reservationId
+      """)
+  Optional<Reservation> findByIdForResponse(@Param("reservationId") Long reservationId);
+
+  @Query("""
+      SELECT r FROM Reservation r
+      JOIN FETCH r.event e
+      LEFT JOIN FETCH e.eventDetail ed
+      LEFT JOIN FETCH r.schedule s
+      JOIN FETCH r.ticket t
+      JOIN FETCH r.user u
+      JOIN FETCH r.reservationStatusCode rsc
+      WHERE r.event.eventId = :eventId
+      ORDER BY r.createdAt DESC
+      """)
+  List<Reservation> findByEventIdForResponse(@Param("eventId") Long eventId);
+
+  @Query("""
+      SELECT r FROM Reservation r
+      JOIN FETCH r.event e
+      LEFT JOIN FETCH e.eventDetail ed
+      LEFT JOIN FETCH r.schedule s
+      JOIN FETCH r.ticket t
+      JOIN FETCH r.user u
+      JOIN FETCH r.reservationStatusCode rsc
+      WHERE r.user.userId = :userId
+      ORDER BY r.createdAt DESC
+      """)
+  List<Reservation> findByUserIdForResponse(@Param("userId") Long userId);
+
+  @Query(value = """
+      SELECT new com.fairing.fairplay.reservation.dto.ReservationResponseDto(
+          r.reservationId,
+          e.eventId,
+          e.titleKr,
+          e.titleEng,
+          ed.thumbnailUrl,
+          mc.groupName,
+          sc.categoryName,
+          s.scheduleId,
+          s.date,
+          s.startTime,
+          s.endTime,
+          t.ticketId,
+          t.name,
+          t.description,
+          t.price,
+          u.userId,
+          u.name,
+          u.email,
+          r.quantity,
+          r.price,
+          rsc.name,
+          r.createdAt,
+          r.updatedAt,
+          r.canceled,
+          r.canceled_at
+      )
+      FROM Reservation r
+      JOIN r.event e
+      LEFT JOIN e.eventDetail ed
+      LEFT JOIN ed.mainCategory mc
+      LEFT JOIN ed.subCategory sc
+      LEFT JOIN r.schedule s
+      JOIN r.ticket t
+      JOIN r.user u
+      JOIN r.reservationStatusCode rsc
+      WHERE u.userId = :userId
+        AND (:activeOnly = false OR (
+            r.canceled = false
+            AND LOWER(rsc.code) NOT IN ('cancelled', 'refunded')
+            AND LOWER(rsc.name) NOT LIKE '%취소%'
+            AND LOWER(rsc.name) NOT LIKE '%환불%'
+            AND NOT EXISTS (
+                SELECT payment.paymentId
+                FROM Payment payment
+                JOIN payment.paymentTargetType targetType
+                JOIN payment.paymentStatusCode paymentStatus
+                WHERE payment.targetId = r.reservationId
+                  AND targetType.paymentTargetCode = 'RESERVATION'
+                  AND (
+                      LOWER(paymentStatus.code) IN ('cancelled', 'refunded', 'partial_refunded')
+                      OR LOWER(paymentStatus.code) LIKE '%refund%'
+                      OR LOWER(paymentStatus.name) LIKE '%환불%'
+                      OR LOWER(paymentStatus.name) LIKE '%취소%'
+                  )
+            )
+        ))
+      ORDER BY r.createdAt DESC
+      """, countQuery = """
+      SELECT COUNT(r)
+      FROM Reservation r
+      JOIN r.user u
+      JOIN r.reservationStatusCode rsc
+      WHERE u.userId = :userId
+        AND (:activeOnly = false OR (
+            r.canceled = false
+            AND LOWER(rsc.code) NOT IN ('cancelled', 'refunded')
+            AND LOWER(rsc.name) NOT LIKE '%취소%'
+            AND LOWER(rsc.name) NOT LIKE '%환불%'
+            AND NOT EXISTS (
+                SELECT payment.paymentId
+                FROM Payment payment
+                JOIN payment.paymentTargetType targetType
+                JOIN payment.paymentStatusCode paymentStatus
+                WHERE payment.targetId = r.reservationId
+                  AND targetType.paymentTargetCode = 'RESERVATION'
+                  AND (
+                      LOWER(paymentStatus.code) IN ('cancelled', 'refunded', 'partial_refunded')
+                      OR LOWER(paymentStatus.code) LIKE '%refund%'
+                      OR LOWER(paymentStatus.name) LIKE '%환불%'
+                      OR LOWER(paymentStatus.name) LIKE '%취소%'
+                  )
+            )
+        ))
+      """)
+  Page<ReservationResponseDto> findMyReservationResponses(
+      @Param("userId") Long userId,
+      @Param("activeOnly") boolean activeOnly,
+      Pageable pageable);
+
   List<Reservation> findByUser_UserIdAndEvent_EventId(Long userId, Long eventId);
 
   Optional<Reservation> findByReservationIdAndUser_UserId(Long reservationId, Long userId);
+
+  Optional<Reservation> findByReservationIdAndEvent_EventId(Long reservationId, Long eventId);
 
   // 본인 예약 중 관람 일자가 지난 행사 목록 (행사 제목, 건물, 주소, 관람날짜, 요일, 시작시간, 행사시작날짜, 행사종료날짜)
   @Query(value = """

@@ -2,7 +2,6 @@ package com.fairing.fairplay.core.config;
 
 import com.fairing.fairplay.core.security.SessionAuthenticationFilter;
 import com.fairing.fairplay.core.service.SessionService;
-import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +19,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final UserRepository userRepository;
     private final SessionService sessionService;
 
     @Bean
@@ -106,12 +104,9 @@ public class SecurityConfig {
                                 "/api/users/event-admin/*/public",
                                 "/api/qr-tickets/*",
                                 "/api/qr-tickets/reissue",
-                                "/ws/**", // ★ 반드시 필요
-                                "/ws/*/info", // SockJS info 엔드포인트
+                                "/api/chat/rooms/**", // 채팅방 목록 조회만 허용
                                 "/api/chat/presence/status/**", // 사용자 온라인 상태 조회 허용
-                                "/api/uploads/**",
                                 "/uploads/**", // 로컬 파일 시스템의 정적 파일 서빙
-                                "/api/payments/complete", // PG사에서 호출하는 결제 완료 웹훅
                                 "/api/events/apply", // 행사 등록 신청
                                 "/api/events/apply/check",
                                 "/api/qr-tickets/reissue/guest",
@@ -179,7 +174,7 @@ public class SecurityConfig {
                                                 }))
                                 // 쿠키 기반 세션 인증 필터 추가
                                 .addFilterBefore(
-                                                new SessionAuthenticationFilter(sessionService, userRepository),
+                                                new SessionAuthenticationFilter(sessionService),
                                                 UsernamePasswordAuthenticationFilter.class);
 
                 return http.build();
