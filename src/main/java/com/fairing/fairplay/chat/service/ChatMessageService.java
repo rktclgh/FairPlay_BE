@@ -4,30 +4,50 @@ import com.fairing.fairplay.chat.dto.ChatMessagePageResponseDto;
 import com.fairing.fairplay.chat.dto.ChatMessageResponseDto;
 import com.fairing.fairplay.chat.entity.ChatMessage;
 import com.fairing.fairplay.chat.entity.ChatRoom;
+import com.fairing.fairplay.chat.event.ChatMessageCreatedEvent;
 import com.fairing.fairplay.chat.repository.ChatMessageRepository;
 import com.fairing.fairplay.chat.repository.ChatRoomRepository;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.fairing.fairplay.chat.event.ChatMessageCreatedEvent;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
+@Slf4j
 public class ChatMessageService {
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ChatCacheService chatCacheService;
+    private final Executor chatCacheExecutor;
+
+    public ChatMessageService(
+            ChatMessageRepository chatMessageRepository,
+            ChatRoomRepository chatRoomRepository,
+            ApplicationEventPublisher eventPublisher,
+            ChatCacheService chatCacheService,
+            @Qualifier("chatCacheTaskExecutor") Executor chatCacheExecutor
+    ) {
+        this.chatMessageRepository = chatMessageRepository;
+        this.chatRoomRepository = chatRoomRepository;
+        this.eventPublisher = eventPublisher;
+        this.chatCacheService = chatCacheService;
+        this.chatCacheExecutor = chatCacheExecutor;
+    }
 
     @Transactional
     public ChatMessageResponseDto sendMessage(Long chatRoomId, Long senderId, String content) {
@@ -55,11 +75,7 @@ public class ChatMessageService {
                 .isRead(saved.getIsRead())
                 .build();
 
-        // Redis에 즉시 캐싱
-        chatCacheService.cacheMessage(chatRoomId, responseDto);
-        
-        // 새 메시지로 인해 읽지 않은 메시지 수가 변경되므로 캐시 무효화
-        invalidateUnreadCaches(chatRoomId);
+        cacheMessageAfterCommit(chatRoomId, responseDto);
 
         // 이벤트 발행
         eventPublisher.publishEvent(new ChatMessageCreatedEvent(
@@ -222,7 +238,7 @@ public class ChatMessageService {
         
         // 읽음 처리 후 해당 채팅방의 캐시 무효화
         Long chatRoomId = message.getChatRoom().getChatRoomId();
-        invalidateUnreadCaches(chatRoomId);
+        invalidateUnreadCachesAfterCommit(chatRoomId);
     }
 
     public Long countUnreadMessages(Long chatRoomId, Long myUserId) {
@@ -258,7 +274,7 @@ public class ChatMessageService {
         chatMessageRepository.saveAll(unreadMessages);
         
         // 읽음 처리 후 해당 채팅방의 모든 사용자 캐시 무효화
-        invalidateUnreadCaches(chatRoomId);
+        invalidateUnreadCachesAfterCommit(chatRoomId);
         
         System.out.println("채팅방 " + chatRoomId + "의 " + unreadMessages.size() + "개 메시지를 읽음 처리하고 캐시 무효화");
     }
@@ -266,6 +282,47 @@ public class ChatMessageService {
     /**
      * 특정 채팅방의 모든 사용자에 대한 읽지 않은 메시지 캐시 무효화
      */
+    private void cacheMessageAfterCommit(Long chatRoomId, ChatMessageResponseDto responseDto) {
+        runCacheTaskAfterCommit("message cache refresh", () -> {
+            chatCacheService.cacheMessage(chatRoomId, responseDto);
+            invalidateUnreadCaches(chatRoomId);
+        });
+    }
+
+    private void invalidateUnreadCachesAfterCommit(Long chatRoomId) {
+        runCacheTaskAfterCommit("unread cache invalidation", () -> invalidateUnreadCaches(chatRoomId));
+    }
+
+    private void runCacheTaskAfterCommit(String operation, Runnable task) {
+        Runnable asyncTask = () -> {
+            try {
+                task.run();
+            } catch (Exception e) {
+                log.warn("채팅 {} 비동기 처리 실패", operation, e);
+            }
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    submitCacheTask(operation, asyncTask);
+                }
+            });
+            return;
+        }
+
+        submitCacheTask(operation, asyncTask);
+    }
+
+    private void submitCacheTask(String operation, Runnable asyncTask) {
+        try {
+            chatCacheExecutor.execute(asyncTask);
+        } catch (RuntimeException e) {
+            log.warn("채팅 {} 작업 제출 실패", operation, e);
+        }
+    }
+
     private void invalidateUnreadCaches(Long chatRoomId) {
         // 해당 채팅방의 모든 사용자 캐시를 무효화하기 위해 
         // 채팅방 참가자들의 캐시를 무효화해야 하지만, 
