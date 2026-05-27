@@ -1,26 +1,22 @@
 package com.fairing.fairplay.statistics.repository.salesstats;
 
-
 import com.fairing.fairplay.payment.entity.QPayment;
 import com.fairing.fairplay.payment.entity.QPaymentTargetType;
 import com.fairing.fairplay.statistics.entity.sales.AdminSalesStatistics;
 import com.querydsl.core.Tuple;
-import com.querydsl.core.types.dsl.DateExpression;
-import com.querydsl.core.types.dsl.DatePath;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+
 import java.math.BigDecimal;
-import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-
 @Repository
 @RequiredArgsConstructor
-public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCustomRepository{
+public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCustomRepository {
 
     private final JPAQueryFactory queryFactory;
 
@@ -29,9 +25,6 @@ public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCusto
 
         QPayment payment = QPayment.payment;
         QPaymentTargetType paymentTargetType = QPaymentTargetType.paymentTargetType;
-
-        DateExpression<LocalDate> statDate =
-                Expressions.dateTemplate(LocalDate.class, "DATE({0})", payment.paidAt);
 
         NumberExpression<BigDecimal> reservationRevenue =
                 Expressions.numberTemplate(BigDecimal.class,
@@ -109,57 +102,80 @@ public class AdminSalesStatsCustomRepositoryImpl implements AdminSalesStatsCusto
 
         Tuple result = queryFactory
                 .select(
-                        statDate,
                         totalRevenue,
                         reservationRevenue,
                         advertisingRevenue,
                         boothRevenue,
                         otherRevenue,
                         paymentCount,
+                        reservationPaymentCount,
+                        advertisingPaymentCount,
+                        boothPaymentCount,
+                        otherPaymentCount,
                         avgPaymentAmount
                 )
                 .from(payment)
                 .join(payment.paymentTargetType, paymentTargetType)
-                .where(payment.paidAt.between(targetDate.atStartOfDay(), targetDate.atTime(23, 59, 59)))
-                .groupBy(statDate)
-                .orderBy(statDate.asc())
+                .where(payment.paidAt.goe(targetDate.atStartOfDay())
+                        .and(payment.paidAt.lt(targetDate.plusDays(1).atStartOfDay())))
                 .fetchOne();
 
 
         if (result == null) {
-            return AdminSalesStatistics.builder()
-                    .statDate(targetDate)
-                    .totalSales(BigDecimal.ZERO)
-                    .reservationRevenue(BigDecimal.ZERO)
-                    .advertisingRevenue(BigDecimal.ZERO)
-                    .boothRevenue(BigDecimal.ZERO)
-                    .otherRevenue(BigDecimal.ZERO)
-                    .paymentCount(0L)
-                    .averagePaymentAmount(BigDecimal.ZERO)
-                    .createdAt(LocalDateTime.now())
-                    .build();
+            return buildStatistics(targetDate, null, null, null, null, null, null, null, null, null, null, null);
         }
 
+        return buildStatistics(
+                targetDate,
+                result.get(totalRevenue),
+                result.get(reservationRevenue),
+                result.get(advertisingRevenue),
+                result.get(boothRevenue),
+                result.get(otherRevenue),
+                result.get(paymentCount),
+                result.get(reservationPaymentCount),
+                result.get(advertisingPaymentCount),
+                result.get(boothPaymentCount),
+                result.get(otherPaymentCount),
+                result.get(avgPaymentAmount));
+    }
 
+    static AdminSalesStatistics buildStatistics(
+            LocalDate targetDate,
+            BigDecimal totalRevenue,
+            BigDecimal reservationRevenue,
+            BigDecimal advertisingRevenue,
+            BigDecimal boothRevenue,
+            BigDecimal otherRevenue,
+            Long paymentCount,
+            Long reservationPaymentCount,
+            Long advertisingPaymentCount,
+            Long boothPaymentCount,
+            Long otherPaymentCount,
+            BigDecimal averagePaymentAmount) {
+        return AdminSalesStatistics.builder()
+                .statDate(targetDate)
+                .totalSales(zeroIfNull(totalRevenue))
+                .reservationRevenue(zeroIfNull(reservationRevenue))
+                .advertisingRevenue(zeroIfNull(advertisingRevenue))
+                .boothRevenue(zeroIfNull(boothRevenue))
+                .otherRevenue(zeroIfNull(otherRevenue))
+                .paymentCount(zeroIfNull(paymentCount))
+                .reservationPaymentCount(zeroIfNull(reservationPaymentCount))
+                .advertisingPaymentCount(zeroIfNull(advertisingPaymentCount))
+                .boothPaymentCount(zeroIfNull(boothPaymentCount))
+                .otherPaymentCount(zeroIfNull(otherPaymentCount))
+                .averagePaymentAmount(zeroIfNull(averagePaymentAmount))
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
 
-            // java.sql.Date를 LocalDate로 변환
-            java.sql.Date sqlDate = Date.valueOf(result.get(statDate));
-            LocalDate localDate = sqlDate != null ? sqlDate.toLocalDate() : targetDate;
+    private static BigDecimal zeroIfNull(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
 
-            return AdminSalesStatistics.builder()
-                    .statDate(localDate)
-                    .totalSales(result.get(totalRevenue))
-                    .reservationRevenue(result.get(reservationRevenue))
-                    .advertisingRevenue(result.get(advertisingRevenue))
-                    .boothRevenue(result.get(boothRevenue))
-                    .otherRevenue(result.get(otherRevenue))
-                    .paymentCount(result.get(paymentCount))
-                    .averagePaymentAmount(result.get(avgPaymentAmount))
-                    .createdAt(LocalDateTime.now())
-                    .build();
-        }
-
-
-
+    private static Long zeroIfNull(Long value) {
+        return value != null ? value : 0L;
+    }
 
 }

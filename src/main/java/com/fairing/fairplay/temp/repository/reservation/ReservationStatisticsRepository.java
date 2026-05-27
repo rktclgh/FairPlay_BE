@@ -5,6 +5,8 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -25,8 +27,7 @@ import com.fairing.fairplay.temp.dto.reservation.ReservationMonthlyStatisticsDto
 import com.fairing.fairplay.temp.dto.reservation.ReservationStatisticsDto;
 import com.fairing.fairplay.temp.dto.reservation.ReservationWeeklyStatisticsDto;
 import com.querydsl.core.Tuple;
-import com.querydsl.core.types.Projections;
-import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
@@ -66,41 +67,82 @@ public class ReservationStatisticsRepository {
 
         public List<ReservationMonthlyStatisticsDto> getReservationDatasByMonth(LocalDate startOfMonth,
                         LocalDate endOfMonth) {
-                return queryFactory
-                                .select(Projections.constructor(ReservationMonthlyStatisticsDto.class,
-                                                Expressions.numberTemplate(Integer.class,
-                                                                "CEILING(DAY({0}) / 7.0)",
-                                                                r.createdAt), // weekNumber
-                                                r.quantity.sum().castToNum(Long.class).coalesce(0L)))
+                NumberExpression<Integer> reservationDay = r.createdAt.dayOfMonth();
+                NumberExpression<Integer> totalQuantity = r.quantity.sum();
+                List<Tuple> results = queryFactory
+                                .select(reservationDay, totalQuantity)
                                 .from(r)
-                                .where(r.createdAt.between(startOfMonth.atStartOfDay(),
-                                                endOfMonth.plusDays(1).atStartOfDay()))
-                                .groupBy(Expressions.numberTemplate(Integer.class,
-                                                "CEILING(DAY({0}) / 7.0)",
-                                                r.createdAt))
-                                .orderBy(Expressions.numberTemplate(Integer.class,
-                                                "CEILING(DAY({0}) / 7.0)",
-                                                r.createdAt).asc())
+                                .where(r.createdAt.goe(startOfMonth.atStartOfDay())
+                                                .and(r.createdAt.lt(endOfMonth.plusDays(1).atStartOfDay())))
+                                .groupBy(reservationDay)
+                                .orderBy(reservationDay.asc())
                                 .fetch();
+
+                return toMonthlyStatistics(results.stream()
+                                .map(tuple -> new MonthlyReservationBucket(
+                                                tuple.get(reservationDay),
+                                                tuple.get(totalQuantity)))
+                                .toList());
+        }
+
+        static List<ReservationMonthlyStatisticsDto> toMonthlyStatistics(List<MonthlyReservationBucket> buckets) {
+                Map<Integer, Long> quantityByWeek = new TreeMap<>();
+                for (MonthlyReservationBucket bucket : buckets) {
+                        if (bucket.dayOfMonth() == null) {
+                                continue;
+                        }
+                        int weekNumber = ((bucket.dayOfMonth() - 1) / 7) + 1;
+                        quantityByWeek.merge(weekNumber, bucket.quantity() != null ? bucket.quantity().longValue() : 0L,
+                                        Long::sum);
+                }
+
+                return quantityByWeek.entrySet().stream()
+                                .map(entry -> new ReservationMonthlyStatisticsDto(entry.getKey(), entry.getValue()))
+                                .toList();
+        }
+
+        record MonthlyReservationBucket(Integer dayOfMonth, Integer quantity) {
         }
 
         public List<ReservationWeeklyStatisticsDto> getWeeklyDatas() {
                 LocalDateTime current = LocalDateTime.now();
+                NumberExpression<Integer> reservationYear = r.createdAt.year();
+                NumberExpression<Integer> reservationMonth = r.createdAt.month();
+                NumberExpression<Integer> reservationDay = r.createdAt.dayOfMonth();
+                NumberExpression<Long> totalQuantity = r.reservationId.count();
                 List<Tuple> results = queryFactory
-                                .select(Expressions.stringTemplate("DATE({0})", r.createdAt), r.count())
+                                .select(reservationYear, reservationMonth, reservationDay, totalQuantity)
                                 .from(r)
                                 .where(r.createdAt.goe(current.minusDays(7)))
-                                .groupBy(Expressions.stringTemplate("DATE({0})", r.createdAt))
+                                .groupBy(reservationYear, reservationMonth, reservationDay)
+                                .orderBy(reservationYear.asc(), reservationMonth.asc(), reservationDay.asc())
                                 .fetch();
-                return results.stream()
-                                .map(tuple -> {
-                                        java.sql.Date sqlDate = tuple.get(0, java.sql.Date.class);
-                                        LocalDate date = sqlDate.toLocalDate();
-                                        return new ReservationWeeklyStatisticsDto(
-                                                        date,
-                                                        tuple.get(1, Long.class));
-                                })
+
+                return toWeeklyStatistics(results.stream()
+                                .map(tuple -> new DailyReservationCount(
+                                                tuple.get(reservationYear),
+                                                tuple.get(reservationMonth),
+                                                tuple.get(reservationDay),
+                                                tuple.get(totalQuantity)))
+                                .toList());
+        }
+
+        static List<ReservationWeeklyStatisticsDto> toWeeklyStatistics(List<DailyReservationCount> buckets) {
+                Map<LocalDate, Long> countByDate = new TreeMap<>();
+                for (DailyReservationCount bucket : buckets) {
+                        if (bucket.year() != null && bucket.month() != null && bucket.dayOfMonth() != null) {
+                                LocalDate date = LocalDate.of(bucket.year(), bucket.month(), bucket.dayOfMonth());
+                                countByDate.merge(date, bucket.totalQuantity() != null ? bucket.totalQuantity() : 0L,
+                                                Long::sum);
+                        }
+                }
+
+                return countByDate.entrySet().stream()
+                                .map(entry -> new ReservationWeeklyStatisticsDto(entry.getKey(), entry.getValue()))
                                 .toList();
+        }
+
+        record DailyReservationCount(Integer year, Integer month, Integer dayOfMonth, Long totalQuantity) {
         }
 
         public List<ReservationCategoryStatisticsDto> getCategoryDatas() {
