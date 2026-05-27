@@ -93,8 +93,8 @@ FROM Banner b
 JOIN b.bannerType bt
 WHERE (:type   IS NULL OR bt.code = :type)
   AND (:status IS NULL OR b.bannerStatusCode.code = :status)
-  AND (:from   IS NULL OR b.endDate   >= :from)
-  AND (:to     IS NULL OR b.startDate <= :to)
+  AND b.endDate   >= :from
+  AND b.startDate <= :to
 ORDER BY b.startDate DESC, b.priority ASC
 """)
     List<Banner> search(
@@ -110,8 +110,8 @@ FROM Banner b
 JOIN b.bannerType bt
 WHERE (:type   IS NULL OR bt.code = :type)
   AND (:status IS NULL OR b.bannerStatusCode.code = :status)
-  AND (:from   IS NULL OR b.endDate   >= :from)
-  AND (:to     IS NULL OR b.startDate <= :to)
+  AND b.endDate   >= :from
+  AND b.startDate <= :to
   AND b.eventId IN (
       SELECT e.eventId
       FROM Event e
