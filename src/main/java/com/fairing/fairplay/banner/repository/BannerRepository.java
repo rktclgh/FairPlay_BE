@@ -86,7 +86,7 @@ public interface BannerRepository extends JpaRepository<Banner, Long> {
             String typeCode, Long eventId, String statusCode
     );
 
-    // (NEW) VIP 검색용: 타입/상태/기간 필터 (이름 검색은 배너→이벤트 연관 없으면 생략)
+    // (NEW) VIP 검색용: 타입/상태/기간 필터
     @Query("""
 SELECT b
 FROM Banner b
@@ -95,18 +95,32 @@ WHERE (:type   IS NULL OR bt.code = :type)
   AND (:status IS NULL OR b.bannerStatusCode.code = :status)
   AND (:from   IS NULL OR b.endDate   >= :from)
   AND (:to     IS NULL OR b.startDate <= :to)
-  AND (
-        :q IS NULL
-        OR b.eventId IN (
-            SELECT e.eventId
-            FROM Event e
-            WHERE e.titleKr  LIKE CONCAT('%', :q, '%')
-               OR e.titleEng LIKE CONCAT('%', :q, '%')
-        )
-      )
 ORDER BY b.startDate DESC, b.priority ASC
 """)
     List<Banner> search(
+            @Param("type") String type,
+            @Param("status") String status,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to
+    );
+
+    @Query("""
+SELECT b
+FROM Banner b
+JOIN b.bannerType bt
+WHERE (:type   IS NULL OR bt.code = :type)
+  AND (:status IS NULL OR b.bannerStatusCode.code = :status)
+  AND (:from   IS NULL OR b.endDate   >= :from)
+  AND (:to     IS NULL OR b.startDate <= :to)
+  AND b.eventId IN (
+      SELECT e.eventId
+      FROM Event e
+      WHERE e.titleKr  LIKE CONCAT('%', :q, '%')
+         OR e.titleEng LIKE CONCAT('%', :q, '%')
+  )
+ORDER BY b.startDate DESC, b.priority ASC
+""")
+    List<Banner> searchByEventTitle(
             @Param("type") String type,
             @Param("status") String status,
             @Param("from") LocalDateTime from,
