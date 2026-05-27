@@ -537,6 +537,7 @@ public class BannerApplicationService {
 
         }
     /* ===== 관리자 조회용: 목록 ===== */
+    @Transactional(readOnly = true)
     public List<AdminApplicationListItemDto> listAdminApplications(String status, String type, Pageable pageable) {
         List<BannerApplication> bannerApplications = bannerApplicationRepository.findAllWithHostInfoOrderByCreatedAtDesc();
 

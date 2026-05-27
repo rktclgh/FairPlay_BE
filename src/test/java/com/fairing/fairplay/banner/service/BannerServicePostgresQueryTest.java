@@ -25,6 +25,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class BannerServicePostgresQueryTest {
 
+    private static final LocalDateTime VIP_SEARCH_MIN_DATE = LocalDateTime.of(1970, 1, 1, 0, 0);
+    private static final LocalDateTime VIP_SEARCH_MAX_DATE = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+
     @Mock
     private BannerRepository bannerRepository;
     @Mock
@@ -69,5 +72,14 @@ class BannerServicePostgresQueryTest {
 
         verify(bannerRepository).searchByEventTitle("HERO", "ACTIVE", from, to, "GD");
         verify(bannerRepository, never()).search("HERO", "ACTIVE", from, to);
+    }
+
+    @Test
+    void vipSearchWithoutDateFiltersUsesTypedBoundsForPostgres() {
+        when(bannerRepository.search("HERO", null, VIP_SEARCH_MIN_DATE, VIP_SEARCH_MAX_DATE)).thenReturn(List.of());
+
+        bannerService.searchVip("HERO", null, null, null, null);
+
+        verify(bannerRepository).search("HERO", null, VIP_SEARCH_MIN_DATE, VIP_SEARCH_MAX_DATE);
     }
 }
