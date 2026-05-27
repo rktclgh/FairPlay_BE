@@ -33,7 +33,7 @@ public class AdminRefundService {
     private final RefundRepository refundRepository;
     private final RefundStatusCodeRepository refundStatusCodeRepository;
     private final UserRepository userRepository;
-    private final PaymentService paymentService; // PG사 환불 처리를 위해
+    private final RefundService refundService;
 
     /**
      * 관리자용 환불 목록 조회 (필터링 및 페이징 지원)
@@ -81,54 +81,12 @@ public class AdminRefundService {
     /**
      * 환불 승인 처리
      */
-    @Transactional
     public RefundResponseDto approveRefund(Long refundId, RefundApprovalDto approval, CustomUserDetails userDetails) {
-        
-        validateAdminAccess(userDetails);
-        
-        // 환불 정보 조회
+        refundService.approveRefund(refundId, approval, userDetails);
+        refundService.recordRefundApprovalMetadata(refundId, approval, userDetails);
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalArgumentException("환불 요청을 찾을 수 없습니다: " + refundId));
-        validateRefundAccess(refund, userDetails);
-        
-        // 현재 상태 검증
-        if (!"REQUESTED".equals(refund.getRefundStatusCode().getCode())) {
-            throw new IllegalStateException("승인 가능한 상태가 아닙니다. 현재 상태: " + refund.getRefundStatusCode().getName());
-        }
-        
-        // 승인자 정보
-        Users approver = userRepository.findById(userDetails.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("승인자 정보를 찾을 수 없습니다."));
-        
-        // 환불 상태를 APPROVED로 변경
-        RefundStatusCode approvedStatus = refundStatusCodeRepository.findByCode("APPROVED")
-                .orElseThrow(() -> new IllegalStateException("APPROVED 상태 코드를 찾을 수 없습니다."));
-        
-        refund.setRefundStatusCode(approvedStatus);
-        refund.setApprovedAt(LocalDateTime.now());
-        refund.setApprovedBy(approver);
-        refund.setAdminComment(approval.getAdminComment());
-        
-        // 환불 금액 수정이 있는 경우
-        if (approval.getRefundAmount() != null && 
-            approval.getRefundAmount().compareTo(refund.getAmount()) != 0) {
-            refund.setAmount(approval.getRefundAmount());
-        }
-        
-        Refund savedRefund = refundRepository.save(refund);
-        
-        // 즉시 PG사 환불 처리 요청인 경우
-        if (Boolean.TRUE.equals(approval.getProcessImmediately())) {
-            try {
-                processIamportRefund(savedRefund);
-            } catch (Exception e) {
-                // PG사 환불 실패 시 상태를 FAILED로 변경하고 에러 로그
-                handleRefundFailure(savedRefund, "PG사 환불 처리 실패: " + e.getMessage());
-                throw new RuntimeException("환불 승인은 완료되었으나 PG사 환불 처리에 실패했습니다: " + e.getMessage());
-            }
-        }
-        
-        return RefundResponseDto.fromEntity(savedRefund);
+        return RefundResponseDto.fromEntity(refund);
     }
 
     /**
@@ -165,41 +123,6 @@ public class AdminRefundService {
         Refund savedRefund = refundRepository.save(refund);
         
         return RefundResponseDto.fromEntity(savedRefund);
-    }
-
-    /**
-     * PG사 환불 처리 (아임포트)
-     */
-    private void processIamportRefund(Refund refund) {
-        // 환불 상태를 PROCESSING으로 변경
-        RefundStatusCode processingStatus = refundStatusCodeRepository.findByCode("PROCESSING")
-                .orElseThrow(() -> new IllegalStateException("PROCESSING 상태 코드를 찾을 수 없습니다."));
-        
-        refund.setRefundStatusCode(processingStatus);
-        refundRepository.save(refund);
-        
-        // TODO: PaymentService의 PG사 환불 메서드 호출
-        // paymentService.processIamportRefund(refund.getPayment().getImpUid(), refund.getAmount(), refund.getReason());
-        
-        // 환불 성공 시 상태를 COMPLETED로 변경
-        RefundStatusCode completedStatus = refundStatusCodeRepository.findByCode("COMPLETED")
-                .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
-        
-        refund.setRefundStatusCode(completedStatus);
-        refund.setProcessedAt(LocalDateTime.now());
-        refundRepository.save(refund);
-    }
-
-    /**
-     * 환불 실패 처리
-     */
-    private void handleRefundFailure(Refund refund, String failureReason) {
-        RefundStatusCode failedStatus = refundStatusCodeRepository.findByCode("FAILED")
-                .orElseThrow(() -> new IllegalStateException("FAILED 상태 코드를 찾을 수 없습니다."));
-        
-        refund.setRefundStatusCode(failedStatus);
-        refund.setFailureReason(failureReason);
-        refundRepository.save(refund);
     }
 
     /**

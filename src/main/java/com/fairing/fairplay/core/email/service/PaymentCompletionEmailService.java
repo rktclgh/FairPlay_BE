@@ -7,7 +7,6 @@ import com.fairing.fairplay.user.entity.Users;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
@@ -30,7 +29,6 @@ public class PaymentCompletionEmailService extends AbstractEmailService {
      * @param payment       결제 정보
      * @param reservationId 예약 ID
      */
-    @Transactional
     public void sendPaymentCompletionEmail(Payment payment, Long reservationId) {
         try {
             Users user = payment.getUser();

@@ -20,6 +20,22 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query("SELECT p FROM Payment p WHERE p.merchantUid = :merchantUid")
     Optional<Payment> findByMerchantUidForUpdate(@Param("merchantUid") String merchantUid);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Payment p WHERE p.paymentId = :paymentId")
+    Optional<Payment> findByIdForUpdate(@Param("paymentId") Long paymentId);
+
+    @Query("""
+            SELECT p FROM Payment p
+            LEFT JOIN FETCH p.event e
+            LEFT JOIN FETCH e.eventDetail
+            JOIN FETCH p.user
+            JOIN FETCH p.paymentTargetType
+            JOIN FETCH p.paymentTypeCode
+            JOIN FETCH p.paymentStatusCode
+            WHERE p.paymentId = :paymentId
+            """)
+    Optional<Payment> findByIdForCompletionNotification(@Param("paymentId") Long paymentId);
+
     List<Payment> findByEvent_EventId(Long eventId);
 
     List<Payment> findByUser_UserId(Long userId);

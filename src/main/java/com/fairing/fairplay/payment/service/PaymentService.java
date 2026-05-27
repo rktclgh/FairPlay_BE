@@ -186,7 +186,6 @@ public class PaymentService {
     }
 
     // 무료 티켓 직접 처리 (PG사 연동 없음)
-    @Transactional
     public PaymentResponseDto processFreeTicket(PaymentRequestDto paymentRequestDto, Long userId) {
         // 1. 요청 데이터 유효성 검증
         validatePaymentRequest(paymentRequestDto);
@@ -197,31 +196,42 @@ public class PaymentService {
             throw new IllegalArgumentException("무료 티켓이 아닙니다. 금액: " + totalAmount);
         }
 
-        // 3. 결제 정보 저장 (PENDING 상태)
-        PaymentResponseDto savedPayment = savePayment(paymentRequestDto, userId);
+        PaymentCompletionResult result = writeTransactionTemplate().execute(status -> {
+            // 3. 결제 정보 저장 (PENDING 상태)
+            savePayment(paymentRequestDto, userId);
 
-        // 4. 즉시 완료 처리 (PG사 연동 없이)
-        Payment payment = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
+            // 4. 즉시 완료 처리 (PG사 연동 없이)
+            Payment payment = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
+                    .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
 
-        // 5. 결제 완료 상태로 변경
-        PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
-                .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
+            // 5. 결제 완료 상태로 변경
+            PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
+                    .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
 
-        payment.setPaymentStatusCode(completedStatus);
-        payment.setPaidAt(LocalDateTime.now());
-        // 무료 티켓의 경우 imp_uid는 "FREE_" + merchantUid 형태로 설정
-        payment.setImpUid("FREE_" + payment.getMerchantUid());
+            payment.setPaymentStatusCode(completedStatus);
+            payment.setPaidAt(LocalDateTime.now());
+            // 무료 티켓의 경우 imp_uid는 "FREE_" + merchantUid 형태로 설정
+            payment.setImpUid("FREE_" + payment.getMerchantUid());
 
-        Payment savedPaymentEntity = paymentRepository.save(payment);
+            Payment savedPaymentEntity = paymentRepository.save(payment);
 
-        // 6. 결제 완료 후 후속 처리 (예약 생성 등) - PaymentRequestDto의 scheduleId, ticketId 전달
-        processPaymentCompletionActions(savedPaymentEntity, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
-        if (isReservationPayment(savedPaymentEntity)) {
-            reservationPaymentIntentStore.delete(payment.getMerchantUid(), userId);
+            // 6. 결제 완료 후 후속 처리 (예약 생성 등) - PaymentRequestDto의 scheduleId, ticketId 전달
+            PaymentCompletionNotification notification = processPaymentCompletionActions(
+                    savedPaymentEntity, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
+            return new PaymentCompletionResult(
+                    PaymentResponseDto.fromEntity(savedPaymentEntity),
+                    savedPaymentEntity.getMerchantUid(),
+                    null,
+                    notification);
+        });
+        if (result.notification() != null) {
+            dispatchPaymentCompletionNotification(result.notification());
+        }
+        if (isReservationPaymentResult(result)) {
+            reservationPaymentIntentStore.delete(result.merchantUid(), userId);
         }
 
-        return PaymentResponseDto.fromEntity(savedPaymentEntity);
+        return result.response();
     }
 
     // 티켓 결제 완료 처리 (PG사 결제 후 호출)
@@ -311,7 +321,8 @@ public class PaymentService {
                     ", ticketId: " + paymentRequestDto.getTicketId());
             Long completionScheduleId = reservationIntent != null ? reservationIntent.scheduleId() : paymentRequestDto.getScheduleId();
             Long completionTicketId = reservationIntent != null ? reservationIntent.ticketId() : paymentRequestDto.getTicketId();
-            processPaymentCompletionActions(savedPayment, completionScheduleId, completionTicketId);
+            PaymentCompletionNotification notification = processPaymentCompletionActions(
+                    savedPayment, completionScheduleId, completionTicketId);
 
             Payment updatedPayment = paymentRepository.findById(savedPayment.getPaymentId())
                     .orElse(savedPayment);
@@ -322,12 +333,20 @@ public class PaymentService {
             return new PaymentCompletionResult(
                     PaymentResponseDto.fromEntity(updatedPayment),
                     payment.getMerchantUid(),
-                    reservationIntent);
+                    reservationIntent,
+                    notification);
         });
         if (result.reservationIntent() != null) {
             reservationPaymentIntentStore.delete(result.merchantUid(), result.reservationIntent().userId());
         }
+        if (result.notification() != null) {
+            dispatchPaymentCompletionNotification(result.notification());
+        }
         return result.response();
+    }
+
+    private boolean isReservationPaymentResult(PaymentCompletionResult result) {
+        return result.notification() != null && result.notification().reservationId() != null;
     }
 
     private TransactionTemplate readOnlyTransactionTemplate() {
@@ -346,7 +365,14 @@ public class PaymentService {
     private record PaymentCompletionResult(
             PaymentResponseDto response,
             String merchantUid,
-            ReservationPaymentIntent reservationIntent
+            ReservationPaymentIntent reservationIntent,
+            PaymentCompletionNotification notification
+    ) {
+    }
+
+    private record PaymentCompletionNotification(
+            Long paymentId,
+            Long reservationId
     ) {
     }
 
@@ -641,21 +667,20 @@ public class PaymentService {
      * - 티켓 발급
      * - 알림 전송 등
      */
-    private void processPaymentCompletionActions(Payment payment) {
-        processPaymentCompletionActions(payment, null, null);
+    private PaymentCompletionNotification processPaymentCompletionActions(Payment payment) {
+        return processPaymentCompletionActions(payment, null, null);
     }
     
     /**
      * 결제 완료 후 후속 처리 로직 (scheduleId, ticketId 전달)
      */
-    private void processPaymentCompletionActions(Payment payment, Long scheduleId, Long ticketId) {
+    private PaymentCompletionNotification processPaymentCompletionActions(Payment payment, Long scheduleId, Long ticketId) {
         String targetType = payment.getPaymentTargetType().getPaymentTargetCode();
 
         try {
             switch (targetType) {
                 case "RESERVATION":
-                    processReservationPaymentCompletion(payment, scheduleId, ticketId);
-                    break;
+                    return processReservationPaymentCompletion(payment, scheduleId, ticketId);
                 case "BOOTH":
                     processBoothPaymentCompletion(payment);
                     break;
@@ -679,6 +704,7 @@ public class PaymentService {
                 throw e;
             }
         }
+        return null;
     }
 
     /**
@@ -753,14 +779,14 @@ public class PaymentService {
      * 예약 결제 완료 처리
      * - 결제 완료 후 예약 생성 (방식 A)
      */
-    private void processReservationPaymentCompletion(Payment payment) {
-        processReservationPaymentCompletion(payment, null, null);
+    private PaymentCompletionNotification processReservationPaymentCompletion(Payment payment) {
+        return processReservationPaymentCompletion(payment, null, null);
     }
     
     /**
      * 예약 결제 완료 처리 (scheduleId, ticketId 전달)
      */
-    private void processReservationPaymentCompletion(Payment payment, Long scheduleId, Long ticketId) {
+    private PaymentCompletionNotification processReservationPaymentCompletion(Payment payment, Long scheduleId, Long ticketId) {
         try {
             // 방식 A: 결제 완료 후 예매 생성 (targetId가 null인 경우만)
             if (payment.getTargetId() == null) {
@@ -779,13 +805,12 @@ public class PaymentService {
                 System.out.println("결제 후 예매 생성 완료 - paymentId: " + payment.getPaymentId() +
                         ", reservationId: " + reservationId);
                 
-                // 예약 처리 성공 후 알림 발송
-                sendPaymentCompletionNotifications(payment, reservationId);
+                return new PaymentCompletionNotification(savedPayment.getPaymentId(), reservationId);
             } else {
                 // targetId가 이미 있는 경우: 기존 예매에 대한 알림만 발송
                 System.out.println("기존 예약에 대한 알림 발송 - paymentId: " + payment.getPaymentId() +
                         ", targetId: " + payment.getTargetId());
-                sendPaymentCompletionNotifications(payment, payment.getTargetId());
+                return new PaymentCompletionNotification(payment.getPaymentId(), payment.getTargetId());
             }
 
         } catch (Exception e) {
@@ -1142,16 +1167,15 @@ public class PaymentService {
      * 결제 완료 알림 발송 (웹 + HTML 이메일 동시)
      */
     public void sendPaymentCompletionNotifications(Payment payment, Long reservationId) {
+        Long userId = payment.getUser().getUserId();
+        String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
+        BigDecimal amount = payment.getAmount();
+
+        // 무료 티켓 여부 확인
+        boolean isFreeTicket = amount.compareTo(BigDecimal.ZERO) == 0;
+        String actionType = isFreeTicket ? "예매" : "결제";
+
         try {
-            Long userId = payment.getUser().getUserId();
-            String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
-            BigDecimal amount = payment.getAmount();
-            String userName = payment.getUser().getName();
-
-            // 무료 티켓 여부 확인
-            boolean isFreeTicket = amount.compareTo(BigDecimal.ZERO) == 0;
-            String actionType = isFreeTicket ? "예매" : "결제";
-
             // 1. 웹 알림 발송 (실시간)
             NotificationRequestDto webNotification = NotificationService.buildWebNotification(
                     userId,
@@ -1161,16 +1185,28 @@ public class PaymentService {
                     "/mypage/reservation"
             );
             notificationService.createNotification(webNotification);
-
+        } catch (Exception e) {
+            System.err.println("결제 완료 웹 알림 발송 실패 - paymentId: " + payment.getPaymentId() +
+                    ", error: " + e.getMessage());
+        }
+        try {
             // 2. HTML 템플릿 이메일 발송 (새로운 전용 서비스 사용)
             paymentCompletionEmailService.sendPaymentCompletionEmail(payment, reservationId);
-
-            System.out.println(String.format("결제 완료 알림 발송 완료 - userId: %d, paymentId: %d, type: %s",
-                    userId, payment.getPaymentId(), actionType));
-
         } catch (Exception e) {
-            // 알림 발송 실패해도 결제는 성공으로 처리
-            System.err.println("결제 완료 알림 발송 실패 - paymentId: " + payment.getPaymentId() +
+            System.err.println("결제 완료 이메일 발송 실패 - paymentId: " + payment.getPaymentId() +
+                    ", error: " + e.getMessage());
+        }
+        System.out.println(String.format("결제 완료 알림 처리 완료 - userId: %d, paymentId: %d, type: %s",
+                userId, payment.getPaymentId(), actionType));
+    }
+
+    private void dispatchPaymentCompletionNotification(PaymentCompletionNotification notification) {
+        try {
+            Payment payment = paymentRepository.findByIdForCompletionNotification(notification.paymentId())
+                    .orElseThrow(() -> new IllegalStateException("결제 완료 알림 대상 결제를 찾을 수 없습니다: " + notification.paymentId()));
+            sendPaymentCompletionNotifications(payment, notification.reservationId());
+        } catch (Exception e) {
+            System.err.println("결제 완료 알림 예약 실패 - paymentId: " + notification.paymentId() +
                     ", error: " + e.getMessage());
         }
     }
