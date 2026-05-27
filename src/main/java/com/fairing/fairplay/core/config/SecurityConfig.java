@@ -85,6 +85,8 @@ public class SecurityConfig {
                                 "/ticket-reservation/**",
                                 "/qr-ticket/**",
                                 "/banner/payment",
+                                "/support/**",
+                                "/legal/**",
                                 "/auth/**",
                                 "/api/users/signup",
                                 "/api/auth/login",
@@ -136,6 +138,8 @@ public class SecurityConfig {
                                 "/api/host/reservation/**",
                                 "/participant-form",
                                 "/participant-form/**",
+                                "/booth/payment",
+                                "/booth/payment/**",
                                 "/booth/cancel",
                                 "/booth/cancel/**",
                                 // 제작자 페이지 - 공개 접근 허용
