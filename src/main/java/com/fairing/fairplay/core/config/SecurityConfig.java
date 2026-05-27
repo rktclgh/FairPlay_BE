@@ -150,6 +150,7 @@ public class SecurityConfig {
                         // 제작자 API - GET 요청은 공개, 관리 기능은 ADMIN만
                         .requestMatchers(HttpMethod.GET, "/api/creators/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/banners/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/booth-experiences/available").permitAll()
 
                                                 .requestMatchers(HttpMethod.GET, "/api/reviews/*").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/form").permitAll()
