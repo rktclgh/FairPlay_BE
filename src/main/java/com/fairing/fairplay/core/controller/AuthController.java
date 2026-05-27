@@ -1,5 +1,6 @@
 package com.fairing.fairplay.core.controller;
 
+import com.fairing.fairplay.core.dto.AuthSessionResponse;
 import com.fairing.fairplay.core.dto.KakaoLoginRequest;
 import com.fairing.fairplay.core.dto.LoginRequest;
 import com.fairing.fairplay.core.dto.LoginResponse;
@@ -8,6 +9,8 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.core.service.AuthService;
 import com.fairing.fairplay.core.service.RefreshTokenService;
 import com.fairing.fairplay.core.service.SessionService;
+import com.fairing.fairplay.user.dto.UserResponseDto;
+import com.fairing.fairplay.user.service.UserService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,6 +33,7 @@ public class AuthController {
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
     private final SessionService sessionService;
+    private final UserService userService;
 
     @Value("${app.environment:dev}")
     private String environment;
@@ -112,6 +116,22 @@ public class AuthController {
     public ResponseEntity<LoginResponse> refresh(@RequestBody @Valid RefreshTokenRequest request) {
         LoginResponse response = authService.refreshToken(request.getRefreshToken());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/session")
+    public ResponseEntity<AuthSessionResponse> session(HttpServletRequest request) {
+        String sessionId = getSessionIdFromCookie(request);
+        if (sessionId == null) {
+            return ResponseEntity.ok(AuthSessionResponse.anonymous());
+        }
+
+        Long userId = sessionService.getUserIdFromSession(sessionId);
+        if (userId == null) {
+            return ResponseEntity.ok(AuthSessionResponse.anonymous());
+        }
+
+        UserResponseDto user = userService.getMyInfo(userId);
+        return ResponseEntity.ok(AuthSessionResponse.authenticated(user));
     }
 
     @PostMapping("/kakao")

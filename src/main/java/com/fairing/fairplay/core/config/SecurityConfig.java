@@ -92,6 +92,7 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/logout",
                                 "/api/auth/refresh",
+                                "/api/auth/session",
                                 "/api/events", // GET 행사 목록 조회
                                 "/api/events/*/details", // GET 행사 상세 조회 (*/details 패턴)
                                 "/api/events/hot-picks", // GET 핫픽 조회
