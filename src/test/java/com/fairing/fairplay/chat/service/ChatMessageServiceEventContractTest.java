@@ -6,10 +6,11 @@ import com.fairing.fairplay.chat.entity.TargetType;
 import com.fairing.fairplay.chat.event.ChatMessageCreatedEvent;
 import com.fairing.fairplay.chat.repository.ChatMessageRepository;
 import com.fairing.fairplay.chat.repository.ChatRoomRepository;
+import com.fairing.fairplay.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -46,8 +47,24 @@ class ChatMessageServiceEventContractTest {
     @Mock
     Executor chatCacheExecutor;
 
-    @InjectMocks
+    @Mock
+    UserRepository userRepository;
+
+    ChatRoomAccessService chatRoomAccessService;
+
     ChatMessageService chatMessageService;
+
+    @BeforeEach
+    void setUp() {
+        chatRoomAccessService = new ChatRoomAccessService(userRepository);
+        chatMessageService = new ChatMessageService(
+                chatMessageRepository,
+                chatRoomRepository,
+                eventPublisher,
+                chatCacheService,
+                chatCacheExecutor,
+                chatRoomAccessService);
+    }
 
     @Test
     void publishesSavedUserMessageIdentityAndContentInCreatedEvent() {

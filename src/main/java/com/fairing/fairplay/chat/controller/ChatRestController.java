@@ -48,7 +48,7 @@ public class ChatRestController {
         
         // 사용자가 참여한 채팅방 추가
         for (ChatRoom room : userRooms) {
-            Long unreadCount = chatMessageService.countUnreadMessages(room.getChatRoomId(), userId);
+            Long unreadCount = chatMessageService.countUnreadMessages(room, userId, userRole);
             allRooms.add(ChatRoomResponseDto.builder()
                     .chatRoomId(room.getChatRoomId())
                     .eventId(room.getEventId())
@@ -68,17 +68,17 @@ public class ChatRestController {
         if ("ADMIN".equals(userRole)) {
             // 전체 관리자: 모든 ADMIN 타입 채팅방 (1:N 구조)
             List<ChatRoom> adminRooms = chatRoomService.getAllAdminRooms();
-            addManagerRooms(allRooms, adminRooms, userId);
+            addManagerRooms(allRooms, adminRooms, userId, userRole);
             
         } else if ("EVENT_MANAGER".equals(userRole)) {
             // 행사 담당자: 자신이 담당하는 EVENT_MANAGER 타입 채팅방
             List<ChatRoom> eventManagerRooms = chatRoomService.getRoomsByManager(TargetType.EVENT_MANAGER, userId);
-            addManagerRooms(allRooms, eventManagerRooms, userId);
+            addManagerRooms(allRooms, eventManagerRooms, userId, userRole);
             
         } else if ("BOOTH_MANAGER".equals(userRole)) {
             // 부스 담당자: 자신이 담당하는 BOOTH_MANAGER 타입 채팅방
             List<ChatRoom> boothManagerRooms = chatRoomService.getRoomsByManager(TargetType.BOOTH_MANAGER, userId);
-            addManagerRooms(allRooms, boothManagerRooms, userId);
+            addManagerRooms(allRooms, boothManagerRooms, userId, userRole);
         }
         
         return allRooms.stream()
@@ -88,7 +88,7 @@ public class ChatRestController {
     }
     
     // 관리자 채팅방을 추가하는 헬퍼 메소드
-    private void addManagerRooms(List<ChatRoomResponseDto> allRooms, List<ChatRoom> managerRooms, Long userId) {
+    private void addManagerRooms(List<ChatRoomResponseDto> allRooms, List<ChatRoom> managerRooms, Long userId, String roleCode) {
         Set<Long> existingRoomIds = allRooms.stream()
                 .map(ChatRoomResponseDto::getChatRoomId)
                 .collect(Collectors.toSet());
@@ -96,7 +96,7 @@ public class ChatRestController {
         for (ChatRoom room : managerRooms) {
             if (!existingRoomIds.contains(room.getChatRoomId())) {
                 // 관리자로서 읽지 않은 메시지 수 계산
-                Long unreadCount = chatMessageService.countUnreadMessages(room.getChatRoomId(), userId);
+                Long unreadCount = chatMessageService.countUnreadMessages(room, userId, roleCode);
                 
                 // 사용자 이름 가져오기
                 String userName = userRepository.findById(room.getUserId())
@@ -156,7 +156,7 @@ public class ChatRestController {
                         .orElse("알 수 없는 사용자");
                     
                     // 읽지 않은 메시지 수 계산
-                    Long unreadCount = chatMessageService.countUnreadMessages(room.getChatRoomId(), targetId);
+                    Long unreadCount = chatMessageService.countUnreadMessages(room, targetId, userDetails.getRoleCode());
                     
                     return ChatRoomResponseDto.builder()
                         .chatRoomId(room.getChatRoomId())
@@ -207,7 +207,7 @@ public class ChatRestController {
             @RequestParam Long chatRoomId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        return chatMessageService.getMessages(chatRoomId, userDetails.getUserId());
+        return chatMessageService.getMessages(chatRoomId, userDetails.getUserId(), userDetails.getRoleCode());
     }
 
     // 페이징된 메시지 조회 (페이지 기반)
@@ -218,7 +218,7 @@ public class ChatRestController {
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        return chatMessageService.getMessagesPaged(chatRoomId, userDetails.getUserId(), page, size);
+        return chatMessageService.getMessagesPaged(chatRoomId, userDetails.getUserId(), userDetails.getRoleCode(), page, size);
     }
 
     // 커서 기반 무한스크롤 메시지 조회
@@ -229,7 +229,7 @@ public class ChatRestController {
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        return chatMessageService.getMessagesWithCursor(chatRoomId, userDetails.getUserId(), lastMessageId, size);
+        return chatMessageService.getMessagesWithCursor(chatRoomId, userDetails.getUserId(), userDetails.getRoleCode(), lastMessageId, size);
     }
 
     // 메시지 전송
@@ -239,7 +239,7 @@ public class ChatRestController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long senderId = userDetails.getUserId();
-        return chatMessageService.sendMessage(dto.getChatRoomId(), senderId, dto.getContent());
+        return chatMessageService.sendMessage(dto.getChatRoomId(), senderId, userDetails.getRoleCode(), dto.getContent());
     }
 
     // 안읽은 메시지 개수
@@ -249,7 +249,7 @@ public class ChatRestController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long myUserId = userDetails.getUserId();
-        return chatMessageService.countUnreadMessages(chatRoomId, myUserId);
+        return chatMessageService.countUnreadMessages(chatRoomId, myUserId, userDetails.getRoleCode());
     }
 
     // 채팅방의 모든 메시지를 읽음으로 처리
@@ -259,7 +259,7 @@ public class ChatRestController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long myUserId = userDetails.getUserId();
-        chatMessageService.markRoomMessagesAsRead(chatRoomId, myUserId);
+        chatMessageService.markRoomMessagesAsRead(chatRoomId, myUserId, userDetails.getRoleCode());
     }
 
     // 👉 이벤트 담당자 문의용 API
