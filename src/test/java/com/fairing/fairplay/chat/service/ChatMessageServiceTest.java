@@ -23,7 +23,8 @@ class ChatMessageServiceTest {
             chatMessageRepository,
             chatRoomRepository,
             eventPublisher,
-            chatCacheService);
+            chatCacheService,
+            Runnable::run);
 
     @Test
     void rejectsMessageReadForNonParticipant() {
