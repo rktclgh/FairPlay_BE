@@ -116,4 +116,39 @@ class SessionAuthenticationFilterTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         verify(sessionService, never()).getSessionData("session-1");
     }
+
+    @Test
+    void authenticatesProtectedEventRoleLookupEvenThoughItIsAGetRequest() throws Exception {
+        when(sessionService.getSessionData("session-1")).thenReturn(Map.of(
+                "userId", 10,
+                "email", "admin@example.com",
+                "role", "ADMIN",
+                "roleId", 1
+        ));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/events/user/role");
+        request.setCookies(new Cookie("FAIRPLAY_SESSION", "session-1"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        new SessionAuthenticationFilter(sessionService)
+                .doFilter(request, response, new MockFilterChain());
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        assertThat(authentication).isNotNull();
+        assertThat(((CustomUserDetails) authentication.getPrincipal()).getUserId()).isEqualTo(10L);
+        verify(sessionService).getSessionData("session-1");
+    }
+
+    @Test
+    void skipsRedisSessionLookupOnlyForKnownPublicEventGetPathsWhenCookieExists() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/events/32/details");
+        request.setCookies(new Cookie("FAIRPLAY_SESSION", "session-1"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        new SessionAuthenticationFilter(sessionService)
+                .doFilter(request, response, new MockFilterChain());
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(sessionService, never()).getSessionData("session-1");
+    }
 }
