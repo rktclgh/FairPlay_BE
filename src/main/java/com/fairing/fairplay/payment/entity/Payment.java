@@ -35,7 +35,7 @@ public class Payment {
     @JoinColumn(name = "payment_target_type_id", nullable = false)
     private PaymentTargetType paymentTargetType; // 결제 대상 타입 (예약/부스/광고)
 
-    @Column(name = "target_id", nullable = false)
+    @Column(name = "target_id")
     private Long targetId; // 실제 결제 대상의 ID (reservation_id, booth_id, advertisement_id)
 
     @Column(name = "merchant_uid", nullable = false, unique = true, length = 100)

@@ -58,7 +58,7 @@ public class BannerApplication {
     private ApplyStatusCode statusCode;     // PENDING/APPROVED/REJECTED
 
     @Lob
-    @Column(name = "admin_comment")
+    @Column(name = "admin_comment", columnDefinition = "TEXT")
     private String adminComment;
 
     @OneToOne(fetch = FetchType.LAZY)
