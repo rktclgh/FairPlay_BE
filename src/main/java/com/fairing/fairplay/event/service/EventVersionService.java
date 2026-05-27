@@ -4,6 +4,7 @@ import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.event.dto.EventDetailResponseDto;
 import com.fairing.fairplay.event.dto.EventSnapshotDto;
 import com.fairing.fairplay.event.dto.EventVersionComparisonDto;
+import com.fairing.fairplay.event.dto.EventVersionResponseDto;
 import com.fairing.fairplay.event.dto.ExternalLinkResponseDto;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.entity.EventDetail;
@@ -169,6 +170,11 @@ public class EventVersionService {
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "행사를 찾을 수 없습니다."));
         
         return eventVersionRepository.findByEventOrderByVersionNumberDesc(event, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EventVersionResponseDto> getEventVersionResponses(Long eventId, Pageable pageable) {
+        return getEventVersions(eventId, pageable).map(EventVersionResponseDto::from);
     }
 
     // 특정 버전 상세 조회

@@ -1,13 +1,11 @@
 package com.fairing.fairplay.booth.controller;
 
 import com.fairing.fairplay.booth.dto.*;
-import com.fairing.fairplay.booth.entity.Booth;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.booth.service.BoothService;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.user.dto.BoothAdminRequestDto;
 import com.fairing.fairplay.user.dto.BoothAdminResponseDto;
@@ -154,9 +152,8 @@ public class BoothController {
 
     /***** 헬퍼 메소드 *****/
     private void checkEventManager(Long eventId, CustomUserDetails user) {
-        Event event = eventRepository.findById(eventId)
+        Long managerId = eventRepository.findManagerUserIdByEventId(eventId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."));
-        Long managerId = event.getManager().getUserId();
         if (!managerId.equals(user.getUserId())) {
             log.info("담당 행사 관리자가 아님: managerId={}, userId={}",
                     managerId, user.getUserId());
@@ -165,9 +162,10 @@ public class BoothController {
     }
 
     private void checkBoothManager(Long boothId, CustomUserDetails user) {
-        Booth booth = boothRepository.findById(boothId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
-        Long managerId = booth.getBoothAdmin().getUserId();
+        Long managerId = boothRepository.findBoothAdminUserIdById(boothId);
+        if (managerId == null) {
+            throw new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다.");
+        }
         if (!managerId.equals(user.getUserId())) {
             log.info("담당 부스 관리자가 아님: managerId={}, userId={}",
                     managerId, user.getUserId());

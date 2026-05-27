@@ -5,7 +5,6 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.dto.EventApplyProcessDto;
 import com.fairing.fairplay.event.dto.EventApplyRequestDto;
 import com.fairing.fairplay.event.dto.EventApplyResponseDto;
-import com.fairing.fairplay.event.entity.EventApply;
 import com.fairing.fairplay.event.service.EventApplyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,8 +29,7 @@ public class EventApplyController {
     public ResponseEntity<EventApplyResponseDto> submitEventApplication(
             @RequestBody EventApplyRequestDto requestDto) {
 
-        EventApply eventApply = eventApplyService.submitEventApplication(requestDto);
-        EventApplyResponseDto responseDto = EventApplyResponseDto.from(eventApply);
+        EventApplyResponseDto responseDto = eventApplyService.submitEventApplicationResponse(requestDto);
 
         return ResponseEntity.ok(responseDto);
     }
@@ -41,11 +39,10 @@ public class EventApplyController {
     public ResponseEntity<EventApplyResponseDto> checkApplicationStatus(
             @RequestParam String eventEmail) {
 
-        Optional<EventApply> eventApply = eventApplyService.findByEventEmail(eventEmail);
+        Optional<EventApplyResponseDto> eventApply = eventApplyService.findResponseByEventEmail(eventEmail);
 
         if (eventApply.isPresent()) {
-            EventApplyResponseDto responseDto = EventApplyResponseDto.from(eventApply.get());
-            return ResponseEntity.ok(responseDto);
+            return ResponseEntity.ok(eventApply.get());
         } else {
             return ResponseEntity.notFound().build();
         }
@@ -59,10 +56,7 @@ public class EventApplyController {
             @RequestParam(required = false) String status,
             Pageable pageable) {
 
-        Page<EventApply> pendingApplications = eventApplyService.getApplications(status, pageable);
-        Page<EventApplyResponseDto> responsePage = pendingApplications.map(EventApplyResponseDto::from);
-
-        return ResponseEntity.ok(responsePage);
+        return ResponseEntity.ok(eventApplyService.getApplicationResponses(status, pageable));
     }
 
     @GetMapping("/applications/{applicationId}")

@@ -1,19 +1,15 @@
 package com.fairing.fairplay.event.controller;
 
-import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.etc.FunctionAuth;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.dto.EventDetailModificationDto;
 import com.fairing.fairplay.event.dto.EventDetailModificationResponseDto;
 import com.fairing.fairplay.event.dto.ModificationApprovalRequestDto;
-import com.fairing.fairplay.event.entity.EventDetailModificationRequest;
-import com.fairing.fairplay.event.repository.EventDetailModificationRequestRepository;
 import com.fairing.fairplay.event.service.EventDetailModificationRequestService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,7 +24,6 @@ import java.util.Optional;
 public class EventDetailModificationController {
 
     private final EventDetailModificationRequestService modificationRequestService;
-    private final EventDetailModificationRequestRepository modificationRequestRepository;
 
     // 수정 요청
     @PostMapping("/{eventId}/modification-request")
@@ -92,10 +87,8 @@ public class EventDetailModificationController {
         // deletedFileIds 처리
         if (requestDto.getDeletedFileIds() != null) modificationDto.setDeletedFileIds(requestDto.getDeletedFileIds());
 
-        EventDetailModificationRequest request = modificationRequestService.createModificationRequest(
+        EventDetailModificationResponseDto responseDto = modificationRequestService.createModificationRequestResponse(
                 eventId, modificationDto, auth.getUserId());
-
-        EventDetailModificationResponseDto responseDto = EventDetailModificationResponseDto.from(request);
 
         return ResponseEntity.ok(responseDto);
     }
@@ -107,12 +100,11 @@ public class EventDetailModificationController {
     public ResponseEntity<EventDetailModificationResponseDto> getPendingModificationRequest(
             @PathVariable Long eventId) {
 
-        Optional<EventDetailModificationRequest> pendingRequest =
-                modificationRequestService.getPendingRequestByEventId(eventId);
+        Optional<EventDetailModificationResponseDto> pendingRequest =
+                modificationRequestService.getPendingRequestResponseByEventId(eventId);
 
         if (pendingRequest.isPresent()) {
-            EventDetailModificationResponseDto responseDto = EventDetailModificationResponseDto.from(pendingRequest.get());
-            return ResponseEntity.ok(responseDto);
+            return ResponseEntity.ok(pendingRequest.get());
         } else {
             return ResponseEntity.notFound().build();
         }
@@ -127,13 +119,8 @@ public class EventDetailModificationController {
             @RequestParam(required = false) Long requestedBy,        // 요청자 필터링
             Pageable pageable) {
 
-        Page<EventDetailModificationRequest> requests =
-                modificationRequestService.getModificationRequests(status, eventId, requestedBy, pageable);
-
-        Page<EventDetailModificationResponseDto> responsePage =
-                requests.map(EventDetailModificationResponseDto::from);
-
-        return ResponseEntity.ok(responsePage);
+        return ResponseEntity.ok(modificationRequestService.getModificationRequestResponses(
+                status, eventId, requestedBy, pageable));
     }
 
     @GetMapping("/modification-requests/{requestId}")
@@ -142,21 +129,9 @@ public class EventDetailModificationController {
     public ResponseEntity<EventDetailModificationResponseDto> getModificationRequestDetail(
             @PathVariable Long requestId, @AuthenticationPrincipal CustomUserDetails auth) {
 
-        // 한 번의 조회로 권한 체크와 데이터 반환 처리
-        EventDetailModificationRequest request =
-                modificationRequestService.getModificationRequestById(requestId);
-
-        // EVENT_MANAGER 권한일 경우 담당 행사 관리자인지 확인
-        if (auth.getRoleCode().equals("EVENT_MANAGER")) {
-            Long managerId = request.getEvent().getManager().getUserId();
-            if (!managerId.equals(auth.getUserId())) {
-                log.info("담당 행사 관리자가 아님: requestId={}, managerId={}, userId={}", 
-                         requestId, managerId, auth.getUserId());
-                throw new CustomException(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
-            }
-        }
-
-        EventDetailModificationResponseDto responseDto = EventDetailModificationResponseDto.from(request);
+        EventDetailModificationResponseDto responseDto =
+                modificationRequestService.getModificationRequestResponseById(
+                        requestId, auth.getUserId(), auth.getRoleCode());
         return ResponseEntity.ok(responseDto);
 
     }

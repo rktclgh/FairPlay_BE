@@ -8,6 +8,7 @@ import com.fairing.fairplay.booth.repository.*;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.service.BoothEmailService;
 import com.fairing.fairplay.core.service.LocalFileService;
+import com.fairing.fairplay.core.service.UserSessionRevocationService;
 // import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
@@ -63,6 +64,7 @@ public class BoothApplicationService {
     private final FileRepository fileRepository;
     private final BoothEmailService boothEmailService;
     private final NotificationService notificationService;
+    private final UserSessionRevocationService userSessionRevocationService;
 
 
     // 부스 신청
@@ -469,6 +471,7 @@ public class BoothApplicationService {
                     .orElseThrow(() -> new EntityNotFoundException("BOOTH_MANAGER 권한 코드가 존재하지 않습니다."));
 
             user.setRoleCode(boothManagerCode);
+            userSessionRevocationService.revokeAfterCommit(user.getUserId());
         }
 
 
@@ -502,8 +505,15 @@ public class BoothApplicationService {
 
     @Transactional(readOnly = true)
     public BoothPaymentPageDto getBoothPaymentInfo(Long applicationId) {
-        BoothApplication application = boothApplicationRepository.findById(applicationId)
-                .orElseThrow(() -> new EntityNotFoundException("부스 신청 정보를 찾을 수 없습니다."));
+        BoothApplication application = boothApplicationRepository.findPaymentPageById(applicationId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "부스 신청 정보를 찾을 수 없습니다."));
+
+        if (!"APPROVED".equals(application.getBoothApplicationStatusCode().getCode())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "승인되지 않은 부스 신청입니다.");
+        }
+        if ("PAID".equals(application.getBoothPaymentStatusCode().getCode())) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "이미 결제가 완료된 부스입니다.");
+        }
 
         return BoothPaymentPageDto.builder()
                 .applicationId(application.getId())

@@ -7,7 +7,6 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.reservation.dto.ReservationAttendeeDto;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
 import com.fairing.fairplay.reservation.dto.ReservationResponseDto;
-import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -42,13 +41,7 @@ public class ReservationController {
                 
         Long userId = userDetails.getUserId();
         requestDto.setEventId(eventId);
-        Reservation reservation = reservationService.createReservation(requestDto, userId, paymentId);
-
-        if (reservation == null) {
-            throw new IllegalStateException("예약 생성에 실패했습니다.");
-        }
-
-        ReservationResponseDto response = ReservationResponseDto.from(reservation);
+        ReservationResponseDto response = reservationService.createReservationResponse(requestDto, userId, paymentId);
 
         return ResponseEntity.ok(response);
     }
@@ -59,13 +52,8 @@ public class ReservationController {
             @PathVariable Long reservationId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        Reservation reservation = reservationService.getReservationById(eventId, reservationId, userDetails);
-
-        if (reservation == null) {
-            throw new IllegalStateException("예약 조회에 실패했습니다.");
-        }
-
-        ReservationResponseDto response = ReservationResponseDto.from(reservation);
+        ReservationResponseDto response = reservationService.getReservationResponseById(
+                eventId, reservationId, userDetails);
 
         return ResponseEntity.ok(response);
     }
@@ -75,15 +63,7 @@ public class ReservationController {
     @FunctionAuth("getReservations")
     public ResponseEntity<List<ReservationResponseDto>> getReservations(@PathVariable Long eventId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        List<Reservation> reservations = reservationService.getReservationsByEvent(eventId, userDetails);
-
-        if (reservations == null) {
-            throw new IllegalStateException("예약 조회에 실패했습니다.");
-        }
-
-        List<ReservationResponseDto> response = reservations.stream()
-                .map(ReservationResponseDto::from)
-                .toList();
+        List<ReservationResponseDto> response = reservationService.getReservationResponsesByEvent(eventId, userDetails);
 
         return ResponseEntity.ok(response);
     }
@@ -98,9 +78,7 @@ public class ReservationController {
         requestDto.setEventId(eventId);
         requestDto.setReservationId(reservationId);
 
-        Reservation reservation = reservationService.updateReservation(requestDto, userId);
-
-        ReservationResponseDto response = ReservationResponseDto.from(reservation);
+        ReservationResponseDto response = reservationService.updateReservationResponse(requestDto, userId);
 
         return ResponseEntity.ok(response);
     }
@@ -147,7 +125,7 @@ public class ReservationController {
             @PathVariable Long reservationId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
-        reservationService.cancelReservation(reservationId, userId);
+        reservationService.cancelReservation(eventId, reservationId, userId);
         return ResponseEntity.noContent().build();
     }
 }

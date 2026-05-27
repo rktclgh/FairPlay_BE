@@ -1,13 +1,8 @@
 package com.fairing.fairplay.user.repository;
 
-import java.util.List;
-import java.util.Optional;
-
+import com.fairing.fairplay.user.entity.Users;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.stereotype.Repository;
-
-import com.fairing.fairplay.user.entity.Users;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -29,7 +24,7 @@ public interface UserRepository extends JpaRepository<Users, Long> {
 
     @Query("SELECT u FROM Users u WHERE u.roleCode.id <= 2")
     List<Users> findAdmin();
-    
+
     // ADMIN 권한을 가진 사용자들을 조회하여 첫 번째 사용자 반환
     @Query("SELECT u FROM Users u WHERE u.roleCode.code = :roleCode ORDER BY u.userId ASC")
     List<Users> findByRoleCodeCodeOrderByUserIdAsc(@Param("roleCode") String roleCode);

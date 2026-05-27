@@ -10,6 +10,7 @@ import com.fairing.fairplay.admin.repository.EmailTemplatesRepository;
 import com.fairing.fairplay.admin.repository.FunctionLevelRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.etc.FunctionLevelEnum;
+import com.fairing.fairplay.core.service.UserSessionRevocationService;
 import com.fairing.fairplay.history.dto.ChangeHistoryDto;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.entity.ChangeHistory;
@@ -30,6 +31,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -52,12 +54,14 @@ public class SuperAdminService {
     private final ChangeHistoryRepository changeHistoryRepository;
     private final LevelService levelService;
     private final EmailTemplatesRepository emailTemplatesRepository;
+    private final UserSessionRevocationService userSessionRevocationService;
 
     public SuperAdminService(UserRepository userRepository,
             LevelService levelService,
             AccountLevelRepository accountLevelRepository, FunctionLevelRepository functionLevelRepository,
             LoginHistoryRepository loginHistoryRepository, ChangeHistoryRepository changeHistoryRepository,
-            EmailTemplatesRepository emailTemplatesRepository) {
+            EmailTemplatesRepository emailTemplatesRepository,
+            UserSessionRevocationService userSessionRevocationService) {
         this.changeHistoryRepository = changeHistoryRepository;
         this.userRepository = userRepository;
         this.accountLevelRepository = accountLevelRepository;
@@ -65,15 +69,19 @@ public class SuperAdminService {
         this.functionLevelRepository = functionLevelRepository;
         this.emailTemplatesRepository = emailTemplatesRepository;
         this.levelService = levelService;
+        this.userSessionRevocationService = userSessionRevocationService;
     }
 
+    @Transactional
     public void disableUser(Long targetId) {
         Users user = userRepository.findById(targetId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, USER_NOT_FOUND_MSG));
         user.setDeletedAt(LocalDateTime.now());
         userRepository.save(user);
+        revokeUserSessionsAndRefreshToken(targetId);
     }
 
+    @Transactional
     public void setEventAdmin(Long userId) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, USER_NOT_FOUND_MSG));
@@ -82,9 +90,11 @@ public class SuperAdminService {
         BigDecimal decimal = new BigDecimal(BigInteger.ONE.shiftLeft(100).subtract(BigInteger.ONE));
         accountLevel.setLevel(decimal);
         accountLevelRepository.save(accountLevel);
+        revokeUserSessionsAndRefreshToken(userId);
 
     }
 
+    @Transactional
     public void setSuperAdmin(Long userId) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, USER_NOT_FOUND_MSG));
@@ -93,8 +103,10 @@ public class SuperAdminService {
         BigDecimal decimal = new BigDecimal(BigInteger.ONE.shiftLeft(200).subtract(BigInteger.ONE));
         accountLevel.setLevel(decimal);
         accountLevelRepository.save(accountLevel);
+        revokeUserSessionsAndRefreshToken(userId);
     }
 
+    @Transactional
     public void setBoothAdmin(Long userId) {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, USER_NOT_FOUND_MSG));
@@ -103,8 +115,10 @@ public class SuperAdminService {
         BigDecimal decimal = new BigDecimal(BigInteger.ONE.shiftLeft(6).subtract(BigInteger.ONE));
         accountLevel.setLevel(decimal);
         accountLevelRepository.save(accountLevel);
+        revokeUserSessionsAndRefreshToken(userId);
     }
 
+    @Transactional
     public void modifyAuth(Long userId, List<String> authList) {
         List<FunctionLevel> functionLevels = functionLevelRepository.findAll();
         BigInteger originValue = BigInteger.ZERO;
@@ -119,6 +133,11 @@ public class SuperAdminService {
         AccountLevel accountLevelEntity = accountLevelRepository.findByUserId(userId);
         accountLevelEntity.setLevel(new BigDecimal(accountLevel));
         accountLevelRepository.save(accountLevelEntity);
+        revokeUserSessionsAndRefreshToken(userId);
+    }
+
+    private void revokeUserSessionsAndRefreshToken(Long userId) {
+        userSessionRevocationService.revokeAfterCommit(userId);
     }
 
     public Page<LoginHistoryDto> getLoginLogs(int page, int size, String email, LocalDateTime from, LocalDateTime to) {

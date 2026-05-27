@@ -1,8 +1,6 @@
 package com.fairing.fairplay.core.security;
 
 import com.fairing.fairplay.core.service.SessionService;
-import com.fairing.fairplay.user.entity.Users;
-import com.fairing.fairplay.user.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -29,11 +27,9 @@ import java.util.Map;
 public class SessionAuthenticationFilter extends OncePerRequestFilter {
 
     private final SessionService sessionService;
-    private final UserRepository userRepository;
 
     private static final String SESSION_COOKIE_NAME = "FAIRPLAY_SESSION";
 
-    // DB 조회가 불필요한 공개 경로 패턴
     private static final List<String> PUBLIC_PATHS = Arrays.asList(
         "/api/creators",
         "/api/events",
@@ -64,50 +60,48 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
         String sessionId = resolveSessionId(request);
         log.debug("요청 URI: {}, sessionId: {}", requestURI, sessionId);
 
-        // 세션이 없고 공개 경로인 경우 DB 조회 스킵
-        if (sessionId == null || isPublicPath(requestURI)) {
-            if (sessionId == null) {
-                log.debug("세션 없음 - 공개 경로 접근: {}", requestURI);
-                filterChain.doFilter(request, response);
-                return;
-            }
+        if (sessionId == null) {
+            log.debug("세션 없음 - 인증 필터 통과: {}", requestURI);
+            filterChain.doFilter(request, response);
+            return;
         }
 
-        if (sessionId != null) {
-            Map<String, Object> sessionData = sessionService.getSessionData(sessionId);
+        if (shouldSkipAuthentication(request.getMethod(), requestURI)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        Map<String, Object> sessionData = sessionService.getSessionData(sessionId);
             
-            if (sessionData != null) {
-                Object userIdObj = sessionData.get("userId");
-                if (userIdObj instanceof Number) {
-                    Long userId = ((Number) userIdObj).longValue();
+        if (sessionData != null) {
+            Object userIdObj = sessionData.get("userId");
+            if (userIdObj instanceof Number) {
+                Long userId = ((Number) userIdObj).longValue();
+                String email = stringValue(sessionData.get("email"));
+                String roleCode = stringValue(sessionData.get("role"));
+                Number roleId = numberValue(sessionData.get("roleId"));
 
-                    // DB에서 사용자 정보 조회 (탈퇴 여부 확인)
-                    Users user = userRepository.findById(userId).orElse(null);
+                if (roleCode != null) {
+                    CustomUserDetails userDetails = CustomUserDetails.fromSession(userId, email, roleCode, roleId);
 
-                    if (user != null && user.getDeletedAt() == null) {
-                        // CustomUserDetails 생성
-                        CustomUserDetails userDetails = new CustomUserDetails(user);
+                    // Spring Security 인증 컨텍스트 설정
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                        // Spring Security 인증 컨텍스트 설정
-                        UsernamePasswordAuthenticationToken authentication =
-                                new UsernamePasswordAuthenticationToken(
-                                        userDetails,
-                                        null,
-                                        userDetails.getAuthorities()
-                                );
-                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-                        log.debug("세션 인증 성공 - sessionId: {}, userId: {}", sessionId, userId);
-                    } else {
-                        log.warn("유효하지 않은 사용자 - userId: {}", userId);
-                        // 세션 삭제
-                        sessionService.deleteSession(sessionId);
-                    }
+                    log.debug("세션 인증 성공 - sessionId: {}, userId: {}", sessionId, userId);
+                } else {
+                    log.warn("세션 role 정보 누락 - userId: {}", userId);
+                    sessionService.deleteSession(sessionId);
                 }
-            } else {
-                log.debug("세션을 찾을 수 없음 - sessionId: {}", sessionId);
             }
+        } else {
+            log.debug("세션을 찾을 수 없음 - sessionId: {}", sessionId);
         }
 
         filterChain.doFilter(request, response);
@@ -131,7 +125,16 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
     /**
      * 공개 경로 여부 확인 (GET 요청만)
      */
-    private boolean isPublicPath(String requestURI) {
-        return PUBLIC_PATHS.stream().anyMatch(requestURI::startsWith);
+    private boolean shouldSkipAuthentication(String method, String requestURI) {
+        return "GET".equalsIgnoreCase(method)
+                && PUBLIC_PATHS.stream().anyMatch(requestURI::startsWith);
+    }
+
+    private String stringValue(Object value) {
+        return value instanceof String string && !string.isBlank() ? string : null;
+    }
+
+    private Number numberValue(Object value) {
+        return value instanceof Number number ? number : null;
     }
 }

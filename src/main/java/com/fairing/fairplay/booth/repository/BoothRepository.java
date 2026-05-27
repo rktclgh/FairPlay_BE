@@ -54,5 +54,8 @@ public interface BoothRepository extends JpaRepository<Booth, Long> {
            "ORDER BY b.boothTitle ASC")
     List<Booth> findByEventAndIsDeletedFalseAndPaymentStatusPaid(@Param("event") Event event);
 
+    @Query("SELECT b.boothAdmin.userId FROM Booth b WHERE b.id = :boothId")
+    Long findBoothAdminUserIdById(@Param("boothId") Long boothId);
+
     List<Booth> findByBoothAdmin_UserId(Long userId);
 }

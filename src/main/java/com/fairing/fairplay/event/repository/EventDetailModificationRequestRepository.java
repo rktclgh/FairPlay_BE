@@ -21,6 +21,16 @@ public interface EventDetailModificationRequestRepository extends JpaRepository<
     
     @Query("SELECT r FROM EventDetailModificationRequest r WHERE r.event.eventId = :eventId AND r.status.code = 'PENDING'")
     Optional<EventDetailModificationRequest> findPendingRequestByEventId(@Param("eventId") Long eventId);
+
+    @Query("""
+           SELECT r FROM EventDetailModificationRequest r
+           JOIN FETCH r.event e
+           LEFT JOIN FETCH e.manager m
+           JOIN FETCH r.status s
+           WHERE e.eventId = :eventId
+             AND s.code = 'PENDING'
+           """)
+    Optional<EventDetailModificationRequest> findPendingRequestByEventIdForResponse(@Param("eventId") Long eventId);
     
     @Query("SELECT COUNT(r) > 0 FROM EventDetailModificationRequest r WHERE r.event.eventId = :eventId AND r.status.code = 'PENDING'")
     boolean existsPendingRequestByEventId(@Param("eventId") Long eventId);
@@ -35,4 +45,36 @@ public interface EventDetailModificationRequestRepository extends JpaRepository<
             @Param("eventId") Long eventId,
             @Param("requestedBy") Long requestedBy,
             Pageable pageable);
+
+    @Query(value = """
+           SELECT r FROM EventDetailModificationRequest r
+           JOIN FETCH r.event e
+           LEFT JOIN FETCH e.manager m
+           JOIN FETCH r.status s
+           WHERE (:status IS NULL OR s.code = :status)
+             AND (:eventId IS NULL OR e.eventId = :eventId)
+             AND (:requestedBy IS NULL OR r.requestedBy = :requestedBy)
+           ORDER BY r.createdAt DESC
+           """, countQuery = """
+           SELECT COUNT(r) FROM EventDetailModificationRequest r
+           JOIN r.event e
+           JOIN r.status s
+           WHERE (:status IS NULL OR s.code = :status)
+             AND (:eventId IS NULL OR e.eventId = :eventId)
+             AND (:requestedBy IS NULL OR r.requestedBy = :requestedBy)
+           """)
+    Page<EventDetailModificationRequest> findWithFiltersForResponse(
+            @Param("status") String status,
+            @Param("eventId") Long eventId,
+            @Param("requestedBy") Long requestedBy,
+            Pageable pageable);
+
+    @Query("""
+           SELECT r FROM EventDetailModificationRequest r
+           JOIN FETCH r.event e
+           LEFT JOIN FETCH e.manager m
+           JOIN FETCH r.status s
+           WHERE r.requestId = :requestId
+           """)
+    Optional<EventDetailModificationRequest> findByIdForResponse(@Param("requestId") Long requestId);
 }

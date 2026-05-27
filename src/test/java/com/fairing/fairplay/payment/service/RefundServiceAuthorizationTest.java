@@ -26,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -59,15 +61,26 @@ class RefundServiceAuthorizationTest {
     @Mock
     private RefundStatusCodeRepository refundStatusCodeRepository;
 
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     private TestRefundService refundService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        lenient().when(refundRepository.findByIdForUpdate(any()))
+                .thenAnswer(invocation -> refundRepository.findById(invocation.getArgument(0)));
+        lenient().when(paymentRepository.findByIdForUpdate(any())).thenReturn(Optional.empty());
+        lenient().when(refundRepository.sumReservedAmountByPaymentId(any())).thenReturn(BigDecimal.ZERO);
+        lenient().when(refundStatusCodeRepository.findByCode("PROCESSING")).thenReturn(Optional.of(status("PROCESSING")));
+        lenient().when(refundStatusCodeRepository.findByCode("FAILED")).thenReturn(Optional.of(status("FAILED")));
         refundService = new TestRefundService(
                 paymentRepository,
                 refundRepository,
                 paymentStatusCodeRepository,
-                refundStatusCodeRepository
+                refundStatusCodeRepository,
+                transactionManager
         );
     }
 
@@ -117,7 +130,7 @@ class RefundServiceAuthorizationTest {
         Refund refundForApprove = refund(1L, payment(10L, 300L, event(1L, 100L)), status("REQUESTED"));
         when(refundRepository.findById(1L)).thenReturn(Optional.of(refundForApprove));
         when(refundStatusCodeRepository.findByCode("APPROVED")).thenReturn(Optional.of(status("APPROVED")));
-        when(paymentStatusCodeRepository.getReferenceById(5)).thenReturn(paymentStatus(5));
+        when(paymentStatusCodeRepository.findByCode("PARTIAL_REFUNDED")).thenReturn(Optional.of(paymentStatus(5)));
 
         assertThat(refundService.approveRefund(1L, RefundApprovalDto.builder().build(), user(1L, "ADMIN")).getPaymentId())
                 .isEqualTo(10L);
@@ -140,7 +153,7 @@ class RefundServiceAuthorizationTest {
         Refund refundForApprove = refund(1L, payment(10L, 300L, event(1L, 100L)), status("REQUESTED"));
         when(refundRepository.findById(1L)).thenReturn(Optional.of(refundForApprove));
         when(refundStatusCodeRepository.findByCode("APPROVED")).thenReturn(Optional.of(status("APPROVED")));
-        when(paymentStatusCodeRepository.getReferenceById(5)).thenReturn(paymentStatus(5));
+        when(paymentStatusCodeRepository.findByCode("PARTIAL_REFUNDED")).thenReturn(Optional.of(paymentStatus(5)));
 
         assertThat(refundService.approveRefund(1L, RefundApprovalDto.builder().build(), manager).getPaymentId())
                 .isEqualTo(10L);
@@ -310,9 +323,10 @@ class RefundServiceAuthorizationTest {
                 PaymentRepository paymentRepository,
                 RefundRepository refundRepository,
                 PaymentStatusCodeRepository paymentStatusCodeRepository,
-                RefundStatusCodeRepository refundStatusCodeRepository
+                RefundStatusCodeRepository refundStatusCodeRepository,
+                PlatformTransactionManager transactionManager
         ) {
-            super(paymentRepository, refundRepository, paymentStatusCodeRepository, refundStatusCodeRepository);
+            super(paymentRepository, refundRepository, paymentStatusCodeRepository, refundStatusCodeRepository, transactionManager);
         }
 
         @Override
@@ -321,7 +335,13 @@ class RefundServiceAuthorizationTest {
         }
 
         @Override
-        protected void processRefundRequest(String accessToken, String merchantUid, BigDecimal amount, String reason) throws IOException {
+        protected void processRefundRequest(
+                String accessToken,
+                String merchantUid,
+                BigDecimal amount,
+                BigDecimal expectedCancelledAmount,
+                String reason
+        ) throws IOException {
             // Unit tests assert authorization and mutation boundaries without calling the external PG API.
         }
     }

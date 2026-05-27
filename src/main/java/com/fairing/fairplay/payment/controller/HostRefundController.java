@@ -117,16 +117,7 @@ public class HostRefundController {
         
         validateEventManagerAccess(userDetails);
         
-        List<ManagedEventDto> managedEvents = eventManagerService.getManagedEvents(userDetails.getUserId())
-                .stream()
-                .map(event -> ManagedEventDto.builder()
-                        .eventId(event.getEventId())
-                        .eventName(event.getTitleKr())
-                        .eventStatus(event.getStatusCode() != null ? event.getStatusCode().getCode() : null)
-                        .startDate(event.getEventDetail() != null ? event.getEventDetail().getStartDate() : null)
-                        .endDate(event.getEventDetail() != null ? event.getEventDetail().getEndDate() : null)
-                        .build())
-                .toList();
+        List<ManagedEventDto> managedEvents = eventManagerService.getManagedEventDtos(userDetails.getUserId());
         
         return ResponseEntity.ok(managedEvents);
     }

@@ -26,6 +26,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final SessionService sessionService;
 
     private final String kakaoClientId;
     private final String kakaoRedirectUri;
@@ -37,6 +38,7 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             RefreshTokenService refreshTokenService,
+            SessionService sessionService,
             @Value("${kakao.client-id}") String kakaoClientId,
             @Value("${kakao.redirect-uri}") String kakaoRedirectUri,
             @Value("${kakao.client-secret:}") String kakaoClientSecret
@@ -46,6 +48,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.refreshTokenService = refreshTokenService;
+        this.sessionService = sessionService;
         this.kakaoClientId = kakaoClientId;
         this.kakaoRedirectUri = kakaoRedirectUri;
         this.kakaoClientSecret = kakaoClientSecret;
@@ -64,6 +67,8 @@ public class AuthService {
             throw new CustomException(HttpStatus.FORBIDDEN, "탈퇴한 회원입니다.");
         }
 
+        long authenticatedAt = System.currentTimeMillis();
+        sessionService.assertSessionCanBeIssued(user.getUserId(), authenticatedAt);
         String accessToken = jwtTokenProvider.generateAccessToken(
                 user.getUserId(),
                 user.getEmail(),
@@ -75,10 +80,11 @@ public class AuthService {
                 user.getEmail()
         );
 
-        refreshTokenService.saveRefreshToken(
+        refreshTokenService.saveRefreshTokenIfAuthCurrent(
                 user.getUserId(),
                 refreshToken,
-                jwtTokenProvider.getRefreshTokenExpiry()
+                jwtTokenProvider.getRefreshTokenExpiry(),
+                authenticatedAt
         );
 
         return new LoginResponse(
@@ -87,7 +93,8 @@ public class AuthService {
                 user.getUserId(),
                 user.getEmail(),
                 user.getRoleCode().getCode(),
-                user.getRoleCode().getId().longValue()
+                user.getRoleCode().getId().longValue(),
+                authenticatedAt
         );
     }
 
@@ -111,6 +118,8 @@ public class AuthService {
             throw new CustomException(HttpStatus.FORBIDDEN, "탈퇴한 회원입니다.");
         }
 
+        long authenticatedAt = System.currentTimeMillis();
+        sessionService.assertSessionCanBeIssued(user.getUserId(), authenticatedAt);
         String newAccessToken = jwtTokenProvider.generateAccessToken(
                 user.getUserId(),
                 user.getEmail(),
@@ -123,25 +132,21 @@ public class AuthService {
         );
 
         // 슬라이딩 세션 구현: 리프레시 토큰 사용 시 TTL 연장
-        refreshTokenService.saveRefreshToken(
+        refreshTokenService.saveRefreshTokenIfAuthCurrent(
                 user.getUserId(),
                 newRefreshToken,
-                jwtTokenProvider.getRefreshTokenExpiry()
+                jwtTokenProvider.getRefreshTokenExpiry(),
+                authenticatedAt
         );
         
-        // 기존 리프레시 토큰의 TTL도 연장 (사용자가 활발히 활동 중이므로)
-        refreshTokenService.extendRefreshTokenTTL(
-                user.getUserId(),
-                jwtTokenProvider.getRefreshTokenExpiry()
-        );
-
         return new LoginResponse(
                 newAccessToken, 
                 newRefreshToken,
                 user.getUserId(),
                 user.getEmail(),
                 user.getRoleCode().getCode(),
-                user.getRoleCode().getId().longValue()
+                user.getRoleCode().getId().longValue(),
+                authenticatedAt
         );
     }
 
@@ -236,6 +241,12 @@ public class AuthService {
                     return newUser;
                 });
 
+        if (user.getDeletedAt() != null) {
+            throw new CustomException(HttpStatus.FORBIDDEN, "탈퇴한 회원입니다.");
+        }
+
+        long authenticatedAt = System.currentTimeMillis();
+        sessionService.assertSessionCanBeIssued(user.getUserId(), authenticatedAt);
         // JWT, refreshToken 발급
         String ourAccessToken = jwtTokenProvider.generateAccessToken(
                 user.getUserId(),
@@ -247,10 +258,11 @@ public class AuthService {
                 user.getUserId(),
                 user.getEmail()
         );
-        refreshTokenService.saveRefreshToken(
+        refreshTokenService.saveRefreshTokenIfAuthCurrent(
                 user.getUserId(),
                 ourRefreshToken,
-                jwtTokenProvider.getRefreshTokenExpiry()
+                jwtTokenProvider.getRefreshTokenExpiry(),
+                authenticatedAt
         );
 
         return new LoginResponse(
@@ -259,7 +271,8 @@ public class AuthService {
                 user.getUserId(),
                 user.getEmail(),
                 user.getRoleCode().getCode(),
-                user.getRoleCode().getId().longValue()
+                user.getRoleCode().getId().longValue(),
+                authenticatedAt
         );
     }
 

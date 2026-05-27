@@ -1,32 +1,26 @@
 package com.fairing.fairplay.notification.service;
 
 import com.fairing.fairplay.notification.dto.NotificationResponseDto;
-import com.fairing.fairplay.notification.entity.Notification;
-import com.fairing.fairplay.notification.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * SSE(Server-Sent Events) 기반 실시간 알림 서비스
  * HTTP-only 쿠키 기반 세션 인증 사용
  *
- * 순환 참조 방지: NotificationService 대신 NotificationRepository 직접 사용
+ * 연결 수명 동안 DB 커넥션을 붙잡지 않도록 SSE 연결/전송만 담당한다.
+ * 기존 알림 조회는 NotificationService의 일반 REST API 경로에서 처리한다.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationSseService {
-
-    private final NotificationRepository notificationRepository;
 
     // userId별 SseEmitter 관리 (동시성 처리)
     private final Map<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
@@ -97,42 +91,6 @@ public class NotificationSseService {
             } catch (Exception e) {
                 log.error("SSE Emitter 제거 중 에러: userId={}", userId, e);
             }
-        }
-    }
-
-    /**
-     * 연결 즉시 기존 알림 목록 전송
-     *
-     * 커넥션 누수 방지: @Transactional(readOnly = true)로 DB 조회 후 즉시 트랜잭션 종료 및 커넥션 반환
-     *
-     * @param userId  사용자 ID
-     * @param emitter SseEmitter
-     */
-    @Transactional(readOnly = true)
-    public void sendInitialNotifications(Long userId, SseEmitter emitter) {
-        try {
-            // DB에서 기존 알림 조회 (Repository 직접 사용 - 순환 참조 방지)
-            List<Notification> notifications = notificationRepository.findByUserIdAndNotDeletedOrderByCreatedAtDesc(userId);
-            List<NotificationResponseDto> existingNotifications = notifications.stream()
-                    .map(this::toResponseDto)
-                    .collect(Collectors.toList());
-
-            // 기존 알림 전송
-            if (!existingNotifications.isEmpty()) {
-                emitter.send(SseEmitter.event()
-                        .name("initial-notifications")
-                        .data(existingNotifications));
-                log.info("📋 기존 알림 목록 전송 완료: userId={}, count={}", userId, existingNotifications.size());
-            } else {
-                // 빈 배열 전송
-                emitter.send(SseEmitter.event()
-                        .name("initial-notifications")
-                        .data(List.of()));
-                log.info("📋 기존 알림 없음: userId={}", userId);
-            }
-        } catch (IOException e) {
-            log.error("기존 알림 전송 실패: userId={}", userId, e);
-            removeEmitter(userId);
         }
     }
 
@@ -243,19 +201,4 @@ public class NotificationSseService {
         return emitters.size();
     }
 
-    /**
-     * Notification 엔티티를 DTO로 변환 (순환 참조 방지를 위해 내부 구현)
-     */
-    private NotificationResponseDto toResponseDto(Notification n) {
-        return NotificationResponseDto.builder()
-                .notificationId(n.getNotificationId())
-                .typeCode(n.getTypeCode().getCode())
-                .methodCode(n.getMethodCode().getCode())
-                .title(n.getTitle())
-                .message(n.getMessage())
-                .url(n.getUrl())
-                .isRead(n.getIsRead())
-                .createdAt(n.getCreatedAt())
-                .build();
-    }
 }

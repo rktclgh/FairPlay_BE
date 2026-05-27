@@ -20,6 +20,22 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query("SELECT p FROM Payment p WHERE p.merchantUid = :merchantUid")
     Optional<Payment> findByMerchantUidForUpdate(@Param("merchantUid") String merchantUid);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Payment p WHERE p.paymentId = :paymentId")
+    Optional<Payment> findByIdForUpdate(@Param("paymentId") Long paymentId);
+
+    @Query("""
+            SELECT p FROM Payment p
+            LEFT JOIN FETCH p.event e
+            LEFT JOIN FETCH e.eventDetail
+            JOIN FETCH p.user
+            JOIN FETCH p.paymentTargetType
+            JOIN FETCH p.paymentTypeCode
+            JOIN FETCH p.paymentStatusCode
+            WHERE p.paymentId = :paymentId
+            """)
+    Optional<Payment> findByIdForCompletionNotification(@Param("paymentId") Long paymentId);
+
     List<Payment> findByEvent_EventId(Long eventId);
 
     List<Payment> findByUser_UserId(Long userId);
@@ -46,6 +62,18 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     // 특정 target_id와 payment_target_type으로 결제 정보 조회
     Optional<Payment> findByTargetIdAndPaymentTargetType_PaymentTargetCode(Long targetId, String paymentTargetCode);
+
+    @Query("""
+            SELECT p FROM Payment p
+            JOIN FETCH p.paymentTargetType ptt
+            JOIN FETCH p.paymentTypeCode ptc
+            JOIN FETCH p.paymentStatusCode psc
+            WHERE ptt.paymentTargetCode = :paymentTargetCode
+              AND p.targetId IN :targetIds
+            """)
+    List<Payment> findByTargetIdsAndPaymentTargetTypeWithCodes(
+            @Param("targetIds") List<Long> targetIds,
+            @Param("paymentTargetCode") String paymentTargetCode);
 
     // 특정 target_id와 payment_target_type으로 모든 결제 정보 조회 (부스 취소 시 사용)
     List<Payment> findByPaymentTargetType_PaymentTargetCodeAndTargetId(String paymentTargetCode, Long targetId);

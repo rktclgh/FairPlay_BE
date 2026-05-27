@@ -2,6 +2,7 @@ package com.fairing.fairplay.event.service;
 
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventManagerRepository;
+import com.fairing.fairplay.payment.dto.ManagedEventDto;
 import com.fairing.fairplay.payment.entity.Refund;
 import com.fairing.fairplay.payment.repository.RefundRepository;
 import com.fairing.fairplay.user.entity.Users;
@@ -57,6 +58,27 @@ public class EventManagerService {
         }
         
         return eventManagerRepository.findByManager_UserId(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ManagedEventDto> getManagedEventDtos(Long userId) {
+        Users user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+
+        if (!"EVENT_MANAGER".equals(user.getRoleCode().getCode())) {
+            throw new IllegalArgumentException("EVENT_MANAGER 권한이 없습니다.");
+        }
+
+        return eventManagerRepository.findByManagerUserIdWithStatusAndDetail(userId)
+                .stream()
+                .map(event -> ManagedEventDto.builder()
+                        .eventId(event.getEventId())
+                        .eventName(event.getTitleKr())
+                        .eventStatus(event.getStatusCode() != null ? event.getStatusCode().getCode() : null)
+                        .startDate(event.getEventDetail() != null ? event.getEventDetail().getStartDate() : null)
+                        .endDate(event.getEventDetail() != null ? event.getEventDetail().getEndDate() : null)
+                        .build())
+                .toList();
     }
 
     /**

@@ -49,7 +49,7 @@ class AdminRefundServiceAuthorizationTest {
     private UserRepository userRepository;
 
     @Mock
-    private PaymentService paymentService;
+    private RefundService refundService;
 
     private AdminRefundService adminRefundService;
 
@@ -59,27 +59,26 @@ class AdminRefundServiceAuthorizationTest {
                 refundRepository,
                 refundStatusCodeRepository,
                 userRepository,
-                paymentService
+                refundService
         );
     }
 
     @Test
     void hostApproveRejectOwnEventRefundsSucceed() {
         CustomUserDetails manager = user(100L, "EVENT_MANAGER");
-        Users approver = new Users(100L);
-        Refund approveRefund = refund(1L, payment(10L, event(1L, 100L)), status("REQUESTED"));
+        Refund approveRefund = refund(1L, payment(10L, event(1L, 100L)), status("APPROVED"));
         when(refundRepository.findById(1L)).thenReturn(Optional.of(approveRefund));
-        when(userRepository.findById(100L)).thenReturn(Optional.of(approver));
-        when(refundStatusCodeRepository.findByCode("APPROVED")).thenReturn(Optional.of(status("APPROVED")));
-        when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThat(adminRefundService.approveRefund(1L, RefundApprovalDto.builder().build(), manager).getRefundId())
                 .isEqualTo(1L);
         assertThat(approveRefund.getRefundStatusCode().getCode()).isEqualTo("APPROVED");
+        verify(refundService).approveRefund(eq(1L), any(RefundApprovalDto.class), eq(manager));
 
         Refund rejectRefund = refund(2L, payment(11L, event(1L, 100L)), status("REQUESTED"));
         when(refundRepository.findById(2L)).thenReturn(Optional.of(rejectRefund));
+        when(userRepository.findById(100L)).thenReturn(Optional.of(new Users(100L)));
         when(refundStatusCodeRepository.findByCode("REJECTED")).thenReturn(Optional.of(status("REJECTED")));
+        when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThat(adminRefundService.rejectRefund(2L, RefundApprovalDto.builder().build(), manager).getRefundId())
                 .isEqualTo(2L);
@@ -87,13 +86,33 @@ class AdminRefundServiceAuthorizationTest {
     }
 
     @Test
+    void immediateApproveDelegatesToRefundServiceSafePgFlow() {
+        CustomUserDetails manager = user(100L, "EVENT_MANAGER");
+        Refund refund = refund(1L, payment(10L, event(1L, 100L)), status("APPROVED"));
+        RefundApprovalDto approval = RefundApprovalDto.builder()
+                .processImmediately(true)
+                .adminComment("즉시 환불")
+                .build();
+        when(refundRepository.findById(1L)).thenReturn(Optional.of(refund));
+
+        assertThat(adminRefundService.approveRefund(1L, approval, manager).getRefundId()).isEqualTo(1L);
+
+        verify(refundService).approveRefund(1L, approval, manager);
+        verify(refundService).recordRefundApprovalMetadata(1L, approval, manager);
+        verify(refundStatusCodeRepository, never()).findByCode("PROCESSING");
+        verify(refundStatusCodeRepository, never()).findByCode("COMPLETED");
+    }
+
+    @Test
     void hostApproveRejectOtherEventRefundsAreDeniedBeforeMutation() {
         CustomUserDetails manager = user(999L, "EVENT_MANAGER");
-        Refund refund = refund(1L, payment(10L, event(1L, 100L)), status("REQUESTED"));
-        when(refundRepository.findById(1L)).thenReturn(Optional.of(refund));
+        org.mockito.Mockito.doThrow(new AccessDeniedException("denied"))
+                .when(refundService).approveRefund(eq(1L), any(RefundApprovalDto.class), eq(manager));
 
         assertThatThrownBy(() -> adminRefundService.approveRefund(1L, RefundApprovalDto.builder().build(), manager))
                 .isInstanceOf(AccessDeniedException.class);
+        Refund refund = refund(1L, payment(10L, event(1L, 100L)), status("REQUESTED"));
+        when(refundRepository.findById(1L)).thenReturn(Optional.of(refund));
         assertThatThrownBy(() -> adminRefundService.rejectRefund(1L, RefundApprovalDto.builder().build(), manager))
                 .isInstanceOf(AccessDeniedException.class);
 
@@ -107,11 +126,13 @@ class AdminRefundServiceAuthorizationTest {
     @Test
     void hostApproveRejectEventNullRefundsAreDeniedBeforeMutation() {
         CustomUserDetails manager = user(100L, "EVENT_MANAGER");
-        Refund refund = refund(1L, payment(10L, null), status("REQUESTED"));
-        when(refundRepository.findById(1L)).thenReturn(Optional.of(refund));
+        org.mockito.Mockito.doThrow(new AccessDeniedException("denied"))
+                .when(refundService).approveRefund(eq(1L), any(RefundApprovalDto.class), eq(manager));
 
         assertThatThrownBy(() -> adminRefundService.approveRefund(1L, RefundApprovalDto.builder().build(), manager))
                 .isInstanceOf(AccessDeniedException.class);
+        Refund refund = refund(1L, payment(10L, null), status("REQUESTED"));
+        when(refundRepository.findById(1L)).thenReturn(Optional.of(refund));
         assertThatThrownBy(() -> adminRefundService.rejectRefund(1L, RefundApprovalDto.builder().build(), manager))
                 .isInstanceOf(AccessDeniedException.class);
 
@@ -137,12 +158,8 @@ class AdminRefundServiceAuthorizationTest {
     @Test
     void adminCanApproveEventNullRefundAndListWithoutManagerScope() {
         CustomUserDetails admin = user(1L, "ADMIN");
-        Users approver = new Users(1L);
-        Refund refund = refund(1L, payment(10L, null), status("REQUESTED"));
+        Refund refund = refund(1L, payment(10L, null), status("APPROVED"));
         when(refundRepository.findById(1L)).thenReturn(Optional.of(refund));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(approver));
-        when(refundStatusCodeRepository.findByCode("APPROVED")).thenReturn(Optional.of(status("APPROVED")));
-        when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThat(adminRefundService.approveRefund(1L, RefundApprovalDto.builder().build(), admin).getRefundId())
                 .isEqualTo(1L);
@@ -214,7 +231,7 @@ class AdminRefundServiceAuthorizationTest {
     private CustomUserDetails user(Long userId, String roleCode) {
         CustomUserDetails userDetails = mock(CustomUserDetails.class);
         lenient().when(userDetails.getUserId()).thenReturn(userId);
-        when(userDetails.getRoleCode()).thenReturn(roleCode);
+        lenient().when(userDetails.getRoleCode()).thenReturn(roleCode);
         return userDetails;
     }
 }
