@@ -66,7 +66,7 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (shouldSkipAuthentication(requestURI)) {
+        if (shouldSkipAuthentication(request.getMethod(), requestURI)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -125,8 +125,9 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
     /**
      * 공개 경로 여부 확인 (GET 요청만)
      */
-    private boolean shouldSkipAuthentication(String requestURI) {
-        return PUBLIC_PATHS.stream().anyMatch(requestURI::startsWith);
+    private boolean shouldSkipAuthentication(String method, String requestURI) {
+        return "GET".equalsIgnoreCase(method)
+                && PUBLIC_PATHS.stream().anyMatch(requestURI::startsWith);
     }
 
     private String stringValue(Object value) {
