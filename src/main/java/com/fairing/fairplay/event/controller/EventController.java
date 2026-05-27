@@ -7,6 +7,7 @@ import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.event.service.EventService;
 import com.fairing.fairplay.history.etc.ChangeEvent;
+import com.fairing.fairplay.history.etc.ChangeTargetId;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -179,7 +180,7 @@ public class EventController {
     @ChangeEvent("행사 수정")
     public ResponseEntity<EventDetailResponseDto> updateEventDetail(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
+            @PathVariable @ChangeTargetId Long eventId, @RequestBody EventDetailRequestDto eventDetailRequestDto) {
 
         // 전체 관리자 OR 행사 관리자 권한
         checkAuth(userDetails, EVENT);
@@ -199,7 +200,7 @@ public class EventController {
     @ChangeEvent("행사 소프트 삭제")
     public ResponseEntity<String> softDeleteEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable("eventId") Long eventId) {
+            @PathVariable("eventId") @ChangeTargetId Long eventId) {
         checkAuth(userDetails, ADMIN);
 
         eventService.softDeleteEvent(eventId, userDetails.getUserId());
@@ -213,7 +214,7 @@ public class EventController {
     @ChangeEvent("행사 삭제")
     public ResponseEntity<String> deleteEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable("eventId") Long eventId) {
+            @PathVariable("eventId") @ChangeTargetId Long eventId) {
         checkAuth(userDetails, ADMIN);
 
         eventService.deleteEvent(eventId);
@@ -227,7 +228,7 @@ public class EventController {
     @ChangeEvent("행사 강제 삭제")
     public ResponseEntity<String> forcedDeleteEvent(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable("eventId") Long eventId) {
+            @PathVariable("eventId") @ChangeTargetId Long eventId) {
         checkAuth(userDetails, ADMIN);
 
         eventService.forcedDeleteEvent(eventId);

@@ -2,6 +2,7 @@ package com.fairing.fairplay.history.aspect;
 
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
@@ -22,7 +23,9 @@ import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.entity.ChangeHistory;
 import com.fairing.fairplay.history.etc.ChangeAccount;
 import com.fairing.fairplay.history.etc.ChangeBanner;
+import com.fairing.fairplay.history.etc.ChangeContent;
 import com.fairing.fairplay.history.etc.ChangeEvent;
+import com.fairing.fairplay.history.etc.ChangeTargetId;
 import com.fairing.fairplay.history.repository.ChangeHistoryRepository;
 import com.fairing.fairplay.history.service.LoginHistoryService;
 import com.fairing.fairplay.user.entity.Users;
@@ -62,18 +65,12 @@ public class AccessAspect {
 
     @Around("@annotation(com.fairing.fairplay.history.etc.ChangeTemplate)")
     public Object aroundChangeTemplate(ProceedingJoinPoint joinPoint) throws Throwable {
-        joinPoint.getArgs();
-        Long userId = getCurrentUserId(); // 테스트용 하드코딩, getCurrentId 사용 예정
-        String targetHtml = joinPoint.getArgs()[0].toString(); // Assuming the first argument is the template name
-        Users executor = userRepository.findById(userId).orElseThrow();
-        ChangeHistory changeHistory = ChangeHistory.builder()
-                .user(executor)
-                .targetType("템플릿 수정")
-                .content(targetHtml)
-                .modifyTime(LocalDateTime.now())
-                .build();
-        changeHistoryRepository.save(changeHistory);
-        return joinPoint.proceed();
+        String content = requireChangeContent(joinPoint);
+        Users executor = requireCurrentExecutor(joinPoint);
+
+        Object result = joinPoint.proceed();
+        saveChangeHistory(executor, null, "템플릿 수정", content);
+        return result;
     }
 
     @Around("@annotation(com.fairing.fairplay.history.etc.ChangeAccount)")
@@ -82,19 +79,12 @@ public class AccessAspect {
         Method method = sig.getMethod();
         ChangeAccount changeAccount = method.getAnnotation(ChangeAccount.class);
         String changeString = changeAccount.value();
-        Long userId = getCurrentUserId(); // 테스트용 하드코딩, getCurrentId 사용 예정
-        Long targetId = (Long) joinPoint.getArgs()[1];
-        Users executor = userRepository.findById(userId).orElseThrow();
-        Users target = userRepository.findById(targetId).orElseThrow();
-        ChangeHistory changeHistory = ChangeHistory.builder()
-                .user(executor)
-                .targetId(target.getUserId())
-                .targetType("계정 정보 수정")
-                .content(changeString)
-                .modifyTime(LocalDateTime.now())
-                .build();
-        changeHistoryRepository.save(changeHistory);
-        return joinPoint.proceed();
+        Long targetId = requireChangeTargetId(joinPoint);
+        Users executor = requireCurrentExecutor(joinPoint);
+
+        Object result = joinPoint.proceed();
+        saveChangeHistory(executor, targetId, "계정 정보 수정", changeString);
+        return result;
     }
 
     @Around("@annotation(com.fairing.fairplay.history.etc.ChangeBanner)")
@@ -104,30 +94,13 @@ public class AccessAspect {
         ChangeBanner changeBanner = method.getAnnotation(ChangeBanner.class);
         String changeString = changeBanner.value();
 
-        Long userId = getCurrentUserId();
-        if (userId == null) {
-            log.warn("ChangeBanner: 사용자 ID를 가져올 수 없음");
-            return joinPoint.proceed();
-        }
+        Long bannerId = requireChangeTargetId(joinPoint);
+        Users executor = requireCurrentExecutor(joinPoint);
+        String content = changeString + " (배너 ID: " + bannerId + ")";
 
-        Users executor = userRepository.findById(userId).orElse(null);
-        if (executor == null) {
-            log.warn("ChangeBanner: 사용자를 찾을 수 없음 - userId: {}", userId);
-            return joinPoint.proceed();
-        }
-
-        // 배너 관련 작업이므로 targetId를 배너 ID로 사용
-        Long bannerId = (Long) joinPoint.getArgs()[1];
-        
-        ChangeHistory changeHistory = ChangeHistory.builder()
-                .user(executor)
-                .targetId(bannerId) // 배너 ID를 targetId로 사용
-                .targetType("배너 정보 수정")
-                .content(changeString + " (배너 ID: " + bannerId + ")")
-                .modifyTime(LocalDateTime.now())
-                .build();
-        changeHistoryRepository.save(changeHistory);
-        return joinPoint.proceed();
+        Object result = joinPoint.proceed();
+        saveChangeHistory(executor, bannerId, "배너 정보 수정", content);
+        return result;
     }
 
     @Around("@annotation(com.fairing.fairplay.history.etc.ChangeEvent)")
@@ -137,19 +110,12 @@ public class AccessAspect {
         ChangeEvent changeEvent = method.getAnnotation(ChangeEvent.class);
         String changeString = changeEvent.value();
 
-        Long userId = getCurrentUserId(); // 테스트용 하드코딩, getCurrentId 사용 예정
-        Long targetId = (Long) joinPoint.getArgs()[1];
-        Users executor = userRepository.findById(userId).orElseThrow();
-        Users target = userRepository.findById(targetId).orElseThrow();
-        ChangeHistory changeHistory = ChangeHistory.builder()
-                .user(executor)
-                .targetId(target.getUserId())
-                .targetType("행사 정보 수정")
-                .content(changeString)
-                .modifyTime(LocalDateTime.now())
-                .build();
-        changeHistoryRepository.save(changeHistory);
-        return joinPoint.proceed();
+        Long targetId = requireChangeTargetId(joinPoint);
+        Users executor = requireCurrentExecutor(joinPoint);
+
+        Object result = joinPoint.proceed();
+        saveChangeHistory(executor, targetId, "행사 정보 수정", changeString);
+        return result;
     }
 
     @Around("disableUser()")
@@ -185,12 +151,94 @@ public class AccessAspect {
 
     private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return null;
+        }
         Object principal = authentication.getPrincipal();
         if (principal instanceof CustomUserDetails customUserDetails) {
             return customUserDetails.getUserId();
         }
 
         return null; // 인증되지 않은 경우 null 반환
+    }
+
+    private Optional<Long> resolveChangeTargetId(ProceedingJoinPoint joinPoint) {
+        return resolveAnnotatedArgument(joinPoint, ChangeTargetId.class).flatMap(this::toLong);
+    }
+
+    private Optional<Object> resolveChangeContent(ProceedingJoinPoint joinPoint) {
+        return resolveAnnotatedArgument(joinPoint, ChangeContent.class);
+    }
+
+    private Optional<Object> resolveAnnotatedArgument(ProceedingJoinPoint joinPoint,
+            Class<? extends java.lang.annotation.Annotation> annotationType) {
+        if (!(joinPoint.getSignature() instanceof MethodSignature methodSignature)) {
+            return Optional.empty();
+        }
+
+        Object[] args = joinPoint.getArgs();
+        java.lang.annotation.Annotation[][] annotations = methodSignature.getMethod().getParameterAnnotations();
+        int limit = Math.min(args.length, annotations.length);
+        for (int i = 0; i < limit; i++) {
+            for (java.lang.annotation.Annotation annotation : annotations[i]) {
+                if (annotation.annotationType().equals(annotationType)) {
+                    return Optional.ofNullable(args[i]);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<Long> toLong(Object value) {
+        if (value instanceof Long longValue) {
+            return Optional.of(longValue);
+        }
+        if (value instanceof Number number) {
+            return Optional.of(number.longValue());
+        }
+        if (value instanceof String stringValue && !stringValue.isBlank()) {
+            try {
+                return Optional.of(Long.parseLong(stringValue));
+            } catch (NumberFormatException e) {
+                log.warn("감사 로그 targetId 변환 실패: {}", stringValue);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Long requireChangeTargetId(ProceedingJoinPoint joinPoint) {
+        return resolveChangeTargetId(joinPoint)
+                .orElseThrow(() -> new IllegalStateException(
+                        joinPoint.getSignature().toShortString() + " 감사 로그 targetId 바인딩 누락"));
+    }
+
+    private String requireChangeContent(ProceedingJoinPoint joinPoint) {
+        Object content = resolveChangeContent(joinPoint)
+                .orElseThrow(() -> new IllegalStateException(
+                        joinPoint.getSignature().toShortString() + " 감사 로그 content 바인딩 누락"));
+        return content != null ? content.toString() : null;
+    }
+
+    private Users requireCurrentExecutor(ProceedingJoinPoint joinPoint) {
+        Long userId = getCurrentUserId();
+        if (userId == null) {
+            throw new IllegalStateException(joinPoint.getSignature().toShortString() + " 감사 로그 인증 사용자 누락");
+        }
+
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalStateException(
+                        joinPoint.getSignature().toShortString() + " 감사 로그 실행 사용자 조회 실패: " + userId));
+    }
+
+    private void saveChangeHistory(Users executor, Long targetId, String targetType, String content) {
+        ChangeHistory changeHistory = ChangeHistory.builder()
+                .user(executor)
+                .targetId(targetId)
+                .targetType(targetType)
+                .content(content)
+                .modifyTime(LocalDateTime.now())
+                .build();
+        changeHistoryRepository.save(changeHistory);
     }
 
     /**

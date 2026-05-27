@@ -8,6 +8,8 @@ import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.history.dto.ChangeHistoryDto;
 import com.fairing.fairplay.history.dto.LoginHistoryDto;
 import com.fairing.fairplay.history.etc.ChangeAccount;
+import com.fairing.fairplay.history.etc.ChangeContent;
+import com.fairing.fairplay.history.etc.ChangeTargetId;
 import com.fairing.fairplay.history.etc.ChangeTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -64,7 +66,7 @@ public class SuperAdminController {
     @PostMapping("/disable-user/{userId}")
     // 권한 관련 기능 추가 예정
     public ResponseEntity<String> disableUser(
-            @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long userId) {
+            @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable @ChangeTargetId Long userId) {
 
         superAdminService.disableUser(userId);
 
@@ -96,7 +98,7 @@ public class SuperAdminController {
     @PostMapping("/modify-auth/{userId}")
     // 권한매핑 추가예정
     public ResponseEntity<String> modifyAuth(@AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable("userId") Long userId,
+            @PathVariable("userId") @ChangeTargetId Long userId,
             @RequestBody List<String> authList) {
 
         superAdminService.modifyAuth(userId, authList);
@@ -121,7 +123,7 @@ public class SuperAdminController {
     @ChangeTemplate("템플릿 저장")
     @PostMapping("/template/save/{name}")
     public ResponseEntity<String> saveTemplate(@PathVariable String name,
-            @AuthenticationPrincipal CustomUserDetails userDetails, @RequestBody String content) throws IOException {
+            @AuthenticationPrincipal CustomUserDetails userDetails, @RequestBody @ChangeContent String content) throws IOException {
         superAdminService.saveTemplate(name, content);
         return ResponseEntity.ok("템플릿 저장완료");
     }
