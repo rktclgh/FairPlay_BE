@@ -67,6 +67,7 @@ public class EventApplyResponseDto {
         // Location 정보
         if (eventApply.getLocation() != null) {
             dto.setLocationId(eventApply.getLocation().getLocationId());
+            dto.setAddress(eventApply.getLocation().getAddress());
             dto.setLocationName(eventApply.getLocation().getPlaceName());
         }
         dto.setLocationDetail(eventApply.getLocationDetail());

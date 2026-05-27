@@ -268,9 +268,8 @@ public class EventController {
 
         // 행사 담당자인 경우, 자신이 담당하는 행사만 접근 가능
         if (EVENT_MANAGER_ROLE.equals(userRole)) {
-            Long managerId = eventRepository.findById(eventId)
-                    .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."))
-                    .getManager().getUserId();
+            Long managerId = eventRepository.findManagerUserIdByEventId(eventId)
+                    .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."));
 
             if (managerId.equals(userDetails.getUserId())) {
                 return;
@@ -282,9 +281,8 @@ public class EventController {
 
     private void checkEventManager(CustomUserDetails userDetails, Long eventId) {
         log.info("행사 관리자 추가 권한 확인");
-        Long managerId = eventRepository.findById(eventId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."))
-                .getManager().getUserId();
+        Long managerId = eventRepository.findManagerUserIdByEventId(eventId)
+                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 행사를 찾을 수 없습니다."));
 
         Integer authority = userDetails.getRoleId();
 

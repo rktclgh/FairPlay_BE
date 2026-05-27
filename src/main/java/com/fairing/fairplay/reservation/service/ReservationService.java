@@ -13,6 +13,7 @@ import com.fairing.fairplay.payment.repository.PaymentRepository;
 import com.fairing.fairplay.payment.repository.PaymentStatusCodeRepository;
 import com.fairing.fairplay.reservation.dto.ReservationAttendeeDto;
 import com.fairing.fairplay.reservation.dto.ReservationRequestDto;
+import com.fairing.fairplay.reservation.dto.ReservationResponseDto;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.entity.ReservationLog;
 import com.fairing.fairplay.reservation.entity.ReservationStatusCode;
@@ -43,6 +44,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -136,6 +140,12 @@ public class ReservationService {
         // 알림은 별도 서비스에서 처리 (순환참조 방지)
 
         return savedReservation;
+    }
+
+    @Transactional
+    public ReservationResponseDto createReservationResponse(ReservationRequestDto requestDto, Long userId, Long paymentId) {
+        Reservation reservation = createReservation(requestDto, userId, paymentId);
+        return toResponseDto(reservation);
     }
 
     // 결제가 있는 예약 생성 (결제 우선 플로우)
@@ -329,6 +339,12 @@ public class ReservationService {
         return updatedReservation;
     }
 
+    @Transactional
+    public ReservationResponseDto updateReservationResponse(ReservationRequestDto requestDto, Long userId) {
+        Reservation reservation = updateReservation(requestDto, userId);
+        return toResponseDto(reservation);
+    }
+
     // 예약 상세 조회
     @Transactional(readOnly = true)
     public Reservation getReservationById(Long reservationId) {
@@ -337,11 +353,25 @@ public class ReservationService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약 ID: " + reservationId));
     }
 
+    @Transactional(readOnly = true)
+    public ReservationResponseDto getReservationResponseById(Long reservationId) {
+        Reservation reservation = reservationRepository.findByIdForResponse(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약 ID: " + reservationId));
+        return toResponseDto(reservation);
+    }
+
     // 특정 행사의 전체 예약 조회
     @Transactional(readOnly = true)
     public List<Reservation> getReservationsByEvent(Long eventId) {
 
         return reservationRepository.findByEvent_EventId(eventId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReservationResponseDto> getReservationResponsesByEvent(Long eventId) {
+        return reservationRepository.findByEventIdForResponse(eventId).stream()
+                .map(this::toResponseDto)
+                .toList();
     }
 
     // 예약 취소
@@ -401,6 +431,47 @@ public class ReservationService {
     @Transactional(readOnly = true)
     public List<Reservation> getMyReservations(Long userId) {
         return reservationRepository.findByUser_userId(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReservationResponseDto> getMyReservationResponses(Long userId) {
+        List<ReservationResponseDto> responses = reservationRepository.findByUserIdForResponse(userId).stream()
+                .map(this::toResponseDto)
+                .toList();
+        populateReservationPayments(responses);
+        return responses;
+    }
+
+    private ReservationResponseDto toResponseDto(Reservation reservation) {
+        return ReservationResponseDto.from(reservation);
+    }
+
+    private void populateReservationPayments(List<ReservationResponseDto> responses) {
+        List<Long> reservationIds = responses.stream()
+                .map(ReservationResponseDto::getReservationId)
+                .toList();
+        if (reservationIds.isEmpty()) {
+            return;
+        }
+
+        Map<Long, ReservationResponseDto> responseByReservationId = responses.stream()
+                .collect(Collectors.toMap(ReservationResponseDto::getReservationId, Function.identity()));
+
+        List<Payment> payments = paymentRepository.findByTargetIdsAndPaymentTargetTypeWithCodes(
+                reservationIds, "RESERVATION");
+        for (Payment payment : payments) {
+            ReservationResponseDto dto = responseByReservationId.get(payment.getTargetId());
+            if (dto == null) {
+                continue;
+            }
+            dto.setPaymentId(payment.getPaymentId());
+            dto.setMerchantUid(payment.getMerchantUid());
+            dto.setImpUid(payment.getImpUid());
+            dto.setPaymentAmount(payment.getAmount());
+            dto.setPaymentStatus(payment.getPaymentStatusCode().getName());
+            dto.setPaymentMethod(payment.getPaymentTypeCode().getName());
+            dto.setPaidAt(payment.getPaidAt());
+        }
     }
 
     // 참가자 명단 조회 (행사 관리자용) - 페이지네이션 지원

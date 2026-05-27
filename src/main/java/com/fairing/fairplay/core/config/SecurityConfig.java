@@ -2,7 +2,6 @@ package com.fairing.fairplay.core.config;
 
 import com.fairing.fairplay.core.security.SessionAuthenticationFilter;
 import com.fairing.fairplay.core.service.SessionService;
-import com.fairing.fairplay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +19,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final UserRepository userRepository;
     private final SessionService sessionService;
 
     @Bean
@@ -180,7 +178,7 @@ public class SecurityConfig {
                                                 }))
                                 // 쿠키 기반 세션 인증 필터 추가
                                 .addFilterBefore(
-                                                new SessionAuthenticationFilter(sessionService, userRepository),
+                                                new SessionAuthenticationFilter(sessionService),
                                                 UsernamePasswordAuthenticationFilter.class);
 
                 return http.build();

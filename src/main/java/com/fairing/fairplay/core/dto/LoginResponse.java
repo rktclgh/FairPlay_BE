@@ -1,5 +1,6 @@
 package com.fairing.fairplay.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,4 +15,6 @@ public class LoginResponse {
     private String email;
     private String role;
     private Long roleId;
+    @JsonIgnore
+    private Long authenticatedAt;
 }

@@ -240,6 +240,7 @@ public class EventService {
     }
 
     // 사용자 담당 이벤트 조회 (한 계정당 하나)
+    @Transactional(readOnly = true)
     public EventResponseDto getUserEvent(CustomUserDetails userDetails) {
         String roleCode = userDetails.getRoleCode();
         Long userId = userDetails.getUserId();

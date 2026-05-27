@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.entity.EmailServiceFactory;
+import com.fairing.fairplay.core.service.UserSessionRevocationService;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.user.dto.EventAdminRequestDto;
@@ -37,6 +38,7 @@ public class UserService {
     private final EmailServiceFactory emailServiceFactory; // 변경!
     private final EventAdminRepository eventAdminRepository;
     private final EventRepository eventRepository;
+    private final UserSessionRevocationService userSessionRevocationService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -114,6 +116,7 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("사용자 정보를 찾을 수 없습니다."));
         user.setDeletedAt(java.time.LocalDateTime.now());
         userRepository.save(user);
+        userSessionRevocationService.revokeAfterCommit(userId);
     }
 
     @Transactional

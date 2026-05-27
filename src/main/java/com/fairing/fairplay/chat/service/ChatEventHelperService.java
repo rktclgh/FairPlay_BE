@@ -13,8 +13,7 @@ public class ChatEventHelperService {
 
     // eventId로 담당자 userId 리턴 (없으면 첫 번째 ADMIN 사용자)
     public Long getManagerUserId(Long eventId) {
-        return eventRepository.findById(eventId)
-                .map(e -> e.getManager().getUserId())
+        return eventRepository.findManagerUserIdByEventId(eventId)
                 .orElseGet(this::getAdminUserId);
     }
 

@@ -17,6 +17,44 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
   List<Reservation> findByUser_userId(Long userUserId);
 
+  @Query("""
+      SELECT r FROM Reservation r
+      JOIN FETCH r.event e
+      LEFT JOIN FETCH e.eventDetail ed
+      LEFT JOIN FETCH r.schedule s
+      JOIN FETCH r.ticket t
+      JOIN FETCH r.user u
+      JOIN FETCH r.reservationStatusCode rsc
+      WHERE r.reservationId = :reservationId
+      """)
+  Optional<Reservation> findByIdForResponse(@Param("reservationId") Long reservationId);
+
+  @Query("""
+      SELECT r FROM Reservation r
+      JOIN FETCH r.event e
+      LEFT JOIN FETCH e.eventDetail ed
+      LEFT JOIN FETCH r.schedule s
+      JOIN FETCH r.ticket t
+      JOIN FETCH r.user u
+      JOIN FETCH r.reservationStatusCode rsc
+      WHERE r.event.eventId = :eventId
+      ORDER BY r.createdAt DESC
+      """)
+  List<Reservation> findByEventIdForResponse(@Param("eventId") Long eventId);
+
+  @Query("""
+      SELECT r FROM Reservation r
+      JOIN FETCH r.event e
+      LEFT JOIN FETCH e.eventDetail ed
+      LEFT JOIN FETCH r.schedule s
+      JOIN FETCH r.ticket t
+      JOIN FETCH r.user u
+      JOIN FETCH r.reservationStatusCode rsc
+      WHERE r.user.userId = :userId
+      ORDER BY r.createdAt DESC
+      """)
+  List<Reservation> findByUserIdForResponse(@Param("userId") Long userId);
+
   List<Reservation> findByUser_UserIdAndEvent_EventId(Long userId, Long eventId);
 
   Optional<Reservation> findByReservationIdAndUser_UserId(Long reservationId, Long userId);

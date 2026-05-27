@@ -13,6 +13,7 @@ import com.fairing.fairplay.booth.repository.BoothPaymentStatusCodeRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.service.BoothEmailService;
+import com.fairing.fairplay.core.service.UserSessionRevocationService;
 import com.fairing.fairplay.file.entity.File;
 import com.fairing.fairplay.file.repository.FileRepository;
 import com.fairing.fairplay.file.service.FileService;
@@ -59,6 +60,7 @@ public class BoothCancelService {
     private final NotificationService notificationService;
     private final PaymentRepository paymentRepository;
     private final RefundService refundService;
+    private final UserSessionRevocationService userSessionRevocationService;
 
     @Transactional(readOnly = true)
     public BoothCancelPageDto getBoothCancelInfo(Long applicationId) {
@@ -172,6 +174,7 @@ public class BoothCancelService {
                 // 4. Users 엔티티 소프트 삭제 (결제 기록 보존을 위해 물리적 삭제 대신 소프트 삭제)
                 adminUser.setDeletedAt(LocalDateTime.now());
                 userRepository.save(adminUser);
+                userSessionRevocationService.revokeAfterCommit(adminUser.getUserId());
                 log.info("부스 관리자 계정 소프트 삭제 완료 - Email: {}", application.getBoothEmail());
             }
 
@@ -179,9 +182,10 @@ public class BoothCancelService {
             log.error("부스 및 관리자 계정 삭제 중 오류 발생 - ApplicationId: {}, 오류: {}", 
                     application.getId(), e.getMessage());
             // 외래 키 제약 조건 오류인 경우 더 자세한 로그
-            if (e.getMessage().contains("foreign key constraint")) {
+            if (e.getMessage() != null && e.getMessage().contains("foreign key constraint")) {
                 log.error("외래 키 제약 조건 위반: 부스 테이블에서 booth_admin_id 참조가 남아있습니다. 부스 삭제를 먼저 확인해주세요.");
             }
+            throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR, "부스 및 관리자 계정 삭제 중 오류가 발생했습니다.");
         }
     }
 

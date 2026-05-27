@@ -154,11 +154,6 @@ public class AccessAspect {
 
     @Around("disableUser()")
     public Object aroundDisableUser(ProceedingJoinPoint joinPoint) throws Throwable {
-        Object[] args = joinPoint.getArgs();
-        Long targetId = (Long) args[1];
-        Users user = userRepository.findById(targetId).orElseThrow();
-        user.setDeletedAt(LocalDateTime.now());
-        userRepository.save(user);
         return joinPoint.proceed();
     }
 

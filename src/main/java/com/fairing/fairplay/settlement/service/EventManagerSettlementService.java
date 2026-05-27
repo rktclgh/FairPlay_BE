@@ -44,6 +44,7 @@ public class EventManagerSettlementService {
         return settlementPageList;
     }
 
+    @Transactional(readOnly = true)
     public EventManagerDetailSettlementDto getDetailSettlement(Long settlementId, Long userId) {
 
         Settlement settlement = settlementRepository.findById(settlementId)
