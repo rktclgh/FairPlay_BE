@@ -71,4 +71,18 @@ public interface QrTicketRepository extends JpaRepository<QrTicket, Long> {
   boolean existsByQrCode(String qrCode);
 
   boolean existsByManualCode(String manualCode);
+
+  @Query("""
+      SELECT COUNT(q) > 0
+      FROM QrTicket q
+      JOIN q.attendee a
+      JOIN a.reservation r
+      JOIN r.user u
+      WHERE q.id = :qrTicketId
+        AND u.userId = :userId
+      """)
+  boolean existsByIdAndReservationUserId(
+      @Param("qrTicketId") Long qrTicketId,
+      @Param("userId") Long userId
+  );
 }

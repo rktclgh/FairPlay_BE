@@ -31,12 +31,20 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
     private static final String SESSION_COOKIE_NAME = "FAIRPLAY_SESSION";
 
     private static final List<String> PUBLIC_PATHS = Arrays.asList(
+        "/api/creators",
+        "/api/events",
+        "/api/banners",
+        "/api/reviews",
+        "/api/calendar",
         "/static/",
         "/assets/",
         "/images/",
         "/favicon.ico",
         "/index.html",
-        "/ws/",
+        "/api/auth/",
+        "/api/users/signup",
+        "/api/users/check-",
+        "/api/email/",
         "/api/qr-tickets/",
         "/uploads/"
     );

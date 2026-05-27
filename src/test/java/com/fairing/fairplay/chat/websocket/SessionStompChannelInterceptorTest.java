@@ -44,11 +44,11 @@ class SessionStompChannelInterceptorTest {
     }
 
     @Test
-    void allowsPublicQrSubscribeWithoutAuthentication() {
+    void rejectsUnauthenticatedQrSubscribe() {
         Message<byte[]> message = stompMessage(StompCommand.SUBSCRIBE, "/topic/check-in/123", null);
 
-        assertThatCode(() -> interceptor.preSend(message, null))
-                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> interceptor.preSend(message, null))
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
