@@ -2,6 +2,7 @@ package com.fairing.fairplay.reservation.service;
 
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.notification.dto.NotificationRequestDto;
@@ -34,6 +35,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,6 +65,10 @@ public class ReservationService {
     private final ScheduleTicketRepository scheduleTicketRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentStatusCodeRepository paymentStatusCodeRepository;
+
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
+    private static final String ROLE_COMMON = "COMMON";
 
     // 예약 신청 (결제 데이터 생성 이후 마지막에 결제 완료 상태로 저장)
     @Transactional
@@ -347,10 +353,12 @@ public class ReservationService {
 
     // 예약 상세 조회
     @Transactional(readOnly = true)
-    public Reservation getReservationById(Long reservationId) {
+    public Reservation getReservationById(Long eventId, Long reservationId, CustomUserDetails userDetails) {
 
-        return reservationRepository.findById(reservationId)
+        Reservation reservation = reservationRepository.findByReservationIdAndEvent_EventId(reservationId, eventId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약 ID: " + reservationId));
+        requireReservationDetailReadAccess(reservation, eventId, userDetails);
+        return reservation;
     }
 
     @Transactional(readOnly = true)
@@ -360,10 +368,20 @@ public class ReservationService {
         return toResponseDto(reservation);
     }
 
+    @Transactional(readOnly = true)
+    public ReservationResponseDto getReservationResponseById(Long eventId, Long reservationId,
+            CustomUserDetails userDetails) {
+        Reservation reservation = reservationRepository.findByIdForResponse(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약 ID: " + reservationId));
+        requireReservationDetailReadAccess(reservation, eventId, userDetails);
+        return toResponseDto(reservation);
+    }
+
     // 특정 행사의 전체 예약 조회
     @Transactional(readOnly = true)
-    public List<Reservation> getReservationsByEvent(Long eventId) {
+    public List<Reservation> getReservationsByEvent(Long eventId, CustomUserDetails userDetails) {
 
+        requireEventReservationReadAccess(eventId, userDetails);
         return reservationRepository.findByEvent_EventId(eventId);
     }
 
@@ -372,6 +390,13 @@ public class ReservationService {
         return reservationRepository.findByEventIdForResponse(eventId).stream()
                 .map(this::toResponseDto)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReservationResponseDto> getReservationResponsesByEvent(Long eventId,
+            CustomUserDetails userDetails) {
+        requireEventReservationReadAccess(eventId, userDetails);
+        return getReservationResponsesByEvent(eventId);
     }
 
     // 예약 취소
@@ -477,8 +502,11 @@ public class ReservationService {
     // 참가자 명단 조회 (행사 관리자용) - 페이지네이션 지원
     @Transactional(readOnly = true)
     public Page<ReservationAttendeeDto> getReservationAttendees(
-            Long eventId, String status, String name, String phone, Long reservationId, Pageable pageable) {
+            Long eventId, String status, String name, String phone, Long reservationId, Pageable pageable,
+            CustomUserDetails userDetails) {
         
+        requireEventReservationReadAccess(eventId, userDetails);
+
         // AttendeeRepository에서 페이지네이션과 필터링을 지원하는 메서드 호출
         Page<Attendee> attendeePage = attendeeRepository.findAttendeesWithFilters(
                 eventId, status, name, phone, reservationId, pageable);
@@ -489,7 +517,13 @@ public class ReservationService {
 
     // 참가자 명단 조회 (엑셀 다운로드용)
     @Transactional(readOnly = true)
-    public List<ReservationAttendeeDto> getReservationAttendees(Long eventId, String status) {
+    public List<ReservationAttendeeDto> getReservationAttendees(Long eventId, String status,
+            CustomUserDetails userDetails) {
+        requireEventReservationReadAccess(eventId, userDetails);
+        return getReservationAttendeesForExcel(eventId, status);
+    }
+
+    private List<ReservationAttendeeDto> getReservationAttendeesForExcel(Long eventId, String status) {
         List<Attendee> attendees = attendeeRepository.findAttendeesByEventId(eventId, status);
         
         return attendees.stream()
@@ -499,8 +533,9 @@ public class ReservationService {
 
     // 참가자 명단 엑셀 파일 생성
     @Transactional(readOnly = true)
-    public byte[] generateAttendeesExcel(Long eventId, String status) throws IOException {
-        List<ReservationAttendeeDto> attendees = getReservationAttendees(eventId, status);
+    public byte[] generateAttendeesExcel(Long eventId, String status, CustomUserDetails userDetails) throws IOException {
+        requireEventReservationReadAccess(eventId, userDetails);
+        List<ReservationAttendeeDto> attendees = getReservationAttendeesForExcel(eventId, status);
         
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("참가자 명단");
@@ -556,5 +591,59 @@ public class ReservationService {
             workbook.write(out);
             return out.toByteArray();
         }
+    }
+
+    public void requireEventReservationReadAccess(Long eventId, CustomUserDetails userDetails) {
+        requireAuthenticated(userDetails);
+
+        String roleCode = userDetails.getRoleCode();
+        if (ROLE_ADMIN.equals(roleCode)) {
+            return;
+        }
+        if (!ROLE_EVENT_MANAGER.equals(roleCode)) {
+            throw new AccessDeniedException("행사 예약 정보를 조회할 권한이 없습니다.");
+        }
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 EVENT ID: " + eventId));
+        if (!isManagedBy(event, userDetails.getUserId())) {
+            throw new AccessDeniedException("행사 예약 정보를 조회할 권한이 없습니다.");
+        }
+    }
+
+    public void requireReservationDetailReadAccess(Reservation reservation, Long eventId,
+            CustomUserDetails userDetails) {
+        requireAuthenticated(userDetails);
+
+        if (reservation.getEvent() == null || !eventId.equals(reservation.getEvent().getEventId())) {
+            throw new IllegalArgumentException("존재하지 않는 예약 ID: " + reservation.getReservationId());
+        }
+
+        String roleCode = userDetails.getRoleCode();
+        if (reservation.getUser() != null
+                && userDetails.getUserId().equals(reservation.getUser().getUserId())) {
+            return;
+        }
+        if (ROLE_ADMIN.equals(roleCode)) {
+            return;
+        }
+        if (ROLE_EVENT_MANAGER.equals(roleCode) && isManagedBy(reservation.getEvent(), userDetails.getUserId())) {
+            return;
+        }
+
+        throw new AccessDeniedException("예약 상세를 조회할 권한이 없습니다.");
+    }
+
+    private void requireAuthenticated(CustomUserDetails userDetails) {
+        if (userDetails == null || userDetails.getUserId() == null) {
+            throw new AccessDeniedException("로그인이 필요합니다.");
+        }
+    }
+
+    private boolean isManagedBy(Event event, Long userId) {
+        return event != null
+                && event.getManager() != null
+                && event.getManager().getUserId() != null
+                && event.getManager().getUserId().equals(userId);
     }
 }

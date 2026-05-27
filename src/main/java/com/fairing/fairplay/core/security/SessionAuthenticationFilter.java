@@ -30,14 +30,14 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String SESSION_COOKIE_NAME = "FAIRPLAY_SESSION";
 
-    private static final List<String> AUTHENTICATION_SKIP_PATHS = Arrays.asList(
+    private static final List<String> PUBLIC_PATHS = Arrays.asList(
         "/static/",
         "/assets/",
         "/images/",
         "/favicon.ico",
         "/index.html",
         "/ws/",
-        "/api/uploads/",
+        "/api/qr-tickets/",
         "/uploads/"
     );
 
@@ -118,7 +118,7 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
      * 공개 경로 여부 확인 (GET 요청만)
      */
     private boolean shouldSkipAuthentication(String requestURI) {
-        return AUTHENTICATION_SKIP_PATHS.stream().anyMatch(requestURI::startsWith);
+        return PUBLIC_PATHS.stream().anyMatch(requestURI::startsWith);
     }
 
     private String stringValue(Object value) {

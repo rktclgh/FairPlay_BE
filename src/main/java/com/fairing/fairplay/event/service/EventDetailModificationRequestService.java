@@ -2,6 +2,7 @@ package com.fairing.fairplay.event.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.service.LocalFileService;
+import com.fairing.fairplay.core.util.TempUploadKeyPolicy;
 // import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.core.util.JsonUtil;
 import com.fairing.fairplay.event.dto.EventDetailModificationDto;
@@ -24,6 +25,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -77,9 +80,7 @@ public class EventDetailModificationRequestService {
                     String cdnUrl = localFileService.getCdnUrl(newKey);
                     newFileKeys.add(newKey);
 
-                    // 임시 URL과 영구 URL 매핑 저장
-                    String tempCdnUrl = localFileService.getCdnUrl(fileDto.getS3Key());
-                    urlMappings.put(tempCdnUrl, cdnUrl);
+                    addTempDownloadUrlMappings(urlMappings, fileDto.getS3Key(), cdnUrl);
                     
                     /* S3 버전 (롤백용 주석처리)
                     String newKey = awsS3Service.moveToPermanent(fileDto.getS3Key(), directory);
@@ -160,6 +161,16 @@ public class EventDetailModificationRequestService {
         }
 
         return modificationRequestRepository.save(request);
+    }
+
+    private void addTempDownloadUrlMappings(Map<String, String> urlMappings, String tempKey, String permanentUrl) {
+        String normalizedKey = TempUploadKeyPolicy.normalizeKey(tempKey);
+        if (normalizedKey.isBlank()) {
+            return;
+        }
+
+        urlMappings.put("/api/uploads/download?key=" + normalizedKey, permanentUrl);
+        urlMappings.put("/api/uploads/download?key=" + URLEncoder.encode(normalizedKey, StandardCharsets.UTF_8), permanentUrl);
     }
 
     @Transactional

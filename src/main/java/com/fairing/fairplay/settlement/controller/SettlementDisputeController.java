@@ -1,11 +1,9 @@
 package com.fairing.fairplay.settlement.controller;
 
-import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.etc.FunctionAuth;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.core.service.LocalFileService;
 import com.fairing.fairplay.settlement.dto.SettlementDisputeDto;
-import com.fairing.fairplay.settlement.entity.SettlementDisputeFile;
-import com.fairing.fairplay.settlement.repository.SettlementDisputeFileRepository;
 import com.fairing.fairplay.settlement.service.SettlementDisputeService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,7 +26,6 @@ import java.util.List;
 public class SettlementDisputeController {
 
     private final SettlementDisputeService disputeService;
-    private final SettlementDisputeFileRepository disputeFileRepository;
     private final LocalFileService localFileService;
 
     /**
@@ -36,10 +34,11 @@ public class SettlementDisputeController {
     @PostMapping("/files/upload")
     @FunctionAuth("disputeUploadFiles")
     public ResponseEntity<SettlementDisputeDto.TempUploadResponse> disputeUploadFiles(
-            @RequestParam("files") List<MultipartFile> files) {
+            @RequestParam("files") List<MultipartFile> files,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
 
-        return ResponseEntity.ok(disputeService.uploadDisputeFiles(files));
+        return ResponseEntity.ok(disputeService.uploadDisputeFiles(files, userDetails));
     }
 
     /**
@@ -49,10 +48,9 @@ public class SettlementDisputeController {
     @FunctionAuth("submitDispute")
     public ResponseEntity<SettlementDisputeDto.Response> submitDispute(
             @RequestBody SettlementDisputeDto.CreateRequest request,
-            @RequestHeader("User-Id") Long requesterId,
-            @RequestHeader("User-Name") String requesterName) {
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        SettlementDisputeDto.Response response = disputeService.submitDispute(request, requesterId);
+        SettlementDisputeDto.Response response = disputeService.submitDispute(request, userDetails);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -61,8 +59,9 @@ public class SettlementDisputeController {
      */
     @GetMapping("/{disputeId}")
     @FunctionAuth("getDetailDispute")
-    public ResponseEntity<SettlementDisputeDto.Response> getDetailDispute(@PathVariable Long disputeId) {
-        SettlementDisputeDto.Response response = disputeService.getDispute(disputeId);
+    public ResponseEntity<SettlementDisputeDto.Response> getDetailDispute(@PathVariable Long disputeId,
+                                                                          @AuthenticationPrincipal CustomUserDetails userDetails) {
+        SettlementDisputeDto.Response response = disputeService.getDispute(disputeId, userDetails);
         return ResponseEntity.ok(response);
     }
 
@@ -71,8 +70,10 @@ public class SettlementDisputeController {
      */
     @GetMapping
     @FunctionAuth("getDisputeList")
-    public ResponseEntity<Page<SettlementDisputeDto.ListResponse>> getDisputeList(Pageable pageable) {
-        Page<SettlementDisputeDto.ListResponse> response = disputeService.getDisputeList(pageable);
+    public ResponseEntity<Page<SettlementDisputeDto.ListResponse>> getDisputeList(
+            Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Page<SettlementDisputeDto.ListResponse> response = disputeService.getDisputeList(pageable, userDetails);
         return ResponseEntity.ok(response);
     }
 
@@ -83,10 +84,9 @@ public class SettlementDisputeController {
     @FunctionAuth("reviewDispute")
     public ResponseEntity<SettlementDisputeDto.Response> reviewDispute(
             @RequestBody SettlementDisputeDto.AdminReviewRequest request,
-            @RequestHeader("Admin-Id") Long adminId,
-            @RequestHeader("Admin-Name") String adminName) {
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        SettlementDisputeDto.Response response = disputeService.reviewDispute(request, adminId);
+        SettlementDisputeDto.Response response = disputeService.reviewDispute(request, userDetails);
         return ResponseEntity.ok(response);
     }
 
@@ -95,14 +95,15 @@ public class SettlementDisputeController {
      */
     @GetMapping("/files/download")
     @FunctionAuth("downloadDisputeFile")
-    public void downloadDisputeFile(@RequestParam Long fileId, HttpServletResponse response) throws IOException {
-        SettlementDisputeFile file = disputeFileRepository.findById(fileId)
-                .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "파일을 찾을 수 없습니다."));
+    public void downloadDisputeFile(@RequestParam Long fileId,
+                                    @AuthenticationPrincipal CustomUserDetails userDetails,
+                                    HttpServletResponse response) throws IOException {
+        String fileKey = disputeService.getAuthorizedFileKey(fileId, userDetails);
 
         // 파일 다운로드
-        localFileService.downloadFile(file.getS3Key(), response);
+        localFileService.downloadFile(fileKey, response);
 
-        log.info("이의신청 파일 다운로드 - FileId: {}, S3Key: {}", fileId, file.getS3Key());
+        log.info("이의신청 파일 다운로드 - FileId: {}", fileId);
     }
 
     /**
@@ -110,9 +111,11 @@ public class SettlementDisputeController {
      */
     @GetMapping("/settlement/{settlementId}")
     @FunctionAuth("getDisputeBySettlement")
-    public ResponseEntity<SettlementDisputeDto.Response> getDisputeBySettlement(@PathVariable Long settlementId) {
+    public ResponseEntity<SettlementDisputeDto.Response> getDisputeBySettlement(
+            @PathVariable Long settlementId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
         // 해당 정산의 이의신청이 있는지 조회
-        return disputeService.getDisputeBySettlementId(settlementId)
+        return disputeService.getDisputeBySettlementId(settlementId, userDetails)
                 .map(dispute -> ResponseEntity.ok(dispute))
                 .orElse(ResponseEntity.notFound().build());
     }

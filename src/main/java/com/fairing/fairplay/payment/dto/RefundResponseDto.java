@@ -39,7 +39,7 @@ public class RefundResponseDto {
         return RefundResponseDto.builder()
                 .refundId(refund.getRefundId())
                 .paymentId(refund.getPayment().getPaymentId())
-                .eventId(refund.getPayment().getEvent().getEventId())
+                .eventId(refund.getPayment().getEvent() != null ? refund.getPayment().getEvent().getEventId() : null)
                 .userId(refund.getPayment().getUser().getUserId())
                 .merchantUid(refund.getPayment().getMerchantUid())
                 .refundAmount(refund.getAmount())

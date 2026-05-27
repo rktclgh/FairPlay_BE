@@ -4,10 +4,10 @@ import com.fairing.fairplay.booth.dto.BoothEntryRequestDto;
 import com.fairing.fairplay.booth.dto.BoothEntryResponseDto;
 import com.fairing.fairplay.booth.service.BoothQrService;
 import com.fairing.fairplay.core.security.CustomUserDetails;
-import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,7 +22,11 @@ public class BoothQrController {
   private final BoothQrService boothQrService;
 
   @PostMapping
-  public ResponseEntity<BoothEntryResponseDto> boothEntry(@RequestBody BoothEntryRequestDto dto) {
-    return ResponseEntity.status(HttpStatus.OK).body(boothQrService.checkIn(dto));
+  @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('EVENT_MANAGER') or hasAuthority('BOOTH_MANAGER')")
+  public ResponseEntity<BoothEntryResponseDto> boothEntry(
+      @RequestBody BoothEntryRequestDto dto,
+      @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.status(HttpStatus.OK).body(
+        boothQrService.checkIn(dto, userDetails.getUserId(), userDetails.getRoleCode()));
   }
 }

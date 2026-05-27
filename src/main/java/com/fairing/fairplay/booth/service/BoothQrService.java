@@ -8,7 +8,6 @@ import com.fairing.fairplay.booth.entity.BoothExperienceReservation;
 import com.fairing.fairplay.booth.entity.BoothExperienceStatusCode;
 import com.fairing.fairplay.booth.repository.BoothExperienceStatusCodeRepository;
 import com.fairing.fairplay.common.exception.CustomException;
-import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.qr.dto.scan.CheckResponseDto;
 import com.fairing.fairplay.qr.entity.QrTicket;
 import com.fairing.fairplay.qr.service.QrTicketEntryService;
@@ -34,7 +33,7 @@ public class BoothQrService {
 
   // QR 티켓을 통한 부스 입장 처리
   @Transactional
-  public BoothEntryResponseDto checkIn(BoothEntryRequestDto dto) {
+  public BoothEntryResponseDto checkIn(BoothEntryRequestDto dto, Long managerId, String roleCode) {
     // 2. 필수 값 확인
     if (dto.getBoothExperienceId() == null || dto.getBoothId() == null || dto.getEventId() == null
         ||  dto.getQrCode() == null) {
@@ -66,7 +65,9 @@ public class BoothQrService {
         .build();
     BoothExperienceReservationResponseDto boothExperienceReservationResponseDto = boothExperienceService.updateReservationStatus(
         boothExperienceReservation.getReservationId(),
-        boothExperienceStatusUpdateDto);
+        boothExperienceStatusUpdateDto,
+        managerId,
+        roleCode);
     CheckResponseDto checkResponseDto = qrTicketEntryService.processQrEntry(qrTicket);
     BoothEntryResponseDto response = BoothEntryResponseDto.builder()
         .name(boothExperienceReservationResponseDto.getUserName())
@@ -77,19 +78,7 @@ public class BoothQrService {
     return response;
   }
 
-  private Users validateUser(CustomUserDetails userDetails) {
-    if (userDetails == null || userDetails.getUserId() == null) {
-      throw new CustomException(HttpStatus.UNAUTHORIZED, "로그인한 사용자만 QR 스캔할 수 있습니다.");
-    }
-    return userRepository.findById(userDetails.getUserId()).orElseThrow(
-        () -> new CustomException(HttpStatus.NOT_FOUND, "해당 사용자를 찾을 수 없습니다.")
-    );
-  }
-
   private void checkInBooth(Long qrTicketId) {
     messagingTemplate.convertAndSend("/topic/booth/qr/"+qrTicketId, "부스 입장 완료");
   }
 }
-
-
-
