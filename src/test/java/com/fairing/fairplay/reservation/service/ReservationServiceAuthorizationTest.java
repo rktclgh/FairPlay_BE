@@ -3,13 +3,18 @@ package com.fairing.fairplay.reservation.service;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.repository.EventTicketRepository;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.notification.service.NotificationService;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
 import com.fairing.fairplay.payment.repository.PaymentStatusCodeRepository;
 import com.fairing.fairplay.reservation.entity.Reservation;
+import com.fairing.fairplay.reservation.entity.ReservationStatusCode;
+import com.fairing.fairplay.reservation.entity.ReservationStatusCodeEnum;
 import com.fairing.fairplay.reservation.repository.ReservationLogRepository;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
+import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.entity.EventTicketId;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
@@ -59,6 +64,9 @@ class ReservationServiceAuthorizationTest {
     private EventScheduleRepository eventScheduleRepository;
 
     @Mock
+    private EventTicketRepository eventTicketRepository;
+
+    @Mock
     private TicketRepository ticketRepository;
 
     @Mock
@@ -82,6 +90,7 @@ class ReservationServiceAuthorizationTest {
                 reservationLogRepository,
                 notificationService,
                 eventScheduleRepository,
+                eventTicketRepository,
                 ticketRepository,
                 scheduleTicketRepository,
                 paymentRepository,
@@ -227,6 +236,91 @@ class ReservationServiceAuthorizationTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void updateReservationRejectsReservationOutsidePathEvent() {
+        Reservation reservation = reservation(10L, 2L, 300L, 100L);
+        reservation.setReservationStatusCode(new ReservationStatusCode(ReservationStatusCodeEnum.CONFIRMED.getId()));
+        when(reservationRepository.findById(10L)).thenReturn(Optional.of(reservation));
+
+        com.fairing.fairplay.reservation.dto.ReservationRequestDto requestDto =
+                new com.fairing.fairplay.reservation.dto.ReservationRequestDto();
+        requestDto.setReservationId(10L);
+        requestDto.setEventId(1L);
+        requestDto.setQuantity(1);
+        requestDto.setPrice(1000);
+
+        assertThatThrownBy(() -> reservationService.updateReservation(requestDto, 300L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("예약 ID");
+
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    void createReservationRejectsScheduleOutsidePathEventBeforeTicketOrStockLookup() {
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event(1L, 100L)));
+        when(userRepository.findById(300L)).thenReturn(Optional.of(new Users(300L)));
+        when(eventScheduleRepository.findByEvent_EventIdAndScheduleId(1L, 20L)).thenReturn(Optional.empty());
+
+        com.fairing.fairplay.reservation.dto.ReservationRequestDto requestDto =
+                new com.fairing.fairplay.reservation.dto.ReservationRequestDto();
+        requestDto.setEventId(1L);
+        requestDto.setScheduleId(20L);
+        requestDto.setTicketId(99L);
+        requestDto.setQuantity(1);
+        requestDto.setPrice(1000);
+
+        assertThatThrownBy(() -> reservationService.createReservation(requestDto, 300L, 500L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("일정");
+
+        verify(ticketRepository, never()).findById(any());
+        verify(scheduleTicketRepository, never()).findByIdWithPessimisticLock(any());
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    void createReservationRejectsTicketOutsidePathEventBeforeStockLookup() {
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event(1L, 100L)));
+        when(userRepository.findById(300L)).thenReturn(Optional.of(new Users(300L)));
+        when(eventScheduleRepository.findByEvent_EventIdAndScheduleId(1L, 20L))
+                .thenReturn(Optional.of(schedule(1L, 20L)));
+        when(eventTicketRepository.existsById(new EventTicketId(99L, 1L))).thenReturn(false);
+
+        com.fairing.fairplay.reservation.dto.ReservationRequestDto requestDto =
+                new com.fairing.fairplay.reservation.dto.ReservationRequestDto();
+        requestDto.setEventId(1L);
+        requestDto.setScheduleId(20L);
+        requestDto.setTicketId(99L);
+        requestDto.setQuantity(1);
+        requestDto.setPrice(1000);
+
+        assertThatThrownBy(() -> reservationService.createReservation(requestDto, 300L, 500L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("티켓");
+
+        verify(ticketRepository, never()).findById(any());
+        verify(scheduleTicketRepository, never()).findByIdWithPessimisticLock(any());
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    void cancelReservationRejectsReservationOutsidePathEventWithoutMutation() {
+        Reservation reservation = reservation(10L, 2L, 300L, 100L);
+        reservation.setReservationStatusCode(new ReservationStatusCode(ReservationStatusCodeEnum.CONFIRMED.getId()));
+        when(reservationRepository.findById(10L)).thenReturn(Optional.of(reservation));
+
+        assertThatThrownBy(() -> reservationService.cancelReservation(1L, 10L, 300L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("예약 ID");
+
+        assertThat(reservation.getReservationStatusCode().getId())
+                .isEqualTo(ReservationStatusCodeEnum.CONFIRMED.getId());
+        verify(scheduleTicketRepository, never()).increaseStock(any(), any(), any(Integer.class));
+        verify(reservationRepository, never()).save(any());
+        verify(reservationLogRepository, never()).save(any());
+    }
+
     private Reservation reservation(Long reservationId, Long eventId, Long reservationUserId, Long eventManagerId) {
         Reservation reservation = new Reservation(event(eventId, eventManagerId), null, null, new Users(reservationUserId), 1, 1000);
         reservation.setReservationId(reservationId);
@@ -244,6 +338,13 @@ class ReservationServiceAuthorizationTest {
         event.setTitleKr("행사");
         event.setTitleEng("Event");
         return event;
+    }
+
+    private EventSchedule schedule(Long eventId, Long scheduleId) {
+        EventSchedule schedule = new EventSchedule();
+        schedule.setScheduleId(scheduleId);
+        schedule.setEvent(event(eventId, 100L));
+        return schedule;
     }
 
     private CustomUserDetails user(Long userId, String roleCode) {

@@ -125,7 +125,7 @@ public class ReservationController {
             @PathVariable Long reservationId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long userId = userDetails.getUserId();
-        reservationService.cancelReservation(reservationId, userId);
+        reservationService.cancelReservation(eventId, reservationId, userId);
         return ResponseEntity.noContent().build();
     }
 }

@@ -117,6 +117,8 @@ public class TicketService {
     @Transactional
     public TicketResponseDto updateTicket(Long eventId, Long ticketId, TicketRequestDto dto, Long userId) {
 
+        requireTicketBelongsToEvent(eventId, ticketId);
+
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 아이디: " + ticketId));
 
@@ -179,8 +181,16 @@ public class TicketService {
      */
     @Transactional
     public void deleteTicket(Long eventId, Long ticketId) {
+        requireTicketBelongsToEvent(eventId, ticketId);
+
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 아이디: " + ticketId));
         ticket.setDeleted(true);
+    }
+
+    private void requireTicketBelongsToEvent(Long eventId, Long ticketId) {
+        if (!eventTicketRepository.existsById(new EventTicketId(ticketId, eventId))) {
+            throw new IllegalArgumentException("해당 행사에 존재하지 않는 티켓입니다. ticketId: " + ticketId);
+        }
     }
 }

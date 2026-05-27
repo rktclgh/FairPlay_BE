@@ -4,6 +4,7 @@ import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
+import com.fairing.fairplay.event.repository.EventTicketRepository;
 import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.notification.dto.NotificationRequestDto;
 import com.fairing.fairplay.notification.service.NotificationService;
@@ -22,6 +23,7 @@ import com.fairing.fairplay.reservation.entity.ReservationStatusCodeEnum;
 import com.fairing.fairplay.reservation.repository.ReservationLogRepository;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.entity.EventTicketId;
 import com.fairing.fairplay.ticket.entity.ScheduleTicket;
 import com.fairing.fairplay.ticket.entity.ScheduleTicketId;
 import com.fairing.fairplay.ticket.entity.Ticket;
@@ -62,6 +64,7 @@ public class ReservationService {
     private final ReservationLogRepository reservationLogRepository;
     private final NotificationService notificationService;
     private final EventScheduleRepository eventScheduleRepository;
+    private final EventTicketRepository eventTicketRepository;
     private final TicketRepository ticketRepository;
     private final ScheduleTicketRepository scheduleTicketRepository;
     private final PaymentRepository paymentRepository;
@@ -89,13 +92,14 @@ public class ReservationService {
         // 일정 정보 확인 (null일 수 있음)
         EventSchedule schedule = null;
         if (requestDto.getScheduleId() != null) {
-            schedule = eventScheduleRepository.findById(requestDto.getScheduleId())
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 일정 ID: " + requestDto.getScheduleId()));
+            schedule = eventScheduleRepository.findByEvent_EventIdAndScheduleId(
+                    requestDto.getEventId(), requestDto.getScheduleId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "해당 행사에 존재하지 않는 일정 ID: " + requestDto.getScheduleId()));
         }
 
         // 티켓 정보 확인
-        Ticket ticket = ticketRepository.findById(requestDto.getTicketId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + requestDto.getTicketId()));
+        Ticket ticket = findTicketForEvent(requestDto.getEventId(), requestDto.getTicketId());
 
         // 티켓 재고 및 판매 기간 확인 (일정이 있는 경우만)
         if (schedule != null) {
@@ -262,6 +266,7 @@ public class ReservationService {
         // 기존 예약 조회
         Reservation existingReservation = reservationRepository.findById(requestDto.getReservationId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약 ID: " + requestDto.getReservationId()));
+        requireReservationBelongsToEvent(existingReservation, requestDto.getEventId());
 
         // 예약자 본인 확인
         if (!existingReservation.getUser().getUserId().equals(userId)) {
@@ -283,8 +288,7 @@ public class ReservationService {
         // 새로운 티켓 정보 확인 (티켓 변경이 있는 경우)
         Ticket newTicket = null;
         if (requestDto.getTicketId() != null && !requestDto.getTicketId().equals(existingReservation.getTicket().getTicketId())) {
-            newTicket = ticketRepository.findById(requestDto.getTicketId())
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + requestDto.getTicketId()));
+            newTicket = findTicketForEvent(requestDto.getEventId(), requestDto.getTicketId());
         }
 
         // 수량 변경이나 티켓 변경이 있는 경우 재고 처리
@@ -403,9 +407,10 @@ public class ReservationService {
 
     // 예약 취소
     @Transactional
-    public void cancelReservation(Long reservationId, Long userId) {
+    public void cancelReservation(Long eventId, Long reservationId, Long userId) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 예약 ID: " + reservationId));
+        requireReservationBelongsToEvent(reservation, eventId);
 
         // 예약자 본인 확인
         if (!reservation.getUser().getUserId().equals(userId)) {
@@ -484,6 +489,20 @@ public class ReservationService {
 
     private ReservationResponseDto toResponseDto(Reservation reservation) {
         return ReservationResponseDto.from(reservation);
+    }
+
+    private Ticket findTicketForEvent(Long eventId, Long ticketId) {
+        if (ticketId == null || !eventTicketRepository.existsById(new EventTicketId(ticketId, eventId))) {
+            throw new IllegalArgumentException("해당 행사에 존재하지 않는 티켓 ID: " + ticketId);
+        }
+        return ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + ticketId));
+    }
+
+    private void requireReservationBelongsToEvent(Reservation reservation, Long eventId) {
+        if (reservation.getEvent() == null || !eventId.equals(reservation.getEvent().getEventId())) {
+            throw new IllegalArgumentException("존재하지 않는 예약 ID: " + reservation.getReservationId());
+        }
     }
 
     private void populateReservationPayments(List<ReservationResponseDto> responses) {
