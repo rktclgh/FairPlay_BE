@@ -5,16 +5,41 @@ import com.fairing.fairplay.payment.dto.RefundListResponseDto;
 import com.fairing.fairplay.payment.entity.Payment;
 import com.fairing.fairplay.payment.entity.Refund;
 import com.fairing.fairplay.payment.entity.RefundStatusCode;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface RefundRepository extends JpaRepository<Refund, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT r FROM Refund r
+        JOIN FETCH r.payment p
+        JOIN FETCH p.user
+        LEFT JOIN FETCH p.event e
+        LEFT JOIN FETCH e.manager
+        JOIN FETCH r.refundStatusCode
+        WHERE r.refundId = :refundId
+    """)
+    Optional<Refund> findByIdForUpdate(@Param("refundId") Long refundId);
+
+    @Query("""
+        SELECT COALESCE(SUM(r.amount), 0)
+        FROM Refund r
+        JOIN r.refundStatusCode rsc
+        WHERE r.payment.paymentId = :paymentId
+          AND rsc.code IN ('PROCESSING', 'RECONCILIATION_REQUIRED')
+    """)
+    BigDecimal sumReservedAmountByPaymentId(@Param("paymentId") Long paymentId);
 
     // 특정 결제의 특정 상태 환불 목록 조회 (FK 기반)
     List<Refund> findByPaymentAndRefundStatusCode(Payment payment, RefundStatusCode refundStatusCode);
@@ -30,12 +55,21 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
     @Query("SELECT r FROM Refund r WHERE r.payment.event.eventId = :eventId")
     List<Refund> findByEventId(@Param("eventId") Long eventId);
 
+    @Query("SELECT r FROM Refund r WHERE r.payment.event.manager.user.userId = :managerUserId")
+    List<Refund> findByEventManagerUserId(@Param("managerUserId") Long managerUserId);
+
     // 특정 상태의 환불 목록 조회 (FK 기반)
     List<Refund> findByRefundStatusCode(RefundStatusCode refundStatusCode);
 
     // 특정 이벤트의 특정 상태 환불 목록 조회 (FK 기반)
     @Query("SELECT r FROM Refund r WHERE r.payment.event.eventId = :eventId AND r.refundStatusCode = :refundStatusCode")
     List<Refund> findByEventIdAndRefundStatusCode(@Param("eventId") Long eventId, @Param("refundStatusCode") RefundStatusCode refundStatusCode);
+
+    @Query("SELECT r FROM Refund r WHERE r.payment.event.manager.user.userId = :managerUserId AND r.refundStatusCode = :refundStatusCode")
+    List<Refund> findByEventManagerUserIdAndRefundStatusCode(
+        @Param("managerUserId") Long managerUserId,
+        @Param("refundStatusCode") RefundStatusCode refundStatusCode
+    );
 
     // 환불 목록 조회 (필터링 및 페이징 지원)
     @Query("""
@@ -74,6 +108,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         AND (:paymentDateTo IS NULL OR p.paidAt <= :paymentDateTo)
         AND (:refundStatus IS NULL OR rsc.code = :refundStatus)
         AND (:paymentTargetType IS NULL OR ptt.paymentTargetCode = :paymentTargetType)
+        AND (:managerUserId IS NULL OR e.manager.user.userId = :managerUserId)
     """)
     Page<RefundListResponseDto> findRefundsWithFilters(
         @Param("eventName") String eventName,
@@ -81,6 +116,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         @Param("paymentDateTo") LocalDateTime paymentDateTo,
         @Param("refundStatus") String refundStatus,
         @Param("paymentTargetType") String paymentTargetType,
+        @Param("managerUserId") Long managerUserId,
         Pageable pageable
     );
 
@@ -129,6 +165,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         AND (:refundStatus IS NULL OR rsc.code = :refundStatus)
         AND (:paymentTargetType IS NULL OR ptt.paymentTargetCode = :paymentTargetType)
         AND (:eventId IS NULL OR e.eventId = :eventId)
+        AND (:managerUserId IS NULL OR e.manager.user.userId = :managerUserId)
     """)
     Page<AdminRefundListResponseDto> findAdminRefundsWithFilters(
         @Param("eventName") String eventName,
@@ -138,6 +175,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         @Param("refundStatus") String refundStatus,
         @Param("paymentTargetType") String paymentTargetType,
         @Param("eventId") Long eventId,
+        @Param("managerUserId") Long managerUserId,
         Pageable pageable
     );
 

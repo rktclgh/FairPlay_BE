@@ -5,7 +5,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -25,6 +27,8 @@ public class ChatCacheService {
     private static final String CHAT_ROOM_MESSAGES_KEY = "chat:room:%d:messages";
     private static final String CHAT_ROOM_LIST_KEY = "chat:user:%d:rooms";
     private static final String CHAT_MESSAGE_KEY = "chat:message:%d";
+    private static final int UNREAD_CACHE_SCAN_COUNT = 500;
+    private static final int UNREAD_CACHE_DELETE_BATCH_SIZE = 500;
     
     /**
      * 채팅방의 메시지를 Redis에 캐싱 (최근 100개만 유지)
@@ -183,14 +187,39 @@ public class ChatCacheService {
     public void invalidateUnreadCachesForRoom(Long roomId) {
         try {
             String pattern = String.format("chat:unread:%d:*", roomId);
-            Set<String> keys = redisTemplate.keys(pattern);
-            
-            if (keys != null && !keys.isEmpty()) {
-                redisTemplate.delete(keys);
-                log.debug("채팅방 {} 읽지 않은 메시지 캐시 무효화: {} 개 키 삭제", roomId, keys.size());
+            ScanOptions scanOptions = ScanOptions.scanOptions()
+                    .match(pattern)
+                    .count(UNREAD_CACHE_SCAN_COUNT)
+                    .build();
+            List<String> keysToDelete = new ArrayList<>(UNREAD_CACHE_DELETE_BATCH_SIZE);
+            long deletedCount = 0;
+
+            try (Cursor<String> cursor = redisTemplate.scan(scanOptions)) {
+                while (cursor.hasNext()) {
+                    keysToDelete.add(cursor.next());
+                    if (keysToDelete.size() >= UNREAD_CACHE_DELETE_BATCH_SIZE) {
+                        deletedCount += deleteUnreadCacheBatch(keysToDelete);
+                    }
+                }
+            }
+
+            deletedCount += deleteUnreadCacheBatch(keysToDelete);
+
+            if (deletedCount > 0) {
+                log.debug("채팅방 {} 읽지 않은 메시지 캐시 무효화: {} 개 키 삭제", roomId, deletedCount);
             }
         } catch (Exception e) {
             log.error("채팅방 {} 읽지 않은 메시지 캐시 무효화 실패: {}", roomId, e.getMessage());
         }
+    }
+
+    private long deleteUnreadCacheBatch(List<String> keysToDelete) {
+        if (keysToDelete.isEmpty()) {
+            return 0;
+        }
+
+        Long deleted = redisTemplate.delete(new ArrayList<>(keysToDelete));
+        keysToDelete.clear();
+        return deleted != null ? deleted : 0;
     }
 }

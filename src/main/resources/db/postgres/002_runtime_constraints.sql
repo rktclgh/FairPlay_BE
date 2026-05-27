@@ -15,3 +15,16 @@ BEGIN
             ON event_popularity_statistics (event_id);
     END IF;
 END $$;
+
+INSERT INTO refund_status_code (code, name)
+VALUES
+    ('PROCESSING', '처리중'),
+    ('FAILED', '환불실패'),
+    ('RECONCILIATION_REQUIRED', '대사필요')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO payment_status_code (code, name)
+VALUES
+    ('REFUNDED', '환불 완료'),
+    ('PARTIAL_REFUNDED', '부분 환불')
+ON CONFLICT (code) DO NOTHING;

@@ -2,6 +2,7 @@ package com.fairing.fairplay.core.service;
 
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.dto.FileUploadResponseDto;
+import com.fairing.fairplay.core.util.TempUploadKeyPolicy;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +20,6 @@ import software.amazon.awssdk.services.s3.model.*;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,7 +47,7 @@ public class AwsS3Service {
                 .map(f -> f.substring(f.lastIndexOf('.')))
                 .orElse("");
         String uuid = UUID.randomUUID().toString();
-        String key = "uploads/tmp" + LocalDate.now() + "/" + uuid + ext;
+        String key = TempUploadKeyPolicy.newPrivateTempPrefix() + uuid + ext;
 
         try {
             s3Client.putObject(
@@ -82,7 +82,7 @@ public class AwsS3Service {
         
         String ext = key.contains(".") ? key.substring(key.lastIndexOf('.')) : "";
         String uuid = UUID.randomUUID().toString();
-        String destKey = "uploads/" + destPrefix + "/" + uuid + ext;
+        String destKey = TempUploadKeyPolicy.PUBLIC_UPLOAD_PREFIX + destPrefix + "/" + uuid + ext;
 
         try {
             // 먼저 원본 파일이 존재하는지 확인
@@ -146,6 +146,15 @@ public class AwsS3Service {
      * CloudFront 도메인이 설정되어 있으면 CloudFront URL, 없으면 직접 S3 URL 반환
      */
     public String getCdnUrl(String key) {
+        if (key == null || key.isEmpty()) {
+            return null;
+        }
+
+        String cleanKey = TempUploadKeyPolicy.normalizeKey(key);
+        if (TempUploadKeyPolicy.isBlockedPublicUploadKey(cleanKey)) {
+            throw new CustomException(HttpStatus.BAD_REQUEST, "비공개 파일 키는 공개 URL로 변환할 수 없습니다.");
+        }
+
         if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
             // CloudFront 도메인이 설정된 경우
             String cleanDomain = cloudfrontDomain.trim();
@@ -155,11 +164,10 @@ public class AwsS3Service {
             if (cleanDomain.endsWith("/")) {
                 cleanDomain = cleanDomain.substring(0, cleanDomain.length() - 1);
             }
-            String cleanKey = key.startsWith("/") ? key : "/" + key;
-            return cleanDomain + cleanKey;
+            return cleanDomain + "/" + cleanKey;
         } else {
             // CloudFront가 설정되지 않은 경우 직접 S3 URL 사용
-            return getPublicUrl(key);
+            return getPublicUrl(cleanKey);
         }
     }
 

@@ -29,34 +29,51 @@ import com.fairing.fairplay.reservation.repository.ReservationStatusCodeReposito
 import com.fairing.fairplay.reservation.service.ReservationService;
 import com.fairing.fairplay.attendeeform.service.AttendeeFormAttendeeService;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
+import com.fairing.fairplay.ticket.entity.ScheduleTicket;
+import com.fairing.fairplay.ticket.entity.ScheduleTicketId;
 import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
 import com.fairing.fairplay.user.entity.Users;
 import com.fairing.fairplay.user.repository.UserRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import javax.net.ssl.HttpsURLConnection;
-import java.io.*;
 import java.math.BigDecimal;
-import java.net.URL;
+import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
+
+    private static final String IMP_UID_LOCK_PREFIX = "payment:impUid:lock:";
+    private static final Duration IMP_UID_LOCK_TTL = Duration.ofSeconds(90);
+    private static final DefaultRedisScript<Long> RELEASE_IMP_UID_LOCK_SCRIPT = new DefaultRedisScript<>(
+            """
+                    if redis.call('get', KEYS[1]) == ARGV[1] then
+                        return redis.call('del', KEYS[1])
+                    end
+                    return 0
+                    """,
+            Long.class);
 
     private final PaymentRepository paymentRepository;
     private final RefundRepository refundRepository;
@@ -95,12 +112,10 @@ public class PaymentService {
     // 참석자 생성 및 폼 링크 생성
     private final AttendeeFormAttendeeService attendeeFormAttendeeService;
 
-    // 아임포트 API 설정
-    @Value("${iamport.api-key}")
-    private String iamportApiKey;
-
-    @Value("${iamport.secret-key}")
-    private String iamportSecretKey;
+    private final IamportPaymentVerifier iamportPaymentVerifier;
+    private final ReservationPaymentIntentStore reservationPaymentIntentStore;
+    private final StringRedisTemplate redisTemplate;
+    private final PlatformTransactionManager transactionManager;
 
     // 결제 요청 정보 저장 (예약/부스/광고 통합)
     @Transactional
@@ -128,16 +143,19 @@ public class PaymentService {
         PaymentTargetType paymentTargetType = paymentTargetTypeRepository
                 .findByPaymentTargetCode(paymentRequestDto.getPaymentTargetType())
                 .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 결제 대상 타입입니다: " + paymentRequestDto.getPaymentTargetType()));
-
-        // 결제 방법
-        PaymentTypeCode paymentTypeCode = paymentTypeCodeRepository.getReferenceByCode("CARD");
-        // 결제 상태
-        PaymentStatusCode paymentStatusCode = paymentStatusCodeRepository.getReferenceByCode("PENDING");
+        validatePaymentTargetCreationPermission(paymentTargetType, paymentRequestDto.getTargetId(), user);
 
         // merchantUid는 외부에서 제공되거나 자체 생성
         String merchantUid = paymentRequestDto.getMerchantUid() != null
                 ? paymentRequestDto.getMerchantUid()
                 : generateMerchantUid(paymentRequestDto.getPaymentTargetType());
+        ReservationPaymentIntent reservationIntent = validateReservationPaymentIntentRequest(
+                paymentRequestDto, paymentTargetType, event, userId, merchantUid);
+
+        // 결제 방법
+        PaymentTypeCode paymentTypeCode = paymentTypeCodeRepository.getReferenceByCode("CARD");
+        // 결제 상태
+        PaymentStatusCode paymentStatusCode = paymentStatusCodeRepository.getReferenceByCode("PENDING");
 
         // 결제 후 메인 데이터 생성
 
@@ -148,8 +166,12 @@ public class PaymentService {
                 .targetId(paymentRequestDto.getTargetId()) // DTO에서 제공된 경우에만 설정
                 .merchantUid(merchantUid)
                 .quantity(paymentRequestDto.getQuantity())
-                .price(paymentRequestDto.getPrice())
-                .amount(paymentRequestDto.getPrice().multiply(new BigDecimal(paymentRequestDto.getQuantity())))
+                .price(reservationIntent != null
+                        ? unitPriceFrom(reservationIntent)
+                        : paymentRequestDto.getPrice())
+                .amount(reservationIntent != null
+                        ? reservationIntent.amount()
+                        : paymentRequestDto.getPrice().multiply(new BigDecimal(paymentRequestDto.getQuantity())))
                 .pgProvider(paymentRequestDto.getPgProvider())
                 .paymentTypeCode(paymentTypeCode)
                 .paymentStatusCode(paymentStatusCode) // 초기 상태: PENDING
@@ -157,11 +179,13 @@ public class PaymentService {
                 .build();
 
         Payment saved = paymentRepository.save(payment);
+        if (reservationIntent != null) {
+            reservationPaymentIntentStore.save(reservationIntent);
+        }
         return PaymentResponseDto.fromEntity(saved);
     }
 
     // 무료 티켓 직접 처리 (PG사 연동 없음)
-    @Transactional
     public PaymentResponseDto processFreeTicket(PaymentRequestDto paymentRequestDto, Long userId) {
         // 1. 요청 데이터 유효성 검증
         validatePaymentRequest(paymentRequestDto);
@@ -172,87 +196,249 @@ public class PaymentService {
             throw new IllegalArgumentException("무료 티켓이 아닙니다. 금액: " + totalAmount);
         }
 
-        // 3. 결제 정보 저장 (PENDING 상태)
-        PaymentResponseDto savedPayment = savePayment(paymentRequestDto, userId);
+        PaymentCompletionResult result = writeTransactionTemplate().execute(status -> {
+            // 3. 결제 정보 저장 (PENDING 상태)
+            savePayment(paymentRequestDto, userId);
 
-        // 4. 즉시 완료 처리 (PG사 연동 없이)
-        Payment payment = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
+            // 4. 즉시 완료 처리 (PG사 연동 없이)
+            Payment payment = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
+                    .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
 
-        // 5. 결제 완료 상태로 변경
-        PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
-                .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
+            // 5. 결제 완료 상태로 변경
+            PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
+                    .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
 
-        payment.setPaymentStatusCode(completedStatus);
-        payment.setPaidAt(LocalDateTime.now());
-        // 무료 티켓의 경우 imp_uid는 "FREE_" + merchantUid 형태로 설정
-        payment.setImpUid("FREE_" + payment.getMerchantUid());
+            payment.setPaymentStatusCode(completedStatus);
+            payment.setPaidAt(LocalDateTime.now());
+            // 무료 티켓의 경우 imp_uid는 "FREE_" + merchantUid 형태로 설정
+            payment.setImpUid("FREE_" + payment.getMerchantUid());
 
-        Payment savedPaymentEntity = paymentRepository.save(payment);
+            Payment savedPaymentEntity = paymentRepository.save(payment);
 
-        // 6. 결제 완료 후 후속 처리 (예약 생성 등) - PaymentRequestDto의 scheduleId, ticketId 전달
-        processPaymentCompletionActions(savedPaymentEntity, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
+            // 6. 결제 완료 후 후속 처리 (예약 생성 등) - PaymentRequestDto의 scheduleId, ticketId 전달
+            PaymentCompletionNotification notification = processPaymentCompletionActions(
+                    savedPaymentEntity, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
+            return new PaymentCompletionResult(
+                    PaymentResponseDto.fromEntity(savedPaymentEntity),
+                    savedPaymentEntity.getMerchantUid(),
+                    null,
+                    notification);
+        });
+        if (result.notification() != null) {
+            dispatchPaymentCompletionNotification(result.notification());
+        }
+        if (isReservationPaymentResult(result)) {
+            reservationPaymentIntentStore.delete(result.merchantUid(), userId);
+        }
 
-        return PaymentResponseDto.fromEntity(savedPaymentEntity);
+        return result.response();
     }
 
     // 티켓 결제 완료 처리 (PG사 결제 후 호출)
-    @Transactional
     public PaymentResponseDto completePayment(PaymentRequestDto paymentRequestDto) {
+        return completePaymentInternal(paymentRequestDto, null, null);
+    }
 
-        Payment payment = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
+    // 티켓 결제 완료 처리 (PG사 결제 후 호출)
+    public PaymentResponseDto completePayment(PaymentRequestDto paymentRequestDto, CustomUserDetails userDetails) {
+        return completePaymentInternal(paymentRequestDto, userDetails, null);
+    }
 
-        // 1. 결제 상태 검증 - 이미 완료된 결제인지 확인
-        if ("COMPLETED".equals(payment.getPaymentStatusCode().getCode())) {
-            throw new IllegalStateException("이미 완료된 결제입니다: " + paymentRequestDto.getMerchantUid());
+    public PaymentResponseDto completePublicPayment(PaymentRequestDto paymentRequestDto, String expectedTargetType) {
+        if (!"BOOTH_APPLICATION".equals(expectedTargetType) && !"BANNER_APPLICATION".equals(expectedTargetType)) {
+            throw new IllegalArgumentException("공개 결제 완료는 부스 또는 배너 신청에만 사용 가능합니다.");
+        }
+        return completePaymentInternal(paymentRequestDto, null, expectedTargetType);
+    }
+
+    private PaymentResponseDto completePaymentInternal(
+            PaymentRequestDto paymentRequestDto,
+            CustomUserDetails userDetails,
+            String expectedPublicTargetType
+    ) {
+        if (paymentRequestDto == null) {
+            throw new IllegalArgumentException("결제 요청 데이터가 없습니다.");
+        }
+        if (userDetails == null && expectedPublicTargetType == null) {
+            throw new AccessDeniedException("인증되지 않은 사용자입니다.");
+        }
+        if (paymentRequestDto.getImpUid() == null || paymentRequestDto.getImpUid().isBlank()) {
+            throw new IllegalArgumentException("impUid는 필수입니다.");
         }
 
-//        // 2. 결제 금액 검증 - 요청 금액과 실제 결제 금액 비교
-//        if (paymentRequestDto.getAmount() != null &&
-//            !payment.getAmount().equals(paymentRequestDto.getAmount())) {
-//            throw new IllegalArgumentException(
-//                String.format("결제 금액이 일치하지 않습니다. 요청: %s, 실제: %s",
-//                    paymentRequestDto.getAmount(), payment.getAmount()));
-//        }
+        String lockToken = acquireImpUidLock(paymentRequestDto.getImpUid());
+        try {
+            PaymentCompletionSnapshot snapshot = loadCompletionSnapshot(paymentRequestDto, userDetails, expectedPublicTargetType);
+            IamportPaymentInfo paymentInfo = validatePaymentWithIamportSnapshot(paymentRequestDto.getImpUid(), snapshot);
+            return completePaymentAfterPgVerification(
+                    paymentRequestDto, userDetails, expectedPublicTargetType, snapshot.reservationIntent(), paymentInfo);
+        } finally {
+            releaseImpUidLock(paymentRequestDto.getImpUid(), lockToken);
+        }
+    }
 
-        // 3. imp_uid 중복 검증 (이미 사용된 PG 결제 ID인지 확인)
-        if (paymentRequestDto.getImpUid() != null) {
-            boolean duplicateImpUid = paymentRepository.existsByImpUidAndPaymentStatusCode_Code(
-                    paymentRequestDto.getImpUid(), "COMPLETED");
-            if (duplicateImpUid) {
-                throw new IllegalStateException("이미 사용된 결제 ID입니다: " + paymentRequestDto.getImpUid());
+    private PaymentCompletionSnapshot loadCompletionSnapshot(
+            PaymentRequestDto paymentRequestDto,
+            CustomUserDetails userDetails,
+            String expectedPublicTargetType
+    ) {
+        return readOnlyTransactionTemplate().execute(status -> {
+            Payment paymentSnapshot = paymentRepository.findByMerchantUid(paymentRequestDto.getMerchantUid())
+                    .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
+            validateCompletionEligibility(paymentSnapshot, paymentRequestDto, userDetails, expectedPublicTargetType);
+            ReservationPaymentIntent reservationIntentSnapshot = validateReservationCompletionRequest(
+                    paymentSnapshot, paymentRequestDto, userDetails);
+            return PaymentCompletionSnapshot.from(paymentSnapshot, reservationIntentSnapshot);
+        });
+    }
+
+    private PaymentResponseDto completePaymentAfterPgVerification(
+            PaymentRequestDto paymentRequestDto,
+            CustomUserDetails userDetails,
+            String expectedPublicTargetType,
+            ReservationPaymentIntent reservationIntentSnapshot,
+            IamportPaymentInfo paymentInfo
+    ) {
+        PaymentCompletionResult result = writeTransactionTemplate().execute(status -> {
+            Payment payment = paymentRepository.findByMerchantUidForUpdate(paymentRequestDto.getMerchantUid())
+                    .orElseThrow(() -> new IllegalArgumentException("결제 정보가 없습니다: " + paymentRequestDto.getMerchantUid()));
+            validateCompletionEligibility(payment, paymentRequestDto, userDetails, expectedPublicTargetType);
+            ReservationPaymentIntent reservationIntent = validateReservationCompletionRequest(
+                    payment, paymentRequestDto, userDetails);
+            validateReservationIntentUnchanged(reservationIntentSnapshot, reservationIntent);
+            validatePaymentWithIamportInfo(paymentRequestDto.getImpUid(), payment, paymentInfo);
+
+            PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
+                    .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
+
+            payment.setImpUid(paymentRequestDto.getImpUid());
+            payment.setPaymentStatusCode(completedStatus);
+            payment.setPaidAt(LocalDateTime.now());
+
+            Payment savedPayment = paymentRepository.save(payment);
+
+            System.out.println("🔵 [PaymentService] completePayment - 받은 scheduleId: " + paymentRequestDto.getScheduleId() +
+                    ", ticketId: " + paymentRequestDto.getTicketId());
+            Long completionScheduleId = reservationIntent != null ? reservationIntent.scheduleId() : paymentRequestDto.getScheduleId();
+            Long completionTicketId = reservationIntent != null ? reservationIntent.ticketId() : paymentRequestDto.getTicketId();
+            PaymentCompletionNotification notification = processPaymentCompletionActions(
+                    savedPayment, completionScheduleId, completionTicketId);
+
+            Payment updatedPayment = paymentRepository.findById(savedPayment.getPaymentId())
+                    .orElse(savedPayment);
+
+            System.out.println("🟢 [PaymentService] completePayment 반환 - paymentId: " + updatedPayment.getPaymentId() +
+                    ", targetId: " + updatedPayment.getTargetId());
+
+            return new PaymentCompletionResult(
+                    PaymentResponseDto.fromEntity(updatedPayment),
+                    payment.getMerchantUid(),
+                    reservationIntent,
+                    notification);
+        });
+        if (result.reservationIntent() != null) {
+            reservationPaymentIntentStore.delete(result.merchantUid(), result.reservationIntent().userId());
+        }
+        if (result.notification() != null) {
+            dispatchPaymentCompletionNotification(result.notification());
+        }
+        return result.response();
+    }
+
+    private boolean isReservationPaymentResult(PaymentCompletionResult result) {
+        return result.notification() != null && result.notification().reservationId() != null;
+    }
+
+    private TransactionTemplate readOnlyTransactionTemplate() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        template.setReadOnly(true);
+        return template;
+    }
+
+    private TransactionTemplate writeTransactionTemplate() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
+    }
+
+    private record PaymentCompletionResult(
+            PaymentResponseDto response,
+            String merchantUid,
+            ReservationPaymentIntent reservationIntent,
+            PaymentCompletionNotification notification
+    ) {
+    }
+
+    private record PaymentCompletionNotification(
+            Long paymentId,
+            Long reservationId
+    ) {
+    }
+
+    private void validateCompletionEligibility(
+            Payment payment,
+            PaymentRequestDto paymentRequestDto,
+            CustomUserDetails userDetails,
+            String expectedPublicTargetType
+    ) {
+        if (expectedPublicTargetType == null) {
+            Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
+            if (!Objects.equals(paymentUserId, userDetails.getUserId())) {
+                throw new AccessDeniedException("본인 결제만 완료할 수 있습니다.");
             }
+        } else {
+            validatePublicCompletionTargetType(payment, expectedPublicTargetType);
         }
 
-        // 4. PG사 결제 검증 (실제 결제가 완료되었는지 아임포트 API로 확인)
-        if (paymentRequestDto.getImpUid() != null) {
-            validatePaymentWithIamport(paymentRequestDto.getImpUid(), payment.getAmount());
+        String currentStatus = payment.getPaymentStatusCode() != null ? payment.getPaymentStatusCode().getCode() : null;
+        if (!"PENDING".equals(currentStatus)) {
+            throw new IllegalStateException("대기 상태 결제만 완료할 수 있습니다: " + currentStatus);
         }
 
-        // 5. 결제 완료 처리
-        PaymentStatusCode completedStatus = paymentStatusCodeRepository.findByCode("COMPLETED")
-                .orElseThrow(() -> new IllegalStateException("COMPLETED 상태 코드를 찾을 수 없습니다."));
+        boolean duplicateImpUid = paymentRepository.existsByImpUidAndPaymentStatusCode_CodeAndMerchantUidNot(
+                paymentRequestDto.getImpUid(), "COMPLETED", payment.getMerchantUid());
+        if (duplicateImpUid) {
+            throw new IllegalStateException("이미 사용된 결제 ID입니다: " + paymentRequestDto.getImpUid());
+        }
+    }
 
-        payment.setImpUid(paymentRequestDto.getImpUid());
-        payment.setPaymentStatusCode(completedStatus);
-        payment.setPaidAt(LocalDateTime.now());
+    private String acquireImpUidLock(String impUid) {
+        String lockKey = impUidLockKey(impUid);
+        String lockToken = UUID.randomUUID().toString();
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, lockToken, IMP_UID_LOCK_TTL);
+        if (!Boolean.TRUE.equals(acquired)) {
+            throw new IllegalStateException("결제 ID 처리 중입니다: " + impUid);
+        }
+        return lockToken;
+    }
 
-        Payment savedPayment = paymentRepository.save(payment);
+    private void releaseImpUidLock(String impUid, String lockToken) {
+        try {
+            redisTemplate.execute(RELEASE_IMP_UID_LOCK_SCRIPT, Collections.singletonList(impUidLockKey(impUid)), lockToken);
+        } catch (Exception e) {
+            System.err.println("결제 ID 락 해제 실패 - impUid: " + impUid + ", error: " + e.getMessage());
+        }
+    }
 
-        // 6. 결제 완료 후 후속 처리 (PaymentRequestDto의 scheduleId, ticketId 사용)
-        System.out.println("🔵 [PaymentService] completePayment - 받은 scheduleId: " + paymentRequestDto.getScheduleId() + 
-                ", ticketId: " + paymentRequestDto.getTicketId());
-        processPaymentCompletionActions(savedPayment, paymentRequestDto.getScheduleId(), paymentRequestDto.getTicketId());
+    private String impUidLockKey(String impUid) {
+        return IMP_UID_LOCK_PREFIX + impUid;
+    }
 
-        // 7. 후속 처리로 업데이트된 payment 정보를 다시 조회하여 반환
-        Payment updatedPayment = paymentRepository.findById(savedPayment.getPaymentId())
-                .orElse(savedPayment);
-        
-        System.out.println("🟢 [PaymentService] completePayment 반환 - paymentId: " + updatedPayment.getPaymentId() +
-                ", targetId: " + updatedPayment.getTargetId());
-        
-        return PaymentResponseDto.fromEntity(updatedPayment);
+    private void validatePublicCompletionTargetType(Payment payment, String expectedTargetType) {
+        String actualTargetType = payment.getPaymentTargetType() != null
+                ? payment.getPaymentTargetType().getPaymentTargetCode()
+                : null;
+        if (!Objects.equals(actualTargetType, expectedTargetType)) {
+            throw new AccessDeniedException("허용되지 않은 공개 결제 완료 대상입니다.");
+        }
+    }
+
+    private boolean isReservationPayment(Payment payment) {
+        String targetType = payment.getPaymentTargetType() != null
+                ? payment.getPaymentTargetType().getPaymentTargetCode()
+                : null;
+        return "RESERVATION".equals(targetType);
     }
 
     // 티켓 결제 전체 조회 (전체 관리자, 행사 관리자)
@@ -279,10 +465,14 @@ public class PaymentService {
             if (eventId == null) {
                 throw new IllegalArgumentException("행사 관리자는 eventId가 필요합니다.");
             }
-            // TODO: 사용자가 관리하는 이벤트인지 검증 필요
+            Event event = eventRepository.findById(eventId)
+                    .orElseThrow(() -> new IllegalArgumentException("이벤트를 찾을 수 없습니다."));
+            if (!isManagedBy(event, userId)) {
+                throw new AccessDeniedException("담당 행사 결제만 조회할 수 있습니다.");
+            }
             payments = paymentRepository.findByEvent_EventId(eventId);
         } else {
-            throw new IllegalArgumentException("결제 전체 조회 권한이 없습니다.");
+            throw new AccessDeniedException("결제 전체 조회 권한이 없습니다.");
         }
 
         return PaymentResponseDto.fromEntityList(payments);
@@ -309,12 +499,130 @@ public class PaymentService {
 
     // 결제의 targetId 업데이트
     @Transactional
-    public void updatePaymentTargetId(String merchantUid, Long targetId) {
+    public void updatePaymentTargetId(String merchantUid, Long targetId, CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            throw new AccessDeniedException("인증되지 않은 사용자입니다.");
+        }
+
         Payment payment = paymentRepository.findByMerchantUid(merchantUid)
                 .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: " + merchantUid));
 
+        validatePaymentTargetUpdatePermission(payment, targetId, userDetails);
+
         payment.setTargetId(targetId);
         paymentRepository.save(payment);
+    }
+
+    private void validatePaymentTargetUpdatePermission(Payment payment, Long requestedTargetId, CustomUserDetails userDetails) {
+        Long currentTargetId = payment.getTargetId();
+        if (currentTargetId != null && !Objects.equals(currentTargetId, requestedTargetId)) {
+            throw new AccessDeniedException("이미 다른 대상에 연결된 결제입니다.");
+        }
+
+        String roleCode = userDetails.getRoleCode();
+        if ("ADMIN".equals(roleCode)) {
+            return;
+        }
+
+        if ("COMMON".equals(roleCode)) {
+            Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
+            if (Objects.equals(paymentUserId, userDetails.getUserId())) {
+                validateCommonTargetOwnership(payment, requestedTargetId, userDetails.getUserId());
+                return;
+            }
+            throw new AccessDeniedException("본인 결제만 대상 정보를 수정할 수 있습니다.");
+        }
+
+        throw new AccessDeniedException("결제 대상 정보 수정 권한이 없습니다.");
+    }
+
+    private void validateCommonTargetOwnership(Payment payment, Long requestedTargetId, Long principalUserId) {
+        if (requestedTargetId == null) {
+            throw new AccessDeniedException("결제 대상 정보가 필요합니다.");
+        }
+
+        String targetCode = payment.getPaymentTargetType() != null
+                ? payment.getPaymentTargetType().getPaymentTargetCode()
+                : null;
+        if (targetCode == null) {
+            throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+
+        switch (targetCode) {
+            case "RESERVATION" -> validateReservationOwner(requestedTargetId, principalUserId);
+            case "BANNER_APPLICATION" -> validateBannerApplicationOwner(requestedTargetId, principalUserId);
+            case "BOOTH_APPLICATION" -> validateBoothApplicationOwner(requestedTargetId, principalUserId);
+            case "BOOTH", "AD" -> throw new AccessDeniedException("해당 결제 대상은 외부 대상 정보 수정이 허용되지 않습니다.");
+            default -> throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+    }
+
+    private void validatePaymentTargetCreationPermission(PaymentTargetType paymentTargetType, Long requestedTargetId, Users user) {
+        if (requestedTargetId == null) {
+            return;
+        }
+
+        String roleCode = user.getRoleCode() != null ? user.getRoleCode().getCode() : null;
+        if ("ADMIN".equals(roleCode)) {
+            return;
+        }
+
+        if ("EVENT_MANAGER".equals(roleCode)) {
+            throw new AccessDeniedException("행사 관리자는 결제 대상 정보를 직접 지정할 수 없습니다.");
+        }
+
+        String targetCode = paymentTargetType != null
+                ? paymentTargetType.getPaymentTargetCode()
+                : null;
+        if (targetCode == null) {
+            throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+        Long principalUserId = user.getUserId();
+
+        switch (targetCode) {
+            case "RESERVATION" -> validateReservationOwner(requestedTargetId, principalUserId);
+            case "BANNER_APPLICATION" -> validateBannerApplicationOwner(requestedTargetId, principalUserId);
+            case "BOOTH_APPLICATION" -> validateBoothApplicationOwner(requestedTargetId, principalUserId);
+            // BOOTH/AD 생성 경로에는 사용자 소유권을 증명할 매핑이 없어 외부 지정 targetId를 거부한다.
+            case "BOOTH", "AD" -> throw new AccessDeniedException("해당 결제 대상은 생성 시 외부 대상 지정이 허용되지 않습니다.");
+            default -> throw new AccessDeniedException("지원하지 않는 결제 대상 타입입니다.");
+        }
+    }
+
+    private void validateReservationOwner(Long reservationId, Long principalUserId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new AccessDeniedException("본인 예약만 결제 대상에 연결할 수 있습니다."));
+        Long reservationUserId = reservation.getUser() != null ? reservation.getUser().getUserId() : null;
+        if (!Objects.equals(reservationUserId, principalUserId)) {
+            throw new AccessDeniedException("본인 예약만 결제 대상에 연결할 수 있습니다.");
+        }
+    }
+
+    private void validateBannerApplicationOwner(Long bannerApplicationId, Long principalUserId) {
+        BannerApplication bannerApplication = bannerApplicationRepository.findById(bannerApplicationId)
+                .orElseThrow(() -> new AccessDeniedException("본인 배너 신청만 결제 대상에 연결할 수 있습니다."));
+        Long applicantUserId = bannerApplication.getApplicantId() != null
+                ? bannerApplication.getApplicantId().getUserId()
+                : null;
+        if (!Objects.equals(applicantUserId, principalUserId)) {
+            throw new AccessDeniedException("본인 배너 신청만 결제 대상에 연결할 수 있습니다.");
+        }
+    }
+
+    private void validateBoothApplicationOwner(Long boothApplicationId, Long principalUserId) {
+        BoothApplication boothApplication = boothApplicationRepository.findById(boothApplicationId)
+                .orElseThrow(() -> new AccessDeniedException("본인 부스 신청만 결제 대상에 연결할 수 있습니다."));
+        Users boothUser = userRepository.findByEmail(boothApplication.getBoothEmail())
+                .orElseThrow(() -> new AccessDeniedException("본인 부스 신청만 결제 대상에 연결할 수 있습니다."));
+        if (!Objects.equals(boothUser.getUserId(), principalUserId)) {
+            throw new AccessDeniedException("본인 부스 신청만 결제 대상에 연결할 수 있습니다.");
+        }
+    }
+
+    private boolean isManagedBy(Event event, Long managerUserId) {
+        return event != null
+                && event.getManager() != null
+                && Objects.equals(event.getManager().getUserId(), managerUserId);
     }
 
     /**
@@ -359,21 +667,20 @@ public class PaymentService {
      * - 티켓 발급
      * - 알림 전송 등
      */
-    private void processPaymentCompletionActions(Payment payment) {
-        processPaymentCompletionActions(payment, null, null);
+    private PaymentCompletionNotification processPaymentCompletionActions(Payment payment) {
+        return processPaymentCompletionActions(payment, null, null);
     }
     
     /**
      * 결제 완료 후 후속 처리 로직 (scheduleId, ticketId 전달)
      */
-    private void processPaymentCompletionActions(Payment payment, Long scheduleId, Long ticketId) {
+    private PaymentCompletionNotification processPaymentCompletionActions(Payment payment, Long scheduleId, Long ticketId) {
         String targetType = payment.getPaymentTargetType().getPaymentTargetCode();
 
         try {
             switch (targetType) {
                 case "RESERVATION":
-                    processReservationPaymentCompletion(payment, scheduleId, ticketId);
-                    break;
+                    return processReservationPaymentCompletion(payment, scheduleId, ticketId);
                 case "BOOTH":
                     processBoothPaymentCompletion(payment);
                     break;
@@ -391,10 +698,13 @@ public class PaymentService {
                     System.out.println("알 수 없는 결제 타입: " + targetType);
             }
         } catch (Exception e) {
-            // 후속 처리 실패 시 로그 남기고 계속 진행 (결제는 이미 완료됨)
             System.err.println("결제 완료 후속 처리 실패 - paymentId: " + payment.getPaymentId() +
                     ", targetType: " + targetType + ", error: " + e.getMessage());
+            if ("RESERVATION".equals(targetType)) {
+                throw e;
+            }
         }
+        return null;
     }
 
     /**
@@ -420,38 +730,10 @@ public class PaymentService {
             }
             
 
-            EventSchedule schedule = null;
-            Ticket ticket = null;
-            
-            // scheduleId가 직접 전달된 경우 해당 스케줄 사용
-            if (scheduleId != null) {
-                schedule = eventScheduleRepository.findById(scheduleId)
-                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 스케줄 ID: " + scheduleId));
-                System.out.println("🟢 [PaymentService] 전달받은 scheduleId 사용: " + scheduleId);
-            } else {
-                // 기존 로직: 첫 번째 스케줄 사용
-                List<EventSchedule> schedules = eventScheduleRepository.findByEvent_EventId(event.getEventId());
-                if (schedules.isEmpty()) {
-                    throw new IllegalStateException("이벤트에 스케줄이 없습니다.");
-                }
-                schedule = schedules.get(0);
-                System.out.println("🟡 [PaymentService] 기본 스케줄 사용: " + schedule.getScheduleId());
-            }
-            
-            // ticketId가 직접 전달된 경우 해당 티켓 사용
-            if (ticketId != null) {
-                ticket = ticketRepository.findById(ticketId)
-                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + ticketId));
-                System.out.println("🟢 [PaymentService] 전달받은 ticketId 사용: " + ticketId);
-            } else {
-                // 기존 로직: 첫 번째 티켓 사용
-                List<Ticket> tickets = ticketRepository.findTicketsByEventId(event.getEventId());
-                if (tickets.isEmpty()) {
-                    throw new IllegalStateException("이벤트에 티켓이 없습니다.");
-                }
-                ticket = tickets.get(0);
-                System.out.println("🟡 [PaymentService] 기본 티켓 사용: " + ticket.getTicketId());
-            }
+            EventSchedule schedule = eventScheduleRepository.findById(scheduleId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 스케줄 ID: " + scheduleId));
+            Ticket ticket = ticketRepository.findById(ticketId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 티켓 ID: " + ticketId));
             
             // ReservationRequestDto 생성
             ReservationRequestDto reservationRequest = new ReservationRequestDto();
@@ -497,14 +779,14 @@ public class PaymentService {
      * 예약 결제 완료 처리
      * - 결제 완료 후 예약 생성 (방식 A)
      */
-    private void processReservationPaymentCompletion(Payment payment) {
-        processReservationPaymentCompletion(payment, null, null);
+    private PaymentCompletionNotification processReservationPaymentCompletion(Payment payment) {
+        return processReservationPaymentCompletion(payment, null, null);
     }
     
     /**
      * 예약 결제 완료 처리 (scheduleId, ticketId 전달)
      */
-    private void processReservationPaymentCompletion(Payment payment, Long scheduleId, Long ticketId) {
+    private PaymentCompletionNotification processReservationPaymentCompletion(Payment payment, Long scheduleId, Long ticketId) {
         try {
             // 방식 A: 결제 완료 후 예매 생성 (targetId가 null인 경우만)
             if (payment.getTargetId() == null) {
@@ -523,13 +805,12 @@ public class PaymentService {
                 System.out.println("결제 후 예매 생성 완료 - paymentId: " + payment.getPaymentId() +
                         ", reservationId: " + reservationId);
                 
-                // 예약 처리 성공 후 알림 발송
-                sendPaymentCompletionNotifications(payment, reservationId);
+                return new PaymentCompletionNotification(savedPayment.getPaymentId(), reservationId);
             } else {
                 // targetId가 이미 있는 경우: 기존 예매에 대한 알림만 발송
                 System.out.println("기존 예약에 대한 알림 발송 - paymentId: " + payment.getPaymentId() +
                         ", targetId: " + payment.getTargetId());
-                sendPaymentCompletionNotifications(payment, payment.getTargetId());
+                return new PaymentCompletionNotification(payment.getPaymentId(), payment.getTargetId());
             }
 
         } catch (Exception e) {
@@ -640,94 +921,208 @@ public class PaymentService {
      * 아임포트 API를 통한 결제 검증
      * PG사에서 실제로 결제가 완료되었는지 확인
      */
-    private void validatePaymentWithIamport(String impUid, BigDecimal expectedAmount) {
+    private IamportPaymentInfo validatePaymentWithIamport(String impUid, Payment payment) {
         try {
-            System.out.println("아임포트 결제 검증 시작 - impUid: " + impUid + ", 예상금액: " + expectedAmount);
+            System.out.println("아임포트 결제 검증 시작 - impUid: " + impUid + ", 예상금액: " + payment.getAmount());
 
-            // 1. 아임포트 액세스 토큰 획득
-            String accessToken = getIamportAccessToken();
-
-            // 2. imp_uid로 결제 정보 조회
-            Map<String, Object> paymentInfo = getPaymentInfoFromIamport(impUid, accessToken);
-
-            // 3. 결제 상태 검증
-            String status = (String) paymentInfo.get("status");
-            if (!"paid".equals(status)) {
-                throw new IllegalStateException("아임포트에서 결제가 완료되지 않았습니다. 상태: " + status);
-            }
-
+            IamportPaymentInfo paymentInfo = iamportPaymentVerifier.findPayment(impUid);
+            validatePaymentWithIamportInfo(impUid, payment, paymentInfo);
+            return paymentInfo;
         } catch (Exception e) {
             throw new IllegalStateException("아임포트 결제 검증 실패: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * 아임포트 액세스 토큰 획득
-     */
-    private String getIamportAccessToken() throws IOException {
-        URL url = new URL("https://api.iamport.kr/users/getToken");
-        HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+    private IamportPaymentInfo validatePaymentWithIamportSnapshot(String impUid, PaymentCompletionSnapshot payment) {
+        try {
+            System.out.println("아임포트 결제 검증 시작 - impUid: " + impUid + ", 예상금액: " + payment.amount());
 
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Accept", "application/json");
-        conn.setDoOutput(true);
-
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectNode objectNode = mapper.createObjectNode();
-        objectNode.put("imp_key", iamportApiKey);
-        objectNode.put("imp_secret", iamportSecretKey);
-
-        String json = mapper.writeValueAsString(objectNode);
-
-        try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(conn.getOutputStream()))) {
-            bw.write(json);
-            bw.flush();
+            IamportPaymentInfo paymentInfo = iamportPaymentVerifier.findPayment(impUid);
+            validatePaymentWithIamportSnapshotInfo(impUid, payment, paymentInfo);
+            return paymentInfo;
+        } catch (Exception e) {
+            throw new IllegalStateException("아임포트 결제 검증 실패: " + e.getMessage(), e);
         }
-
-        String accessToken;
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-            String jsonLine = br.readLine();
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            Map<String, Object> topLevelMap = objectMapper.readValue(jsonLine, Map.class);
-            Map<String, Object> responseMap = (Map<String, Object>) topLevelMap.get("response");
-            accessToken = responseMap.get("access_token").toString();
-        }
-
-        conn.disconnect();
-        return accessToken;
     }
 
-    /**
-     * 아임포트에서 결제 정보 조회
-     */
-    private Map<String, Object> getPaymentInfoFromIamport(String impUid, String accessToken) throws IOException {
-        URL url = new URL("https://api.iamport.kr/payments/" + impUid);
-        HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+    private void validatePaymentWithIamportInfo(String impUid, Payment payment, IamportPaymentInfo paymentInfo) {
+        if (!Objects.equals(impUid, paymentInfo.impUid())) {
+            throw new IllegalStateException("아임포트 결제 ID가 일치하지 않습니다.");
+        }
+        if (!Objects.equals(payment.getMerchantUid(), paymentInfo.merchantUid())) {
+            throw new IllegalStateException("아임포트 주문번호가 일치하지 않습니다.");
+        }
+        if (!"paid".equals(paymentInfo.status())) {
+            throw new IllegalStateException("아임포트에서 결제가 완료되지 않았습니다. 상태: " + paymentInfo.status());
+        }
+        if (paymentInfo.amount() == null || paymentInfo.amount().compareTo(payment.getAmount()) != 0) {
+            throw new IllegalStateException("아임포트 결제 금액이 일치하지 않습니다.");
+        }
+    }
 
-        conn.setRequestMethod("GET");
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("Authorization", "Bearer " + accessToken);
+    private void validatePaymentWithIamportSnapshotInfo(
+            String impUid,
+            PaymentCompletionSnapshot payment,
+            IamportPaymentInfo paymentInfo
+    ) {
+        if (!Objects.equals(impUid, paymentInfo.impUid())) {
+            throw new IllegalStateException("아임포트 결제 ID가 일치하지 않습니다.");
+        }
+        if (!Objects.equals(payment.merchantUid(), paymentInfo.merchantUid())) {
+            throw new IllegalStateException("아임포트 주문번호가 일치하지 않습니다.");
+        }
+        if (!"paid".equals(paymentInfo.status())) {
+            throw new IllegalStateException("아임포트에서 결제가 완료되지 않았습니다. 상태: " + paymentInfo.status());
+        }
+        if (paymentInfo.amount() == null || paymentInfo.amount().compareTo(payment.amount()) != 0) {
+            throw new IllegalStateException("아임포트 결제 금액이 일치하지 않습니다.");
+        }
+    }
 
-        Map<String, Object> paymentInfo;
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-            String jsonLine = br.readLine();
+    private void validateReservationIntentUnchanged(
+            ReservationPaymentIntent expected,
+            ReservationPaymentIntent actual
+    ) {
+        if (!Objects.equals(expected, actual)) {
+            throw new IllegalStateException("예약 결제 intent가 결제 검증 중 변경되었습니다.");
+        }
+    }
 
-            ObjectMapper objectMapper = new ObjectMapper();
-            Map<String, Object> topLevelMap = objectMapper.readValue(jsonLine, Map.class);
-
-            Integer code = (Integer) topLevelMap.get("code");
-            if (code == null || code != 0) {
-                throw new IllegalStateException("아임포트 API 응답 오류: " + topLevelMap.get("message"));
-            }
-
-            paymentInfo = (Map<String, Object>) topLevelMap.get("response");
+    private ReservationPaymentIntent validateReservationPaymentIntentRequest(
+            PaymentRequestDto paymentRequestDto,
+            PaymentTargetType paymentTargetType,
+            Event event,
+            Long userId,
+            String merchantUid
+    ) {
+        String targetType = paymentTargetType != null
+                ? paymentTargetType.getPaymentTargetCode()
+                : null;
+        if (!"RESERVATION".equals(targetType)) {
+            return null;
+        }
+        if (event == null || event.getEventId() == null) {
+            throw new IllegalArgumentException("예약 결제 요청에는 eventId가 필요합니다.");
+        }
+        if (paymentRequestDto.getScheduleId() == null || paymentRequestDto.getTicketId() == null) {
+            throw new IllegalArgumentException("예약 결제 요청에는 scheduleId와 ticketId가 필요합니다.");
         }
 
-        conn.disconnect();
-        return paymentInfo;
+        ScheduleTicket scheduleTicket = validateReservationScheduleTicket(
+                event,
+                paymentRequestDto.getScheduleId(),
+                paymentRequestDto.getTicketId());
+        Ticket ticket = scheduleTicket.getTicket();
+        validateTicketMaxPurchase(ticket, paymentRequestDto.getQuantity());
+
+        BigDecimal unitPrice = BigDecimal.valueOf(ticket.getPrice());
+        BigDecimal expectedAmount = unitPrice.multiply(BigDecimal.valueOf(paymentRequestDto.getQuantity()));
+        if (paymentRequestDto.getPrice().compareTo(unitPrice) != 0) {
+            throw new IllegalArgumentException("티켓 가격과 결제 요청 가격이 일치하지 않습니다.");
+        }
+        if (paymentRequestDto.getAmount() != null && paymentRequestDto.getAmount().compareTo(expectedAmount) != 0) {
+            throw new IllegalArgumentException("티켓 가격과 결제 요청 총액이 일치하지 않습니다.");
+        }
+
+        return new ReservationPaymentIntent(
+                event.getEventId(),
+                paymentRequestDto.getScheduleId(),
+                paymentRequestDto.getTicketId(),
+                paymentRequestDto.getQuantity(),
+                expectedAmount,
+                targetType,
+                userId,
+                merchantUid);
+    }
+
+    private ReservationPaymentIntent validateReservationCompletionRequest(
+            Payment payment,
+            PaymentRequestDto paymentRequestDto,
+            CustomUserDetails userDetails
+    ) {
+        String targetType = payment.getPaymentTargetType() != null
+                ? payment.getPaymentTargetType().getPaymentTargetCode()
+                : null;
+        if (!"RESERVATION".equals(targetType)) {
+            return null;
+        }
+        if (paymentRequestDto.getScheduleId() == null || paymentRequestDto.getTicketId() == null) {
+            throw new IllegalArgumentException("예약 결제 완료에는 scheduleId와 ticketId가 필요합니다.");
+        }
+        Event event = payment.getEvent();
+        if (event == null || event.getEventId() == null) {
+            throw new IllegalArgumentException("예약 결제에 이벤트 정보가 없습니다.");
+        }
+        Long paymentUserId = payment.getUser() != null ? payment.getUser().getUserId() : null;
+        Long principalUserId = userDetails != null ? userDetails.getUserId() : null;
+        ReservationPaymentIntent intent = reservationPaymentIntentStore
+                .find(payment.getMerchantUid(), paymentUserId)
+                .orElseThrow(() -> new IllegalArgumentException("예약 결제 intent가 없습니다."));
+        if (!Objects.equals(intent.userId(), paymentUserId)
+                || !Objects.equals(intent.userId(), principalUserId)
+                || !Objects.equals(intent.merchantUid(), payment.getMerchantUid())
+                || !"RESERVATION".equals(intent.targetType())) {
+            throw new AccessDeniedException("예약 결제 intent가 결제 정보와 일치하지 않습니다.");
+        }
+        if (!Objects.equals(intent.eventId(), event.getEventId())
+                || !Objects.equals(intent.scheduleId(), paymentRequestDto.getScheduleId())
+                || !Objects.equals(intent.ticketId(), paymentRequestDto.getTicketId())) {
+            throw new IllegalArgumentException("예약 결제 intent와 완료 요청이 일치하지 않습니다.");
+        }
+        if (!Objects.equals(intent.quantity(), payment.getQuantity())
+                || intent.amount().compareTo(payment.getAmount()) != 0) {
+            throw new IllegalArgumentException("예약 결제 intent와 결제 금액 또는 수량이 일치하지 않습니다.");
+        }
+        if (paymentRequestDto.getQuantity() != null && !Objects.equals(paymentRequestDto.getQuantity(), intent.quantity())) {
+            throw new IllegalArgumentException("예약 결제 intent와 완료 요청 수량이 일치하지 않습니다.");
+        }
+        if (paymentRequestDto.getAmount() != null && paymentRequestDto.getAmount().compareTo(intent.amount()) != 0) {
+            throw new IllegalArgumentException("예약 결제 intent와 완료 요청 금액이 일치하지 않습니다.");
+        }
+        if (paymentRequestDto.getPrice() != null && paymentRequestDto.getPrice().compareTo(unitPriceFrom(intent)) != 0) {
+            throw new IllegalArgumentException("예약 결제 intent와 완료 요청 가격이 일치하지 않습니다.");
+        }
+
+        ScheduleTicket scheduleTicket = validateReservationScheduleTicket(event, intent.scheduleId(), intent.ticketId());
+        validateTicketMaxPurchase(scheduleTicket.getTicket(), intent.quantity());
+        BigDecimal expectedAmount = BigDecimal.valueOf(scheduleTicket.getTicket().getPrice())
+                .multiply(BigDecimal.valueOf(intent.quantity()));
+        if (expectedAmount.compareTo(intent.amount()) != 0) {
+            throw new IllegalArgumentException("티켓 가격과 결제 금액이 일치하지 않습니다.");
+        }
+
+        return intent;
+    }
+
+    private ScheduleTicket validateReservationScheduleTicket(Event event, Long scheduleId, Long ticketId) {
+        EventSchedule schedule = eventScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 스케줄 ID: " + scheduleId));
+        Long scheduleEventId = schedule.getEvent() != null ? schedule.getEvent().getEventId() : null;
+        if (!Objects.equals(scheduleEventId, event.getEventId())) {
+            throw new IllegalArgumentException("스케줄이 결제 이벤트에 속하지 않습니다.");
+        }
+
+        ScheduleTicket scheduleTicket = scheduleTicketRepository.findById(new ScheduleTicketId(ticketId, scheduleId))
+                .orElseThrow(() -> new IllegalArgumentException("스케줄에 등록된 티켓이 아닙니다."));
+        Ticket ticket = scheduleTicket.getTicket();
+        if (ticket == null || ticket.getPrice() == null) {
+            throw new IllegalArgumentException("티켓 가격 정보가 없습니다.");
+        }
+        return scheduleTicket;
+    }
+
+    private void validateTicketMaxPurchase(Ticket ticket, Integer quantity) {
+        if (ticket.getMaxPurchase() != null && quantity != null && quantity > ticket.getMaxPurchase()) {
+            throw new IllegalArgumentException("티켓 최대 구매 수량을 초과했습니다.");
+        }
+    }
+
+    private BigDecimal unitPriceFrom(ReservationPaymentIntent intent) {
+        try {
+            return intent.amount().divide(BigDecimal.valueOf(intent.quantity()), RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("예약 결제 intent 금액은 수량으로 정확히 나누어져야 합니다.", e);
+        }
     }
 
     /**
@@ -772,16 +1167,15 @@ public class PaymentService {
      * 결제 완료 알림 발송 (웹 + HTML 이메일 동시)
      */
     public void sendPaymentCompletionNotifications(Payment payment, Long reservationId) {
+        Long userId = payment.getUser().getUserId();
+        String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
+        BigDecimal amount = payment.getAmount();
+
+        // 무료 티켓 여부 확인
+        boolean isFreeTicket = amount.compareTo(BigDecimal.ZERO) == 0;
+        String actionType = isFreeTicket ? "예매" : "결제";
+
         try {
-            Long userId = payment.getUser().getUserId();
-            String eventTitle = payment.getEvent() != null ? payment.getEvent().getTitleKr() : "이벤트";
-            BigDecimal amount = payment.getAmount();
-            String userName = payment.getUser().getName();
-
-            // 무료 티켓 여부 확인
-            boolean isFreeTicket = amount.compareTo(BigDecimal.ZERO) == 0;
-            String actionType = isFreeTicket ? "예매" : "결제";
-
             // 1. 웹 알림 발송 (실시간)
             NotificationRequestDto webNotification = NotificationService.buildWebNotification(
                     userId,
@@ -791,16 +1185,28 @@ public class PaymentService {
                     "/mypage/reservation"
             );
             notificationService.createNotification(webNotification);
-
+        } catch (Exception e) {
+            System.err.println("결제 완료 웹 알림 발송 실패 - paymentId: " + payment.getPaymentId() +
+                    ", error: " + e.getMessage());
+        }
+        try {
             // 2. HTML 템플릿 이메일 발송 (새로운 전용 서비스 사용)
             paymentCompletionEmailService.sendPaymentCompletionEmail(payment, reservationId);
-
-            System.out.println(String.format("결제 완료 알림 발송 완료 - userId: %d, paymentId: %d, type: %s",
-                    userId, payment.getPaymentId(), actionType));
-
         } catch (Exception e) {
-            // 알림 발송 실패해도 결제는 성공으로 처리
-            System.err.println("결제 완료 알림 발송 실패 - paymentId: " + payment.getPaymentId() +
+            System.err.println("결제 완료 이메일 발송 실패 - paymentId: " + payment.getPaymentId() +
+                    ", error: " + e.getMessage());
+        }
+        System.out.println(String.format("결제 완료 알림 처리 완료 - userId: %d, paymentId: %d, type: %s",
+                userId, payment.getPaymentId(), actionType));
+    }
+
+    private void dispatchPaymentCompletionNotification(PaymentCompletionNotification notification) {
+        try {
+            Payment payment = paymentRepository.findByIdForCompletionNotification(notification.paymentId())
+                    .orElseThrow(() -> new IllegalStateException("결제 완료 알림 대상 결제를 찾을 수 없습니다: " + notification.paymentId()));
+            sendPaymentCompletionNotifications(payment, notification.reservationId());
+        } catch (Exception e) {
+            System.err.println("결제 완료 알림 예약 실패 - paymentId: " + notification.paymentId() +
                     ", error: " + e.getMessage());
         }
     }
@@ -846,6 +1252,16 @@ public class PaymentService {
                 reservationId != null ? reservationId.toString() : "처리중",
                 payment.getMerchantUid()
         );
+    }
+
+    private record PaymentCompletionSnapshot(
+            String merchantUid,
+            BigDecimal amount,
+            ReservationPaymentIntent reservationIntent
+    ) {
+        private static PaymentCompletionSnapshot from(Payment payment, ReservationPaymentIntent reservationIntent) {
+            return new PaymentCompletionSnapshot(payment.getMerchantUid(), payment.getAmount(), reservationIntent);
+        }
     }
 
     // 이메일에서 부스 결제 요청 처리 (인증 없이)

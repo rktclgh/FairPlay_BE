@@ -108,9 +108,7 @@ public class SecurityConfig {
                                 "/ws/*/info", // SockJS info 엔드포인트
                                 "/api/chat/rooms/**", // 채팅방 목록 조회만 허용
                                 "/api/chat/presence/status/**", // 사용자 온라인 상태 조회 허용
-                                "/api/uploads/**",
                                 "/uploads/**", // 로컬 파일 시스템의 정적 파일 서빙
-                                "/api/payments/complete", // PG사에서 호출하는 결제 완료 웹훅
                                 "/api/events/apply", // 행사 등록 신청
                                 "/api/events/apply/check",
                                 "/api/qr-tickets/reissue/guest",
