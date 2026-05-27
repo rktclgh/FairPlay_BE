@@ -82,6 +82,7 @@ public class SecurityConfig {
                                 "/booth-admin/**",
                                 "/events/**",
                                 "/eventdetail/**",
+                                "/ticket-reservation/**",
                                 "/qr-ticket/**",
                                 "/banner/payment",
                                 "/auth/**",
