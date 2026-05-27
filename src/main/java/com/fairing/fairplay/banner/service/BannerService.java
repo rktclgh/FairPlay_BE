@@ -479,6 +479,8 @@ public class BannerService {
     }
 
     private static final String TYPE_HERO = "HERO";
+    private static final LocalDateTime VIP_SEARCH_MIN_DATE = LocalDateTime.of(1970, 1, 1, 0, 0);
+    private static final LocalDateTime VIP_SEARCH_MAX_DATE = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
 
     @Transactional(readOnly = true)
     public BigDecimal sumBannerSales() {
@@ -502,10 +504,12 @@ public class BannerService {
             from = to;
             to = tmp;
         }
+        LocalDateTime fromBound = (from == null) ? VIP_SEARCH_MIN_DATE : from;
+        LocalDateTime toBound = (to == null) ? VIP_SEARCH_MAX_DATE : to;
 
         List<Banner> banners = (qNorm == null)
-                ? bannerRepository.search(type, status, from, to)
-                : bannerRepository.searchByEventTitle(type, status, from, to, qNorm);
+                ? bannerRepository.search(type, status, fromBound, toBound)
+                : bannerRepository.searchByEventTitle(type, status, fromBound, toBound, qNorm);
 
         return banners
                 .stream()
