@@ -57,7 +57,6 @@ public class BannerApplication {
     @JoinColumn(name = "status_code_id", nullable = false)
     private ApplyStatusCode statusCode;     // PENDING/APPROVED/REJECTED
 
-    @Lob
     @Column(name = "admin_comment", columnDefinition = "TEXT")
     private String adminComment;
 

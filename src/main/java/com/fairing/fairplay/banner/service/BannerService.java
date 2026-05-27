@@ -503,7 +503,11 @@ public class BannerService {
             to = tmp;
         }
 
-        return bannerRepository.search(type, status, from, to, qNorm)
+        List<Banner> banners = (qNorm == null)
+                ? bannerRepository.search(type, status, from, to)
+                : bannerRepository.searchByEventTitle(type, status, from, to, qNorm);
+
+        return banners
                 .stream()
                 .map(this::toDto)
                 .toList();
