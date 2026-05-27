@@ -42,8 +42,8 @@ public class ChatRoomAccessService {
     }
 
     private boolean isAdmin(Long userId, String roleCode) {
-        if (ADMIN_ROLE.equals(roleCode)) {
-            return true;
+        if (roleCode != null) {
+            return ADMIN_ROLE.equals(roleCode);
         }
         return !userRepository.findByUserIdInAndRoleCode_Code(Set.of(userId), ADMIN_ROLE).isEmpty();
     }

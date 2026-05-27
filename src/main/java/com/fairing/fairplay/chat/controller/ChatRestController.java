@@ -11,6 +11,7 @@ import com.fairing.fairplay.chat.service.ChatMessageService;
 import com.fairing.fairplay.chat.service.ChatRoomService;
 import com.fairing.fairplay.user.repository.UserRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
+import com.fairing.fairplay.user.entity.Users;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
@@ -92,18 +93,24 @@ public class ChatRestController {
         Set<Long> existingRoomIds = allRooms.stream()
                 .map(ChatRoomResponseDto::getChatRoomId)
                 .collect(Collectors.toSet());
+        List<ChatRoom> roomsToAdd = managerRooms.stream()
+                .filter(room -> !existingRoomIds.contains(room.getChatRoomId()))
+                .toList();
+        Map<Long, String> userNamesById = userRepository.findAllById(roomsToAdd.stream()
+                        .map(ChatRoom::getUserId)
+                        .collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(
+                        Users::getUserId,
+                        Users::getName,
+                        (left, right) -> left));
         
-        for (ChatRoom room : managerRooms) {
-            if (!existingRoomIds.contains(room.getChatRoomId())) {
-                // 관리자로서 읽지 않은 메시지 수 계산
-                Long unreadCount = chatMessageService.countUnreadMessages(room, userId, roleCode);
-                
-                // 사용자 이름 가져오기
-                String userName = userRepository.findById(room.getUserId())
-                    .map(user -> user.getName())
-                    .orElse("알 수 없는 사용자");
-                
-                allRooms.add(ChatRoomResponseDto.builder()
+        for (ChatRoom room : roomsToAdd) {
+            // 관리자로서 읽지 않은 메시지 수 계산
+            Long unreadCount = chatMessageService.countUnreadMessages(room, userId, roleCode);
+            String userName = userNamesById.getOrDefault(room.getUserId(), "알 수 없는 사용자");
+
+            allRooms.add(ChatRoomResponseDto.builder()
                     .chatRoomId(room.getChatRoomId())
                     .eventId(room.getEventId())
                     .userId(room.getUserId())
@@ -117,7 +124,6 @@ public class ChatRestController {
                     .userName(userName)
                     .unreadCount(unreadCount)
                     .build());
-            }
         }
     }
 

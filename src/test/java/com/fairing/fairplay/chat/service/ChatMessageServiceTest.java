@@ -2,6 +2,8 @@ package com.fairing.fairplay.chat.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fairing.fairplay.chat.entity.ChatRoom;
@@ -67,6 +69,7 @@ class ChatMessageServiceTest {
 
         assertThatThrownBy(() -> chatMessageService.getMessages(123L, 10L, "COMMON"))
                 .isInstanceOf(AccessDeniedException.class);
+        verify(userRepository, never()).findByUserIdInAndRoleCode_Code(java.util.Set.of(10L), "ADMIN");
     }
 
     @Test

@@ -13,10 +13,10 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,7 +46,7 @@ class ChatRestControllerTest {
         when(chatRoomService.getRoomsByUser(10L)).thenReturn(List.of());
         when(chatRoomService.getAllAdminRooms()).thenReturn(List.of(adminInquiryRoom));
         when(chatMessageService.countUnreadMessages(adminInquiryRoom, 10L, "ADMIN")).thenReturn(3L);
-        when(userRepository.findById(1092L)).thenReturn(Optional.of(Users.builder()
+        when(userRepository.findAllById(java.util.Set.of(1092L))).thenReturn(List.of(Users.builder()
                 .userId(1092L)
                 .name("문의자")
                 .build()));
@@ -61,5 +61,6 @@ class ChatRestControllerTest {
         assertThat(room.getUserName()).isEqualTo("문의자");
         assertThat(room.getUnreadCount()).isEqualTo(3L);
         verify(chatMessageService).countUnreadMessages(adminInquiryRoom, 10L, "ADMIN");
+        verify(userRepository, never()).findById(1092L);
     }
 }
