@@ -4,6 +4,7 @@ import com.fairing.fairplay.ai.dto.AiChatMessageDto;
 import com.fairing.fairplay.ai.service.ChatAiService;
 import com.fairing.fairplay.chat.dto.ChatMessageResponseDto;
 import com.fairing.fairplay.chat.service.ChatMessageService;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -11,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
 import java.security.Principal;
 import java.time.LocalDateTime;
@@ -48,6 +50,24 @@ class AiChatWebSocketControllerContractTest {
         controller.sendAiMessage(aiChatMessage(roomId, senderId), principal(senderId));
 
         verify(chatMessageService).sendMessage(roomId, senderId, "예매 방법 알려줘");
+    }
+
+    @Test
+    void sendAiMessageUsesCustomUserDetailsUserIdWhenPrincipalNameIsEmail() {
+        Long roomId = 101L;
+        Long authenticatedUserId = 10L;
+        when(chatMessageService.sendMessage(roomId, authenticatedUserId, "예매 방법 알려줘"))
+                .thenReturn(savedUserMessage(roomId, authenticatedUserId, "예매 방법 알려줘"));
+
+        controller.sendAiMessage(aiChatMessage(roomId, 999L), authentication(authenticatedUserId, "b@b.b"));
+
+        verify(chatMessageService).sendMessage(roomId, authenticatedUserId, "예매 방법 알려줘");
+        verify(messagingTemplate, never()).convertAndSend(
+                eq("/topic/ai-chat." + roomId),
+                (Object) argThat(payload -> payload instanceof AiChatMessageDto dto
+                        && "system_error".equals(dto.getType())
+                        && "인증이 필요합니다.".equals(dto.getContent()))
+        );
     }
 
     @Test
@@ -111,6 +131,11 @@ class AiChatWebSocketControllerContractTest {
 
     private Principal principal(Long senderId) {
         return () -> senderId.toString();
+    }
+
+    private Principal authentication(Long userId, String email) {
+        CustomUserDetails userDetails = CustomUserDetails.fromSession(userId, email, "ADMIN", 1);
+        return new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
     }
 
     private ChatMessageResponseDto savedUserMessage(Long roomId, Long senderId, String content) {

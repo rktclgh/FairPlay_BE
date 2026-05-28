@@ -1,6 +1,7 @@
 package com.fairing.fairplay.event.service;
 
 import com.fairing.fairplay.admin.service.SuperAdminService;
+import com.fairing.fairplay.ai.rag.service.RagIndexingEventPublisher;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.email.service.EventEmailService;
 import com.fairing.fairplay.core.email.service.TemporaryPasswordEmailService;
@@ -68,6 +69,7 @@ public class EventApplyService {
     private final RegionCodeRepository regionCodeRepository;
     private final SuperAdminService superAdminService;
     private final EventStatusCodeRepository statusCodeRepository;
+    private final RagIndexingEventPublisher ragIndexingEventPublisher;
 
     private static final String NOT_FOUND_STATUS = "해당 상태 코드 없음";
 
@@ -250,6 +252,7 @@ public class EventApplyService {
         }
 
         log.info("행사 신청이 승인되었습니다. eventApplyId: {}, eventId: {}", eventApplyId, event.getEventId());
+        ragIndexingEventPublisher.eventChanged(event.getEventId());
     }
 
     @Transactional
