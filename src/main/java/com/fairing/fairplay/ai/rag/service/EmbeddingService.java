@@ -10,12 +10,13 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Google Gemini AI 임베딩 서비스 (REST API 직접 호출)
- * embedding-001 모델 사용
+ * gemini-embedding-001 모델 사용
  */
 @Service
 @Slf4j
@@ -24,15 +25,22 @@ public class EmbeddingService {
     private final WebClient webClient;
     private final String apiKey;
     private final boolean fallbackEnabled;
+    private final String embeddingModel;
+    private final int outputDimensionality;
     
-    private static final int VECTOR_DIMENSION = 768; // Gemini embedding-001 차원
-    private static final String GEMINI_EMBEDDING_URL = "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent";
+    private static final int DEFAULT_VECTOR_DIMENSION = 768;
+    private static final String DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
+    private static final String GEMINI_EMBEDDING_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:embedContent";
 
     public EmbeddingService(
             @Value("${gemini.api-key}") String apiKey,
-            @Value("${rag.embedding.fallback-enabled:false}") boolean fallbackEnabled) {
+            @Value("${rag.embedding.fallback-enabled:false}") boolean fallbackEnabled,
+            @Value("${rag.embedding.model:gemini-embedding-001}") String embeddingModel,
+            @Value("${rag.embedding.output-dimensionality:768}") int outputDimensionality) {
         this.apiKey = apiKey;
         this.fallbackEnabled = fallbackEnabled;
+        this.embeddingModel = normalizeEmbeddingModel(embeddingModel);
+        this.outputDimensionality = outputDimensionality > 0 ? outputDimensionality : DEFAULT_VECTOR_DIMENSION;
         this.webClient = WebClient.builder()
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(10 * 1024 * 1024)) // 10MB
@@ -40,7 +48,7 @@ public class EmbeddingService {
     }
 
     /**
-     * 텍스트를 Gemini embedding-001로 임베딩 벡터 생성
+     * 텍스트를 Gemini embedding 모델로 임베딩 벡터 생성
      */
     public float[] embedText(String text) throws Exception {
         if (text == null || text.trim().isEmpty()) {
@@ -55,18 +63,13 @@ public class EmbeddingService {
             String cleanText = preprocessText(text);
             log.debug("Gemini 임베딩 요청: {} 문자", cleanText.length());
 
-            // 요청 바디 구성
-            Map<String, Object> requestBody = Map.of(
-                "content", Map.of(
-                    "parts", List.of(Map.of("text", cleanText))
-                ),
-                "taskType", "RETRIEVAL_DOCUMENT"
-            );
+            Map<String, Object> requestBody = buildEmbeddingRequest(cleanText, "RETRIEVAL_DOCUMENT");
 
             // Gemini API 호출
             GeminiEmbeddingResponse response = webClient
                     .post()
-                    .uri(GEMINI_EMBEDDING_URL + "?key=" + apiKey)
+                    .uri(embeddingUrl())
+                    .header("x-goog-api-key", apiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()
@@ -110,18 +113,13 @@ public class EmbeddingService {
             String cleanQuery = preprocessText(query);
             log.debug("Gemini 질의 임베딩 요청: {} 문자", cleanQuery.length());
 
-            // 요청 바디 구성 (RETRIEVAL_QUERY 타입)
-            Map<String, Object> requestBody = Map.of(
-                "content", Map.of(
-                    "parts", List.of(Map.of("text", cleanQuery))
-                ),
-                "taskType", "RETRIEVAL_QUERY"
-            );
+            Map<String, Object> requestBody = buildEmbeddingRequest(cleanQuery, "RETRIEVAL_QUERY");
 
             // Gemini API 호출
             GeminiEmbeddingResponse response = webClient
                     .post()
-                    .uri(GEMINI_EMBEDDING_URL + "?key=" + apiKey)
+                    .uri(embeddingUrl())
+                    .header("x-goog-api-key", apiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()
@@ -165,6 +163,27 @@ public class EmbeddingService {
         throw new IllegalStateException(message + " Refusing to store/search deterministic fallback vectors.");
     }
 
+    String embeddingUrl() {
+        return String.format(GEMINI_EMBEDDING_URL_TEMPLATE, embeddingModel);
+    }
+
+    Map<String, Object> buildEmbeddingRequest(String text, String taskType) {
+        Map<String, Object> requestBody = new LinkedHashMap<>();
+        requestBody.put("content", Map.of(
+            "parts", List.of(Map.of("text", preprocessText(text)))
+        ));
+        requestBody.put("taskType", taskType);
+        requestBody.put("outputDimensionality", outputDimensionality);
+        return requestBody;
+    }
+
+    private String normalizeEmbeddingModel(String configuredModel) {
+        if (configuredModel == null || configuredModel.isBlank()) {
+            return DEFAULT_EMBEDDING_MODEL;
+        }
+        return configuredModel.trim().replaceFirst("^models/", "");
+    }
+
     /**
      * Gemini 실패 시 폴백 벡터 생성
      */
@@ -173,9 +192,9 @@ public class EmbeddingService {
             java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
             byte[] hash = md.digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             
-            float[] vector = new float[VECTOR_DIMENSION];
+            float[] vector = new float[outputDimensionality];
             
-            for (int i = 0; i < VECTOR_DIMENSION; i++) {
+            for (int i = 0; i < outputDimensionality; i++) {
                 int hashIndex = i % hash.length;
                 vector[i] = ((hash[hashIndex] & 0xFF) - 127.5f) / 127.5f;
             }
@@ -211,7 +230,7 @@ public class EmbeddingService {
             return vector;
         } catch (Exception e) {
             log.error("폴백 벡터 생성도 실패: {}", e.getMessage(), e);
-            return new float[VECTOR_DIMENSION]; // 영벡터 반환
+            return new float[outputDimensionality]; // 영벡터 반환
         }
     }
 
