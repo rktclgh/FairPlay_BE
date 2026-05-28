@@ -2,11 +2,9 @@ package com.fairing.fairplay.ai.rag.service;
 
 import com.fairing.fairplay.ai.rag.domain.Chunk;
 import com.fairing.fairplay.ai.rag.domain.Document;
-import com.fairing.fairplay.ai.rag.repository.RagChunkRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.List;
@@ -25,21 +23,17 @@ public class DocumentIngestService {
 
     private final ChunkingService chunkingService;
     private final EmbeddingService embeddingService;
-    private final RagChunkRepository repository;
+    private final RagChunkWriteService ragChunkWriteService;
     private final VectorSearchService vectorSearchService;
     private final ThreadPoolTaskExecutor taskExecutor;
 
     /**
      * 문서를 청킹하고 임베딩하여 저장
      */
-    @Transactional
     public IngestResult ingestDocument(Document document) {
         log.info("문서 인제스트 시작: {} ({})", document.getTitle(), document.getDocId());
         
         try {
-            // 기존 문서가 있다면 삭제
-            repository.deleteDocument(document.getDocId());
-            
             // 청킹
             List<Chunk> chunks = chunkingService.chunkDocument(
                 document.getDocId(), 
@@ -77,11 +71,13 @@ public class DocumentIngestService {
                             result.getChunk().getChunkId(), result.getErrorMessage());
                     }
                 }
-                
-                // 성공한 청크들을 pgvector 저장소에 배치 저장
-                if (!processedChunkList.isEmpty()) {
-                    repository.saveChunks(processedChunkList);
+
+                if (!chunks.isEmpty() && processedChunkList.isEmpty()) {
+                    throw new RuntimeException("모든 청크 임베딩 실패");
                 }
+
+                // 임베딩 I/O가 끝난 뒤 짧은 쓰기 트랜잭션에서 기존 문서를 교체한다.
+                ragChunkWriteService.replaceDocument(document.getDocId(), processedChunkList);
                 
                 log.info("병렬 청크 처리 완료: 성공 {}, 실패 {}", processedChunks, failedChunks);
                 
@@ -155,7 +151,7 @@ public class DocumentIngestService {
      */
     public void deleteDocument(String docId) {
         log.info("문서 삭제: {}", docId);
-        repository.deleteDocument(docId);
+        ragChunkWriteService.deleteDocument(docId);
         
         // 캐시 무효화
         vectorSearchService.invalidateCache();
@@ -170,7 +166,7 @@ public class DocumentIngestService {
         log.warn("전체 문서 삭제 시작");
         
         // pgvector RAG 데이터 삭제
-        repository.clearAllData();
+        ragChunkWriteService.clearAllDocuments();
         
         // 캐시 무효화
         vectorSearchService.invalidateCache();

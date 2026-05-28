@@ -9,6 +9,7 @@ import com.fairing.fairplay.booth.repository.BoothExperienceRepository;
 import com.fairing.fairplay.booth.repository.BoothExperienceReservationRepository;
 import com.fairing.fairplay.booth.repository.BoothExperienceStatusCodeRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
+import com.fairing.fairplay.ai.rag.service.RagIndexingEventPublisher;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
@@ -47,6 +48,7 @@ public class BoothExperienceService {
   private final BoothRepository boothRepository;
   private final UserRepository userRepository;
   private final RealtimeSseService realtimeSseService;
+  private final RagIndexingEventPublisher ragIndexingEventPublisher;
 
   // 1. 부스 체험 등록 (부스 담당자)
   @Transactional
@@ -71,6 +73,8 @@ public class BoothExperienceService {
 
     BoothExperience savedExperience = boothExperienceRepository.save(experience);
     log.info("부스 체험 등록 완료 - 체험 ID: {}", savedExperience.getExperienceId());
+    ragIndexingEventPublisher.boothExperienceChanged(savedExperience.getExperienceId());
+    ragIndexingEventPublisher.boothChanged(booth.getId());
 
     return BoothExperienceResponseDto.fromEntity(savedExperience);
   }
@@ -296,6 +300,8 @@ public class BoothExperienceService {
 
     BoothExperience updatedExperience = boothExperienceRepository.save(experience);
     log.info("부스 체험 수정 완료 - 체험 ID: {}", experienceId);
+    ragIndexingEventPublisher.boothExperienceChanged(updatedExperience.getExperienceId());
+    ragIndexingEventPublisher.boothChanged(updatedExperience.getBooth().getId());
 
     return BoothExperienceResponseDto.fromEntity(updatedExperience);
   }
@@ -326,8 +332,11 @@ public class BoothExperienceService {
       log.info("체험 관련 예약 삭제 완료 - 예약 수: {}", allReservations.size());
     }
 
+    Long boothId = experience.getBooth().getId();
     // 체험 삭제
     boothExperienceRepository.delete(experience);
+    ragIndexingEventPublisher.boothExperienceDeleted(experienceId);
+    ragIndexingEventPublisher.boothChanged(boothId);
     log.info("부스 체험 삭제 완료 - 체험 ID: {}", experienceId);
   }
 

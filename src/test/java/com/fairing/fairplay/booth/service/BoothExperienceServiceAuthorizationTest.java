@@ -11,6 +11,7 @@ import com.fairing.fairplay.booth.repository.BoothExperienceRepository;
 import com.fairing.fairplay.booth.repository.BoothExperienceReservationRepository;
 import com.fairing.fairplay.booth.repository.BoothExperienceStatusCodeRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
+import com.fairing.fairplay.ai.rag.service.RagIndexingEventPublisher;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
@@ -62,6 +63,9 @@ class BoothExperienceServiceAuthorizationTest {
   @Mock
   private RealtimeSseService realtimeSseService;
 
+  @Mock
+  private RagIndexingEventPublisher ragIndexingEventPublisher;
+
   private BoothExperienceService service;
 
   @BeforeEach
@@ -72,7 +76,8 @@ class BoothExperienceServiceAuthorizationTest {
         statusCodeRepository,
         boothRepository,
         userRepository,
-        realtimeSseService
+        realtimeSseService,
+        ragIndexingEventPublisher
     );
   }
 

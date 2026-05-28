@@ -1,6 +1,7 @@
 package com.fairing.fairplay.booth.service;
 
 import com.fairing.fairplay.admin.service.SuperAdminService;
+import com.fairing.fairplay.ai.rag.service.RagIndexingEventPublisher;
 import com.fairing.fairplay.booth.dto.*;
 import com.fairing.fairplay.booth.entity.*;
 import com.fairing.fairplay.booth.mapper.BoothApplicationMapper;
@@ -65,6 +66,7 @@ public class BoothApplicationService {
     private final BoothEmailService boothEmailService;
     private final NotificationService notificationService;
     private final UserSessionRevocationService userSessionRevocationService;
+    private final RagIndexingEventPublisher ragIndexingEventPublisher;
 
 
     // 부스 신청
@@ -292,6 +294,7 @@ public class BoothApplicationService {
             }
 
             log.info("부스 신청이 승인되었습니다. boothApplicationId: {}, boothId: {}", id, booth.getId());
+            ragIndexingEventPublisher.boothChanged(savedBooth.getId());
 
         } else if ("REJECTED".equals(newStatus.getCode())) {
             application.updateStatus(newStatus, dto.getAdminComment());
