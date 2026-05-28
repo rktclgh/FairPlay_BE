@@ -43,9 +43,8 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.data.domain.PageRequest;
 
 /**
- * 민감정보/통계/운영자 영역을 제외한 모든 공개 데이터를 RAG에 로드하는 종합 로더
- * 포함 영역: Event/EventDetail, Booth/BoothExperience, Review, Category
- * 제외 영역: User 개인정보, 통계 데이터, Admin 전용 데이터, 결제 정보
+ * 공개 RAG 데이터와 사용자별 본인 조회 데이터를 RAG에 로드하는 종합 로더
+ * 공개 검색은 VectorSearchService에서 user_* 문서를 제외하고, 본인 조회만 user_* 문서를 검색한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -204,9 +203,9 @@ public class ComprehensiveRagDataLoader {
         result.categoryResult = new LoadResult("Category", 0, 0, 0);
         log.info("카테고리 로딩 완전 비활성화: 예매/취소/환불 정책이 실제 이벤트 검색을 완전히 방해함");
         
-        // 6. 사용자별 개인정보 데이터는 공개 상담 RAG 범위에서 제외
-        result.userDataResult = new LoadResult("UserData", 0, 0, 0);
-        log.info("사용자 개인정보 RAG 로딩 비활성화: 공개 AI 상담 색인에는 행사/부스 공개 정보만 포함");
+        // 6. 사용자별 개인정보 데이터 로드
+        // user_* 문서는 공개 검색에서 제외되고, 인증된 본인 질문에서만 doc_id exact match로 검색된다.
+        result.userDataResult = loadUserData();
         
         log.info("종합 공개 데이터 RAG 로드 완료: {}", result.getSummary());
         
@@ -283,6 +282,26 @@ public class ComprehensiveRagDataLoader {
         } catch (Exception e) {
             log.warn("단일 부스 체험 RAG 로드 실패: experienceId={}, error={}", experienceId, e.getMessage(), e);
             return new LoadResult("BoothExperience", 1, 0, 1);
+        }
+    }
+
+    public LoadResult loadSingleUserData(Long userId) {
+        try {
+            Document document = inReadOnlyTransaction(() -> userRepository.findById(userId)
+                .filter(user -> user.getUserId() != 999)
+                .map(this::buildUserDataDocument)
+                .orElse(null));
+
+            if (document == null) {
+                documentIngestService.deleteDocument("user_" + userId);
+                return new LoadResult("UserData", 1, 1, 0);
+            }
+
+            DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
+            return toLoadResult("UserData", result);
+        } catch (Exception e) {
+            log.warn("단일 사용자 RAG 로드 실패: userId={}, error={}", userId, e.getMessage(), e);
+            return new LoadResult("UserData", 1, 0, 1);
         }
     }
 
@@ -519,7 +538,7 @@ public class ComprehensiveRagDataLoader {
             if (eventDetail.getOfficialUrl() != null && !eventDetail.getOfficialUrl().isBlank()) {
                 content.append("공식 웹사이트: ").append(eventDetail.getOfficialUrl()).append("\n");
             }
-            
+
             // 이벤트 설명
             if (eventDetail.getBio() != null && !eventDetail.getBio().isBlank()) {
                 content.append("소개: ").append(eventDetail.getBio()).append("\n");
@@ -549,6 +568,8 @@ public class ComprehensiveRagDataLoader {
                 content.append("체크아웃 시스템: 사용\n");
             }
         }
+
+        appendEventManagerContact(content, event);
         
         // 티켓 정보 추가
         try {
@@ -623,6 +644,23 @@ public class ComprehensiveRagDataLoader {
             .updatedAt(System.currentTimeMillis())
             .build();
     }
+
+    private void appendEventManagerContact(StringBuilder content, Event event) {
+        if (event.getManager() == null) {
+            return;
+        }
+
+        content.append("\n=== 행사 관리자 문의 정보 ===\n");
+        if (event.getManager().getUser() != null && event.getManager().getUser().getName() != null) {
+            content.append("행사 관리자명: ").append(event.getManager().getUser().getName()).append("\n");
+        }
+        if (event.getManager().getContactEmail() != null && !event.getManager().getContactEmail().isBlank()) {
+            content.append("행사 관리자 이메일: ").append(event.getManager().getContactEmail()).append("\n");
+        }
+        if (event.getManager().getContactNumber() != null && !event.getManager().getContactNumber().isBlank()) {
+            content.append("행사 관리자 연락처: ").append(event.getManager().getContactNumber()).append("\n");
+        }
+    }
     
     /**
      * Booth를 RAG Document로 변환
@@ -667,6 +705,9 @@ public class ComprehensiveRagDataLoader {
             }
             if (booth.getBoothAdmin().getEmail() != null) {
                 content.append("부스 관리자 이메일: ").append(booth.getBoothAdmin().getEmail()).append("\n");
+            }
+            if (booth.getBoothAdmin().getContactNumber() != null) {
+                content.append("부스 관리자 연락처: ").append(booth.getBoothAdmin().getContactNumber()).append("\n");
             }
         }
         

@@ -1,5 +1,6 @@
 package com.fairing.fairplay.reservation.service;
 
+import com.fairing.fairplay.ai.rag.service.RagIndexingEventPublisher;
 import com.fairing.fairplay.attendee.entity.Attendee;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
@@ -69,6 +70,7 @@ public class ReservationService {
     private final ScheduleTicketRepository scheduleTicketRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentStatusCodeRepository paymentStatusCodeRepository;
+    private final RagIndexingEventPublisher ragIndexingEventPublisher;
 
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_EVENT_MANAGER = "EVENT_MANAGER";
@@ -150,6 +152,7 @@ public class ReservationService {
         paymentRepository.save(payment);
 
         // 알림은 별도 서비스에서 처리 (순환참조 방지)
+        ragIndexingEventPublisher.userDataChanged(userId);
 
         return savedReservation;
     }
@@ -206,6 +209,7 @@ public class ReservationService {
             
             // 알림 생성
             createReservationNotification(reservation, user, event);
+            ragIndexingEventPublisher.userDataChanged(userId);
 
             return reservation;
             
@@ -234,6 +238,7 @@ public class ReservationService {
         
         // 알림 생성
         createReservationNotification(reservation, user, event);
+        ragIndexingEventPublisher.userDataChanged(userId);
         
         return reservation;
     }
@@ -347,6 +352,7 @@ public class ReservationService {
 
         // 예약 수정 로깅
         createReservationLog(updatedReservation, ReservationStatusCodeEnum.fromId(updatedReservation.getReservationStatusCode().getId()), userId);
+        ragIndexingEventPublisher.userDataChanged(userId);
 
         return updatedReservation;
     }
@@ -446,6 +452,7 @@ public class ReservationService {
 
         // 예약 상태 변경 로깅
         createReservationLog(reservation, ReservationStatusCodeEnum.CANCELLED, userId);
+        ragIndexingEventPublisher.userDataChanged(userId);
     }
 
     // 예약 상태 변경 로깅
