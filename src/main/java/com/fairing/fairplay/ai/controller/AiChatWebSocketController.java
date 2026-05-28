@@ -3,11 +3,13 @@ package com.fairing.fairplay.ai.controller;
 import com.fairing.fairplay.ai.dto.AiChatMessageDto;
 import com.fairing.fairplay.chat.dto.ChatMessageResponseDto;
 import com.fairing.fairplay.chat.service.ChatMessageService;
+import com.fairing.fairplay.core.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -67,13 +69,20 @@ public class AiChatWebSocketController {
     }
 
     private Long authenticatedSenderId(Principal principal) {
-        if (principal == null || principal.getName() == null) {
+        if (principal == null) {
+            return null;
+        }
+        if (principal instanceof Authentication authentication
+                && authentication.getPrincipal() instanceof CustomUserDetails userDetails) {
+            return userDetails.getUserId();
+        }
+        if (principal.getName() == null) {
             return null;
         }
         try {
             return Long.parseLong(principal.getName());
         } catch (NumberFormatException e) {
-            log.warn("AI WebSocket principal user id parsing failed: {}", principal.getName());
+            log.warn("AI WebSocket principal did not expose a user id: {}", principal.getName());
             return null;
         }
     }

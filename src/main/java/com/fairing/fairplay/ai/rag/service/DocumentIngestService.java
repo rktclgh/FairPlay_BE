@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.List;
@@ -32,7 +33,7 @@ public class DocumentIngestService {
     /**
      * 문서를 청킹하고 임베딩하여 저장
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public IngestResult ingestDocument(Document document) {
         log.info("문서 인제스트 시작: {} ({})", document.getTitle(), document.getDocId());
         
@@ -153,6 +154,7 @@ public class DocumentIngestService {
     /**
      * 문서 삭제
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deleteDocument(String docId) {
         log.info("문서 삭제: {}", docId);
         repository.deleteDocument(docId);
@@ -166,6 +168,7 @@ public class DocumentIngestService {
     /**
      * 전체 문서 삭제 (테스트용)
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void clearAllDocuments() {
         log.warn("전체 문서 삭제 시작");
         

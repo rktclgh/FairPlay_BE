@@ -10,6 +10,7 @@ import com.fairing.fairplay.booth.repository.BoothApplicationRepository;
 import com.fairing.fairplay.booth.repository.BoothExternalLinkRepository;
 import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.booth.repository.BoothTypeRepository;
+import com.fairing.fairplay.ai.rag.service.RagIndexingEventPublisher;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.service.LocalFileService;
 // import com.fairing.fairplay.core.service.AwsS3Service;
@@ -51,6 +52,7 @@ public class BoothService {
     private final BoothAdminRepository boothAdminRepository;
     private final UserRepository userRepository;
     private final BoothApplicationMapper boothApplicationMapper;
+    private final RagIndexingEventPublisher ragIndexingEventPublisher;
 
     // 부스 목록 조회 (관리자용 - 삭제된 부스 포함 조회)
     @Transactional(readOnly = true)
@@ -221,6 +223,7 @@ public class BoothService {
         }
 
         boothRepository.saveAndFlush(booth);
+        ragIndexingEventPublisher.boothChanged(booth.getId());
 
         List<BoothExternalLinkDto> externalLinkDtos = boothExternalLinkRepository.findByBooth(booth).stream()
                 .map(link -> BoothExternalLinkDto.builder()
@@ -250,6 +253,7 @@ public class BoothService {
                 .orElseThrow(() -> new CustomException(HttpStatus.NOT_FOUND, "해당 부스를 찾을 수 없습니다."));
         booth.setIsDeleted(true);
         boothRepository.save(booth);
+        ragIndexingEventPublisher.boothDeleted(boothId);
     }
 
     // 부스 관리자 정보 변경

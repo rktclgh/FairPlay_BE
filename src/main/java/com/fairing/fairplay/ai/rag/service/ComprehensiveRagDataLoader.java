@@ -200,6 +200,68 @@ public class ComprehensiveRagDataLoader {
         
         return result;
     }
+
+    @Transactional(readOnly = true)
+    public LoadResult loadSingleEvent(Long eventId) {
+        try {
+            Event event = eventRepository.findById(eventId).orElse(null);
+            if (event == null || Boolean.TRUE.equals(event.getIsDeleted())) {
+                documentIngestService.deleteDocument("event_" + eventId);
+                return new LoadResult("Event", 1, 1, 0);
+            }
+
+            EventDetail eventDetail = eventDetailRepository.findById(eventId).orElse(null);
+            Document document = buildEventDocument(event, eventDetail);
+            DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
+            return toLoadResult("Event", result);
+        } catch (Exception e) {
+            log.warn("단일 이벤트 RAG 로드 실패: eventId={}, error={}", eventId, e.getMessage(), e);
+            return new LoadResult("Event", 1, 0, 1);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public LoadResult loadSingleBooth(Long boothId) {
+        try {
+            Booth booth = boothRepository.findById(boothId).orElse(null);
+            if (booth == null || Boolean.TRUE.equals(booth.getIsDeleted())) {
+                documentIngestService.deleteDocument("booth_" + boothId);
+                return new LoadResult("Booth", 1, 1, 0);
+            }
+
+            Document document = buildBoothDocument(booth);
+            DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
+            return toLoadResult("Booth", result);
+        } catch (Exception e) {
+            log.warn("단일 부스 RAG 로드 실패: boothId={}, error={}", boothId, e.getMessage(), e);
+            return new LoadResult("Booth", 1, 0, 1);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public LoadResult loadSingleBoothExperience(Long experienceId) {
+        try {
+            BoothExperience experience = boothExperienceRepository.findById(experienceId).orElse(null);
+            if (experience == null) {
+                documentIngestService.deleteDocument("booth_experience_" + experienceId);
+                return new LoadResult("BoothExperience", 1, 1, 0);
+            }
+
+            Document document = buildBoothExperienceDocument(experience);
+            DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
+            return toLoadResult("BoothExperience", result);
+        } catch (Exception e) {
+            log.warn("단일 부스 체험 RAG 로드 실패: experienceId={}, error={}", experienceId, e.getMessage(), e);
+            return new LoadResult("BoothExperience", 1, 0, 1);
+        }
+    }
+
+    private LoadResult toLoadResult(String domain, DocumentIngestService.IngestResult result) {
+        if (result != null && result.isSuccess()) {
+            return new LoadResult(domain, 1, 1, 0);
+        }
+        return new LoadResult(domain, 1, 0, 1);
+    }
     
     /**
      * 사용자별 개인정보 데이터 로드 (예약정보, 티켓정보, 개인정보)

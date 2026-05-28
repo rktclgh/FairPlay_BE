@@ -5,6 +5,7 @@ import com.fairing.fairplay.booth.repository.BoothRepository;
 import com.fairing.fairplay.common.exception.CustomException;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.core.service.LocalFileService;
+import com.fairing.fairplay.ai.rag.service.RagIndexingEventPublisher;
 // import com.fairing.fairplay.core.service.AwsS3Service;
 import com.fairing.fairplay.event.dto.*;
 import com.fairing.fairplay.event.entity.*;
@@ -64,6 +65,7 @@ public class EventService {
     // private final AwsS3Service awsS3Service;
     private final LocalFileService localFileService;
     private final FileService fileService;
+    private final RagIndexingEventPublisher ragIndexingEventPublisher;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -384,6 +386,7 @@ public class EventService {
 
         Event savedEvent = eventRepository.save(event);
         Integer newVersion = createVersion(savedEvent, managerId);
+        ragIndexingEventPublisher.eventChanged(savedEvent.getEventId());
 
         return EventResponseDto.builder()
                 .message("행사 정보가 업데이트되었습니다.")
@@ -448,6 +451,7 @@ public class EventService {
 
         log.info("버전 생성 for eventId: {}", eventId);
         Integer newVersion = createVersion(event, managerId);
+        ragIndexingEventPublisher.eventChanged(eventId);
 
         return buildEventDetailResponseDto(event, eventDetail, externalLinkResponseDtos, newVersion, "이벤트 상세 정보가 업데이트되었습니다.");
     }
@@ -466,6 +470,7 @@ public class EventService {
         event.setHidden(true);  // 숨김 처리
 
         eventRepository.saveAndFlush(event);
+        ragIndexingEventPublisher.eventDeleted(eventId);
         log.info("행사 소프트 딜리트 완료");
     }
 
@@ -520,6 +525,7 @@ public class EventService {
 
         eventVersionRepository.deleteAll(event.getEventVersions());
         eventRepository.deleteById(eventId);
+        ragIndexingEventPublisher.eventDeleted(eventId);
 
         log.info("행사 삭제 완료");
     }
@@ -565,6 +571,7 @@ public class EventService {
 
         eventVersionRepository.deleteAll(event.getEventVersions());
         eventRepository.deleteById(eventId);
+        ragIndexingEventPublisher.eventDeleted(eventId);
 
         log.info("행사 삭제 완료");
     }
