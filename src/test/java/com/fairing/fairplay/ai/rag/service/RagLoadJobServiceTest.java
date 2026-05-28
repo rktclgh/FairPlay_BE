@@ -59,6 +59,7 @@ class RagLoadJobServiceTest {
         result.reviewResult = new ComprehensiveRagDataLoader.LoadResult("Review", 1, 1, 0);
         result.categoryResult = new ComprehensiveRagDataLoader.LoadResult("Category", 0, 0, 0);
         result.userDataResult = new ComprehensiveRagDataLoader.LoadResult("UserData", 1, 1, 0);
+        result.userReservationResult = new ComprehensiveRagDataLoader.LoadResult("UserReservation", 1, 1, 0);
         return result;
     }
 }

@@ -17,6 +17,12 @@ public class Document {
     private String title;
     private String content;
     private String category;
+    private String docType;
+    private String visibility;
+    private Long ownerUserId;
+    private Long eventId;
+    private Long boothId;
+    private Long reservationId;
     private long createdAt;
     private long updatedAt;
 }

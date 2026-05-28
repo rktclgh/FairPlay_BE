@@ -194,7 +194,7 @@ public class RagController {
                                        @RequestParam(defaultValue = "5") int topK) {
         try {
             int safeTopK = Math.max(1, Math.min(topK, 20));
-            var result = vectorSearchService.search(query, safeTopK);
+            var result = vectorSearchService.searchPublicOnly(query);
             
             return ResponseEntity.ok(Map.of(
                 "query", query,
@@ -205,6 +205,7 @@ public class RagController {
                 "chunks", result.getChunks().stream()
                     .map(chunk -> Map.of(
                         "chunkId", chunk.getChunk().getChunkId(),
+                        "docId", chunk.getChunk().getDocId(),
                         "similarity", Math.round(chunk.getSimilarity() * 1000.0) / 1000.0,
                         "text", chunk.getChunk().getText().length() > 200 ? 
                             chunk.getChunk().getText().substring(0, 200) + "..." : 

@@ -22,6 +22,12 @@ public class PgVectorRagRepository implements RagChunkRepository {
         .chunkId(rs.getString("chunk_id"))
         .docId(rs.getString("doc_id"))
         .text(rs.getString("text"))
+        .docType(rs.getString("doc_type"))
+        .visibility(rs.getString("visibility"))
+        .ownerUserId(rs.getObject("owner_user_id", Long.class))
+        .eventId(rs.getObject("event_id", Long.class))
+        .boothId(rs.getObject("booth_id", Long.class))
+        .reservationId(rs.getObject("reservation_id", Long.class))
         .createdAt(rs.getString("created_at"))
         .build();
     private static final RowMapper<SearchResult.ScoredChunk> SCORED_CHUNK_ROW_MAPPER = (rs, rowNum) -> SearchResult.ScoredChunk.builder()
@@ -39,12 +45,21 @@ public class PgVectorRagRepository implements RagChunkRepository {
         }
 
         String sql = """
-            INSERT INTO rag_chunks (chunk_id, doc_id, text, embedding, created_at)
-            VALUES (?, ?, ?, CAST(? AS vector), now())
+            INSERT INTO rag_chunks (
+                chunk_id, doc_id, text, embedding, doc_type, visibility,
+                owner_user_id, event_id, booth_id, reservation_id, created_at
+            )
+            VALUES (?, ?, ?, CAST(? AS vector), ?, ?, ?, ?, ?, ?, now())
             ON CONFLICT (chunk_id) DO UPDATE SET
                 doc_id = EXCLUDED.doc_id,
                 text = EXCLUDED.text,
                 embedding = EXCLUDED.embedding,
+                doc_type = EXCLUDED.doc_type,
+                visibility = EXCLUDED.visibility,
+                owner_user_id = EXCLUDED.owner_user_id,
+                event_id = EXCLUDED.event_id,
+                booth_id = EXCLUDED.booth_id,
+                reservation_id = EXCLUDED.reservation_id,
                 created_at = EXCLUDED.created_at,
                 updated_at = now()
             """;
@@ -54,6 +69,12 @@ public class PgVectorRagRepository implements RagChunkRepository {
             ps.setString(2, chunk.getDocId());
             ps.setString(3, chunk.getText());
             ps.setString(4, toVectorLiteral(chunk.getEmbedding()));
+            ps.setString(5, chunk.getDocType());
+            ps.setString(6, chunk.getVisibility());
+            ps.setObject(7, chunk.getOwnerUserId());
+            ps.setObject(8, chunk.getEventId());
+            ps.setObject(9, chunk.getBoothId());
+            ps.setObject(10, chunk.getReservationId());
         });
     }
 
@@ -64,12 +85,38 @@ public class PgVectorRagRepository implements RagChunkRepository {
 
     @Override
     public List<SearchResult.ScoredChunk> searchPublicSimilar(float[] queryEmbedding, int topK, double threshold) {
-        return searchSimilarByScope(queryEmbedding, topK, threshold, "AND doc_id NOT LIKE 'user\\_%' ESCAPE '\\'");
+        return searchSimilarByScope(queryEmbedding, topK, threshold, "AND visibility = 'PUBLIC'");
+    }
+
+    @Override
+    public List<SearchResult.ScoredChunk> searchPublicSimilarByTypes(
+        List<String> docTypes,
+        float[] queryEmbedding,
+        int topK,
+        double threshold
+    ) {
+        return searchSimilarByScope(queryEmbedding, topK, threshold, publicTypeScope(docTypes), docTypes.toArray());
     }
 
     @Override
     public List<SearchResult.ScoredChunk> searchUserSimilar(Long userId, float[] queryEmbedding, int topK, double threshold) {
-        return searchSimilarByScope(queryEmbedding, topK, threshold, "AND doc_id = ?", "user_" + userId);
+        return searchSimilarByScope(queryEmbedding, topK, threshold, "AND owner_user_id = ?", userId);
+    }
+
+    @Override
+    public List<SearchResult.ScoredChunk> searchUserSimilarByTypes(
+        Long userId,
+        List<String> docTypes,
+        float[] queryEmbedding,
+        int topK,
+        double threshold
+    ) {
+        Object[] params = new Object[docTypes.size() + 1];
+        params[0] = userId;
+        for (int i = 0; i < docTypes.size(); i++) {
+            params[i + 1] = docTypes.get(i);
+        }
+        return searchSimilarByScope(queryEmbedding, topK, threshold, userTypeScope(docTypes), params);
     }
 
     @Override
@@ -79,18 +126,34 @@ public class PgVectorRagRepository implements RagChunkRepository {
 
     @Override
     public List<SearchResult.ScoredChunk> searchPublicKeyword(String query, int topK) {
-        return searchKeywordByScope(query, topK, "AND doc_id NOT LIKE 'user\\_%' ESCAPE '\\'");
+        return searchKeywordByScope(query, topK, "AND visibility = 'PUBLIC'");
+    }
+
+    @Override
+    public List<SearchResult.ScoredChunk> searchPublicKeywordByTypes(List<String> docTypes, String query, int topK) {
+        return searchKeywordByScope(query, topK, publicTypeScope(docTypes), docTypes.toArray());
     }
 
     @Override
     public List<SearchResult.ScoredChunk> searchUserKeyword(Long userId, String query, int topK) {
-        return searchKeywordByScope(query, topK, "AND doc_id = ?", "user_" + userId);
+        return searchKeywordByScope(query, topK, "AND owner_user_id = ?", userId);
+    }
+
+    @Override
+    public List<SearchResult.ScoredChunk> searchUserKeywordByTypes(Long userId, List<String> docTypes, String query, int topK) {
+        Object[] params = new Object[docTypes.size() + 1];
+        params[0] = userId;
+        for (int i = 0; i < docTypes.size(); i++) {
+            params[i + 1] = docTypes.get(i);
+        }
+        return searchKeywordByScope(query, topK, userTypeScope(docTypes), params);
     }
 
     @Override
     public List<Chunk> findByDocId(String docId) {
         return jdbcTemplate.query("""
-            SELECT chunk_id, doc_id, text, created_at::text AS created_at
+            SELECT chunk_id, doc_id, text, doc_type, visibility, owner_user_id, event_id, booth_id, reservation_id,
+                   created_at::text AS created_at
             FROM rag_chunks
             WHERE doc_id = ?
             ORDER BY chunk_id
@@ -125,7 +188,8 @@ public class PgVectorRagRepository implements RagChunkRepository {
         }
 
         String sql = """
-            SELECT chunk_id, doc_id, text, created_at::text AS created_at,
+            SELECT chunk_id, doc_id, text, doc_type, visibility, owner_user_id, event_id, booth_id, reservation_id,
+                   created_at::text AS created_at,
                    1 - (embedding <=> CAST(? AS vector)) AS similarity
             FROM rag_chunks
             WHERE embedding IS NOT NULL
@@ -163,7 +227,8 @@ public class PgVectorRagRepository implements RagChunkRepository {
 
         String condition = keywordCondition(keywords.size());
         String sql = """
-            SELECT chunk_id, doc_id, text, created_at::text AS created_at
+            SELECT chunk_id, doc_id, text, doc_type, visibility, owner_user_id, event_id, booth_id, reservation_id,
+                   created_at::text AS created_at
             FROM rag_chunks
             WHERE (
             """ + condition + """
@@ -203,6 +268,21 @@ public class PgVectorRagRepository implements RagChunkRepository {
             joiner.add("lower(text) LIKE ?");
         }
         return joiner.toString();
+    }
+
+    private String publicTypeScope(List<String> docTypes) {
+        return "AND visibility = 'PUBLIC' AND doc_type IN (" + placeholders(docTypes) + ")";
+    }
+
+    private String userTypeScope(List<String> docTypes) {
+        return "AND owner_user_id = ? AND doc_type IN (" + placeholders(docTypes) + ")";
+    }
+
+    private String placeholders(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            throw new IllegalArgumentException("docTypes must not be empty");
+        }
+        return String.join(",", java.util.Collections.nCopies(values.size(), "?"));
     }
 
     private List<String> keywords(String query) {

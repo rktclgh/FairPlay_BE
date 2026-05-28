@@ -359,7 +359,7 @@ class ReservationServiceAuthorizationTest {
 
         reservationService.createReservation(requestDto, 300L, 500L);
 
-        verify(ragIndexingEventPublisher).userDataChanged(300L);
+        verify(ragIndexingEventPublisher).reservationChanged(10L);
     }
 
     @Test
@@ -371,7 +371,7 @@ class ReservationServiceAuthorizationTest {
 
         reservationService.cancelReservation(1L, 10L, 300L);
 
-        verify(ragIndexingEventPublisher).userDataChanged(300L);
+        verify(ragIndexingEventPublisher).reservationChanged(10L);
     }
 
     private Reservation reservation(Long reservationId, Long eventId, Long reservationUserId, Long eventManagerId) {
