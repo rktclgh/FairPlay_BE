@@ -204,8 +204,9 @@ public class ComprehensiveRagDataLoader {
         result.categoryResult = new LoadResult("Category", 0, 0, 0);
         log.info("카테고리 로딩 완전 비활성화: 예매/취소/환불 정책이 실제 이벤트 검색을 완전히 방해함");
         
-        // 6. 사용자별 개인정보 데이터 로드 (예약정보, 티켓정보)
-        result.userDataResult = loadUserData();
+        // 6. 사용자별 개인정보 데이터는 공개 상담 RAG 범위에서 제외
+        result.userDataResult = new LoadResult("UserData", 0, 0, 0);
+        log.info("사용자 개인정보 RAG 로딩 비활성화: 공개 AI 상담 색인에는 행사/부스 공개 정보만 포함");
         
         log.info("종합 공개 데이터 RAG 로드 완료: {}", result.getSummary());
         
