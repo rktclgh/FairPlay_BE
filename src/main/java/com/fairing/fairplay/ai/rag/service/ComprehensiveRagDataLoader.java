@@ -288,7 +288,7 @@ public class ComprehensiveRagDataLoader {
     public LoadResult loadSingleUserData(Long userId) {
         try {
             Document document = inReadOnlyTransaction(() -> userRepository.findById(userId)
-                .filter(user -> user.getUserId() != 999)
+                .filter(this::isIndexableUser)
                 .map(this::buildUserDataDocument)
                 .orElse(null));
 
@@ -305,6 +305,13 @@ public class ComprehensiveRagDataLoader {
         }
     }
 
+    private boolean isIndexableUser(Users user) {
+        return user != null
+            && user.getUserId() != null
+            && user.getUserId() != 999
+            && user.getDeletedAt() == null;
+    }
+
     private LoadResult toLoadResult(String domain, DocumentIngestService.IngestResult result) {
         if (result != null && result.isSuccess()) {
             return new LoadResult(domain, 1, 1, 0);
@@ -318,7 +325,7 @@ public class ComprehensiveRagDataLoader {
     private LoadResult loadUserData() {
         log.info("사용자별 개인정보 데이터 로드 중...");
         List<Document> documents = inReadOnlyTransaction(() -> userRepository.findAll().stream()
-            .filter(user -> user.getUserId() != 999)
+            .filter(this::isIndexableUser)
             .map(this::buildUserDataDocument)
             .collect(Collectors.toList()));
 

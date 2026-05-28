@@ -84,6 +84,25 @@ class RagChatServiceScopeTest {
     }
 
     @Test
+    void personalQuestionStillUsesPublicContextWhenOwnUserDocumentIsMissing() throws Exception {
+        stubSuccessfulLlm();
+        when(vectorSearchService.searchUserData(10L, "내 예매내역이랑 트렌드페어 문의처 알려줘"))
+            .thenReturn(null);
+        when(vectorSearchService.searchPublicOnly("내 예매내역이랑 트렌드페어 문의처 알려줘"))
+            .thenReturn(result("event_52", "트렌드페어 행사 관리자 이메일: help@example.com", 0.88));
+
+        RagChatService.RagResponse response = ragChatService.chat(
+            "내 예매내역이랑 트렌드페어 문의처 알려줘",
+            List.of(ChatMessageDto.user("내 예매내역이랑 트렌드페어 문의처 알려줘")),
+            10L
+        );
+
+        assertThat(response.getCitedChunks())
+            .extracting(RagChatService.CitedChunk::getDocId)
+            .containsExactly("event_52");
+    }
+
+    @Test
     void anonymousPersonalReservationQuestionDoesNotSearchPrivateOrPublicData() throws Exception {
         RagChatService.RagResponse response = ragChatService.chat(
             "내 예매내역 알려줘",

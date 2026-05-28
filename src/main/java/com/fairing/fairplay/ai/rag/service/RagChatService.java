@@ -55,7 +55,7 @@ public class RagChatService {
                 SearchResult publicResult = vectorSearchService.searchPublicOnly(userQuestion);
                 searchResult = mergeSearchResults(userResult, publicResult);
                 log.info("개인정보 질문 감지 - 사용자 {} 개인정보와 공개 정보 검색: 개인={}, 공개={}",
-                    userId, userResult.getChunks().size(), publicResult.getChunks().size());
+                    userId, chunkCount(userResult), chunkCount(publicResult));
             } else {
                 searchResult = vectorSearchService.searchPublicOnly(userQuestion);
                 log.info("일반 질문 - 공개 정보만 검색: 결과={}", searchResult.getChunks().size());
@@ -167,7 +167,7 @@ public class RagChatService {
             chunks.addAll(publicResult.getChunks());
         }
 
-        String contextText = List.of(userResult, publicResult).stream()
+        String contextText = java.util.stream.Stream.of(userResult, publicResult)
             .filter(result -> result != null && result.getContextText() != null && !result.getContextText().isBlank())
             .map(SearchResult::getContextText)
             .collect(Collectors.joining("\n\n"));
@@ -185,6 +185,10 @@ public class RagChatService {
             .contextText(contextText)
             .totalChunks(totalChunks)
             .build();
+    }
+
+    private int chunkCount(SearchResult result) {
+        return result == null || result.getChunks() == null ? 0 : result.getChunks().size();
     }
 
     private RagResponse loginRequiredResponse() {
