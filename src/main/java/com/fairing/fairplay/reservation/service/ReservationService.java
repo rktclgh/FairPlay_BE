@@ -152,7 +152,7 @@ public class ReservationService {
         paymentRepository.save(payment);
 
         // 알림은 별도 서비스에서 처리 (순환참조 방지)
-        ragIndexingEventPublisher.userDataChanged(userId);
+        ragIndexingEventPublisher.reservationChanged(savedReservation.getReservationId());
 
         return savedReservation;
     }
@@ -209,7 +209,7 @@ public class ReservationService {
             
             // 알림 생성
             createReservationNotification(reservation, user, event);
-            ragIndexingEventPublisher.userDataChanged(userId);
+            ragIndexingEventPublisher.reservationChanged(reservation.getReservationId());
 
             return reservation;
             
@@ -238,7 +238,7 @@ public class ReservationService {
         
         // 알림 생성
         createReservationNotification(reservation, user, event);
-        ragIndexingEventPublisher.userDataChanged(userId);
+        ragIndexingEventPublisher.reservationChanged(reservation.getReservationId());
         
         return reservation;
     }
@@ -352,7 +352,7 @@ public class ReservationService {
 
         // 예약 수정 로깅
         createReservationLog(updatedReservation, ReservationStatusCodeEnum.fromId(updatedReservation.getReservationStatusCode().getId()), userId);
-        ragIndexingEventPublisher.userDataChanged(userId);
+        ragIndexingEventPublisher.reservationChanged(updatedReservation.getReservationId());
 
         return updatedReservation;
     }
@@ -452,7 +452,7 @@ public class ReservationService {
 
         // 예약 상태 변경 로깅
         createReservationLog(reservation, ReservationStatusCodeEnum.CANCELLED, userId);
-        ragIndexingEventPublisher.userDataChanged(userId);
+        ragIndexingEventPublisher.reservationChanged(reservation.getReservationId());
     }
 
     // 예약 상태 변경 로깅

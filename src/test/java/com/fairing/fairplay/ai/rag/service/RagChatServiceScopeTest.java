@@ -58,11 +58,31 @@ class RagChatServiceScopeTest {
     }
 
     @Test
+    void eventInformationQuestionUsesEventFirstPublicSearch() throws Exception {
+        stubSuccessfulLlm();
+        when(vectorSearchService.searchPublicEventsFirst("트렌드페어 행사 정보 알려줘"))
+            .thenReturn(result("event_52", "2025 트렌드페어 행사 정보: 코엑스, 2025-08-21 ~ 2025-08-27", 0.95));
+
+        RagChatService.RagResponse response = ragChatService.chat(
+            "트렌드페어 행사 정보 알려줘",
+            List.of(ChatMessageDto.user("트렌드페어 행사 정보 알려줘")),
+            10L
+        );
+
+        assertThat(response.isHasContext()).isTrue();
+        assertThat(response.getCitedChunks())
+            .extracting(RagChatService.CitedChunk::getDocId)
+            .containsExactly("event_52");
+        verify(vectorSearchService).searchPublicEventsFirst("트렌드페어 행사 정보 알려줘");
+        verify(vectorSearchService, never()).searchPublicOnly("트렌드페어 행사 정보 알려줘");
+    }
+
+    @Test
     void personalReservationQuestionCombinesOwnUserDataWithPublicContext() throws Exception {
         stubSuccessfulLlm();
-        when(vectorSearchService.searchUserData(10L, "내 예매내역이랑 행사 관리자 연락처 알려줘"))
-            .thenReturn(result("user_10", "내 예약 내역: 트렌드페어 1매 예약 완료", 0.55));
-        when(vectorSearchService.searchPublicOnly("내 예매내역이랑 행사 관리자 연락처 알려줘"))
+        when(vectorSearchService.searchUserPrivate(10L, "내 예매내역이랑 행사 관리자 연락처 알려줘"))
+            .thenReturn(result("reservation_141", "내 예약 내역: 트렌드페어 1매 예약 완료", 0.55));
+        when(vectorSearchService.searchPublicEventsFirst("내 예매내역이랑 행사 관리자 연락처 알려줘"))
             .thenReturn(result("event_52", "트렌드페어 행사 관리자 연락처: 010-0000-0000", 0.88));
 
         RagChatService.RagResponse response = ragChatService.chat(
@@ -73,7 +93,7 @@ class RagChatServiceScopeTest {
 
         assertThat(response.getCitedChunks())
             .extracting(RagChatService.CitedChunk::getDocId)
-            .containsExactly("user_10", "event_52");
+            .containsExactly("reservation_141", "event_52");
         assertThat(response.getTotalSearched()).isEqualTo(2);
 
         ArgumentCaptor<List<ChatMessageDto>> promptCaptor = ArgumentCaptor.forClass(List.class);
@@ -86,9 +106,9 @@ class RagChatServiceScopeTest {
     @Test
     void personalQuestionStillUsesPublicContextWhenOwnUserDocumentIsMissing() throws Exception {
         stubSuccessfulLlm();
-        when(vectorSearchService.searchUserData(10L, "내 예매내역이랑 트렌드페어 문의처 알려줘"))
+        when(vectorSearchService.searchUserPrivate(10L, "내 예매내역이랑 트렌드페어 문의처 알려줘"))
             .thenReturn(null);
-        when(vectorSearchService.searchPublicOnly("내 예매내역이랑 트렌드페어 문의처 알려줘"))
+        when(vectorSearchService.searchPublicEventsFirst("내 예매내역이랑 트렌드페어 문의처 알려줘"))
             .thenReturn(result("event_52", "트렌드페어 행사 관리자 이메일: help@example.com", 0.88));
 
         RagChatService.RagResponse response = ragChatService.chat(
@@ -113,6 +133,7 @@ class RagChatServiceScopeTest {
         assertThat(response.isHasContext()).isFalse();
         assertThat(response.getAnswer()).contains("로그인");
         verify(vectorSearchService, never()).searchUserData(any(), any());
+        verify(vectorSearchService, never()).searchUserPrivate(any(), any());
         verify(vectorSearchService, never()).searchPublicOnly(any());
         verify(llmRouter, never()).pick(any());
     }

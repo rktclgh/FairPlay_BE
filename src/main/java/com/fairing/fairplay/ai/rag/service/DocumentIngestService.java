@@ -35,10 +35,7 @@ public class DocumentIngestService {
         
         try {
             // 청킹
-            List<Chunk> chunks = chunkingService.chunkDocument(
-                document.getDocId(), 
-                document.getContent()
-            );
+            List<Chunk> chunks = chunkingService.chunkDocument(document);
             
             log.info("청킹 완료: {} 개 청크 생성", chunks.size());
             

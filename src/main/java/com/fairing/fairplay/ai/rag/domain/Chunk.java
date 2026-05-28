@@ -17,5 +17,11 @@ public class Chunk {
     private String docId;
     private String text;
     private float[] embedding;
+    private String docType;
+    private String visibility;
+    private Long ownerUserId;
+    private Long eventId;
+    private Long boothId;
+    private Long reservationId;
     private String createdAt;
 }

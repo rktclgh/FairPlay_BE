@@ -1,6 +1,7 @@
 package com.fairing.fairplay.ai.rag.service;
 
 import com.fairing.fairplay.ai.rag.domain.Chunk;
+import com.fairing.fairplay.ai.rag.domain.Document;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -27,13 +28,20 @@ public class ChunkingService {
     private static final Pattern PARAGRAPH_PATTERN = Pattern.compile("\\n\\s*\\n");
 
     public List<Chunk> chunkDocument(String docId, String content) {
+        return chunkDocument(Document.builder()
+            .docId(docId)
+            .content(content)
+            .build());
+    }
+
+    public List<Chunk> chunkDocument(Document document) {
         List<Chunk> chunks = new ArrayList<>();
         
-        if (content == null || content.trim().isEmpty()) {
+        if (document == null || document.getContent() == null || document.getContent().trim().isEmpty()) {
             return chunks;
         }
         
-        String cleanContent = preprocessText(content);
+        String cleanContent = preprocessText(document.getContent());
         List<String> chunkTexts = performChunking(cleanContent);
         
         String now = String.valueOf(System.currentTimeMillis());
@@ -45,8 +53,14 @@ public class ChunkingService {
             
             Chunk chunk = Chunk.builder()
                 .chunkId(generateChunkId())
-                .docId(docId)
+                .docId(document.getDocId())
                 .text(chunkText.trim())
+                .docType(document.getDocType())
+                .visibility(document.getVisibility())
+                .ownerUserId(document.getOwnerUserId())
+                .eventId(document.getEventId())
+                .boothId(document.getBoothId())
+                .reservationId(document.getReservationId())
                 .createdAt(now)
                 .build();
             
@@ -58,8 +72,11 @@ public class ChunkingService {
     
     private String preprocessText(String text) {
         return text
-            .replaceAll("\\s+", " ")  // 여러 공백을 하나로
-            .replaceAll("\\n\\s*\\n", "\n\n")  // 문단 구분 정규화
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .replaceAll("[\\t\\x0B\\f ]+", " ")
+            .replaceAll(" *\\n *", "\n")
+            .replaceAll("\\n{3,}", "\n\n")
             .trim();
     }
     

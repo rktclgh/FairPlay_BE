@@ -51,11 +51,14 @@ public class RagChatService {
             }
 
             if (isPersonalQuery) {
-                SearchResult userResult = vectorSearchService.searchUserData(userId, userQuestion);
-                SearchResult publicResult = vectorSearchService.searchPublicOnly(userQuestion);
+                SearchResult userResult = vectorSearchService.searchUserPrivate(userId, userQuestion);
+                SearchResult publicResult = vectorSearchService.searchPublicEventsFirst(userQuestion);
                 searchResult = mergeSearchResults(userResult, publicResult);
                 log.info("개인정보 질문 감지 - 사용자 {} 개인정보와 공개 정보 검색: 개인={}, 공개={}",
                     userId, chunkCount(userResult), chunkCount(publicResult));
+            } else if (isEventInformationQuery(userQuestion)) {
+                searchResult = vectorSearchService.searchPublicEventsFirst(userQuestion);
+                log.info("행사 정보 질문 - 행사 문서 우선 공개 검색: 결과={}", searchResult.getChunks().size());
             } else {
                 searchResult = vectorSearchService.searchPublicOnly(userQuestion);
                 log.info("일반 질문 - 공개 정보만 검색: 결과={}", searchResult.getChunks().size());
@@ -156,6 +159,24 @@ public class RagChatService {
                compact.contains("프로필") ||
                compact.contains("마이페이지") ||
                compact.contains("내정보");
+    }
+
+    private boolean isEventInformationQuery(String question) {
+        if (question == null) return false;
+
+        String compact = question.toLowerCase().replaceAll("\\s+", "");
+        return compact.contains("행사정보") ||
+               compact.contains("이벤트정보") ||
+               compact.contains("공연정보") ||
+               compact.contains("축제정보") ||
+               compact.contains("박람회정보") ||
+               compact.contains("행사일정") ||
+               compact.contains("이벤트일정") ||
+               compact.contains("행사장소") ||
+               compact.contains("이벤트장소") ||
+               compact.contains("문의처") ||
+               compact.contains("관리자연락처") ||
+               compact.contains("관리자이메일");
     }
 
     private SearchResult mergeSearchResults(SearchResult userResult, SearchResult publicResult) {

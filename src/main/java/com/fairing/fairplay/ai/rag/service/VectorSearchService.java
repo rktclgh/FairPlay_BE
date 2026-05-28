@@ -23,6 +23,8 @@ public class VectorSearchService {
     private static final double SIMILARITY_THRESHOLD = 0.1;
     private static final double USER_SIMILARITY_THRESHOLD = 0.05;
     private static final int MAX_CONTEXT_LENGTH = 2000;
+    private static final List<String> PUBLIC_EVENT_TYPES = List.of("PUBLIC_EVENT");
+    private static final List<String> USER_PRIVATE_TYPES = List.of("USER_RESERVATION", "USER_PROFILE", "USER_REVIEW", "USER_ATTENDANCE");
 
     private final RagChunkRepository repository;
     private final EmbeddingService embeddingService;
@@ -48,21 +50,20 @@ public class VectorSearchService {
     }
 
     public SearchResult searchUserData(Long userId, String query) throws Exception {
+        return searchUserPrivate(userId, query);
+    }
+
+    public SearchResult searchUserPrivate(Long userId, String query) throws Exception {
         if (userId == null || isBlank(query)) {
             return emptyResult("");
         }
 
-        List<Chunk> userChunks = repository.findByDocId(userDocId(userId));
-        if (userChunks.isEmpty()) {
-            return emptyResult("해당 사용자의 정보를 찾을 수 없습니다.");
-        }
-
         float[] queryEmbedding = embeddingService.embedQuery(query);
         List<SearchResult.ScoredChunk> vectorChunks =
-            repository.searchUserSimilar(userId, queryEmbedding, DEFAULT_TOP_K, USER_SIMILARITY_THRESHOLD);
+            repository.searchUserSimilarByTypes(userId, USER_PRIVATE_TYPES, queryEmbedding, DEFAULT_TOP_K, USER_SIMILARITY_THRESHOLD);
         List<SearchResult.ScoredChunk> keywordChunks =
             shouldAddKeywordSearch(query, vectorChunks, DEFAULT_TOP_K)
-                ? repository.searchUserKeyword(userId, query, DEFAULT_TOP_K)
+                ? repository.searchUserKeywordByTypes(userId, USER_PRIVATE_TYPES, query, DEFAULT_TOP_K)
                 : List.of();
 
         List<SearchResult.ScoredChunk> combined =
@@ -71,7 +72,34 @@ public class VectorSearchService {
         return SearchResult.builder()
             .chunks(combined)
             .contextText(buildContextTextFromScored(combined))
-            .totalChunks(userChunks.size())
+            .totalChunks(combined.size())
+            .build();
+    }
+
+    public SearchResult searchPublicEventsFirst(String query) throws Exception {
+        if (isBlank(query)) {
+            return emptyResult("");
+        }
+
+        float[] queryEmbedding = embeddingService.embedQuery(query);
+        List<SearchResult.ScoredChunk> eventVectorChunks =
+            repository.searchPublicSimilarByTypes(PUBLIC_EVENT_TYPES, queryEmbedding, DEFAULT_TOP_K, SIMILARITY_THRESHOLD);
+        List<SearchResult.ScoredChunk> eventKeywordChunks =
+            shouldAddKeywordSearch(query, eventVectorChunks, DEFAULT_TOP_K)
+                ? repository.searchPublicKeywordByTypes(PUBLIC_EVENT_TYPES, query, DEFAULT_TOP_K)
+                : List.of();
+        List<SearchResult.ScoredChunk> eventChunks =
+            combineSearchResults(eventVectorChunks, eventKeywordChunks, DEFAULT_TOP_K, query);
+
+        List<SearchResult.ScoredChunk> publicFallback = eventChunks.size() >= DEFAULT_TOP_K
+            ? List.of()
+            : searchPublicOnly(query, queryEmbedding).getChunks();
+
+        List<SearchResult.ScoredChunk> combined = mergeByPriority(eventChunks, publicFallback, DEFAULT_TOP_K);
+        return SearchResult.builder()
+            .chunks(combined)
+            .contextText(buildContextTextFromScored(combined))
+            .totalChunks(combined.size())
             .build();
     }
 
@@ -81,6 +109,10 @@ public class VectorSearchService {
         }
 
         float[] queryEmbedding = embeddingService.embedQuery(query);
+        return searchPublicOnly(query, queryEmbedding);
+    }
+
+    private SearchResult searchPublicOnly(String query, float[] queryEmbedding) {
         List<SearchResult.ScoredChunk> vectorChunks =
             repository.searchPublicSimilar(queryEmbedding, DEFAULT_TOP_K, SIMILARITY_THRESHOLD);
         List<SearchResult.ScoredChunk> keywordChunks =
@@ -183,6 +215,18 @@ public class VectorSearchService {
         }
     }
 
+    private List<SearchResult.ScoredChunk> mergeByPriority(
+        List<SearchResult.ScoredChunk> primary,
+        List<SearchResult.ScoredChunk> secondary,
+        int topK
+    ) {
+        List<SearchResult.ScoredChunk> combined = new ArrayList<>();
+        Set<String> seenChunkIds = new HashSet<>();
+        addUnique(combined, seenChunkIds, primary == null ? List.of() : primary, false);
+        addUnique(combined, seenChunkIds, secondary == null ? List.of() : secondary, false);
+        return combined.stream().limit(topK).toList();
+    }
+
     private SearchResult toResult(List<SearchResult.ScoredChunk> chunks) {
         return SearchResult.builder()
             .chunks(chunks)
@@ -233,10 +277,6 @@ public class VectorSearchService {
         }
 
         return context.toString().trim();
-    }
-
-    private String userDocId(Long userId) {
-        return "user_" + userId;
     }
 
     private boolean isBlank(String value) {
