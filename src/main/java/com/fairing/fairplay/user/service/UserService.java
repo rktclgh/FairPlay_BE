@@ -1,5 +1,6 @@
 package com.fairing.fairplay.user.service;
 
+import com.fairing.fairplay.ai.rag.service.RagIndexingEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ public class UserService {
     private final EventAdminRepository eventAdminRepository;
     private final EventRepository eventRepository;
     private final UserSessionRevocationService userSessionRevocationService;
+    private final RagIndexingEventPublisher ragIndexingEventPublisher;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -98,6 +100,7 @@ public class UserService {
         if (dto.getGender() != null)
             user.setGender(dto.getGender());
         userRepository.save(user);
+        ragIndexingEventPublisher.userDataChanged(userId);
         return UserResponseDto.builder()
                 .userId(user.getUserId())
                 .email(user.getEmail())
@@ -116,6 +119,7 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("사용자 정보를 찾을 수 없습니다."));
         user.setDeletedAt(java.time.LocalDateTime.now());
         userRepository.save(user);
+        ragIndexingEventPublisher.userDataDeleted(userId);
         userSessionRevocationService.revokeAfterCommit(userId);
     }
 
@@ -187,6 +191,7 @@ public class UserService {
             eventAdmin.setContactEmail(dto.getContactEmail());
 
         eventAdminRepository.save(eventAdmin);
+        ragIndexingEventPublisher.eventChanged(eventId);
         log.info("행사 관리자 정보 수정 완료");
 
         entityManager.flush();

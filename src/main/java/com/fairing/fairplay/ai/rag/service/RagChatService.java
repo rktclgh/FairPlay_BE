@@ -42,17 +42,21 @@ public class RagChatService {
                 return fallbackToZeroShot("어떤 점이 궁금하신가요? 질문을 조금만 더 자세히 알려주세요.", conversationHistory);
             }
             
-            // 개인정보 관련 질문인지 확인
             boolean isPersonalQuery = isPersonalInformationQuery(userQuestion);
             SearchResult searchResult;
             
-            if (isPersonalQuery && userId != null) {
-                // 개인정보 질문 → 사용자별 검색만 수행
-                searchResult = vectorSearchService.searchUserData(userId, userQuestion);
-                log.info("개인정보 질문 감지 - 사용자 {}의 개인정보만 검색: 결과={}", userId, 
-                    searchResult.getChunks().size());
+            if (isPersonalQuery && userId == null) {
+                log.info("비인증 개인정보 질문 감지: RAG 검색 생략");
+                return loginRequiredResponse();
+            }
+
+            if (isPersonalQuery) {
+                SearchResult userResult = vectorSearchService.searchUserData(userId, userQuestion);
+                SearchResult publicResult = vectorSearchService.searchPublicOnly(userQuestion);
+                searchResult = mergeSearchResults(userResult, publicResult);
+                log.info("개인정보 질문 감지 - 사용자 {} 개인정보와 공개 정보 검색: 개인={}, 공개={}",
+                    userId, chunkCount(userResult), chunkCount(publicResult));
             } else {
-                // 일반 질문 → 공개 정보 검색 (사용자 정보 제외)
                 searchResult = vectorSearchService.searchPublicOnly(userQuestion);
                 log.info("일반 질문 - 공개 정보만 검색: 결과={}", searchResult.getChunks().size());
             }
@@ -136,15 +140,64 @@ public class RagChatService {
     private boolean isPersonalInformationQuery(String question) {
         if (question == null) return false;
         
-        String lowerQuestion = question.toLowerCase();
-        return lowerQuestion.contains("내 ") || 
-               lowerQuestion.contains("나의 ") ||
-               lowerQuestion.contains("내가 ") ||
-               lowerQuestion.contains("예약") ||
-               lowerQuestion.contains("티켓") ||
-               lowerQuestion.contains("개인정보") ||
-               lowerQuestion.contains("프로필") ||
-               lowerQuestion.contains("내정보");
+        String normalized = question.toLowerCase().replaceAll("\\s+", " ").trim();
+        String compact = normalized.replace(" ", "");
+        return normalized.contains("내 ") ||
+               normalized.contains("나의 ") ||
+               normalized.contains("내가 ") ||
+               compact.contains("내예약") ||
+               compact.contains("내예매") ||
+               compact.contains("내티켓") ||
+               compact.contains("예약내역") ||
+               compact.contains("예매내역") ||
+               compact.contains("결제내역") ||
+               compact.contains("내결제") ||
+               compact.contains("개인정보") ||
+               compact.contains("프로필") ||
+               compact.contains("마이페이지") ||
+               compact.contains("내정보");
+    }
+
+    private SearchResult mergeSearchResults(SearchResult userResult, SearchResult publicResult) {
+        List<SearchResult.ScoredChunk> chunks = new ArrayList<>();
+        if (userResult != null && userResult.getChunks() != null) {
+            chunks.addAll(userResult.getChunks());
+        }
+        if (publicResult != null && publicResult.getChunks() != null) {
+            chunks.addAll(publicResult.getChunks());
+        }
+
+        String contextText = java.util.stream.Stream.of(userResult, publicResult)
+            .filter(result -> result != null && result.getContextText() != null && !result.getContextText().isBlank())
+            .map(SearchResult::getContextText)
+            .collect(Collectors.joining("\n\n"));
+
+        int totalChunks = 0;
+        if (userResult != null) {
+            totalChunks += userResult.getTotalChunks();
+        }
+        if (publicResult != null) {
+            totalChunks += publicResult.getTotalChunks();
+        }
+
+        return SearchResult.builder()
+            .chunks(chunks)
+            .contextText(contextText)
+            .totalChunks(totalChunks)
+            .build();
+    }
+
+    private int chunkCount(SearchResult result) {
+        return result == null || result.getChunks() == null ? 0 : result.getChunks().size();
+    }
+
+    private RagResponse loginRequiredResponse() {
+        return RagResponse.builder()
+            .answer("개인 예매내역이나 개인정보는 로그인한 본인에게만 안내할 수 있어요. 로그인 후 다시 물어봐 주세요.")
+            .hasContext(false)
+            .citedChunks(List.of())
+            .totalSearched(0)
+            .build();
     }
     
     /**
@@ -170,6 +223,7 @@ public class RagChatService {
             - 특정 이벤트, 축제, 부스에 대한 질문 시
             - 위 참고 정보에서 관련 내용을 찾아 제공
             - 이벤트명, 날짜, 장소, 설명, 티켓 정보 등 포함
+            - 행사/부스 관리자 연락처와 이메일은 공개 문의 정보이므로 참고 정보에 있으면 제공
             - 이벤트 ID 같은 시스템 정보는 언급하지 말 것
             
             🎫 **부스 및 체험 정보**:

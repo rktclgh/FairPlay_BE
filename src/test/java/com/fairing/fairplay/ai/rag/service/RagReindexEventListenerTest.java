@@ -46,6 +46,13 @@ class RagReindexEventListenerTest {
     }
 
     @Test
+    void userDataUpsertReloadsSingleUserDocument() {
+        listener.handle(RagReindexRequest.upsert(RagDocumentType.USER_DATA, 10L));
+
+        verify(comprehensiveRagDataLoader).loadSingleUserData(10L);
+    }
+
+    @Test
     void deleteRemovesStoredDocument() {
         listener.handle(RagReindexRequest.delete(RagDocumentType.EVENT, 52L));
 
@@ -64,6 +71,13 @@ class RagReindexEventListenerTest {
         listener.handle(RagReindexRequest.delete(RagDocumentType.BOOTH_EXPERIENCE, 7L));
 
         verify(documentIngestService).deleteDocument("booth_experience_7");
+    }
+
+    @Test
+    void deleteUserDataRemovesStoredDocument() {
+        listener.handle(RagReindexRequest.delete(RagDocumentType.USER_DATA, 10L));
+
+        verify(documentIngestService).deleteDocument("user_10");
     }
 
     @Test

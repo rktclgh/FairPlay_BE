@@ -36,6 +36,14 @@ public class RagIndexingEventPublisher {
         publishDelete(RagDocumentType.BOOTH_EXPERIENCE, experienceId);
     }
 
+    public void userDataChanged(Long userId) {
+        publishUpsert(RagDocumentType.USER_DATA, userId);
+    }
+
+    public void userDataDeleted(Long userId) {
+        publishDelete(RagDocumentType.USER_DATA, userId);
+    }
+
     private void publishUpsert(RagDocumentType documentType, Long documentId) {
         if (documentId != null) {
             eventPublisher.publishEvent(RagReindexRequest.upsert(documentType, documentId));
