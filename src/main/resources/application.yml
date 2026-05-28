@@ -169,6 +169,8 @@ qr:
 rag:
   embedding:
     fallback-enabled: ${RAG_EMBEDDING_FALLBACK_ENABLED:false}
+    model: ${RAG_EMBEDDING_MODEL:gemini-embedding-001}
+    output-dimensionality: ${RAG_EMBEDDING_OUTPUT_DIMENSIONALITY:768}
   pgvector:
     auto-init: ${RAG_PGVECTOR_AUTO_INIT:true}
 
