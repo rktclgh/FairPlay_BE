@@ -3,7 +3,9 @@ package com.fairing.fairplay.ai.rag.controller;
 import com.fairing.fairplay.ai.rag.service.VectorSearchService;
 import com.fairing.fairplay.ai.rag.service.EventRagDataLoader;
 import com.fairing.fairplay.ai.rag.service.ComprehensiveRagDataLoader;
+import com.fairing.fairplay.ai.rag.service.RagLoadJobService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,6 +22,7 @@ public class RagAdminController {
     private final VectorSearchService vectorSearchService;
     private final EventRagDataLoader eventRagDataLoader;
     private final ComprehensiveRagDataLoader comprehensiveRagDataLoader;
+    private final RagLoadJobService ragLoadJobService;
 
     /**
      * 캐시 상태 확인
@@ -107,55 +110,29 @@ public class RagAdminController {
      * 제외: User 개인정보, 통계 데이터, Admin 전용 데이터, 결제 정보
      */
     @PostMapping("/load/comprehensive")
-    public ResponseEntity<Map<String, Object>> loadComprehensiveData() {
-        try {
-            ComprehensiveRagDataLoader.ComprehensiveLoadResult result = 
-                comprehensiveRagDataLoader.loadAllPublicData();
-            
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "종합 공개 데이터 로드 완료",
-                "totalSuccessCount", result.getTotalSuccessCount(),
-                "totalFailCount", result.getTotalFailCount(),
-                "summary", result.getSummary(),
-                "details", Map.of(
-                    "event", Map.of(
-                        "total", result.eventResult.getTotalCount(),
-                        "success", result.eventResult.getSuccessCount(),
-                        "fail", result.eventResult.getFailCount()
-                    ),
-                    "booth", Map.of(
-                        "total", result.boothResult.getTotalCount(),
-                        "success", result.boothResult.getSuccessCount(),
-                        "fail", result.boothResult.getFailCount()
-                    ),
-                    "boothExperience", Map.of(
-                        "total", result.boothExperienceResult.getTotalCount(),
-                        "success", result.boothExperienceResult.getSuccessCount(),
-                        "fail", result.boothExperienceResult.getFailCount()
-                    ),
-                    "review", Map.of(
-                        "total", result.reviewResult.getTotalCount(),
-                        "success", result.reviewResult.getSuccessCount(),
-                        "fail", result.reviewResult.getFailCount()
-                    ),
-                    "category", Map.of(
-                        "total", result.categoryResult.getTotalCount(),
-                        "success", result.categoryResult.getSuccessCount(),
-                        "fail", result.categoryResult.getFailCount()
-                    ),
-                    "userData", Map.of(
-                        "total", result.userDataResult.getTotalCount(),
-                        "success", result.userDataResult.getSuccessCount(),
-                        "fail", result.userDataResult.getFailCount()
-                    )
-                )
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
+    public ResponseEntity<RagLoadJobService.JobSnapshot> loadComprehensiveData() {
+        RagLoadJobService.JobSnapshot job = ragLoadJobService.startComprehensiveLoad();
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(job);
+    }
+
+    @GetMapping("/load/comprehensive/jobs/latest")
+    public ResponseEntity<?> getLatestComprehensiveLoadJob() {
+        return ragLoadJobService.getLatestJob()
+            .<ResponseEntity<?>>map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
                 "success", false,
-                "message", "종합 데이터 로드 실패: " + e.getMessage()
-            ));
-        }
+                "message", "실행된 종합 RAG 로드 작업이 없습니다."
+            )));
+    }
+
+    @GetMapping("/load/comprehensive/jobs/{jobId}")
+    public ResponseEntity<?> getComprehensiveLoadJob(@PathVariable String jobId) {
+        return ragLoadJobService.getJob(jobId)
+            .<ResponseEntity<?>>map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "success", false,
+                "message", "RAG 로드 작업을 찾을 수 없습니다.",
+                "jobId", jobId
+            )));
     }
 }
