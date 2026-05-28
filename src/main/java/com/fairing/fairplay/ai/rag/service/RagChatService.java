@@ -224,7 +224,37 @@ public class RagChatService {
                compact.contains("api키") ||
                compact.contains("토큰") ||
                compact.contains("비밀번호") ||
-               compact.contains("패스워드");
+               compact.contains("패스워드") ||
+               isOperationalCommandQuery(normalized, compact);
+    }
+
+    private boolean isOperationalCommandQuery(String normalized, String compact) {
+        if (normalized == null || normalized.isBlank()) {
+            return false;
+        }
+
+        if (compact.contains("../") ||
+            compact.contains("..\\") ||
+            compact.contains("/etc/") ||
+            compact.contains("/proc/") ||
+            compact.contains("/var/log") ||
+            compact.contains("~/.ssh") ||
+            compact.contains("idrsa") ||
+            compact.contains(".env")) {
+            return true;
+        }
+
+        if (normalized.contains("&&") ||
+            normalized.contains("||") ||
+            normalized.contains("$(") ||
+            normalized.contains("`") ||
+            normalized.contains(" >") ||
+            normalized.contains(" <") ||
+            normalized.contains(" | ")) {
+            return true;
+        }
+
+        return normalized.matches("^(cd|ls|ll|pwd|cat|env|printenv|whoami|id|uname|hostname|ps|top|htop|free|df|du|docker|kubectl|curl|wget|ssh|scp|sudo|su|rm|cp|mv|chmod|chown|find|grep|tail|head|less|vi|vim|nano)(\\s+.*)?$");
     }
 
     private boolean isEventInformationQuery(String question) {

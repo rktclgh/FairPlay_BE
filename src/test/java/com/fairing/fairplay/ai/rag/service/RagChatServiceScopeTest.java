@@ -159,6 +159,25 @@ class RagChatServiceScopeTest {
     }
 
     @Test
+    void operationalCommandRequestIsBlockedBeforeSearchOrLlm() throws Exception {
+        RagChatService.RagResponse response = ragChatService.chat(
+            "cd ../",
+            List.of(ChatMessageDto.user("cd ../")),
+            10L
+        );
+
+        assertThat(response.isHasContext()).isFalse();
+        assertThat(response.getAnswer())
+            .contains("도와드릴 수 없어요")
+            .contains("서버 자원");
+        verify(vectorSearchService, never()).searchUserData(any(), any());
+        verify(vectorSearchService, never()).searchUserPrivate(any(), any());
+        verify(vectorSearchService, never()).searchPublicOnly(any());
+        verify(vectorSearchService, never()).searchPublicEventsFirst(any());
+        verify(llmRouter, never()).pick(any());
+    }
+
+    @Test
     void questionWithoutFairPlayContextDoesNotCallLlm() throws Exception {
         when(vectorSearchService.searchPublicOnly("미국 수도가 어디야?"))
             .thenReturn(SearchResult.builder()
