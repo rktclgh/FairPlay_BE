@@ -32,8 +32,9 @@ public class RagReindexEventListener {
                 case BOOTH_EXPERIENCE -> comprehensiveRagDataLoader.loadSingleBoothExperience(request.documentId());
             }
         } catch (Exception e) {
-            log.warn("RAG reindex event failed. type={}, id={}, action={}",
+            log.error("RAG reindex event failed. type={}, id={}, action={}",
                 request.documentType(), request.documentId(), request.action(), e);
+            throw new IllegalStateException("RAG reindex event failed", e);
         }
     }
 

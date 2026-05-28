@@ -8,6 +8,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,5 +50,30 @@ class RagReindexEventListenerTest {
         listener.handle(RagReindexRequest.delete(RagDocumentType.EVENT, 52L));
 
         verify(documentIngestService).deleteDocument("event_52");
+    }
+
+    @Test
+    void deleteBoothRemovesStoredDocument() {
+        listener.handle(RagReindexRequest.delete(RagDocumentType.BOOTH, 11L));
+
+        verify(documentIngestService).deleteDocument("booth_11");
+    }
+
+    @Test
+    void deleteBoothExperienceRemovesStoredDocument() {
+        listener.handle(RagReindexRequest.delete(RagDocumentType.BOOTH_EXPERIENCE, 7L));
+
+        verify(documentIngestService).deleteDocument("booth_experience_7");
+    }
+
+    @Test
+    void reindexFailureIsSurfaced() {
+        doThrow(new IllegalStateException("loader down"))
+            .when(comprehensiveRagDataLoader).loadSingleEvent(52L);
+
+        assertThatThrownBy(() -> listener.handle(RagReindexRequest.upsert(RagDocumentType.EVENT, 52L)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessage("RAG reindex event failed")
+            .hasRootCauseMessage("loader down");
     }
 }
