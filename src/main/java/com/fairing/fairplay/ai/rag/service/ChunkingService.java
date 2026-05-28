@@ -9,7 +9,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * 청킹 전략 서비스 (Google Gemini embedding-001 최적화: 800자 최대)
+ * 청킹 전략 서비스 (Google Gemini 임베딩 최적화: 800자 최대)
  */
 @Service
 public class ChunkingService {

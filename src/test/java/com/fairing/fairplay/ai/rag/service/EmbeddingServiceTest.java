@@ -1,0 +1,51 @@
+package com.fairing.fairplay.ai.rag.service;
+
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class EmbeddingServiceTest {
+
+    @Test
+    void usesCurrentGeminiEmbeddingModelEndpoint() {
+        EmbeddingService embeddingService = new EmbeddingService(
+            "test-key",
+            false,
+            "gemini-embedding-001",
+            768
+        );
+
+        assertThat(embeddingService.embeddingUrl())
+            .isEqualTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent");
+    }
+
+    @Test
+    void buildsRetrievalDocumentRequestWithConfiguredOutputDimension() {
+        EmbeddingService embeddingService = new EmbeddingService(
+            "test-key",
+            false,
+            "gemini-embedding-001",
+            768
+        );
+
+        Map<String, Object> requestBody = embeddingService.buildEmbeddingRequest(
+            " 2025 트렌드페어\n행사 정보 ",
+            "RETRIEVAL_DOCUMENT"
+        );
+
+        assertThat(requestBody)
+            .containsEntry("taskType", "RETRIEVAL_DOCUMENT")
+            .containsEntry("outputDimensionality", 768);
+        assertThat(extractText(requestBody)).isEqualTo("2025 트렌드페어 행사 정보");
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extractText(Map<String, Object> requestBody) {
+        Map<String, Object> content = (Map<String, Object>) requestBody.get("content");
+        List<Map<String, String>> parts = (List<Map<String, String>>) content.get("parts");
+        return parts.get(0).get("text");
+    }
+}
