@@ -11,11 +11,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DocumentIngestServiceTransactionContractTest {
 
     @Test
-    void ingestDocumentUsesIndependentWriteTransaction() throws Exception {
+    void ingestDocumentDoesNotHoldTransactionDuringEmbeddingIo() throws Exception {
         Method method = DocumentIngestService.class.getMethod(
             "ingestDocument",
             com.fairing.fairplay.ai.rag.domain.Document.class
         );
+
+        Transactional transactional = method.getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNull();
+    }
+
+    @Test
+    void chunkReplacementUsesIndependentWriteTransaction() throws Exception {
+        Method method = RagChunkWriteService.class.getMethod("replaceDocument", String.class, java.util.List.class);
 
         Transactional transactional = method.getAnnotation(Transactional.class);
 
@@ -25,7 +34,7 @@ class DocumentIngestServiceTransactionContractTest {
 
     @Test
     void deleteDocumentUsesIndependentWriteTransaction() throws Exception {
-        Method method = DocumentIngestService.class.getMethod("deleteDocument", String.class);
+        Method method = RagChunkWriteService.class.getMethod("deleteDocument", String.class);
 
         Transactional transactional = method.getAnnotation(Transactional.class);
 

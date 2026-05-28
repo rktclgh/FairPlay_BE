@@ -8,10 +8,13 @@ import com.fairing.fairplay.event.repository.EventDetailRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Event/EventDetail 데이터를 RAG용 문서로 변환하는 로더
@@ -24,41 +27,48 @@ public class EventRagDataLoader {
     private final EventRepository eventRepository;
     private final EventDetailRepository eventDetailRepository;
     private final DocumentIngestService documentIngestService;
+    private final PlatformTransactionManager transactionManager;
+
+    private <T> T inReadOnlyTransaction(Supplier<T> action) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setReadOnly(true);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return transactionTemplate.execute(status -> action.get());
+    }
 
     /**
      * 모든 이벤트 데이터를 RAG에 로드
      */
-    @Transactional(readOnly = true)
     public LoadResult loadAllEvents() {
         log.info("이벤트 데이터 RAG 로드 시작...");
-        
-        List<Event> events = eventRepository.findAll();
-        int totalEvents = events.size();
+
+        List<Document> documents = inReadOnlyTransaction(() -> eventRepository.findAll().stream()
+            .map(event -> {
+                EventDetail eventDetail = eventDetailRepository.findById(event.getEventId()).orElse(null);
+                return buildDocumentFromEvent(event, eventDetail);
+            })
+            .collect(Collectors.toList()));
+
+        int totalEvents = documents.size();
         int successCount = 0;
         int failCount = 0;
         
-        for (Event event : events) {
+        for (Document document : documents) {
             try {
-                // EventDetail 조회
-                EventDetail eventDetail = eventDetailRepository.findById(event.getEventId()).orElse(null);
-                
-                // Document 생성
-                Document document = buildDocumentFromEvent(event, eventDetail);
-                
                 // RAG에 인제스트
                 DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
                 
                 if (result.isSuccess()) {
                     successCount++;
-                    log.debug("이벤트 RAG 로드 성공: {} (청크 {}개)", event.getEventId(), result.getProcessedChunks());
+                    log.debug("이벤트 RAG 로드 성공: {} (청크 {}개)", document.getDocId(), result.getProcessedChunks());
                 } else {
                     failCount++;
-                    log.warn("이벤트 RAG 로드 실패: {} - {}", event.getEventId(), result.getErrorMessage());
+                    log.warn("이벤트 RAG 로드 실패: {} - {}", document.getDocId(), result.getErrorMessage());
                 }
                 
             } catch (Exception e) {
                 failCount++;
-                log.error("이벤트 RAG 로드 오류: {} - {}", event.getEventId(), e.getMessage(), e);
+                log.error("이벤트 RAG 로드 오류: {} - {}", document.getDocId(), e.getMessage(), e);
             }
         }
         
@@ -70,17 +80,22 @@ public class EventRagDataLoader {
     /**
      * 특정 이벤트만 RAG에 로드
      */
-    @Transactional(readOnly = true)
     public boolean loadSingleEvent(Long eventId) {
         try {
-            Event event = eventRepository.findById(eventId).orElse(null);
-            if (event == null) {
+            Document document = inReadOnlyTransaction(() -> {
+                Event event = eventRepository.findById(eventId).orElse(null);
+                if (event == null) {
+                    return null;
+                }
+
+                EventDetail eventDetail = eventDetailRepository.findById(eventId).orElse(null);
+                return buildDocumentFromEvent(event, eventDetail);
+            });
+
+            if (document == null) {
                 log.warn("이벤트를 찾을 수 없음: {}", eventId);
                 return false;
             }
-            
-            EventDetail eventDetail = eventDetailRepository.findById(eventId).orElse(null);
-            Document document = buildDocumentFromEvent(event, eventDetail);
             
             DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
             

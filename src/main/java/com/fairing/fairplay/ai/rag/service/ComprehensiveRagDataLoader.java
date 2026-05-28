@@ -28,12 +28,16 @@ import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import jakarta.annotation.PostConstruct;
 import org.springframework.data.domain.PageRequest;
@@ -64,6 +68,7 @@ public class ComprehensiveRagDataLoader {
     private final ReservationRepository reservationRepository;
     private final AttendeeRepository attendeeRepository;
     private final DocumentIngestService documentIngestService;
+    private final PlatformTransactionManager transactionManager;
     
     /**
      * 초기화 메서드 - SubCategory 캐시 생성 (N+1 문제 해결)
@@ -71,6 +76,13 @@ public class ComprehensiveRagDataLoader {
     @PostConstruct
     public void init() {
         initializeSubCategoryCache();
+    }
+
+    private <T> T inReadOnlyTransaction(Supplier<T> action) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setReadOnly(true);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return transactionTemplate.execute(status -> action.get());
     }
     
     /**
@@ -170,7 +182,6 @@ public class ComprehensiveRagDataLoader {
     /**
      * 모든 공개 데이터를 RAG에 로드
      */
-    @Transactional(readOnly = true)
     public ComprehensiveLoadResult loadAllPublicData() {
         log.info("종합 공개 데이터 RAG 로드 시작...");
         
@@ -201,17 +212,23 @@ public class ComprehensiveRagDataLoader {
         return result;
     }
 
-    @Transactional(readOnly = true)
     public LoadResult loadSingleEvent(Long eventId) {
         try {
-            Event event = eventRepository.findById(eventId).orElse(null);
-            if (event == null || Boolean.TRUE.equals(event.getIsDeleted())) {
+            Document document = inReadOnlyTransaction(() -> {
+                Event event = eventRepository.findById(eventId).orElse(null);
+                if (event == null || Boolean.TRUE.equals(event.getIsDeleted())) {
+                    return null;
+                }
+
+                EventDetail eventDetail = eventDetailRepository.findById(eventId).orElse(null);
+                return buildEventDocument(event, eventDetail);
+            });
+
+            if (document == null) {
                 documentIngestService.deleteDocument("event_" + eventId);
                 return new LoadResult("Event", 1, 1, 0);
             }
 
-            EventDetail eventDetail = eventDetailRepository.findById(eventId).orElse(null);
-            Document document = buildEventDocument(event, eventDetail);
             DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
             return toLoadResult("Event", result);
         } catch (Exception e) {
@@ -220,16 +237,22 @@ public class ComprehensiveRagDataLoader {
         }
     }
 
-    @Transactional(readOnly = true)
     public LoadResult loadSingleBooth(Long boothId) {
         try {
-            Booth booth = boothRepository.findById(boothId).orElse(null);
-            if (booth == null || Boolean.TRUE.equals(booth.getIsDeleted())) {
+            Document document = inReadOnlyTransaction(() -> {
+                Booth booth = boothRepository.findById(boothId).orElse(null);
+                if (booth == null || Boolean.TRUE.equals(booth.getIsDeleted())) {
+                    return null;
+                }
+
+                return buildBoothDocument(booth);
+            });
+
+            if (document == null) {
                 documentIngestService.deleteDocument("booth_" + boothId);
                 return new LoadResult("Booth", 1, 1, 0);
             }
 
-            Document document = buildBoothDocument(booth);
             DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
             return toLoadResult("Booth", result);
         } catch (Exception e) {
@@ -238,16 +261,22 @@ public class ComprehensiveRagDataLoader {
         }
     }
 
-    @Transactional(readOnly = true)
     public LoadResult loadSingleBoothExperience(Long experienceId) {
         try {
-            BoothExperience experience = boothExperienceRepository.findById(experienceId).orElse(null);
-            if (experience == null) {
+            Document document = inReadOnlyTransaction(() -> {
+                BoothExperience experience = boothExperienceRepository.findById(experienceId).orElse(null);
+                if (experience == null) {
+                    return null;
+                }
+
+                return buildBoothExperienceDocument(experience);
+            });
+
+            if (document == null) {
                 documentIngestService.deleteDocument("booth_experience_" + experienceId);
                 return new LoadResult("BoothExperience", 1, 1, 0);
             }
 
-            Document document = buildBoothExperienceDocument(experience);
             DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
             return toLoadResult("BoothExperience", result);
         } catch (Exception e) {
@@ -268,39 +297,12 @@ public class ComprehensiveRagDataLoader {
      */
     private LoadResult loadUserData() {
         log.info("사용자별 개인정보 데이터 로드 중...");
-        List<Users> users = userRepository.findAll();
-        int successCount = 0;
-        int failCount = 0;
-        
-        for (Users user : users) {
-            try {
-                // AI 봇 계정(999) 제외
-                if (user.getUserId() == 999) {
-                    continue;
-                }
-                
-                Document document = buildUserDataDocument(user);
-                
-                DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
-                if (result.isSuccess()) {
-                    successCount++;
-                    log.debug("사용자 데이터 임베딩 성공: {} ({})", user.getUserId(), user.getName());
-                } else {
-                    failCount++;
-                    log.warn("사용자 데이터 임베딩 실패: {} ({}) - 오류: {}", 
-                        user.getUserId(), user.getName(), result.getErrorMessage());
-                }
-            } catch (Exception e) {
-                failCount++;
-                log.error("사용자 데이터 로드 오류: {} ({}) - 예외: {}", 
-                    user.getUserId(), user.getName(), e.getMessage(), e);
-            }
-        }
-        
-        log.info("사용자별 개인정보 데이터 로드 완료: 총 {}개 중 {}개 성공, {}개 실패", 
-            users.size(), successCount, failCount);
-        
-        return new LoadResult("UserData", users.size(), successCount, failCount);
+        List<Document> documents = inReadOnlyTransaction(() -> userRepository.findAll().stream()
+            .filter(user -> user.getUserId() != 999)
+            .map(this::buildUserDataDocument)
+            .collect(Collectors.toList()));
+
+        return ingestDocuments("UserData", documents);
     }
     
     /**
@@ -308,53 +310,26 @@ public class ComprehensiveRagDataLoader {
      */
     private LoadResult loadEvents() {
         log.info("이벤트 데이터 로드 중...");
-        List<Event> events = eventRepository.findAll();
-        log.info("데이터베이스에서 {}개의 이벤트를 찾았습니다", events.size());
-        
-        // 가져온 이벤트 ID들 로깅
-        StringBuilder eventIds = new StringBuilder("가져온 이벤트 ID들: ");
-        for (Event event : events) {
-            eventIds.append(event.getEventId()).append("(").append(event.getTitleKr()).append("), ");
-        }
-        log.info(eventIds.toString());
-        
-        int successCount = 0;
-        int failCount = 0;
-        
-        for (Event event : events) {
-            try {
-                log.info("이벤트 처리 중: ID={}, TitleKr={}, TitleEng={}, Hidden={}", 
-                    event.getEventId(), event.getTitleKr(), event.getTitleEng(), event.getHidden());
-                
-                EventDetail eventDetail = eventDetailRepository.findById(event.getEventId()).orElse(null);
-                if (eventDetail == null) {
-                    log.warn("이벤트 상세 정보 없음: eventId={}", event.getEventId());
-                }
-                
-                Document document = buildEventDocument(event, eventDetail);
-                log.debug("문서 생성 완료: docId={}, 제목={}, 내용 길이={}", 
-                    document.getDocId(), document.getTitle(), document.getContent().length());
-                
-                DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
-                if (result.isSuccess()) {
-                    successCount++;
-                    log.info("이벤트 임베딩 성공: {} ({})", event.getEventId(), event.getTitleKr());
-                } else {
-                    failCount++;
-                    log.error("이벤트 임베딩 실패: {} ({}) - 오류: {}", 
-                        event.getEventId(), event.getTitleKr(), result.getErrorMessage());
-                }
-            } catch (Exception e) {
-                failCount++;
-                log.error("이벤트 로드 오류: {} ({}) - 예외: {}", 
-                    event.getEventId(), event.getTitleKr(), e.getMessage(), e);
-            }
-        }
-        
-        log.info("이벤트 데이터 로드 완료: 총 {}개 중 {}개 성공, {}개 실패", 
-            events.size(), successCount, failCount);
-        
-        return new LoadResult("Event", events.size(), successCount, failCount);
+        List<Document> documents = inReadOnlyTransaction(() -> {
+            List<Event> events = eventRepository.findAll();
+            log.info("데이터베이스에서 {}개의 이벤트를 찾았습니다", events.size());
+
+            return events.stream()
+                .map(event -> {
+                    log.info("이벤트 처리 중: ID={}, TitleKr={}, TitleEng={}, Hidden={}",
+                        event.getEventId(), event.getTitleKr(), event.getTitleEng(), event.getHidden());
+
+                    EventDetail eventDetail = eventDetailRepository.findById(event.getEventId()).orElse(null);
+                    if (eventDetail == null) {
+                        log.warn("이벤트 상세 정보 없음: eventId={}", event.getEventId());
+                    }
+
+                    return buildEventDocument(event, eventDetail);
+                })
+                .collect(Collectors.toList());
+        });
+
+        return ingestDocuments("Event", documents);
     }
     
     /**
@@ -362,28 +337,11 @@ public class ComprehensiveRagDataLoader {
      */
     private LoadResult loadBooths() {
         log.info("부스 데이터 로드 중...");
-        List<Booth> booths = boothRepository.findAll();
-        int successCount = 0;
-        int failCount = 0;
-        
-        for (Booth booth : booths) {
-            try {
-                Document document = buildBoothDocument(booth);
-                
-                DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
-                if (result.isSuccess()) {
-                    successCount++;
-                } else {
-                    failCount++;
-                    log.warn("부스 로드 실패: {} - {}", booth.getId(), result.getErrorMessage());
-                }
-            } catch (Exception e) {
-                failCount++;
-                log.error("부스 로드 오류: {} - {}", booth.getId(), e.getMessage(), e);
-            }
-        }
-        
-        return new LoadResult("Booth", booths.size(), successCount, failCount);
+        List<Document> documents = inReadOnlyTransaction(() -> boothRepository.findAll().stream()
+            .map(this::buildBoothDocument)
+            .collect(Collectors.toList()));
+
+        return ingestDocuments("Booth", documents);
     }
     
     /**
@@ -391,28 +349,11 @@ public class ComprehensiveRagDataLoader {
      */
     private LoadResult loadBoothExperiences() {
         log.info("부스 체험 데이터 로드 중...");
-        List<BoothExperience> experiences = boothExperienceRepository.findAll();
-        int successCount = 0;
-        int failCount = 0;
-        
-        for (BoothExperience experience : experiences) {
-            try {
-                Document document = buildBoothExperienceDocument(experience);
-                
-                DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
-                if (result.isSuccess()) {
-                    successCount++;
-                } else {
-                    failCount++;
-                    log.warn("부스 체험 로드 실패: {} - {}", experience.getExperienceId(), result.getErrorMessage());
-                }
-            } catch (Exception e) {
-                failCount++;
-                log.error("부스 체험 로드 오류: {} - {}", experience.getExperienceId(), e.getMessage(), e);
-            }
-        }
-        
-        return new LoadResult("BoothExperience", experiences.size(), successCount, failCount);
+        List<Document> documents = inReadOnlyTransaction(() -> boothExperienceRepository.findAll().stream()
+            .map(this::buildBoothExperienceDocument)
+            .collect(Collectors.toList()));
+
+        return ingestDocuments("BoothExperience", documents);
     }
     
     /**
@@ -420,28 +361,11 @@ public class ComprehensiveRagDataLoader {
      */
     private LoadResult loadReviews() {
         log.info("리뷰 데이터 로드 중...");
-        List<Review> reviews = reviewRepository.findAll();
-        int successCount = 0;
-        int failCount = 0;
-        
-        for (Review review : reviews) {
-            try {
-                Document document = buildReviewDocument(review);
-                
-                DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
-                if (result.isSuccess()) {
-                    successCount++;
-                } else {
-                    failCount++;
-                    log.warn("리뷰 로드 실패: {} - {}", review.getId(), result.getErrorMessage());
-                }
-            } catch (Exception e) {
-                failCount++;
-                log.error("리뷰 로드 오류: {} - {}", review.getId(), e.getMessage(), e);
-            }
-        }
-        
-        return new LoadResult("Review", reviews.size(), successCount, failCount);
+        List<Document> documents = inReadOnlyTransaction(() -> reviewRepository.findAll().stream()
+            .map(this::buildReviewDocument)
+            .collect(Collectors.toList()));
+
+        return ingestDocuments("Review", documents);
     }
     
     /**
@@ -449,31 +373,43 @@ public class ComprehensiveRagDataLoader {
      */
     private LoadResult loadCategories() {
         log.info("카테고리 데이터 로드 중...");
-        List<MainCategory> categories = mainCategoryRepository.findAll();
+        List<Document> documents = inReadOnlyTransaction(() -> mainCategoryRepository.findAll().stream()
+            .map(category -> {
+                List<SubCategory> subCategories = subCategoryCache.getOrDefault(
+                    category.getGroupId(), new ArrayList<>());
+                return buildCategoryDocument(category, subCategories);
+            })
+            .collect(Collectors.toList()));
+
+        return ingestDocuments("Category", documents);
+    }
+
+    private LoadResult ingestDocuments(String domain, List<Document> documents) {
         int successCount = 0;
         int failCount = 0;
 
-        for (MainCategory category : categories) {
+        for (Document document : documents) {
             try {
-                // 캐시에서 SubCategory 가져오기 (N+1 문제 해결)
-                List<SubCategory> subCategories = subCategoryCache.getOrDefault(
-                    category.getGroupId(), new ArrayList<>());
-                Document document = buildCategoryDocument(category, subCategories);
-
                 DocumentIngestService.IngestResult result = documentIngestService.ingestDocument(document);
                 if (result.isSuccess()) {
                     successCount++;
+                    log.debug("{} RAG 로드 성공: {} (청크 {}개)",
+                        domain, document.getDocId(), result.getProcessedChunks());
                 } else {
                     failCount++;
-                    log.warn("카테고리 로드 실패: {} - {}", category.getGroupId(), result.getErrorMessage());
+                    log.warn("{} RAG 로드 실패: {} - {}",
+                        domain, document.getDocId(), result.getErrorMessage());
                 }
             } catch (Exception e) {
                 failCount++;
-                log.error("카테고리 로드 오류: {} - {}", category.getGroupId(), e.getMessage(), e);
+                log.error("{} RAG 로드 오류: {} - {}", domain, document.getDocId(), e.getMessage(), e);
             }
         }
 
-        return new LoadResult("Category", categories.size(), successCount, failCount);
+        log.info("{} 데이터 로드 완료: 총 {}개 중 {}개 성공, {}개 실패",
+            domain, documents.size(), successCount, failCount);
+
+        return new LoadResult(domain, documents.size(), successCount, failCount);
     }
     
     /**
