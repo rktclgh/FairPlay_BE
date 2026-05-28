@@ -4,5 +4,6 @@ public enum RagDocumentType {
     EVENT,
     BOOTH,
     BOOTH_EXPERIENCE,
-    USER_DATA
+    USER_DATA,
+    USER_RESERVATION
 }

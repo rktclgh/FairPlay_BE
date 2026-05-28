@@ -13,13 +13,21 @@ public interface RagChunkRepository {
 
     List<SearchResult.ScoredChunk> searchPublicSimilar(float[] queryEmbedding, int topK, double threshold);
 
+    List<SearchResult.ScoredChunk> searchPublicSimilarByTypes(List<String> docTypes, float[] queryEmbedding, int topK, double threshold);
+
     List<SearchResult.ScoredChunk> searchUserSimilar(Long userId, float[] queryEmbedding, int topK, double threshold);
+
+    List<SearchResult.ScoredChunk> searchUserSimilarByTypes(Long userId, List<String> docTypes, float[] queryEmbedding, int topK, double threshold);
 
     List<SearchResult.ScoredChunk> searchKeyword(String query, int topK);
 
     List<SearchResult.ScoredChunk> searchPublicKeyword(String query, int topK);
 
+    List<SearchResult.ScoredChunk> searchPublicKeywordByTypes(List<String> docTypes, String query, int topK);
+
     List<SearchResult.ScoredChunk> searchUserKeyword(Long userId, String query, int topK);
+
+    List<SearchResult.ScoredChunk> searchUserKeywordByTypes(Long userId, List<String> docTypes, String query, int topK);
 
     List<Chunk> findByDocId(String docId);
 

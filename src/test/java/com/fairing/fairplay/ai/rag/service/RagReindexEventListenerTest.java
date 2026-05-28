@@ -53,6 +53,13 @@ class RagReindexEventListenerTest {
     }
 
     @Test
+    void userReservationUpsertReloadsSingleReservationDocument() {
+        listener.handle(RagReindexRequest.upsert(RagDocumentType.USER_RESERVATION, 141L));
+
+        verify(comprehensiveRagDataLoader).loadSingleReservation(141L);
+    }
+
+    @Test
     void deleteRemovesStoredDocument() {
         listener.handle(RagReindexRequest.delete(RagDocumentType.EVENT, 52L));
 
@@ -78,6 +85,13 @@ class RagReindexEventListenerTest {
         listener.handle(RagReindexRequest.delete(RagDocumentType.USER_DATA, 10L));
 
         verify(documentIngestService).deleteDocument("user_10");
+    }
+
+    @Test
+    void deleteUserReservationRemovesStoredDocument() {
+        listener.handle(RagReindexRequest.delete(RagDocumentType.USER_RESERVATION, 141L));
+
+        verify(documentIngestService).deleteDocument("reservation_141");
     }
 
     @Test

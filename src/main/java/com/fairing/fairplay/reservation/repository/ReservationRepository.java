@@ -38,6 +38,18 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
       JOIN FETCH r.ticket t
       JOIN FETCH r.user u
       JOIN FETCH r.reservationStatusCode rsc
+      ORDER BY r.createdAt DESC
+      """)
+  List<Reservation> findAllForRag();
+
+  @Query("""
+      SELECT r FROM Reservation r
+      JOIN FETCH r.event e
+      LEFT JOIN FETCH e.eventDetail ed
+      LEFT JOIN FETCH r.schedule s
+      JOIN FETCH r.ticket t
+      JOIN FETCH r.user u
+      JOIN FETCH r.reservationStatusCode rsc
       WHERE r.event.eventId = :eventId
       ORDER BY r.createdAt DESC
       """)
