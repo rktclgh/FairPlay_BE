@@ -1,5 +1,6 @@
 package com.fairing.fairplay.reservation.service;
 
+import com.fairing.fairplay.ai.rag.service.RagIndexingEventPublisher;
 import com.fairing.fairplay.attendee.repository.AttendeeRepository;
 import com.fairing.fairplay.core.security.CustomUserDetails;
 import com.fairing.fairplay.event.entity.Event;
@@ -8,6 +9,8 @@ import com.fairing.fairplay.event.repository.EventRepository;
 import com.fairing.fairplay.notification.service.NotificationService;
 import com.fairing.fairplay.payment.repository.PaymentRepository;
 import com.fairing.fairplay.payment.repository.PaymentStatusCodeRepository;
+import com.fairing.fairplay.payment.entity.Payment;
+import com.fairing.fairplay.payment.entity.PaymentStatusCode;
 import com.fairing.fairplay.reservation.entity.Reservation;
 import com.fairing.fairplay.reservation.entity.ReservationStatusCode;
 import com.fairing.fairplay.reservation.entity.ReservationStatusCodeEnum;
@@ -15,6 +18,7 @@ import com.fairing.fairplay.reservation.repository.ReservationLogRepository;
 import com.fairing.fairplay.reservation.repository.ReservationRepository;
 import com.fairing.fairplay.ticket.entity.EventSchedule;
 import com.fairing.fairplay.ticket.entity.EventTicketId;
+import com.fairing.fairplay.ticket.entity.Ticket;
 import com.fairing.fairplay.ticket.repository.EventScheduleRepository;
 import com.fairing.fairplay.ticket.repository.ScheduleTicketRepository;
 import com.fairing.fairplay.ticket.repository.TicketRepository;
@@ -78,6 +82,9 @@ class ReservationServiceAuthorizationTest {
     @Mock
     private PaymentStatusCodeRepository paymentStatusCodeRepository;
 
+    @Mock
+    private RagIndexingEventPublisher ragIndexingEventPublisher;
+
     private ReservationService reservationService;
 
     @BeforeEach
@@ -94,7 +101,8 @@ class ReservationServiceAuthorizationTest {
                 ticketRepository,
                 scheduleTicketRepository,
                 paymentRepository,
-                paymentStatusCodeRepository
+                paymentStatusCodeRepository,
+                ragIndexingEventPublisher
         );
     }
 
@@ -319,6 +327,51 @@ class ReservationServiceAuthorizationTest {
         verify(scheduleTicketRepository, never()).increaseStock(any(), any(), any(Integer.class));
         verify(reservationRepository, never()).save(any());
         verify(reservationLogRepository, never()).save(any());
+    }
+
+    @Test
+    void createReservationPublishesUserDataReindexAfterReservationMutation() {
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(event(1L, 100L)));
+        when(userRepository.findById(300L)).thenReturn(Optional.of(new Users(300L)));
+        when(eventTicketRepository.existsById(new EventTicketId(99L, 1L))).thenReturn(true);
+
+        Ticket ticket = new Ticket();
+        ticket.setTicketId(99L);
+        ticket.setName("일반권");
+        ticket.setPrice(1000);
+        when(ticketRepository.findById(99L)).thenReturn(Optional.of(ticket));
+
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(invocation -> {
+            Reservation reservation = invocation.getArgument(0);
+            reservation.setReservationId(10L);
+            return reservation;
+        });
+        when(paymentRepository.findById(500L)).thenReturn(Optional.of(new Payment()));
+        when(paymentStatusCodeRepository.findByCode("COMPLETED"))
+                .thenReturn(Optional.of(PaymentStatusCode.builder().code("COMPLETED").name("완료").build()));
+
+        com.fairing.fairplay.reservation.dto.ReservationRequestDto requestDto =
+                new com.fairing.fairplay.reservation.dto.ReservationRequestDto();
+        requestDto.setEventId(1L);
+        requestDto.setTicketId(99L);
+        requestDto.setQuantity(1);
+        requestDto.setPrice(1000);
+
+        reservationService.createReservation(requestDto, 300L, 500L);
+
+        verify(ragIndexingEventPublisher).userDataChanged(300L);
+    }
+
+    @Test
+    void cancelReservationPublishesUserDataReindexAfterReservationMutation() {
+        Reservation reservation = reservation(10L, 1L, 300L, 100L);
+        reservation.setReservationStatusCode(new ReservationStatusCode(ReservationStatusCodeEnum.CONFIRMED.getId()));
+        when(reservationRepository.findById(10L)).thenReturn(Optional.of(reservation));
+        when(userRepository.getReferenceById(300L)).thenReturn(new Users(300L));
+
+        reservationService.cancelReservation(1L, 10L, 300L);
+
+        verify(ragIndexingEventPublisher).userDataChanged(300L);
     }
 
     private Reservation reservation(Long reservationId, Long eventId, Long reservationUserId, Long eventManagerId) {

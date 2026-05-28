@@ -30,6 +30,7 @@ public class RagReindexEventListener {
                 case EVENT -> comprehensiveRagDataLoader.loadSingleEvent(request.documentId());
                 case BOOTH -> comprehensiveRagDataLoader.loadSingleBooth(request.documentId());
                 case BOOTH_EXPERIENCE -> comprehensiveRagDataLoader.loadSingleBoothExperience(request.documentId());
+                case USER_DATA -> comprehensiveRagDataLoader.loadSingleUserData(request.documentId());
             }
         } catch (Exception e) {
             log.error("RAG reindex event failed. type={}, id={}, action={}",
@@ -43,6 +44,7 @@ public class RagReindexEventListener {
             case EVENT -> "event_" + request.documentId();
             case BOOTH -> "booth_" + request.documentId();
             case BOOTH_EXPERIENCE -> "booth_experience_" + request.documentId();
+            case USER_DATA -> "user_" + request.documentId();
         };
         documentIngestService.deleteDocument(docId);
     }
