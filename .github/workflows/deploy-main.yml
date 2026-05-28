@@ -148,13 +148,21 @@ jobs:
           # .env 정규화 및 자격 추출
           test -f .env || { echo "Missing ${DEPLOY_PATH}/.env. Use deploy/.env.miniserver.example as the template."; exit 1; }
           sed -i 's/\r$//' .env
-          grep -Ev '^(DOCKERHUB_USERNAME|DOCKERHUB_TOKEN)=' .env > app.env
-          sed -i 's#host\.docker\.internal#127.0.0.1#g' app.env
           DU=$(grep -E '^DOCKERHUB_USERNAME=' .env | sed -E 's/^DOCKERHUB_USERNAME=//; s/^"//; s/"$//; s/[[:space:]]+$//')
           DT=$(grep -E '^DOCKERHUB_TOKEN=' .env     | sed -E 's/^DOCKERHUB_TOKEN=//;     s/^"//; s/"$//; s/[[:space:]]+$//')
           [ -n "$DU" ] && [ -n "$DT" ] || { echo "DOCKERHUB creds missing in .env"; exit 1; }
           [ -n "${FAIRPLAY_BACKEND_IMAGE}" ] || { echo "FAIRPLAY_BACKEND_IMAGE missing"; exit 1; }
           export FAIRPLAY_BACKEND_IMAGE
+
+          # Persist the exact deployed image so later compose restarts do not
+          # fall back to the mutable latest tag.
+          if grep -q '^FAIRPLAY_BACKEND_IMAGE=' .env; then
+            sed -i "s#^FAIRPLAY_BACKEND_IMAGE=.*#FAIRPLAY_BACKEND_IMAGE=${FAIRPLAY_BACKEND_IMAGE}#" .env
+          else
+            printf '\nFAIRPLAY_BACKEND_IMAGE=%s\n' "${FAIRPLAY_BACKEND_IMAGE}" >> .env
+          fi
+          grep -Ev '^(DOCKERHUB_USERNAME|DOCKERHUB_TOKEN|FAIRPLAY_BACKEND_IMAGE)=' .env > app.env
+          sed -i 's#host\.docker\.internal#127.0.0.1#g' app.env
           
           echo "$DT" | docker login -u "$DU" --password-stdin
           
