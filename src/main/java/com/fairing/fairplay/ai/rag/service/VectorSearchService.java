@@ -69,11 +69,7 @@ public class VectorSearchService {
         List<SearchResult.ScoredChunk> combined =
             combineSearchResults(vectorChunks, keywordChunks, DEFAULT_TOP_K, query);
 
-        return SearchResult.builder()
-            .chunks(combined)
-            .contextText(buildContextTextFromScored(combined))
-            .totalChunks(combined.size())
-            .build();
+        return toResult(combined);
     }
 
     public SearchResult searchPublicEventsFirst(String query) throws Exception {
