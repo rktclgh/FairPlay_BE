@@ -69,16 +69,7 @@ public class VectorSearchService {
         List<SearchResult.ScoredChunk> combined =
             combineSearchResults(vectorChunks, keywordChunks, DEFAULT_TOP_K, query);
 
-        SearchResult result = SearchResult.builder()
-            .chunks(combined)
-            .contextText(buildContextTextFromScored(combined))
-            .totalChunks(combined.size())
-            .build();
-
-        if (result.getChunks().isEmpty()) {
-            result.setContextText("해당 사용자의 정보를 찾을 수 없습니다.");
-        }
-        return result;
+        return toResult(combined);
     }
 
     public SearchResult searchPublicEventsFirst(String query) throws Exception {

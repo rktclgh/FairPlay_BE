@@ -50,11 +50,27 @@ class VectorSearchServiceScopeTest {
             .thenReturn(List.of(scoredChunk));
         when(repository.searchUserKeywordByTypes(eq(10L), anyList(), any(), anyInt()))
             .thenReturn(List.of());
+        when(repository.getTotalChunkCount()).thenReturn(132L);
 
         SearchResult result = service.searchUserData(10L, "내 예약 알려줘");
 
         assertThat(result.getChunks()).containsExactly(scoredChunk);
         assertThat(result.getContextText()).contains("2025 명원세계차");
+        assertThat(result.getTotalChunks()).isEqualTo(132);
         verify(repository, never()).findByDocId("user_10");
+    }
+
+    @Test
+    void userDataSearchKeepsContextEmptyWhenNoPrivateChunksMatch() throws Exception {
+        when(repository.searchUserSimilarByTypes(eq(10L), anyList(), any(), anyInt(), anyDouble()))
+            .thenReturn(List.of());
+        when(repository.searchUserKeywordByTypes(eq(10L), anyList(), any(), anyInt()))
+            .thenReturn(List.of());
+
+        SearchResult result = service.searchUserData(10L, "없는 예약 알려줘");
+
+        assertThat(result.getChunks()).isEmpty();
+        assertThat(result.getContextText()).isEmpty();
+        assertThat(result.getTotalChunks()).isZero();
     }
 }
