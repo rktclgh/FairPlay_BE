@@ -100,7 +100,7 @@ public class PgVectorRagRepository implements RagChunkRepository {
 
     @Override
     public List<SearchResult.ScoredChunk> searchUserSimilar(Long userId, float[] queryEmbedding, int topK, double threshold) {
-        return searchSimilarByScope(queryEmbedding, topK, threshold, "AND owner_user_id = ?", userId);
+        return searchSimilarByScope(queryEmbedding, topK, threshold, "AND visibility = 'USER_PRIVATE' AND owner_user_id = ?", userId);
     }
 
     @Override
@@ -136,7 +136,7 @@ public class PgVectorRagRepository implements RagChunkRepository {
 
     @Override
     public List<SearchResult.ScoredChunk> searchUserKeyword(Long userId, String query, int topK) {
-        return searchKeywordByScope(query, topK, "AND owner_user_id = ?", userId);
+        return searchKeywordByScope(query, topK, "AND visibility = 'USER_PRIVATE' AND owner_user_id = ?", userId);
     }
 
     @Override
@@ -275,7 +275,7 @@ public class PgVectorRagRepository implements RagChunkRepository {
     }
 
     private String userTypeScope(List<String> docTypes) {
-        return "AND owner_user_id = ? AND doc_type IN (" + placeholders(docTypes) + ")";
+        return "AND visibility = 'USER_PRIVATE' AND owner_user_id = ? AND doc_type IN (" + placeholders(docTypes) + ")";
     }
 
     private String placeholders(List<String> values) {
