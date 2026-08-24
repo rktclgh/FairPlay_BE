@@ -128,7 +128,7 @@ iamport:
   secret-key: ${IAMPORT_SECRET_KEY}
   base-url: ${IAMPORT_BASE_URL:https://api.iamport.kr}
 llm:
-  provider: ${LLM_PROVIDER:HERMES}
+  provider: ${LLM_PROVIDER:BEDROCK}
   bot-user-id: 999    # AI 챗봇의 사용자 ID
   gemini:
     api-key: ${GEMINI_API_KEY:}       # 환경변수 권장
@@ -143,6 +143,14 @@ llm:
     wait-timeout-seconds: ${HERMES_GATEWAY_WAIT_TIMEOUT_SECONDS:60}
     connect-timeout-seconds: ${HERMES_GATEWAY_CONNECT_TIMEOUT_SECONDS:5}
     request-timeout-seconds: ${HERMES_GATEWAY_REQUEST_TIMEOUT_SECONDS:75}
+  bedrock:
+    enabled: ${BEDROCK_ENABLED:true}
+    region: ${BEDROCK_REGION:ap-northeast-2}
+    model-id: ${BEDROCK_MODEL_ID:apac.amazon.nova-micro-v1:0}
+    temperature: ${BEDROCK_TEMPERATURE:0.2}
+    top-p: ${BEDROCK_TOP_P:0.9}
+    max-output-tokens: ${BEDROCK_MAX_TOKENS:2048}
+    request-timeout-seconds: ${BEDROCK_REQUEST_TIMEOUT_SECONDS:60}
 
 banner:
   lock:
