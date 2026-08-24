@@ -1,5 +1,6 @@
 package com.fairing.fairplay.ai.service;
 
+import com.fairing.fairplay.ai.client.BedrockLlmClient;
 import com.fairing.fairplay.ai.client.GoogleGeminiClient;
 import com.fairing.fairplay.ai.client.HermesGatewayClient;
 import com.fairing.fairplay.ai.client.LlmClient;
@@ -11,28 +12,38 @@ import org.springframework.stereotype.Component;
 public class LlmRouter {
 
     private final LlmProperties props;
-    private final GoogleGeminiClient gemini;
-    private OpenAiClient openai; // 지연 초기화
-    private HermesGatewayClient hermes; // 지연 초기화
+    private volatile GoogleGeminiClient gemini;
+    private volatile OpenAiClient openai; // 지연 초기화
+    private volatile HermesGatewayClient hermes; // 지연 초기화
+    private volatile BedrockLlmClient bedrock; // 지연 초기화
 
     public LlmRouter(LlmProperties props) {
         this.props = props;
-        this.gemini = new GoogleGeminiClient(props);
-        if (props.getOpenaiApiKey() != null && !props.getOpenaiApiKey().isBlank()) {
-            try { this.openai = new OpenAiClient(props); } catch (Exception ignored) {}
-        }
     }
 
-    public LlmClient pick(String override) {
+    public synchronized LlmClient pick(String override) {
         String provider = (override != null && !override.isBlank()) ? override : props.getProvider();
-        if ("OPENAI".equalsIgnoreCase(provider)) {
-            if (openai == null) openai = new OpenAiClient(props);
-            return openai;
+        if (provider == null || provider.isBlank()) {
+            throw new IllegalArgumentException("LLM provider must be configured.");
         }
-        if ("HERMES".equalsIgnoreCase(provider) || "HERMES_REDIS_GATEWAY".equalsIgnoreCase(provider)) {
-            if (hermes == null) hermes = new HermesGatewayClient(props);
-            return hermes;
-        }
-        return gemini;
+        return switch (provider.trim().toUpperCase(java.util.Locale.ROOT)) {
+            case "OPENAI" -> {
+                if (openai == null) openai = new OpenAiClient(props);
+                yield openai;
+            }
+            case "HERMES", "HERMES_REDIS_GATEWAY" -> {
+                if (hermes == null) hermes = new HermesGatewayClient(props);
+                yield hermes;
+            }
+            case "BEDROCK", "AWS_BEDROCK" -> {
+                if (bedrock == null) bedrock = new BedrockLlmClient(props);
+                yield bedrock;
+            }
+            case "GEMINI" -> {
+                if (gemini == null) gemini = new GoogleGeminiClient(props);
+                yield gemini;
+            }
+            default -> throw new IllegalArgumentException("Unsupported LLM provider: " + provider);
+        };
     }
 }
