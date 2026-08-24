@@ -130,14 +130,21 @@ jobs:
     env:
       MINI_SERVER_DEPLOY_PATH: ${{ secrets.MINI_SERVER_DEPLOY_PATH || '/home/song/Desktop/fairplay-deploy' }}
       FAIRPLAY_BACKEND_IMAGE: songchih/fairplay-backend:${{ github.sha }}
+      DEPLOY_SOURCE_DIR: deploy-src-${{ github.run_id }}
     steps:
       - name: Checkout deploy files
         uses: actions/checkout@v4
+        with:
+          # Self-hosted runner root can retain root-owned Gradle caches from older jobs.
+          # A per-run path keeps deployment checkout isolated from that stale workspace state.
+          path: ${{ env.DEPLOY_SOURCE_DIR }}
 
       - name: Stage compose and nginx config
         run: |
           mkdir -p "${MINI_SERVER_DEPLOY_PATH}"
-          cp deploy/docker-compose.miniserver.yml deploy/nginx.miniserver.conf "${MINI_SERVER_DEPLOY_PATH}/"
+          cp "${DEPLOY_SOURCE_DIR}/deploy/docker-compose.miniserver.yml" \
+            "${DEPLOY_SOURCE_DIR}/deploy/nginx.miniserver.conf" \
+            "${MINI_SERVER_DEPLOY_PATH}/"
 
       - name: Deploy on mini server
         run: |
